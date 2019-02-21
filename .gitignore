@@ -1,0 +1,8 @@
+*.pyc
+/htmlcov/
+/junit/
+/.coverage
+/coverage.xml
+/StrainMap.egg-info/
+/pip-wheel-metadata/
+/.eggs/
