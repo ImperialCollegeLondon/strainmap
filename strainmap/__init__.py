@@ -1,2 +1,1 @@
-def inc(x: float) -> float:
-    return x + 1
+from .main_window import MainWindow  # noqa: F403,F401
