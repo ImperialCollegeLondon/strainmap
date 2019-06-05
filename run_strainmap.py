@@ -1,4 +1,3 @@
 import strainmap
 
-sm = strainmap.MainWindow()
-sm.mainloop()
+strainmap.MainWindow().mainloop()

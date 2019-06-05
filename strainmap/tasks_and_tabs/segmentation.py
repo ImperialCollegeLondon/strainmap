@@ -1,7 +1,7 @@
 import tkinter as tk
 from tkinter import ttk
 
-from ..task_base import TaskBase, register_task
+from ..base_classes import TaskBase, register_task
 
 
 @register_task

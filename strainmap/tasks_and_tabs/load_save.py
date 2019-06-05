@@ -1,19 +1,16 @@
-import glob
 import tkinter as tk
 import tkinter.filedialog
 from pathlib import Path
 from tkinter import messagebox, ttk
 
-import pydicom
-
-from ..task_base import TaskBase, register_task
+from ..base_classes import TaskBase, register_task
 
 
 @register_task
 class LoadSave(TaskBase):
     def __init__(self, root):
 
-        super().__init__(root, button_text="Load/Save", button_image="save.gif")
+        super().__init__(root, button_text="Raw data", button_image="save.gif")
 
         self.series_types_var = tk.StringVar()
         self.bg_types_var = tk.StringVar()
@@ -137,10 +134,10 @@ class LoadSave(TaskBase):
 
     def skim_series_data(self):
 
-        self.data.series_filenames, self.data.series_types = self.skim_data()
-        self.data_folder.set(Path(self.data.series_filenames[0]).parent)
+        path = tk.filedialog.askdirectory()
+        values = sorted(self.data.fill_data_files(path).keys())
+        self.data_folder.set(Path(path).parent)
 
-        values = sorted(self.data.series_types.keys())
         self.series_types_combobox["values"] = values
         if len(values) > 0:
             self.series_types_var.set(values[0])
@@ -153,24 +150,9 @@ class LoadSave(TaskBase):
 
     def skim_bg_data(self):
 
-        self.data.bg_filenames, self.data.bg_series_types = self.skim_data()
-        self.bg_folder.set(Path(self.data.bg_filenames[0]).parent)
-
-    @staticmethod
-    def skim_data():
-
         path = tk.filedialog.askdirectory()
-        path = str(Path(path) / "*.dcm")
-
-        filenames = sorted(glob.glob(path))
-        series_types = {}
-        for f in filenames:
-            ds = pydicom.dcmread(f)
-
-            if ds.SeriesDescription not in series_types.keys():
-                series_types[ds.SeriesDescription] = Path(f).name[3:5]
-
-        return filenames, series_types
+        self.data.fill_bg_files(path)
+        self.bg_folder.set(Path(path).parent)
 
     def bg_subtraction_selected(self, event):
 

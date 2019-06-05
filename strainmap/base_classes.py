@@ -14,15 +14,17 @@ somewhere else.
 import tkinter as tk
 from abc import ABC, abstractmethod
 from tkinter import ttk
-from typing import Callable, Optional, Text, Type
+from typing import Optional, Text, Type
 
 from PIL import Image, ImageTk
 
-from .data_structures import StrainMapData
 from .defaults import ICONS_DIRECTORY
 
 REGISTERED_TASKS = set()
 """ Registry of available tasks. """
+
+REGISTERED_TABS = set()
+""" Registry of available tabs. """
 
 
 class TaskBase(ABC):
@@ -92,3 +94,42 @@ def register_task(task_class: Type[TaskBase]) -> TaskBase:
     REGISTERED_TASKS.add(task_class)
 
     return task_class
+
+
+class TabBase(ABC):
+    """ Base class for all the tabs. """
+
+    pre_requisites = set()
+
+    def __init__(self, root: tk.Tk, tab_text: Optional[Text] = None):
+        self.data = root.data
+
+        self.unlock_achievement = lambda x: root.unlock_achievement(x)
+        self.lock_achievement = lambda x: root.lock_achievement(x)
+
+        self.tab = ttk.Frame(master=root.outputs_frame)
+
+        existing_tabs = set(root.outputs_frame.tabs())
+        root.outputs_frame.add(self.tab, text=tab_text)
+        tab_id = list(set(root.outputs_frame.tabs()) - existing_tabs)[0]
+        self.forget_tab = lambda: root.outputs_frame.forget(tab_id)
+
+    @abstractmethod
+    def create_tab_contents(self):
+        """ Creates the contents of the tab. """
+        pass
+
+    def unload(self):
+        """ Unloads the tab by forgetting it from the Notebook. """
+        self.forget_tab()
+
+
+def register_tab(tab_class: Type[TabBase]) -> TabBase:
+    """Registers a task to make it available to SetrainMap. """
+
+    if not issubclass(tab_class, TabBase):
+        raise RuntimeError("A tab must inherit from TabBase")
+
+    REGISTERED_TABS.add(tab_class)
+
+    return tab_class
