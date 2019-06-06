@@ -1,13 +1,13 @@
 import tkinter as tk
 from tkinter import ttk
 
-from ..base_classes import TaskBase, register_task
+from ..base_classes import TaskBase, register_task, DataLoaded
 
 
 @register_task
 class Segmentation(TaskBase):
 
-    pre_requisites = {"data_loaded"}
+    pre_requisites = {DataLoaded}
 
     def __init__(self, root):
 

@@ -2,13 +2,13 @@ import tkinter as tk
 from pathlib import Path
 from tkinter import ttk
 
-from ..base_classes import TabBase, register_tab
+from ..base_classes import TabBase, register_tab, DataLoaded
 
 
 @register_tab
 class DICOMData(TabBase):
 
-    pre_requisites = {"data_loaded"}
+    pre_requisites = {DataLoaded}
 
     def __init__(self, root):
 

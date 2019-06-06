@@ -4,7 +4,7 @@ import tkinter as tk
 from tkinter import ttk
 from typing import Optional, Text
 
-from .base_classes import REGISTERED_TABS, REGISTERED_TASKS
+from .base_classes import REGISTERED_TABS, REGISTERED_TASKS, REGISTERED_ACHIEVEMENTS
 from .data_structures import StrainMapData
 from .tasks_and_tabs import *  # noqa: F403,F401
 
@@ -42,6 +42,10 @@ class MainWindow(tk.Tk):
         self.loaded_tabs = {}
         self.achievements = set()
 
+        for a in REGISTERED_ACHIEVEMENTS:
+            self.bind(a.LOCK, lambda _, ach=a: self.lock_achievement(ach))
+            self.bind(a.UNLOCK, lambda _, ach=a: self.unlock_achievement(ach))
+
         self.unlock_achievement()
 
     def mainloop(self, *args):
@@ -67,7 +71,7 @@ class MainWindow(tk.Tk):
         self.closed = True
         self.quit()
 
-    def unlock_achievement(self, achievement: Optional[Text] = None):
+    def unlock_achievement(self, achievement=None):
         """ Adds achievements to the registry and runs the tasks loader. """
         if achievement is not None:
             self.achievements.add(achievement)
@@ -80,7 +84,7 @@ class MainWindow(tk.Tk):
             if len(tab.pre_requisites - self.achievements) == 0:
                 self.add_tab(tab)
 
-    def lock_achievement(self, achievement: Text):
+    def lock_achievement(self, achievement):
         """ Removes achievements from the registry and updates loaded tasks and tabs."""
         self.achievements.discard(achievement)
 

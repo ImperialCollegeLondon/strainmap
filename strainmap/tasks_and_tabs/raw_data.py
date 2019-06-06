@@ -3,11 +3,11 @@ import tkinter.filedialog
 from pathlib import Path
 from tkinter import messagebox, ttk
 
-from ..base_classes import TaskBase, register_task
+from ..base_classes import TaskBase, register_task, DataLoaded
 
 
 @register_task
-class LoadSave(TaskBase):
+class RawData(TaskBase):
     def __init__(self, root):
 
         super().__init__(root, button_text="Raw data", button_image="save.gif")
@@ -142,11 +142,11 @@ class LoadSave(TaskBase):
         if len(values) > 0:
             self.series_types_var.set(values[0])
             self.series_types_combobox["state"] = "enable"
-            self.unlock_achievement("data_loaded")
+            self.series_types_combobox.event_generate(DataLoaded.UNLOCK)
         else:
             self.series_types_var.set("")
             self.series_types_combobox["state"] = "disabled"
-            self.lock_achievement("data_loaded")
+            self.series_types_combobox.event_generate(DataLoaded.LOCK)
 
     def skim_bg_data(self):
 
@@ -190,4 +190,4 @@ class LoadSave(TaskBase):
             self.bg_folder.set("")
             self.output_file.set("")
             self.phantom_button["state"] = "disabled"
-            self.lock_achievement("data_loaded")
+            self.series_types_combobox.event_generate(DataLoaded.LOCK)

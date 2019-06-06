@@ -26,6 +26,9 @@ REGISTERED_TASKS = set()
 REGISTERED_TABS = set()
 """ Registry of available tabs. """
 
+REGISTERED_ACHIEVEMENTS = []
+""" Registry of available achievements. """
+
 
 class TaskBase(ABC):
     """ Base class for all the tasks. """
@@ -40,8 +43,8 @@ class TaskBase(ABC):
     ):
         self.data = root.data
 
-        self.unlock_achievement = lambda x: root.unlock_achievement(x)
-        self.lock_achievement = lambda x: root.lock_achievement(x)
+        # self.unlock_achievement = lambda x: root.unlock_achievement(x)
+        # self.lock_achievement = lambda x: root.lock_achievement(x)
 
         self.image = None
         if button_image is not None:
@@ -133,3 +136,27 @@ def register_tab(tab_class: Type[TabBase]) -> TabBase:
     REGISTERED_TABS.add(tab_class)
 
     return tab_class
+
+
+def register_achievement(achievement):
+
+    if achievement.__name__ in REGISTERED_ACHIEVEMENTS:
+        raise RuntimeError(f"An achievement named {achievement.__name__} already exist!")
+
+    ach = achievement()
+    ach.LOCK = f"<<Not{achievement.__name__}>>"
+    ach.UNLOCK = f"<<{achievement.__name__}>>"
+
+    REGISTERED_ACHIEVEMENTS.append(ach)
+
+    return ach
+
+
+@register_achievement
+class DataLoaded:
+    pass
+
+
+@register_achievement
+class SegmentationCompleted:
+    pass

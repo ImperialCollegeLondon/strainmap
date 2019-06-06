@@ -5,13 +5,13 @@ import matplotlib.animation as animation
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.figure import Figure
 
-from ..base_classes import TabBase, register_tab
+from ..base_classes import TabBase, register_tab, DataLoaded
 
 
 @register_tab
 class Animation(TabBase):
 
-    pre_requisites = {"data_loaded"}
+    pre_requisites = {DataLoaded}
 
     def __init__(self, root):
 
