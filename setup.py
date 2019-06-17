@@ -8,5 +8,5 @@ setup(
     author_email="rcs-support@imperial.ac.uk",
     setup_requires=["pytest-runner"],
     install_requires=["pillow", "pydicom", "matplotlib"],
-    tests_require=["pytest-cov", "pytest-flake8", "pytest-mypy"],
+    tests_require=["pytest", "pytest-cov", "pytest-flake8", "pytest-mypy"],
 )
