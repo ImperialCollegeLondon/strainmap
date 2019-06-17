@@ -2,43 +2,42 @@ import tkinter as tk
 from pathlib import Path
 from tkinter import ttk
 
-from ..base_classes import TabBase, register_tab, DataLoaded
 
+class DICOMData(ttk.Frame):
+    def __init__(self, root, data):
 
-@register_tab
-class DICOMData(TabBase):
+        super().__init__(root)
 
-    pre_requisites = {DataLoaded}
+        self.data = data
 
-    def __init__(self, root):
-
-        super().__init__(root, tab_text="DICOM Data")
-
-        first_series = sorted(self.data.data_files.keys())[0]
-        self.series_types_var = tk.StringVar(value=first_series)
+        self.series_types_var = tk.StringVar()
         self.variables_var = tk.StringVar(value="MagZ")
         self.files_box = None
+
+        self.create_tab_contents()
 
     def create_tab_contents(self):
         """ Creates the contents of the tab. """
         for i in range(3):
-            self.tab.columnconfigure(i, weight=1)
-        self.tab.rowconfigure(1, weight=1)
+            self.columnconfigure(i, weight=1)
+        self.rowconfigure(1, weight=1)
 
-        series = ttk.Labelframe(self.tab, text="Available series:")
+        series = ttk.Labelframe(self, text="Available series:")
         series.grid(column=0, row=0, sticky=(tk.EW, tk.N), padx=5, pady=5)
         series.columnconfigure(0, weight=1)
 
+        values = sorted(self.data.data_files.keys())
+        self.series_types_var.set(values[0])
         cbox1 = ttk.Combobox(
             master=series,
             textvariable=self.series_types_var,
-            values=sorted(self.data.data_files.keys()),
-            state="enable",
+            values=values,
+            state="readonly",
         )
         cbox1.grid(sticky=tk.NSEW, padx=5, pady=5)
         cbox1.bind("<<ComboboxSelected>>", self.update_files_box)
 
-        variable = ttk.Labelframe(self.tab, text="Select variable:")
+        variable = ttk.Labelframe(self, text="Select variable:")
         variable.grid(column=1, row=0, sticky=(tk.EW, tk.N), padx=5, pady=5)
         variable.columnconfigure(0, weight=1)
 
@@ -46,12 +45,12 @@ class DICOMData(TabBase):
             master=variable,
             textvariable=self.variables_var,
             values=["MagZ", "PhaseZ", "MagX", "PhaseX", "MagY", "PhaseY"],
-            state="enable",
+            state="readonly",
         )
         cbox2.grid(sticky=tk.NSEW, padx=5, pady=5)
         cbox2.bind("<<ComboboxSelected>>", self.update_files_box)
 
-        files = ttk.Labelframe(self.tab, text="Select variable:")
+        files = ttk.Labelframe(self, text="Select variable:")
         files.grid(column=2, row=0, sticky=(tk.EW, tk.N), padx=5, pady=5)
         files.columnconfigure(0, weight=1)
 
@@ -59,7 +58,7 @@ class DICOMData(TabBase):
         self.files_box.grid(sticky=tk.NSEW, padx=5, pady=5)
         self.files_box.bind("<<ComboboxSelected>>", self.update_tree)
 
-        tree = ttk.Frame(self.tab)
+        tree = ttk.Frame(self)
         tree.grid(column=0, row=1, columnspan=3, sticky=tk.NSEW, padx=5, pady=5)
         tree.columnconfigure(0, weight=1)
         tree.rowconfigure(0, weight=1)
@@ -87,9 +86,9 @@ class DICOMData(TabBase):
         variable = self.variables_var.get()
         idx = self.files_box.current()
 
-        data = self.data.get_DICOM_file(series, variable, idx)
-        for i, d in enumerate(data.dir()):
-            self.treeview.insert("", tk.END, values=(d, getattr(data, d)))
+        data = self.data.read_dicom_file_tags(series, variable, idx)
+        for d in data:
+            self.treeview.insert("", tk.END, values=(d, data.get(d)))
 
     def update_files_box(self, *args):
         """ Updates the contents of the files combobox when others changes. """

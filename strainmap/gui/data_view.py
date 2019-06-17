@@ -3,22 +3,24 @@ import tkinter.filedialog
 from pathlib import Path
 from tkinter import messagebox, ttk
 
-from ..base_classes import TaskBase, register_task, DataLoaded
+from .base_classes import ViewBase, register_view
 
 
-@register_task
-class RawData(TaskBase):
-    def __init__(self, root):
+@register_view
+class DataView(ViewBase):
 
-        super().__init__(root, button_text="Raw data", button_image="save.gif")
+    actions = ["load_data", "clear_data"]
 
-        self.series_types_var = tk.StringVar()
-        self.bg_types_var = tk.StringVar()
+    def __init__(self, root, actions):
+
+        super().__init__(root, actions, button_text="Data", button_image="save.gif")
+
         self.output_file = tk.StringVar()
         self.data_folder = tk.StringVar()
         self.bg_folder = tk.StringVar()
-        self.series_types_combobox = None
-        self.phantom_button = None
+        self.notebook = None
+
+        self.create_controls()
 
     def create_controls(self) -> None:
 
@@ -33,48 +35,7 @@ class RawData(TaskBase):
             master=new_series,
             text="Choose data folder",
             padding=5,
-            command=self.skim_series_data,
-        ).grid(sticky=tk.NSEW, padx=5, pady=5)
-
-        ttk.Label(master=new_series, text="Available series:").grid(
-            sticky=tk.NSEW, padx=5
-        )
-
-        self.series_types_combobox = ttk.Combobox(
-            master=new_series,
-            textvariable=self.series_types_var,
-            values=[],
-            state="disabled",
-        )
-        self.series_types_combobox.grid(column=0, sticky=tk.NSEW, padx=5, pady=5)
-
-        ttk.Label(master=new_series, text="Background subtraction method:").grid(
-            sticky=tk.NSEW, padx=5
-        )
-        cbox = ttk.Combobox(
-            master=new_series,
-            textvariable=self.bg_types_var,
-            values=["None", "Phantom", "Method"],
-            state="readonly",
-        )
-        cbox.grid(sticky=tk.NSEW, padx=5, pady=5)
-        cbox.bind("<<ComboboxSelected>>", self.bg_subtraction_selected)
-        cbox.set("None")
-
-        self.phantom_button = ttk.Button(
-            master=new_series,
-            text="Choose background folder",
-            padding=5,
-            command=self.skim_bg_data,
-            state="disabled",
-        )
-        self.phantom_button.grid(sticky=tk.NSEW, padx=5, pady=5)
-
-        ttk.Button(
-            master=new_series,
-            text="Choose output file",
-            padding=5,
-            command=self.select_output_file,
+            command=self.load_data,
         ).grid(sticky=tk.NSEW, padx=5, pady=5)
 
         # Resume analysis widgets -------
@@ -88,6 +49,13 @@ class RawData(TaskBase):
             padding=5,
             command=self.open_existing_file,
         ).grid(column=0, row=0, sticky=tk.NSEW, padx=5, pady=5)
+
+        ttk.Button(
+            master=new_series,
+            text="Choose output file",
+            padding=5,
+            command=self.select_output_file,
+        ).grid(sticky=tk.NSEW, padx=5, pady=5)
 
         # Current data folder widgets -----------
         info = ttk.Labelframe(self.control, text="Current data folder:")
@@ -130,37 +98,12 @@ class RawData(TaskBase):
             command=self.clear_data,
         ).grid(sticky=(tk.EW, tk.S), padx=5, pady=5)
 
-        self.controls_created = True
+    def load_data(self):
 
-    def skim_series_data(self):
-
-        path = tk.filedialog.askdirectory()
-        values = sorted(self.data.fill_data_files(path).keys())
-        self.data_folder.set(Path(path).parent)
-
-        self.series_types_combobox["values"] = values
-        if len(values) > 0:
-            self.series_types_var.set(values[0])
-            self.series_types_combobox["state"] = "enable"
-            self.series_types_combobox.event_generate(DataLoaded.UNLOCK)
-        else:
-            self.series_types_var.set("")
-            self.series_types_combobox["state"] = "disabled"
-            self.series_types_combobox.event_generate(DataLoaded.LOCK)
-
-    def skim_bg_data(self):
-
-        path = tk.filedialog.askdirectory()
-        self.data.fill_bg_files(path)
-        self.bg_folder.set(Path(path).parent)
-
-    def bg_subtraction_selected(self, event):
-
-        bg_type = event.widget.get()
-        if bg_type == "Phantom":
-            self.phantom_button["state"] = "enable"
-        else:
-            self.phantom_button["state"] = "disabled"
+        path = tk.filedialog.askdirectory(title="Select DATA directory")
+        if path != "":
+            self.actions.load_data(data_files=path)
+            self.data_folder.set(Path(path).parent)
 
     def open_existing_file(self):
         """ Opens an existing StrainMap file."""
@@ -180,14 +123,35 @@ class RawData(TaskBase):
             "This will erase all data from memory\nDo you want to continue?",
             icon="warning",
         )
-
         if answer:
-            self.data.clear()
-            self.series_types_combobox["values"] = []
-            self.series_types_var.set("")
-            self.bg_types_var.set("None")
-            self.data_folder.set("")
-            self.bg_folder.set("")
-            self.output_file.set("")
-            self.phantom_button["state"] = "disabled"
-            self.series_types_combobox.event_generate(DataLoaded.LOCK)
+            self.actions.clear_data()
+
+    def create_tabs(self):
+        """ Loads the child tabs that are available after loading the data."""
+        from .animate_beating import Animation
+        from .view_dicom_data import DICOMData
+
+        self.notebook = ttk.Notebook(self.visualise)
+        self.notebook.grid(sticky=tk.NSEW)
+        self.notebook.columnconfigure(0, weight=1)
+        self.notebook.rowconfigure(0, weight=1)
+
+        anim = Animation(self.notebook, self.data)
+        dicom = DICOMData(self.notebook, self.data)
+
+        self.notebook.add(anim, text="Animation")
+        self.notebook.add(dicom, text="DICOM Data")
+
+    def update_widgets(self):
+        """ Updates widgets after an update in the data variable. """
+        self.create_tabs()
+
+    def clear_widgets(self):
+        """ Clear widgets after removing the data. """
+        self.data_folder.set("")
+        self.bg_folder.set("")
+        self.output_file.set("")
+
+        if self.notebook:
+            self.notebook.destroy()
+            self.notebook = None

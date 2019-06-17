@@ -5,46 +5,44 @@ import matplotlib.animation as animation
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.figure import Figure
 
-from ..base_classes import TabBase, register_tab, DataLoaded
 
+class Animation(ttk.Frame):
+    def __init__(self, root, data):
 
-@register_tab
-class Animation(TabBase):
+        super().__init__(root)
 
-    pre_requisites = {DataLoaded}
-
-    def __init__(self, root):
-
-        super().__init__(root, tab_text="Animation")
+        self.data = data
 
         self.fig = Figure()
         self.ax = self.fig.add_subplot()
 
-        self.series_types_var = tk.StringVar(
-            value=sorted(self.data.data_files.keys())[0]
-        )
+        self.series_types_var = tk.StringVar()
         self.variables_var = tk.StringVar(value="MagZ")
         self.run_animation_button = None
         self.anim = False
 
+        self.create_tab_contents()
+
     def create_tab_contents(self):
         """ Creates the contents of the tab. """
         for i in range(3):
-            self.tab.columnconfigure(i, weight=1)
-        self.tab.rowconfigure(1, weight=1)
+            self.columnconfigure(i, weight=1)
+        self.rowconfigure(1, weight=1)
 
-        series = ttk.Labelframe(self.tab, text="Available series:")
+        series = ttk.Labelframe(self, text="Select series:")
         series.grid(column=0, row=0, sticky=(tk.EW, tk.N), padx=5, pady=5)
         series.columnconfigure(0, weight=1)
 
+        values = sorted(self.data.data_files.keys())
+        self.series_types_var.set(values[0])
         ttk.Combobox(
             master=series,
             textvariable=self.series_types_var,
-            values=sorted(self.data.data_files.keys()),
-            state="enable",
-        ).grid(sticky=tk.NSEW, padx=5, pady=5)
+            values=values,
+            state="readonly",
+        ).grid(column=0, sticky=tk.NSEW, padx=5, pady=5)
 
-        variable = ttk.Labelframe(self.tab, text="Select variable:")
+        variable = ttk.Labelframe(self, text="Select variable:")
         variable.grid(column=1, row=0, sticky=(tk.EW, tk.N), padx=5, pady=5)
         variable.columnconfigure(0, weight=1)
 
@@ -56,7 +54,7 @@ class Animation(TabBase):
         ).grid(sticky=tk.NSEW, padx=5, pady=5)
 
         self.run_animation_button = ttk.Button(
-            master=self.tab,
+            master=self,
             text="Launch animation",
             padding=5,
             command=self.launch_animation,
@@ -64,7 +62,7 @@ class Animation(TabBase):
         )
         self.run_animation_button.grid(column=2, row=0, sticky=tk.NSEW, padx=5, pady=5)
 
-        canvas = FigureCanvasTkAgg(self.fig, master=self.tab)
+        canvas = FigureCanvasTkAgg(self.fig, master=self)
         canvas.draw()
         canvas.get_tk_widget().grid(
             column=0, row=1, columnspan=3, sticky=tk.NSEW, padx=5, pady=5
