@@ -1,1 +1,1 @@
-from .main_window import MainWindow  # noqa: F403,F401
+from .main import StrainMap  # noqa: F403,F401

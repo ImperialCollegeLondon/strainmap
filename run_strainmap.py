@@ -1,3 +1,3 @@
 import strainmap
 
-strainmap.MainWindow().mainloop()
+strainmap.StrainMap().run()
