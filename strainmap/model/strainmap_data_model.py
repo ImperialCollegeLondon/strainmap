@@ -32,21 +32,23 @@ def factory(
     If there is no existing object, a new one will be created from the data_files and
     the bg_files.
     """
+    df: Union[Mapping, None] = None
+    bg: Union[Mapping, None] = None
     if data_files:
-        data_files = read_dicom_directory_tree(data_files)
+        df = read_dicom_directory_tree(data_files)
 
     if bg_files:
-        bg_files = read_dicom_directory_tree(bg_files)
+        bg = read_dicom_directory_tree(bg_files)
 
     if strainmap_file is not None:
         # TODO Placeholder for loading objects from HDF5 and Matlab files
         pass
 
     if isinstance(data, StrainMapData):
-        data.data_files = data_files if data_files else data.data_files
-        data.bg_files = bg_files if bg_files else data.bg_files
-    elif data_files:
-        data = StrainMapData(data_files=data_files, bg_files=bg_files)
+        data.data_files = df if df else data.data_files
+        data.bg_files = bg if bg else data.bg_files
+    elif df:
+        data = StrainMapData(data_files=df, bg_files=bg)
     else:
         raise RuntimeError(
             "Insufficient information to create or update a StrainMapData object."

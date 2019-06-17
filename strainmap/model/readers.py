@@ -2,7 +2,7 @@ import glob
 from collections import OrderedDict
 from copy import deepcopy
 from pathlib import Path
-from typing import List, Mapping, Optional, Text, Union
+from typing import List, Mapping, Optional, Text, Union, Dict
 
 import pydicom
 
@@ -15,14 +15,14 @@ def read_dicom_directory_tree(path: Union[Path, Text]) -> Mapping:
     path = str(Path(path) / "*.dcm")
     filenames = sorted(glob.glob(path))
 
-    data_files = {}
-    var_idx = {}
+    data_files: OrderedDict = OrderedDict()
+    var_idx: Dict = {}
     for f in filenames:
         ds = pydicom.dcmread(f)
         assert "SeriesDescription" in ds.dir()
 
         if ds.SeriesDescription not in data_files.keys():
-            data_files[ds.SeriesDescription] = {}
+            data_files[ds.SeriesDescription] = OrderedDict()
             var_idx = {}
             for var in VAR_OFFSET:
                 data_files[ds.SeriesDescription][var] = []
@@ -51,7 +51,7 @@ def read_dicom_file_tags(
 
     data = pydicom.dcmread(filename)
 
-    data_dict = OrderedDict()
+    data_dict: OrderedDict = OrderedDict()
     for i, d in enumerate(data.dir()):
         data_dict[d] = getattr(data, d)
 

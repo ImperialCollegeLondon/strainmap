@@ -10,7 +10,7 @@ from collections import namedtuple
 from enum import Flag, auto
 from pathlib import Path
 from tkinter import ttk
-from typing import Mapping, Optional, Text, Type
+from typing import Mapping, Optional, Text, Type, Tuple, Any, List
 
 from PIL import Image, ImageTk
 
@@ -49,7 +49,7 @@ class ViewBase(ABC, ttk.Frame):
     """
 
     requisites = Requisites.NONE
-    actions = []
+    actions: Tuple[Any, ...] = ()
 
     def __init__(
         self,
@@ -142,7 +142,7 @@ class MainWindow(tk.Tk):
         self.button_frame.grid_propagate(flag=False)
 
     @property
-    def views(self):
+    def views(self) -> List[ViewBase]:
         return [v for v in self.winfo_children() if isinstance(v, ViewBase)]
 
     @property
@@ -161,7 +161,7 @@ class MainWindow(tk.Tk):
         """ Removes an existing view from the main window."""
         if view in self.views:
             view.button.destroy()
-            view.destroy()
+            view.destroy()  # type: ignore
 
     def mainloop(self, *args):
         """ We initiate the main loop.
