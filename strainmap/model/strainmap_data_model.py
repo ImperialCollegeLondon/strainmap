@@ -4,6 +4,10 @@ from typing import Mapping, Optional, Text, Union
 from .readers import read_dicom_directory_tree, read_dicom_file_tags, read_images
 
 
+class StrainMapLoadError(Exception):
+    pass
+
+
 class StrainMapData(object):
     def __init__(self, data_files: Mapping, bg_files: Optional[Mapping] = None):
 
@@ -22,7 +26,7 @@ def factory(
     data_files: Union[Path, Text, None] = None,
     bg_files: Union[Path, Text, None] = None,
     strainmap_file: Union[Path, Text, None] = None,
-):
+) -> StrainMapData:
     """ Creates a new StrainMapData object or updates the data of an existing one.
 
     The exiting object might be passed as an argument or be loaded from an HDF5 or
@@ -32,8 +36,8 @@ def factory(
     If there is no existing object, a new one will be created from the data_files and
     the bg_files.
     """
-    df: Union[Mapping, None] = None
-    bg: Union[Mapping, None] = None
+    df: Optional[Mapping] = None
+    bg: Optional[Mapping] = None
     if data_files:
         df = read_dicom_directory_tree(data_files)
 
@@ -50,7 +54,7 @@ def factory(
     elif df:
         data = StrainMapData(data_files=df, bg_files=bg)
     else:
-        raise RuntimeError(
+        raise StrainMapLoadError(
             "Insufficient information to create or update a StrainMapData object."
         )
 
