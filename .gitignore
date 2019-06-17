@@ -1,4 +1,5 @@
 *.pyc
+
 /htmlcov/
 /junit/
 /.coverage
@@ -6,3 +7,10 @@
 /StrainMap.egg-info/
 /pip-wheel-metadata/
 /.eggs/
+/.mypy_cache/
+
+/tests/htmlcov/
+/tests/junit/
+/tests/.coverage
+/tests/coverage.xml
+

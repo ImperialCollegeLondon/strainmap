@@ -9,7 +9,7 @@ from .base_classes import ViewBase, register_view
 @register_view
 class DataView(ViewBase):
 
-    actions = ["load_data", "clear_data"]
+    actions = ("load_data", "clear_data")
 
     def __init__(self, root, actions):
 
