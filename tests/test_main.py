@@ -20,6 +20,8 @@ def test_unlock_lock(control_with_mock_window):
     control_with_mock_window.lock(Requisites.DATALOADED)
     assert control_with_mock_window.achieved == Requisites.NONE
 
+    control_with_mock_window.window.reset_mock()
+
 
 def test_select_actions(control_with_mock_window):
 
