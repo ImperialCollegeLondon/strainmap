@@ -28,7 +28,9 @@ def test_requisites():
 
 def test_view_base(main_window, empty_view):
 
-    empty = empty_view(main_window, {})
+    empty = empty_view(
+        main_window, {"all_good": lambda: True, "all_bad": lambda: False}
+    )
     empty.update_widgets = MagicMock()
     empty.clear_widgets = MagicMock()
 
@@ -41,3 +43,6 @@ def test_view_base(main_window, empty_view):
     assert empty.update_widgets.call_count == 1
     assert empty.clear_widgets.call_count == 1
     assert empty.data is None
+
+    assert empty.actions.all_good()
+    assert not empty.actions.all_bad()

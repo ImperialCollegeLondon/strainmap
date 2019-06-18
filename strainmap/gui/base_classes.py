@@ -59,9 +59,12 @@ class ViewBase(ABC, ttk.Frame):
         self.rowconfigure(0, weight=1)
         self.columnconfigure(1, weight=1)
 
-        self.image = None
         if button_image is not None:
-            self.image = ImageTk.PhotoImage(Image.open(ICONS_DIRECTORY / button_image))
+            self.image = Image.open(ICONS_DIRECTORY / button_image)
+        else:
+            self.image = Image.new("RGB", (80, 80))
+
+        self.image = ImageTk.PhotoImage(self.image)
 
         self.button = ttk.Button(
             master=root.button_frame,

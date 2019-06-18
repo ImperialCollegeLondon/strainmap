@@ -3,11 +3,20 @@ from unittest.mock import patch
 
 from pytest import fixture
 
+patch("tkinter.filedialog.askdirectory", lambda *x, **y: _dicom_data_path()).start()
+patch("tkinter.messagebox.askokcancel", lambda *x, **y: "ok").start()
+patch("tkinter.messagebox.showinfo", lambda *x, **y: "ok").start()
+
+
+def _dicom_data_path():
+    """ Returns the DICOM data path. """
+    return Path(__file__).parent / "data" / "SUB1"
+
 
 @fixture
 def dicom_data_path():
     """ Returns the DICOM data path. """
-    return Path(__file__).parent / "data" / "SUB1"
+    return _dicom_data_path()
 
 
 @fixture
@@ -33,11 +42,14 @@ def control_with_mock_window(MockWindow, registered_views):
     return StrainMap()
 
 
-@fixture
+@fixture(scope="session")
 def main_window():
     from strainmap.gui.base_classes import MainWindow
 
-    return MainWindow()
+    root = MainWindow()
+    root.withdraw()
+
+    return root
 
 
 @fixture
@@ -55,3 +67,11 @@ def empty_view():
             pass
 
     return TestView
+
+
+@fixture
+def data_view(main_window):
+    from strainmap.gui.data_view import DataView
+    from unittest.mock import MagicMock
+
+    return DataView(main_window, {"load_data": MagicMock(), "clear_data": MagicMock()})
