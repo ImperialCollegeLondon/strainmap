@@ -7,4 +7,4 @@
 /StrainMap.egg-info/
 /pip-wheel-metadata/
 /.eggs/
-/.mypy_cache/
+**/.mypy_cache/

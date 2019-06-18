@@ -7,6 +7,9 @@ from .actions import REGISTERED_ACTIONS
 class StrainMap(object):
     """ StrainMap main window."""
 
+    registered_views = REGISTERED_VIEWS
+    registered_actions = REGISTERED_ACTIONS
+
     def __init__(self):
 
         self.window = MainWindow()
@@ -22,7 +25,7 @@ class StrainMap(object):
         """ Adds requisites and loads views. """
         self.achieved = self.achieved | requisite
 
-        for view in REGISTERED_VIEWS:
+        for view in self.registered_views:
             if Requisites.check(self.achieved, view.requisites):
                 self.window.add(view, self.select_actions(view))
                 self.window.views[-1].data = self.data
@@ -39,7 +42,9 @@ class StrainMap(object):
         """ Selects the actions relevant for the view. """
         actions = {}
         for a in view.actions:
-            actions[a] = lambda act=a, **kwargs: REGISTERED_ACTIONS[act](self, **kwargs)
+            actions[a] = lambda act=a, **kwargs: self.registered_actions[act](
+                self, **kwargs
+            )
         return actions
 
     def update_views(self, data):
