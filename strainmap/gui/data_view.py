@@ -27,7 +27,9 @@ class DataView(ViewBase):
         self.control.columnconfigure(0, weight=1)
 
         # New series widgets -----------
-        new_series = ttk.Labelframe(self.control, text="New series analysis")
+        new_series = ttk.Labelframe(
+            self.control, name="newSeries", text="New series analysis"
+        )
         new_series.grid(sticky=(tk.EW, tk.N), padx=5, pady=10)
         new_series.columnconfigure(0, weight=1)
 
@@ -40,7 +42,9 @@ class DataView(ViewBase):
         ).grid(sticky=tk.NSEW, padx=5, pady=5)
 
         # Resume analysis widgets -------
-        resume = ttk.Labelframe(self.control, text="Resume analysis")
+        resume = ttk.Labelframe(
+            self.control, name="resumeFrame", text="Resume analysis"
+        )
         resume.grid(sticky=(tk.EW, tk.N), padx=5, pady=15)
         resume.columnconfigure(0, weight=1)
 
@@ -105,9 +109,10 @@ class DataView(ViewBase):
     def load_data(self):
 
         path = tk.filedialog.askdirectory(title="Select DATA directory")
+
         if path != "":
             self.actions.load_data(data_files=path)
-            self.data_folder.set(Path(path).parent)
+            self.data_folder.set(Path(path))
 
     def open_existing_file(self):
         """ Opens an existing StrainMap file."""
@@ -135,7 +140,7 @@ class DataView(ViewBase):
         from .animate_beating import Animation
         from .view_dicom_data import DICOMData
 
-        self.notebook = ttk.Notebook(self.visualise)
+        self.notebook = ttk.Notebook(self.visualise, name="notebook")
         self.notebook.grid(sticky=tk.NSEW)
         self.notebook.columnconfigure(0, weight=1)
         self.notebook.rowconfigure(0, weight=1)
