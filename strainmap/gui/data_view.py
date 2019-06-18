@@ -33,6 +33,7 @@ class DataView(ViewBase):
 
         ttk.Button(
             master=new_series,
+            name="chooseDataFolder",
             text="Choose data folder",
             padding=5,
             command=self.load_data,
@@ -45,6 +46,7 @@ class DataView(ViewBase):
 
         ttk.Button(
             master=resume,
+            name="openStrainMapFile",
             text="Open StrainMap file",
             padding=5,
             command=self.open_existing_file,
@@ -52,6 +54,7 @@ class DataView(ViewBase):
 
         ttk.Button(
             master=new_series,
+            name="chooseOutputFile",
             text="Choose output file",
             padding=5,
             command=self.select_output_file,
@@ -93,6 +96,7 @@ class DataView(ViewBase):
         # Clear data widget -------------
         ttk.Button(
             master=self.control,
+            name="clearAllData",
             text="Clear all data",
             padding=5,
             command=self.clear_data,

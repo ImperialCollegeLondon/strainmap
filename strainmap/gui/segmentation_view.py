@@ -5,7 +5,7 @@ from .base_classes import Requisites, ViewBase, register_view
 
 
 @register_view
-class Segmentation(ViewBase):
+class SegmentationView(ViewBase):
 
     requisites = Requisites.DATALOADED
 

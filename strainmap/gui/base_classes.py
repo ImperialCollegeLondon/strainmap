@@ -16,9 +16,6 @@ from PIL import Image, ImageTk
 
 ICONS_DIRECTORY = Path(__file__).parent / "icons"
 
-REGISTERED_VIEWS = []
-""" Registry of available views. """
-
 
 class Requisites(Flag):
     NONE = auto()
@@ -110,6 +107,10 @@ class ViewBase(ABC, ttk.Frame):
     def clear_widgets(self):
         """ Clear widgets after removing the data. """
         pass
+
+
+REGISTERED_VIEWS: List[Type[ViewBase]] = []
+""" Registry of available views. """
 
 
 def register_view(view: Type[ViewBase]) -> Type[ViewBase]:

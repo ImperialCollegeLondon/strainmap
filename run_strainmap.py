@@ -1,3 +1,3 @@
-import strainmap
+from strainmap import main
 
-strainmap.StrainMap().run()
+main.StrainMap().run()
