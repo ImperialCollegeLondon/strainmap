@@ -22,7 +22,7 @@ class DICOMData(ttk.Frame):
             self.columnconfigure(i, weight=1)
         self.rowconfigure(1, weight=1)
 
-        series = ttk.Labelframe(self, text="Available series:")
+        series = ttk.Labelframe(self, text="Available series:", name="series")
         series.grid(column=0, row=0, sticky=(tk.EW, tk.N), padx=5, pady=5)
         series.columnconfigure(0, weight=1)
 
@@ -30,6 +30,7 @@ class DICOMData(ttk.Frame):
         self.series_types_var.set(values[0])
         cbox1 = ttk.Combobox(
             master=series,
+            name="seriesBox",
             textvariable=self.series_types_var,
             values=values,
             state="readonly",
@@ -37,12 +38,13 @@ class DICOMData(ttk.Frame):
         cbox1.grid(sticky=tk.NSEW, padx=5, pady=5)
         cbox1.bind("<<ComboboxSelected>>", self.update_files_box)
 
-        variable = ttk.Labelframe(self, text="Select variable:")
+        variable = ttk.Labelframe(self, text="Select variable:", name="variables")
         variable.grid(column=1, row=0, sticky=(tk.EW, tk.N), padx=5, pady=5)
         variable.columnconfigure(0, weight=1)
 
         cbox2 = ttk.Combobox(
             master=variable,
+            name="variablesBox",
             textvariable=self.variables_var,
             values=["MagZ", "PhaseZ", "MagX", "PhaseX", "MagY", "PhaseY"],
             state="readonly",
@@ -50,11 +52,13 @@ class DICOMData(ttk.Frame):
         cbox2.grid(sticky=tk.NSEW, padx=5, pady=5)
         cbox2.bind("<<ComboboxSelected>>", self.update_files_box)
 
-        files = ttk.Labelframe(self, text="Select variable:")
+        files = ttk.Labelframe(self, text="Select file:", name="files")
         files.grid(column=2, row=0, sticky=(tk.EW, tk.N), padx=5, pady=5)
         files.columnconfigure(0, weight=1)
 
-        self.files_box = ttk.Combobox(master=files, values=[], state="enable")
+        self.files_box = ttk.Combobox(
+            master=files, name="filesBox", values=[], state="enable"
+        )
         self.files_box.grid(sticky=tk.NSEW, padx=5, pady=5)
         self.files_box.bind("<<ComboboxSelected>>", self.update_tree)
 
