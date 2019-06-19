@@ -13,13 +13,21 @@ def _dicom_data_path():
     return Path(__file__).parent / "data" / "SUB1"
 
 
-@fixture
+@fixture(scope="session")
 def dicom_data_path():
     """ Returns the DICOM data path. """
     return _dicom_data_path()
 
 
-@fixture
+@fixture(scope="session")
+def strainmap_data(dicom_data_path):
+    """ Returns the DICOM data path. """
+    from strainmap.model.strainmap_data_model import factory
+
+    return factory(data_files=dicom_data_path)
+
+
+@fixture(scope="session")
 def dicom_bg_data_path():
     """ Returns the DICOM background data path. """
     return Path(__file__).parent / "data" / "SUB1_BG"

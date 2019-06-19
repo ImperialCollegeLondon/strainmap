@@ -15,9 +15,8 @@ class DataView(ViewBase):
 
         super().__init__(root, actions, button_text="Data", button_image="save.gif")
 
-        self.output_file = tk.StringVar()
         self.data_folder = tk.StringVar()
-        self.bg_folder = tk.StringVar()
+        self.output_file = tk.StringVar()
         self.notebook = None
 
         self.create_controls()
@@ -26,42 +25,29 @@ class DataView(ViewBase):
 
         self.control.columnconfigure(0, weight=1)
 
-        # New series widgets -----------
-        new_series = ttk.Labelframe(
-            self.control, name="newSeries", text="New series analysis"
-        )
-        new_series.grid(sticky=(tk.EW, tk.N), padx=5, pady=10)
-        new_series.columnconfigure(0, weight=1)
-
         ttk.Button(
-            master=new_series,
+            master=self.control,
             name="chooseDataFolder",
-            text="Choose data folder",
+            text="New analysis from data folder",
             padding=5,
             command=self.load_data,
         ).grid(sticky=tk.NSEW, padx=5, pady=5)
 
-        # Resume analysis widgets -------
-        resume = ttk.Labelframe(
-            self.control, name="resumeFrame", text="Resume analysis"
-        )
-        resume.grid(sticky=(tk.EW, tk.N), padx=5, pady=15)
-        resume.columnconfigure(0, weight=1)
-
         ttk.Button(
-            master=resume,
+            master=self.control,
             name="openStrainMapFile",
-            text="Open StrainMap file",
+            text="Resume analysis from StrainMap file",
             padding=5,
             command=self.open_existing_file,
-        ).grid(column=0, row=0, sticky=tk.NSEW, padx=5, pady=5)
+        ).grid(sticky=tk.NSEW, padx=5, pady=5)
 
         ttk.Button(
-            master=new_series,
+            master=self.control,
             name="chooseOutputFile",
-            text="Choose output file",
+            text="Save analysis as...",
             padding=5,
             command=self.select_output_file,
+            state="disabled",
         ).grid(sticky=tk.NSEW, padx=5, pady=5)
 
         # Current data folder widgets -----------
@@ -74,15 +60,6 @@ class DataView(ViewBase):
             textvariable=self.data_folder,
             state="disabled",
             justify="center",
-        ).grid(sticky=tk.NSEW, padx=5)
-
-        # Current background folder widgets -----------
-        info = ttk.Labelframe(self.control, text="Current background folder:")
-        info.grid(sticky=(tk.EW, tk.N), padx=5, pady=5)
-        info.columnconfigure(0, weight=1)
-
-        ttk.Entry(
-            master=info, textvariable=self.bg_folder, state="disabled", justify="center"
         ).grid(sticky=tk.NSEW, padx=5)
 
         # Current output file widgets -----------
@@ -104,7 +81,7 @@ class DataView(ViewBase):
             text="Clear all data",
             padding=5,
             command=self.clear_data,
-        ).grid(sticky=(tk.EW, tk.S), padx=5, pady=5)
+        ).grid(sticky=tk.NSEW, padx=5, pady=5)
 
     def load_data(self):
 
@@ -113,16 +90,6 @@ class DataView(ViewBase):
         if path != "":
             self.actions.load_data(data_files=path)
             self.data_folder.set(Path(path))
-
-    def open_existing_file(self):
-        """ Opens an existing StrainMap file."""
-        messagebox.showinfo(message="This functionality is not implemented, yet.")
-        self.output_file.set("")
-
-    def select_output_file(self):
-        """ Selects an output file in which to store the analysis."""
-        messagebox.showinfo(message="This functionality is not implemented, yet.")
-        self.output_file.set("")
 
     def clear_data(self):
         """ Clears all data from memory."""
@@ -134,6 +101,16 @@ class DataView(ViewBase):
         )
         if answer:
             self.actions.clear_data()
+
+    def open_existing_file(self):
+        """ Opens an existing StrainMap file."""
+        messagebox.showinfo(message="This functionality is not implemented, yet.")
+        self.output_file.set("")
+
+    def select_output_file(self):
+        """ Selects an output file in which to store the analysis."""
+        messagebox.showinfo(message="This functionality is not implemented, yet.")
+        self.output_file.set("")
 
     def create_tabs(self):
         """ Loads the child tabs that are available after loading the data."""
@@ -153,13 +130,14 @@ class DataView(ViewBase):
 
     def update_widgets(self):
         """ Updates widgets after an update in the data variable. """
+        self.nametowidget("control.chooseOutputFile")["state"] = "enable"
         self.create_tabs()
 
     def clear_widgets(self):
         """ Clear widgets after removing the data. """
         self.data_folder.set("")
-        self.bg_folder.set("")
         self.output_file.set("")
+        self.nametowidget("control.chooseOutputFile")["state"] = "disabled"
 
         if self.notebook:
             self.notebook.destroy()
