@@ -53,14 +53,14 @@ class Animation(ttk.Frame):
             state="enable",
         ).grid(sticky=tk.NSEW, padx=5, pady=5)
 
-        self.run_animation_button = ttk.Button(
+        ttk.Button(
             master=self,
+            name="launchAnimation",
             text="Launch animation",
             padding=5,
             command=self.launch_animation,
             width=30,
-        )
-        self.run_animation_button.grid(column=2, row=0, sticky=tk.NSEW, padx=5, pady=5)
+        ).grid(column=2, row=0, sticky=tk.NSEW, padx=5, pady=5)
 
         canvas = FigureCanvasTkAgg(self.fig, master=self)
         canvas.draw()
