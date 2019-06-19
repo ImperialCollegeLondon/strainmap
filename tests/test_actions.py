@@ -14,7 +14,7 @@ def test_load_data(control_with_mock_window, dicom_data_path):
     control_with_mock_window.window.reset_mock()
 
 
-def test_clear_data(control_with_mock_window, dicom_data_path):
+def test_clear_data(control_with_mock_window):
     from strainmap.actions import clear_data
 
     control_with_mock_window.data = "Dummy"

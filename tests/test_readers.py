@@ -62,22 +62,31 @@ def test_read_dicom_file_tags_from_dict(dicom_data_path):
         assert actual[d] == getattr(expected, d)
 
 
-def test_read_images(dicom_data_path):
+def test_read_images(data_tree):
     from random import choice
-    from strainmap.model.readers import (
-        read_dicom_directory_tree,
-        read_dicom_file_tags,
-        read_images,
-    )
+    from strainmap.model.readers import read_dicom_file_tags, read_images
 
-    data = read_dicom_directory_tree(dicom_data_path)
-    series = choice(list(data.keys()))
-    variable = choice(list(data[series].keys()))
-    images = read_images(data, series, variable)
-    assert len(images) == len(data[series][variable])
+    series = choice(list(data_tree.keys()))
+    variable = choice(list(data_tree[series].keys()))
+    images = read_images(data_tree, series, variable)
+    assert len(images) == len(data_tree[series][variable])
 
     for i, im in enumerate(images):
-        dicom_info = read_dicom_file_tags(data[series][variable][i])
+        dicom_info = read_dicom_file_tags(data_tree[series][variable][i])
         columns = dicom_info["Columns"]
         rows = dicom_info["Rows"]
         assert im.shape == (rows, columns)
+
+
+def test_read_all_images(data_tree):
+    from strainmap.model.readers import read_all_images
+    import numpy as np
+
+    images = read_all_images(data_tree)
+
+    for s in data_tree.keys():
+        assert s in images.keys()
+        for v in data_tree[s].keys():
+            assert v in images[s].keys()
+            for i in images[s][v]:
+                assert isinstance(i, np.ndarray)
