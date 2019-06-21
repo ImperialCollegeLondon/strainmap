@@ -22,7 +22,7 @@ def dicom_data_path():
 @fixture(scope="session")
 def data_tree(dicom_data_path):
     """ Returns the DICOM directory data tree. """
-    from strainmap.model.readers import read_dicom_directory_tree
+    from strainmap.models.readers import read_dicom_directory_tree
 
     return read_dicom_directory_tree(dicom_data_path)
 
@@ -30,7 +30,7 @@ def data_tree(dicom_data_path):
 @fixture(scope="session")
 def strainmap_data(dicom_data_path):
     """ Returns a loaded StrainMapData object. """
-    from strainmap.model.strainmap_data_model import factory
+    from strainmap.models.strainmap_data_model import factory
 
     return factory(data_files=dicom_data_path)
 

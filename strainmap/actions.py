@@ -9,7 +9,7 @@ from functools import wraps
 from typing import Callable
 
 from .gui.base_classes import Requisites
-from .model.strainmap_data_model import factory
+from strainmap.models.strainmap_data_model import factory
 
 
 REGISTERED_ACTIONS = {}

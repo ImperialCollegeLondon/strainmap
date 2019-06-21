@@ -2,7 +2,7 @@ from pytest import raises
 
 
 def test_factory_with_new_data(dicom_data_path, dicom_bg_data_path):
-    from strainmap.model.strainmap_data_model import (
+    from strainmap.models.strainmap_data_model import (
         factory,
         StrainMapData,
         StrainMapLoadError,

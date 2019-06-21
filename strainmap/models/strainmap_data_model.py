@@ -1,7 +1,11 @@
 from pathlib import Path
 from typing import Mapping, Optional, Text, Union
 
-from .readers import read_dicom_directory_tree, read_dicom_file_tags, read_images
+from strainmap.models.readers import (
+    read_dicom_directory_tree,
+    read_dicom_file_tags,
+    read_images,
+)
 
 
 class StrainMapLoadError(Exception):
