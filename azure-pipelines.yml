@@ -7,9 +7,9 @@ steps:
       versionSpec: 3.7
       architecture: "x64"
 
-  - task: |
+  - script: |
       sudo apt update
-      sudo apt install python-tk
+      sudo apt install python3-tk
     displayName: "Install system dependencies"
 
   - script: |
