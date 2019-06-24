@@ -9,7 +9,7 @@ steps:
 
   - script: |
       sudo apt update
-      sudo apt install python3-tk
+      sudo apt install python3-tk xvfb
     displayName: "Install system dependencies"
 
   - script: |
@@ -17,7 +17,7 @@ steps:
     displayName: "Install prerequisites"
 
   - script: |
-      python setup.py -q test
+      xvfb-run -a python setup.py -q test
     condition: succeededOrFailed()
     displayName: "Run tests"
 
