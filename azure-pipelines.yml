@@ -7,6 +7,11 @@ steps:
       versionSpec: 3.7
       architecture: "x64"
 
+  - task: |
+      sudo apt update
+      sudo apt install python-tk
+    displayName: "Install system dependencies"
+
   - script: |
       pip install -e .
     displayName: "Install prerequisites"
