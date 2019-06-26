@@ -15,31 +15,41 @@ class Contour(object):
 
     def __init__(self, xy: np.ndarray, shape: Tuple[int, int] = (512, 512)):
 
-        self._xy = xy
-        self.shape = shape
+        if 2 not in xy.shape:
+            self._xy = xy2d_to_xy(xy)
+            self.shape = xy.shape
+        else:
+            self._xy = xy
+            self.shape = shape
 
     @property
     def points(self):
+        """ Nomber of points of the contour. """
         return len(self._xy)
 
     @property
     def centroid(self):
+        """ Centroid of the contour, calculated as the mean value of all points."""
         return np.mean(self._xy, axis=0)
 
     @property
     def xy(self):
+        """ The contour in cartesian coordinates."""
         return self._xy
 
     @xy.setter
     def xy(self, xy):
+        """ Sets the contour in cartesian coordinates."""
         self._xy = xy
 
     @property
     def polar(self):
+        """ The polar part of the contour, in polar coordinates."""
         return cart2pol(self.xy - self.centroid)
 
     @polar.setter
     def polar(self, polar):
+        """ Setting the polar part of the contour, keeping the same centroid."""
         self.xy = self.centroid + pol2cart(polar)
 
     @property
@@ -105,22 +115,30 @@ class Circle(Contour):
 
     @property
     def centroid(self):
+        """ Centroid of the contour, defined as the center of the circle."""
         return self._center
 
     @property
     def xy(self):
+        """ The contour in cartesian coordinates."""
         return self._xy
 
     @xy.setter
     def xy(self, xy):
-        pass
+        """ It is not allowed to set the cartesian coordinates of a Circle contour."""
+        raise AttributeError
 
     @property
     def polar(self):
+        """ The polar part of the contour, in polar coordinates."""
         return self._polar
 
     @polar.setter
     def polar(self, polar):
+        """ Setting the polar part of the contour.
+
+        As this contour is a circle, the radial part of the input is averaged and a new
+        radius is calculated out of it. The centroid is kept the same."""
         self._radius = np.mean(polar[:, 0])
         self._polar = np.ones_like(polar)
         self._polar[:, 0] *= self._radius
@@ -129,7 +147,10 @@ class Circle(Contour):
 
 
 class Spline(Contour):
-    """ Constructs a contour based on a sequence of points that define a spline. """
+    """ Constructs a contour based on a sequence of points that define a spline.
+
+    Once created, this behaves as a normal contour, although it retains the information
+    of the original nodes and spline that created it."""
 
     def __init__(
         self, nodes: Sequence[np.ndarray], points: int = 360, order: int = 3, **kwargs
@@ -237,3 +258,33 @@ def dilate(contour: Contour, p: float = 1) -> Contour:
     result.polar = contour.polar * pp
 
     return result
+
+
+def xy2d_to_xy(xd2d: np.ndarray) -> np.ndarray:
+    """ Transforms a contour defined as ones in a mask of zeros to a XY contour. """
+    centroid = np.array(ndimage.measurements.center_of_mass(xd2d))
+    grid = np.indices(xd2d.shape)
+    x = grid[0] - centroid[0]
+    y = grid[1] - centroid[1]
+
+    phi = np.mod(np.arctan2(y, x), 2 * np.pi)[xd2d == 1]
+    rho = np.sqrt(x ** 2 + y ** 2)[xd2d == 1]
+    idx = np.argsort(phi)
+
+    return pol2cart(np.array([rho[idx], phi[idx]]).T) + centroid
+
+
+if __name__ == "__main__":
+    import matplotlib.pyplot as plt
+
+    center = np.array([250, 250])
+    c = Circle(center, radius=60)
+
+    xy = xy2d_to_xy(c.xy2d)
+
+    assert np.all(
+        c.xy2d[xy[:, 1].round().astype(int), xy[:, 0].round().astype(int)] == 1
+    )
+    plt.imshow(c.xy2d)
+    plt.plot(xy[:, 0], xy[:, 1])
+    plt.show()

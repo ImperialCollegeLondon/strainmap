@@ -35,6 +35,19 @@ def test_dilate():
     assert 2 * xy == approx(c2.xy)
 
 
+def test_xy2d_to_xy():
+    import numpy as np
+    from strainmap.models.contour_mask import Circle, xy2d_to_xy
+
+    c = Circle((250, 250), radius=60)
+
+    xy = xy2d_to_xy(c.xy2d)
+    xidx = xy[:, 1].round().astype(int)
+    yidx = xy[:, 0].round().astype(int)
+
+    assert np.all(c.xy2d[xidx, yidx] == 1)
+
+
 def test_contour():
     import numpy as np
     from strainmap.models.contour_mask import Contour
@@ -52,6 +65,16 @@ def test_contour():
     c.xy = c.xy + center
     assert c.centroid == approx(center)
     assert c.polar == approx(polar)
+
+
+def test_contour_from_xy2d():
+    import numpy as np
+    from strainmap.models.contour_mask import Circle, Contour
+
+    c = Circle((250, 250), radius=60)
+    c2 = Contour(c.xy2d)
+
+    assert np.all(c.xy2d == c2.xy2d)
 
 
 def test_contour_xy2d():
@@ -93,9 +116,6 @@ def test_circle():
     assert c.centroid == approx(center)
 
     xy = c.xy
-    c.xy = 2 * c.xy
-    assert c.xy == approx(xy)
-
     points = c.points // 2
     c.polar = xy[:points]
     assert c.points == points

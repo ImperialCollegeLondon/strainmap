@@ -94,9 +94,9 @@ def read_strainmap_file(filename: Union[Path, Text]):
 
 def read_h5_file(filename: Union[Path, Text]):
     """ Reads a HDF5 file. """
-    raise NotImplementedError()
+    raise NotImplementedError
 
 
 def read_matlab_file(filename: Union[Path, Text]):
     """ Reads a Matlab file. """
-    raise NotImplementedError()
+    raise NotImplementedError
