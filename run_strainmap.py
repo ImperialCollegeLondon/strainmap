@@ -1,3 +1,3 @@
-from strainmap import main
+from strainmap import controller
 
-main.StrainMap().run()
+controller.StrainMap().run()

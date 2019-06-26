@@ -1,19 +1,17 @@
 import tkinter as tk
 from tkinter import ttk
 
-from .base_classes import Requisites, ViewBase, register_view
+from .base_window_and_task import Requisites, TaskViewBase, register_view
 
 
 @register_view
-class SegmentationView(ViewBase):
+class SegmentationTaskView(TaskViewBase):
 
     requisites = Requisites.DATALOADED
 
-    def __init__(self, root, actions):
+    def __init__(self, root):
 
-        super().__init__(
-            root, actions, button_text="Segmentation", button_image="molecules.gif"
-        )
+        super().__init__(root, button_text="Segmentation", button_image="molecules.gif")
         self.create_controls()
 
     def create_controls(self):

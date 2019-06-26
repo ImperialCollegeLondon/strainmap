@@ -15,7 +15,7 @@ def search_in_tree(
 
 
 def test_read_dicom_directory_tree(dicom_data_path):
-    from strainmap.model.readers import read_dicom_directory_tree, VAR_OFFSET
+    from strainmap.models.readers import read_dicom_directory_tree, VAR_OFFSET
 
     data = read_dicom_directory_tree(dicom_data_path)
 
@@ -33,7 +33,7 @@ def test_read_dicom_file_tags_from_file(dicom_data_path):
     from glob import glob
     from random import choice
     import pydicom
-    from strainmap.model.readers import read_dicom_file_tags
+    from strainmap.models.readers import read_dicom_file_tags
 
     filename = choice(glob(str(dicom_data_path / "*.dcm")))
 
@@ -48,7 +48,7 @@ def test_read_dicom_file_tags_from_dict(dicom_data_path):
     from glob import glob
     from random import choice
     import pydicom
-    from strainmap.model.readers import read_dicom_file_tags, read_dicom_directory_tree
+    from strainmap.models.readers import read_dicom_file_tags, read_dicom_directory_tree
 
     filename = choice(glob(str(dicom_data_path / "*.dcm")))
     data = read_dicom_directory_tree(dicom_data_path)
@@ -64,7 +64,7 @@ def test_read_dicom_file_tags_from_dict(dicom_data_path):
 
 def test_read_images(data_tree):
     from random import choice
-    from strainmap.model.readers import read_dicom_file_tags, read_images
+    from strainmap.models.readers import read_dicom_file_tags, read_images
 
     series = choice(list(data_tree.keys()))
     variable = choice(list(data_tree[series].keys()))
@@ -79,7 +79,7 @@ def test_read_images(data_tree):
 
 
 def test_read_all_images(data_tree):
-    from strainmap.model.readers import read_all_images
+    from strainmap.models.readers import read_all_images
     import numpy as np
 
     images = read_all_images(data_tree)

@@ -1,16 +1,17 @@
 """ Views are the GUI part of StrainMap functionality.
 
 Views can be used to load/save data, perform a segmentation, postprocessing... This
-module defines StrainMAp main window, a ViewBase class that takes care of the front end
-related aspect of any StrainMap action and the registers needed to register other views.
+module defines StrainMAp main window, a TaskViewBase class that takes care of the front
+end related aspect of any StrainMap action and the registers needed to register other
+views.
 """
 import tkinter as tk
 from abc import ABC, abstractmethod
-from collections import namedtuple
 from enum import Flag, auto
 from pathlib import Path
 from tkinter import ttk
-from typing import Mapping, Optional, Text, Type, Tuple, Any, List
+from typing import Optional, Text, Type, List, Callable
+from functools import wraps
 
 from PIL import Image, ImageTk
 
@@ -27,7 +28,7 @@ class Requisites(Flag):
         return required & achieved == required
 
 
-class ViewBase(ABC, ttk.Frame):
+class TaskViewBase(ABC, ttk.Frame):
     """ Base class for all the views.
 
     It is derived from ttk.Frame and has two child areas in which add other widgets:
@@ -46,12 +47,10 @@ class ViewBase(ABC, ttk.Frame):
     """
 
     requisites = Requisites.NONE
-    actions: Tuple[Any, ...] = ()
 
     def __init__(
         self,
         root: tk.Tk,
-        actions: Mapping = None,
         button_text: Optional[Text] = None,
         button_image: Optional[Text] = None,
     ):
@@ -77,18 +76,15 @@ class ViewBase(ABC, ttk.Frame):
         )
 
         self.control = ttk.Frame(master=self, width=300, name="control")
-        self.control.grid(column=0, row=0, sticky=tk.NSEW, padx=5, pady=5)
+        self.control.grid(column=0, row=0, sticky=tk.NSEW, padx=10, pady=10)
         self.control.rowconfigure(50, weight=1)
         self.control.grid_propagate(flag=False)
 
         self.visualise = ttk.Frame(master=self, name="visualise")
-        self.visualise.grid(column=1, row=0, sticky=tk.NSEW, padx=5, pady=5)
+        self.visualise.grid(column=1, row=0, sticky=tk.NSEW, padx=10, pady=10)
         self.visualise.columnconfigure(0, weight=1)
         self.visualise.rowconfigure(0, weight=1)
         self.visualise.grid_propagate(flag=False)
-
-        if isinstance(actions, Mapping):
-            self.actions = namedtuple("Actions", actions.keys())(**actions)
 
     @property
     def data(self):
@@ -113,15 +109,15 @@ class ViewBase(ABC, ttk.Frame):
         pass
 
 
-REGISTERED_VIEWS: List[Type[ViewBase]] = []
+REGISTERED_VIEWS: List[Type[TaskViewBase]] = []
 """ Registry of available views. """
 
 
-def register_view(view: Type[ViewBase]) -> Type[ViewBase]:
+def register_view(view: Type[TaskViewBase]) -> Type[TaskViewBase]:
     """Registers a view to make it available to StrainMap. """
 
-    if not issubclass(view, ViewBase):
-        raise RuntimeError("A view must inherit from ViewBase")
+    if not issubclass(view, TaskViewBase):
+        raise RuntimeError("A view must inherit from TaskViewBase")
 
     REGISTERED_VIEWS.append(view)
 
@@ -147,22 +143,22 @@ class MainWindow(tk.Tk):
         self.button_frame.grid_propagate(flag=False)
 
     @property
-    def views(self) -> List[ViewBase]:
-        return [v for v in self.winfo_children() if isinstance(v, ViewBase)]
+    def views(self) -> List[TaskViewBase]:
+        return [v for v in self.winfo_children() if isinstance(v, TaskViewBase)]
 
     @property
     def view_classes(self):
-        return [type(v) for v in self.winfo_children() if isinstance(v, ViewBase)]
+        return [type(v) for v in self.winfo_children() if isinstance(v, TaskViewBase)]
 
-    def add(self, view: Type[ViewBase], actions: Mapping):
+    def add(self, view: Type[TaskViewBase]):
         """ Creates a view if not already created and adds it to the main window."""
         if view not in self.view_classes:
-            v = view(root=self, actions=actions)
-            v.button.grid(column=0, sticky=(tk.EW, tk.N), padx=5, pady=5)
-            v.grid(column=1, row=1, sticky=tk.NSEW, padx=5, pady=5)
+            v = view(root=self)
+            v.button.grid(column=0, sticky=(tk.EW, tk.N), padx=10, pady=10)
+            v.grid(column=1, row=1, sticky=tk.NSEW)
             v.lower()
 
-    def remove(self, view: Type[ViewBase]):
+    def remove(self, view: Type[TaskViewBase]):
         """ Removes an existing view from the main window."""
         if view in self.views:
             view.button.destroy()
@@ -190,3 +186,39 @@ class MainWindow(tk.Tk):
         """ Safe quit the program."""
         self.closed = True
         self.quit()
+
+
+REGISTERED_BINDINGS: dict = {}
+""" Registered event bindings."""
+
+REGISTERED_TRIGGERS: list = []
+""" Registered event triggers."""
+
+EVENTS: dict = {}
+""" Dictionary with the events linked to the control."""
+
+
+def trigger_event(fun: Callable, name=None):
+    """Registers a view method that will trigger an event. """
+
+    name = name if name else fun.__name__
+
+    @wraps(fun)
+    def wrapper(*args, **kwargs):
+        params = fun(*args, **kwargs)
+        EVENTS[name](**params)
+        return
+
+    REGISTERED_TRIGGERS.append(name)
+
+    return wrapper
+
+
+def bind_event(fun: Callable, name=None):
+    """Registers a control method that will be bound to an event."""
+
+    name = name if name else fun.__name__
+
+    REGISTERED_BINDINGS[name] = fun
+
+    return fun

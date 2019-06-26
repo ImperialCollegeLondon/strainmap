@@ -5,8 +5,8 @@ def test_main_window(main_window, registered_views):
 
     assert len(main_window.views) == 0
 
-    main_window.add(registered_views[0], {})
-    main_window.add(registered_views[1], {})
+    main_window.add(registered_views[0])
+    main_window.add(registered_views[1])
     assert len(main_window.views) == 2
     assert all([v in registered_views for v in main_window.view_classes])
 
@@ -15,7 +15,7 @@ def test_main_window(main_window, registered_views):
 
 
 def test_requisites():
-    from strainmap.gui.base_classes import Requisites
+    from strainmap.gui.base_window_and_task import Requisites
 
     a = Requisites.NONE | Requisites.DATALOADED
 
@@ -28,9 +28,7 @@ def test_requisites():
 
 def test_view_base(main_window, empty_view):
 
-    empty = empty_view(
-        main_window, {"all_good": lambda: True, "all_bad": lambda: False}
-    )
+    empty = empty_view(main_window)
     empty.update_widgets = MagicMock()
     empty.clear_widgets = MagicMock()
 
@@ -43,6 +41,3 @@ def test_view_base(main_window, empty_view):
     assert empty.update_widgets.call_count == 1
     assert empty.clear_widgets.call_count == 1
     assert empty.data is None
-
-    assert empty.actions.all_good()
-    assert not empty.actions.all_bad()
