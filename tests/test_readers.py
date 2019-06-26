@@ -26,7 +26,7 @@ def test_read_dicom_directory_tree(dicom_data_path):
         assert set(data[k].keys()) == set(VAR_OFFSET.keys())
 
         for v in data[k].keys():
-            assert len(data[k][v]) == 50
+            assert len(data[k][v]) == 3
 
 
 def test_read_dicom_file_tags_from_file(dicom_data_path):

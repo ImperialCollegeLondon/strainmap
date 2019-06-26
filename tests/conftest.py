@@ -43,16 +43,16 @@ def dicom_bg_data_path():
 
 @fixture
 def registered_views():
-    from strainmap.gui.data_view import DataView
-    from strainmap.gui.segmentation_view import SegmentationView
+    from strainmap.gui.data_view import DataTaskView
+    from strainmap.gui.segmentation_view import SegmentationTaskView
 
-    return [DataView, SegmentationView]
+    return [DataTaskView, SegmentationTaskView]
 
 
 @fixture
-@patch("strainmap.gui.base_classes.MainWindow", autospec=True)
+@patch("strainmap.gui.base_window_and_task.MainWindow", autospec=True)
 def control_with_mock_window(MockWindow, registered_views):
-    from strainmap.main import StrainMap
+    from strainmap.controller import StrainMap
 
     StrainMap.registered_views = registered_views
     return StrainMap()
@@ -60,7 +60,7 @@ def control_with_mock_window(MockWindow, registered_views):
 
 @fixture(scope="session")
 def main_window():
-    from strainmap.gui.base_classes import MainWindow
+    from strainmap.gui.base_window_and_task import MainWindow
 
     root = MainWindow()
     root.withdraw()
@@ -70,11 +70,11 @@ def main_window():
 
 @fixture
 def empty_view():
-    from strainmap.gui.base_classes import ViewBase
+    from strainmap.gui.base_window_and_task import TaskViewBase
 
-    class TestView(ViewBase):
-        def __init__(self, root, actions):
-            super().__init__(root, actions)
+    class TestView(TaskViewBase):
+        def __init__(self, root):
+            super().__init__(root)
 
         def update_widgets(self):
             pass
@@ -87,7 +87,6 @@ def empty_view():
 
 @fixture
 def data_view(main_window):
-    from strainmap.gui.data_view import DataView
-    from unittest.mock import MagicMock
+    from strainmap.gui.data_view import DataTaskView
 
-    return DataView(main_window, {"load_data": MagicMock(), "clear_data": MagicMock()})
+    return DataTaskView(main_window)
