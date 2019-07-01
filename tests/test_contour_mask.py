@@ -6,10 +6,12 @@ def test_cart2pol():
     from strainmap.models.contour_mask import cart2pol
 
     xy = np.array([[1, 0], [0, 1], [-1, 0], [0, -1]])
-    expected = np.array([[1, 0], [1, np.pi / 2], [1, np.pi], [1, -np.pi / 2]])
+    rho = np.array([1, 1, 1, 1])
+    phi = np.array([0, np.pi / 2, np.pi, -np.pi / 2])
     actual = cart2pol(xy)
 
-    assert expected == approx(actual)
+    assert actual.rho == approx(rho)
+    assert actual["phi"] == approx(phi)
 
 
 def test_pol2cart():
@@ -54,17 +56,20 @@ def test_contour():
 
     center = np.array([1, 0])
     xy = np.array([[1, 0], [0, 1], [-1, 0], [0, -1]])
-    polar = np.array([[1, 0], [1, np.pi / 2], [1, np.pi], [1, -np.pi / 2]])
+    rho = np.array([1, 1, 1, 1])
+    phi = np.array([0, np.pi / 2, np.pi, -np.pi / 2])
 
     c = Contour(xy)
 
     assert c.xy == approx(xy)
     assert c.centroid == approx(np.array([0, 0]))
-    assert c.polar == approx(polar)
+    assert c.polar['rho'] == approx(rho)
+    assert c.polar['phi'] == approx(phi)
 
     c.xy = c.xy + center
     assert c.centroid == approx(center)
-    assert c.polar == approx(polar)
+    assert c.polar.rho == approx(rho)
+    assert c.polar.phi == approx(phi)
 
 
 def test_contour_from_xy2d():

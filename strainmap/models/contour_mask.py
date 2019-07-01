@@ -1,11 +1,12 @@
-import numpy as np
-from scipy import ndimage, interpolate
 import copy
-from typing import Tuple, Optional, Sequence, Text, Mapping, Union
+from typing import Mapping, Optional, Sequence, Text, Tuple, Union
+
+import numpy as np
+from scipy import interpolate, ndimage
 
 
 class Contour(object):
-    """ Creates a contour object.
+    """Creates a contour object.
 
     Contours are closed paths in a plane. They can be defined as a N-2 array in
     cartesian coordinates but also as a centroid and an N-2 array of polar coordinates.
@@ -24,39 +25,41 @@ class Contour(object):
 
     @property
     def points(self):
-        """ Nomber of points of the contour. """
+        """Nomber of points of the contour."""
         return len(self._xy)
 
     @property
     def centroid(self):
-        """ Centroid of the contour, calculated as the mean value of all points."""
+        """Centroid of the contour, calculated as the mean value of all
+        points."""
         return np.mean(self._xy, axis=0)
 
     @property
     def xy(self):
-        """ The contour in cartesian coordinates."""
+        """The contour in cartesian coordinates."""
         return self._xy
 
     @xy.setter
     def xy(self, xy):
-        """ Sets the contour in cartesian coordinates."""
+        """Sets the contour in cartesian coordinates."""
         self._xy = xy
 
     @property
     def polar(self):
-        """ The polar part of the contour, in polar coordinates."""
+        """The polar part of the contour, in polar coordinates."""
         return cart2pol(self.xy - self.centroid)
 
     @polar.setter
     def polar(self, polar):
-        """ Setting the polar part of the contour, keeping the same centroid."""
+        """Setting the polar part of the contour, keeping the same centroid."""
         self.xy = self.centroid + pol2cart(polar)
 
     @property
     def xy2d(self):
-        """ Returns the XY data as 1-valued pixels in a 0-valued MxN array.
+        """Returns the XY data as 1-valued pixels in a 0-valued MxN array.
 
-        To ensure a closed contour, the curve is first finely interpolated. """
+        To ensure a closed contour, the curve is first finely interpolated.
+        """
         idx = np.linspace(0, self.points + 1, self.shape[0] * self.shape[1] * 10)
         xy = np.vstack((self.xy, self.xy[0, :]))
 
@@ -76,21 +79,23 @@ class Contour(object):
 
     @property
     def mask(self):
-        """ Returns a 0-valued MxN array with 1-valued pixels inside the xy contour. """
+        """Returns a 0-valued MxN array with 1-valued pixels inside the xy
+        contour."""
         return ndimage.morphology.binary_fill_holes(self.xy2d).astype(int)
 
     def dilate(self, p: float = 1) -> "Contour":
-        """ Creates an expanded (or contracted y p<1) copy of a contour. """
+        """Creates an expanded (or contracted y p<1) copy of a contour."""
         return dilate(self, p)
 
     def to_contour(self) -> "Contour":
-        """ Returns a new contour preserving only the XY coordinates and shape. """
+        """Returns a new contour preserving only the XY coordinates and
+        shape."""
         return Contour(self.xy, shape=self.shape)
 
 
 class Circle(Contour):
-    """ Constructs a contour that enforces the shape of a circle defined by a center
-    and a radius."""
+    """Constructs a contour that enforces the shape of a circle defined by a
+    center and a radius."""
 
     def __init__(
         self,
@@ -115,30 +120,32 @@ class Circle(Contour):
 
     @property
     def centroid(self):
-        """ Centroid of the contour, defined as the center of the circle."""
+        """Centroid of the contour, defined as the center of the circle."""
         return self._center
 
     @property
     def xy(self):
-        """ The contour in cartesian coordinates."""
+        """The contour in cartesian coordinates."""
         return self._xy
 
     @xy.setter
     def xy(self, xy):
-        """ It is not allowed to set the cartesian coordinates of a Circle contour."""
+        """It is not allowed to set the cartesian coordinates of a Circle
+        contour."""
         raise AttributeError
 
     @property
     def polar(self):
-        """ The polar part of the contour, in polar coordinates."""
+        """The polar part of the contour, in polar coordinates."""
         return self._polar
 
     @polar.setter
     def polar(self, polar):
-        """ Setting the polar part of the contour.
+        """Setting the polar part of the contour.
 
         As this contour is a circle, the radial part of the input is averaged and a new
-        radius is calculated out of it. The centroid is kept the same."""
+        radius is calculated out of it. The centroid is kept the same.
+        """
         self._radius = np.mean(polar[:, 0])
         self._polar = np.ones_like(polar)
         self._polar[:, 0] *= self._radius
@@ -147,10 +154,11 @@ class Circle(Contour):
 
 
 class Spline(Contour):
-    """ Constructs a contour based on a sequence of points that define a spline.
+    """Constructs a contour based on a sequence of points that define a spline.
 
     Once created, this behaves as a normal contour, although it retains the information
-    of the original nodes and spline that created it."""
+    of the original nodes and spline that created it.
+    """
 
     def __init__(
         self, nodes: Sequence[np.ndarray], points: int = 360, order: int = 3, **kwargs
@@ -167,7 +175,7 @@ class Spline(Contour):
 
 
 class Mask(object):
-    """ Creates a mask array from the difference between two contours.
+    """Creates a mask array from the difference between two contours.
 
     To create the combined mask, the mask associated to c2 is subtracted from c1, and
     the result clip to (0, 1). c2 can be omitted, in which case this mask is identical
@@ -215,7 +223,7 @@ class Mask(object):
         zero_angle: float = 0,
         labels: Optional[Sequence[Text]] = None,
     ) -> Mapping:
-        """ Creates a dictionary of masks for a number of angular sectors. """
+        """Creates a dictionary of masks for a number of angular sectors."""
         zero_angle = np.radians(zero_angle)
 
         labels = labels if labels else [*range(1, number + 1)]
@@ -235,33 +243,43 @@ class Mask(object):
         return sectors
 
 
-def cart2pol(cart: np.ndarray) -> np.ndarray:
-    """ Transform cartesian to polar coordinates. """
+def cart2pol(cart: np.ndarray) -> np.recarray:
+    """Transform cartesian to polar coordinates."""
     x, y, = cart[:, 0], cart[:, 1]
     rho = np.sqrt(x ** 2 + y ** 2)
     phi = np.arctan2(y, x)
-    return np.array([rho, phi]).T
+    return np.rec.array(
+        np.array(list(zip(rho, phi)), dtype=[("rho", float), ("phi", float)])
+    )
 
 
-def pol2cart(polar: np.ndarray) -> np.ndarray:
-    """ Transform polar to cartesian coordinates. """
-    rho, phi = polar[:, 0], polar[:, 1]
+def pol2cart(polar: Union[np.ndarray, np.recarray]) -> np.ndarray:
+    """Transform polar to cartesian coordinates."""
+    if hasattr(polar, "rho") and hasattr(polar, "phi"):
+        rho, phi = polar.rho, polar.phi
+    else:
+        try:
+            rho, phi = polar["rho"], polar["phi"]
+        except IndexError:
+            assert polar.ndim == 2 and polar.shape[1] == 2
+            rho, phi = polar.T
     x = rho * np.cos(phi)
     y = rho * np.sin(phi)
     return np.array([x, y]).T
 
 
 def dilate(contour: Contour, p: float = 1) -> Contour:
-    """ Creates an expanded (or contracted y p<1) copy of a contour. """
-    pp = np.array([max(p, 0), 1.0])
+    """Creates an expanded (or contracted y p<1) copy of a contour."""
     result = copy.copy(contour)
-    result.polar = contour.polar * pp
-
+    polar = result.polar
+    polar.rho *= max(p, 0)
+    result.polar = polar
     return result
 
 
 def xy2d_to_xy(xd2d: np.ndarray) -> np.ndarray:
-    """ Transforms a contour defined as ones in a mask of zeros to a XY contour. """
+    """Transforms a contour defined as ones in a mask of zeros to a XY
+    contour."""
     centroid = np.array(ndimage.measurements.center_of_mass(xd2d))
     grid = np.indices(xd2d.shape)
     x = grid[0] - centroid[0]
