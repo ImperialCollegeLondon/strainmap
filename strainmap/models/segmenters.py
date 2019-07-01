@@ -11,6 +11,7 @@ from skimage.segmentation import (
 
 from .filters import REGISTERED_FILTERS
 from .contour_mask import Contour
+from .propagators import PROPAGATORS, COMBINED_PROPAGATORS_SIGNATURE
 
 
 SEGMENTERS: dict = {}
@@ -51,9 +52,10 @@ class SegmenterBase(ABC):
         self,
         img: List[np.ndarray],
         initial: Contour,
-        propagation: Union[Callable, Text] = "none",
+        propagation: Union[Callable, Text] = "initial",
         params: Optional[dict] = None,
         filter_params: Optional[dict] = None,
+        propagation_params: Optional[dict] = None,
     ) -> Tuple[List[Contour], dict, dict]:
         """ Segments a series of images.
 
@@ -76,12 +78,17 @@ class SegmenterBase(ABC):
             mparams = {}
             fparams = {}
 
+            propagate = (
+                propagation if callable(propagation) else PROPAGATORS[propagation]
+            )
+            next_init = initial.to_contour()
             for i, image in enumerate(img):
 
                 snake, mparams[i], fparams[i] = self.segment_one_image(
-                    image, initial, params.get(i, None), filter_params.get(i, None)
+                    image, next_init, params.get(i, None), filter_params.get(i, None)
                 )
                 snakes.append(snake)
+                next_init = propagate(initial, snake, propagation_params)
 
         return snakes, mparams, fparams
 
@@ -89,9 +96,10 @@ class SegmenterBase(ABC):
         self,
         img: Union[List[np.ndarray], Tuple[List[np.ndarray], List[np.ndarray]]],
         initial: Tuple[Contour, Contour],
-        propagation: Union[Callable, Text] = "none",
+        propagation: Optional[COMBINED_PROPAGATORS_SIGNATURE] = None,
         params: Union[dict, Tuple[dict, dict], None] = None,
         filter_params: Union[dict, Tuple[dict, dict], None] = None,
+        propagation_params: Optional[dict] = None,
     ) -> Tuple[
         Tuple[List[Contour], List[Contour]], Tuple[dict, dict], Tuple[dict, dict]
     ]:
@@ -102,7 +110,8 @@ class SegmenterBase(ABC):
         and, optionally, two sets of input images.
 
         This method allows for more elaborate propagation methods, for example
-        considering the velocity to estimate the next initial condition.
+        considering the velocity to estimate the next initial condition. If not for this
+        it is simpler to just use 'segment_series' above.
         """
         if isinstance(img, List):
             img = (img, img)
@@ -121,11 +130,13 @@ class SegmenterBase(ABC):
         mparams: Tuple[dict, dict] = ({}, {})
         fparams: Tuple[dict, dict] = ({}, {})
 
-        new_init = copy(initial)
+        propagate = propagation if callable(propagation) else lambda x, y, p: x
+
+        next_init = copy(initial)
         for i in range(len(img[0])):
             snake, mparams[0][i], fparams[0][i] = self.segment_one_image(
                 img[0][i],
-                new_init[0],
+                next_init[0],
                 params[0].get(i, None),
                 filter_params[0].get(i, None),
             )
@@ -133,13 +144,15 @@ class SegmenterBase(ABC):
 
             snake, mparams[1][i], fparams[1][i] = self.segment_one_image(
                 img[1][i],
-                new_init[1],
+                next_init[1],
                 params[1].get(i, None),
                 filter_params[1].get(i, None),
             )
             snakes[1].append(snake)
 
-            # new_init = (snakes[0][-1], snakes[1][-1])
+            next_init = propagate(
+                initial, (snakes[0][-1], snakes[1][-1]), propagation_params
+            )
 
         return snakes, mparams, fparams
 
