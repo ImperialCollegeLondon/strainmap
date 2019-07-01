@@ -1,4 +1,4 @@
-from typing import Callable, Text, Optional, Tuple, Union, List, NoReturn
+from typing import Callable, Text, Optional, Tuple, Union, List, NoReturn, Type
 from abc import ABC, abstractmethod
 import numpy as np
 from copy import copy
@@ -9,12 +9,15 @@ from skimage.segmentation import (
     morphological_chan_vese,
 )
 
-
 from .filters import REGISTERED_FILTERS
 from .contour_mask import Contour
 
 
-class SegmentatorBase(ABC):
+SEGMENTERS: dict = {}
+""" Dictionary with all the segmenters available in StrainMap."""
+
+
+class SegmenterBase(ABC):
     def __init__(
         self,
         method: Callable,
@@ -136,7 +139,7 @@ class SegmentatorBase(ABC):
             )
             snakes[1].append(snake)
 
-            new_init = (snakes[0][-1], snakes[1][-1])
+            # new_init = (snakes[0][-1], snakes[1][-1])
 
         return snakes, mparams, fparams
 
@@ -157,7 +160,22 @@ class SegmentatorBase(ABC):
         list of contours. """
 
 
-class ActiveContour(SegmentatorBase):
+def register_segmenter(segmenter: Type[SegmenterBase]) -> Type[SegmenterBase]:
+    """ Register a segmenter, so it is available across StrainMap. """
+
+    if not issubclass(segmenter, SegmenterBase):
+        raise RuntimeError("A segmenter must inherit from SegmenterBase")
+
+    msg = f"A segmenter named {segmenter.__name__} already exists!"
+    assert segmenter.__name__ not in SEGMENTERS, msg
+
+    SEGMENTERS[segmenter.__name__] = segmenter
+
+    return segmenter
+
+
+@register_segmenter
+class ActiveContour(SegmenterBase):
     def __init__(
         self,
         params: Optional[dict] = None,
@@ -180,7 +198,8 @@ class ActiveContour(SegmentatorBase):
         raise NotImplementedError(msg)
 
 
-class MorphologicalGeodesicActiveContour(SegmentatorBase):
+@register_segmenter
+class MorphologicalGeodesicActiveContour(SegmenterBase):
     def __init__(
         self,
         params: Optional[dict] = None,
@@ -208,7 +227,8 @@ class MorphologicalGeodesicActiveContour(SegmentatorBase):
         return [Contour(snake[i]) for i in range(len(img.shape[0]))]
 
 
-class MorphologicalChanVese(SegmentatorBase):
+@register_segmenter
+class MorphologicalChanVese(SegmenterBase):
     def __init__(
         self,
         params: Optional[dict] = None,
