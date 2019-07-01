@@ -39,9 +39,9 @@ def test_dilate():
 
 def test_xy2d_to_xy():
     import numpy as np
-    from strainmap.models.contour_mask import Circle, xy2d_to_xy
+    from strainmap.models.contour_mask import Contour, xy2d_to_xy
 
-    c = Circle((250, 250), radius=60)
+    c = Contour.circle((250, 250), radius=60)
 
     xy = xy2d_to_xy(c.xy2d)
     xidx = xy[:, 1].round().astype(int)
@@ -74,9 +74,9 @@ def test_contour():
 
 def test_contour_from_xy2d():
     import numpy as np
-    from strainmap.models.contour_mask import Circle, Contour
+    from strainmap.models.contour_mask import Contour
 
-    c = Circle((250, 250), radius=60)
+    c = Contour.circle((250, 250), radius=60)
     c2 = Contour(c.xy2d)
 
     assert np.all(c.xy2d == c2.xy2d)
@@ -113,28 +113,27 @@ def test_contour_mask():
 
 def test_circle():
     import numpy as np
-    from strainmap.models.contour_mask import Circle
+    from scipy.linalg import norm
+    from strainmap.models.contour_mask import Contour
 
+    radius = 10
     center = np.array([3, 0])
-    c = Circle(center, radius=10)
+    c = Contour.circle(center, radius=radius, points=100000)
 
-    assert c.centroid == approx(center)
-
-    xy = c.xy
-    points = c.points // 2
-    c.polar = xy[:points]
-    assert c.points == points
-    assert len(np.unique(c.polar[:, 0])) == 1
+    assert c.centroid == approx(center, rel=1e-2)
+    assert norm(c.xy - c.centroid, axis=1) == approx(
+        np.ones(c.points) * radius, rel=1e-1
+    )
 
 
 def test_spline():
     import numpy as np
-    from strainmap.models.contour_mask import Spline
+    from strainmap.models.contour_mask import Contour
 
     x = np.random.randint(100, 400, 6)
     y = np.random.randint(200, 300, 6)
 
-    c = Spline([x, y], points=12)
+    c = Contour.spline([x, y], points=12)
 
     assert len(c.xy) == 12
     assert c.xy[0] == approx(c.xy[-1])
@@ -142,10 +141,10 @@ def test_spline():
 
 
 def test_mask():
-    from strainmap.models.contour_mask import Mask, Circle
+    from strainmap.models.contour_mask import Mask, Contour
 
-    c1 = Circle()
-    c2 = Circle()
+    c1 = Contour.circle()
+    c2 = Contour.circle()
 
     m = Mask(c1, c2)
     assert not m.mask.any()
@@ -156,9 +155,9 @@ def test_mask():
 
 def test_mask_sector_mask():
     import numpy as np
-    from strainmap.models.contour_mask import Mask, Circle
+    from strainmap.models.contour_mask import Mask, Contour
 
-    c1 = Circle()
+    c1 = Contour.circle()
     m = Mask(c1)
     smasks = m.sector_mask()
 

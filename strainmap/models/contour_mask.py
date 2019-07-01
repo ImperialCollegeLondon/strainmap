@@ -92,19 +92,15 @@ class Contour(object):
         shape."""
         return Contour(self.xy, shape=self.shape)
 
-
-class Circle(Contour):
-    """Constructs a contour that enforces the shape of a circle defined by a
-    center and a radius."""
-
-    def __init__(
-        self,
+    @staticmethod
+    def circle(
         center: Tuple[int, int] = (256, 256),
         edge: Tuple[int, int] = (256, 306),
         points: int = 360,
         radius: Optional[int] = None,
         **kwargs,
     ):
+        """Circular contour."""
         center = np.array(center)
         radius = radius if radius else np.linalg.norm(center - np.array(edge))
         polar = np.ones((points, 2))
@@ -112,66 +108,25 @@ class Circle(Contour):
         polar[:, 1] = np.linspace(0, 2 * np.pi, points)
         xy = pol2cart(polar) + center
 
-        super().__init__(xy, **kwargs)
+        return Contour(xy, **kwargs)
 
-        self._center = center
-        self._radius = radius
-        self._polar = polar
-
-    @property
-    def centroid(self):
-        """Centroid of the contour, defined as the center of the circle."""
-        return self._center
-
-    @property
-    def xy(self):
-        """The contour in cartesian coordinates."""
-        return self._xy
-
-    @xy.setter
-    def xy(self, xy):
-        """It is not allowed to set the cartesian coordinates of a Circle
-        contour."""
-        raise AttributeError
-
-    @property
-    def polar(self):
-        """The polar part of the contour, in polar coordinates."""
-        return self._polar
-
-    @polar.setter
-    def polar(self, polar):
-        """Setting the polar part of the contour.
-
-        As this contour is a circle, the radial part of the input is averaged and a new
-        radius is calculated out of it. The centroid is kept the same.
-        """
-        self._radius = np.mean(polar[:, 0])
-        self._polar = np.ones_like(polar)
-        self._polar[:, 0] *= self._radius
-        self._polar[:, 1] = polar[:, 1]
-        self._xy = self.centroid + pol2cart(self._polar)
-
-
-class Spline(Contour):
-    """Constructs a contour based on a sequence of points that define a spline.
-
-    Once created, this behaves as a normal contour, although it retains the information
-    of the original nodes and spline that created it.
-    """
-
-    def __init__(
-        self, nodes: Sequence[np.ndarray], points: int = 360, order: int = 3, **kwargs
+    @staticmethod
+    def spline(
+        nodes: Sequence[np.ndarray], points: int = 360, order: int = 3, **kwargs
     ):
+        """Constructs a contour based on a sequence of points that define a
+        spline.
+
+        Once created, this behaves as a normal contour, although it retains the
+        information of the original nodes and spline that created it.
+        """
+
         x = np.r_[nodes[0], nodes[0][0]]
         y = np.r_[nodes[1], nodes[1][0]]
         tck, u = interpolate.splprep([x, y], s=0, per=True, k=order)[:2]
         xy = np.array(interpolate.splev(np.linspace(0, 1, points), tck)).T
 
-        super().__init__(xy, **kwargs)
-
-        self._nodes = nodes
-        self._order = order
+        return Contour(xy, **kwargs)
 
 
 class Mask(object):
@@ -299,7 +254,7 @@ if __name__ == "__main__":
     import matplotlib.pyplot as plt
 
     center = np.array([250, 250])
-    c = Circle(center, radius=60)
+    c = Contour.circle(center, radius=60)
 
     xy = xy2d_to_xy(c.xy2d)
 
