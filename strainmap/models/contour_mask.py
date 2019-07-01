@@ -232,13 +232,13 @@ class Mask(object):
         grid = np.indices(self.shape)
         x = grid[0] - self.centroid[0]
         y = grid[1] - self.centroid[1]
-        phi = np.mod(np.arctan2(y, x), 2 * np.pi)
+        theta = np.mod(np.arctan2(y, x), 2 * np.pi)
 
         angles = np.linspace(zero_angle, zero_angle + 2 * np.pi, number + 1)
 
         sectors = {}
         for i, l in enumerate(labels):
-            sectors[l] = (angles[i] <= phi) * (phi < angles[i + 1]) * self.mask
+            sectors[l] = (angles[i] <= theta) * (theta < angles[i + 1]) * self.mask
 
         return sectors
 
@@ -246,28 +246,28 @@ class Mask(object):
 def cart2pol(cart: np.ndarray) -> np.recarray:
     """Transform cartesian to polar coordinates."""
     x, y, = cart[:, 0], cart[:, 1]
-    rho = np.sqrt(x ** 2 + y ** 2)
-    phi = np.arctan2(y, x)
+    r = np.sqrt(x ** 2 + y ** 2)
+    theta = np.arctan2(y, x)
     return np.rec.array(
-        np.array(list(zip(rho, phi)), dtype=[("rho", float), ("phi", float)])
+        np.array(list(zip(r, theta)), dtype=[("r", float), ("theta", float)])
     )
 
 
 def pol2cart(polar: Union[np.ndarray, np.recarray]) -> np.ndarray:
     """Transform polar to cartesian coordinates."""
-    if hasattr(polar, "rho") and hasattr(polar, "phi"):
-        rho, phi = polar.rho, polar.phi
+    if hasattr(polar, "r") and hasattr(polar, "theta"):
+        r, theta = polar.r, polar.theta
     elif (getattr(polar.dtype, "fields", None) is not None) and (
-        {"rho", "phi"} == set(polar.dtype.fields)
+        {"r", "theta"} == set(polar.dtype.fields)
     ):
-        rho, phi = polar["rho"], polar["phi"]
+        r, theta = polar["r"], polar["theta"]
     elif polar.ndim == 2 and polar.shape[1] == 2:
-        rho, phi = polar.T
+        r, theta = polar.T
     else:
         raise ValueError("Could not make sense of polar coordinates")
 
-    x = rho * np.cos(phi)
-    y = rho * np.sin(phi)
+    x = r * np.cos(theta)
+    y = r * np.sin(theta)
     return np.array([x, y]).T
 
 
@@ -275,7 +275,7 @@ def dilate(contour: Contour, p: float = 1) -> Contour:
     """Creates an expanded (or contracted y p<1) copy of a contour."""
     result = copy.copy(contour)
     polar = result.polar
-    polar.rho *= max(p, 0)
+    polar.r *= max(p, 0)
     result.polar = polar
     return result
 
@@ -288,11 +288,11 @@ def xy2d_to_xy(xd2d: np.ndarray) -> np.ndarray:
     x = grid[0] - centroid[0]
     y = grid[1] - centroid[1]
 
-    phi = np.mod(np.arctan2(y, x), 2 * np.pi)[xd2d == 1]
-    rho = np.sqrt(x ** 2 + y ** 2)[xd2d == 1]
-    idx = np.argsort(phi)
+    theta = np.mod(np.arctan2(y, x), 2 * np.pi)[xd2d == 1]
+    r = np.sqrt(x ** 2 + y ** 2)[xd2d == 1]
+    idx = np.argsort(theta)
 
-    return pol2cart(np.array([rho[idx], phi[idx]]).T) + centroid
+    return pol2cart(np.array([r[idx], theta[idx]]).T) + centroid
 
 
 if __name__ == "__main__":
