@@ -1,5 +1,7 @@
 from setuptools import setup
 
+tests_require = ["pytest", "pytest-cov", "pytest-flake8", "pytest-mypy", "pytest-mock"]
+
 setup(
     name="StrainMap",
     version="0.1",
@@ -7,5 +9,7 @@ setup(
     author="Research Computing Service, Imperial College London",
     author_email="rcs-support@imperial.ac.uk",
     setup_requires=["pytest-runner"],
-    tests_require=["pytest-cov", "pytest-flake8", "pytest-mypy"],
+    install_requires=["pillow", "pydicom", "matplotlib"],
+    tests_require=tests_require,
+    extras_require={"dev": tests_require},
 )
