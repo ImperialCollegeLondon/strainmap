@@ -257,12 +257,15 @@ def pol2cart(polar: Union[np.ndarray, np.recarray]) -> np.ndarray:
     """Transform polar to cartesian coordinates."""
     if hasattr(polar, "rho") and hasattr(polar, "phi"):
         rho, phi = polar.rho, polar.phi
+    elif (getattr(polar.dtype, "fields", None) is not None) and (
+        {"rho", "phi"} == set(polar.dtype.fields)
+    ):
+        rho, phi = polar["rho"], polar["phi"]
+    elif polar.ndim == 2 and polar.shape[1] == 2:
+        rho, phi = polar.T
     else:
-        try:
-            rho, phi = polar["rho"], polar["phi"]
-        except IndexError:
-            assert polar.ndim == 2 and polar.shape[1] == 2
-            rho, phi = polar.T
+        raise ValueError("Could not make sense of polar coordinates")
+
     x = rho * np.cos(phi)
     y = rho * np.sin(phi)
     return np.array([x, y]).T
