@@ -272,7 +272,7 @@ def pol2cart(polar: Union[np.ndarray, np.recarray]) -> np.ndarray:
 
 
 def dilate(contour: Contour, p: float = 1) -> Contour:
-    """Creates an expanded (or contracted y p<1) copy of a contour."""
+    """Creates an expanded (or contracted if p<1) copy of a contour."""
     result = copy.copy(contour)
     polar = result.polar
     polar.rho *= max(p, 0)
