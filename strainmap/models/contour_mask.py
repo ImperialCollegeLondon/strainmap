@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import copy
 from typing import Mapping, Optional, Sequence, Text, Tuple, Union
 
@@ -82,11 +84,11 @@ class Contour(object):
         """Binary image, with 1 inside and 0 outside the contour."""
         return ndimage.morphology.binary_fill_holes(self.xy2d).astype(int)
 
-    def dilate(self, p: float = 1) -> "Contour":
+    def dilate(self, p: float = 1) -> Contour:
         """Creates an expanded (or contracted y p<1) copy of a contour."""
         return dilate(self, p)
 
-    def to_contour(self) -> "Contour":
+    def to_contour(self) -> Contour:
         """New contour preserving only the XY coordinates and shape."""
         return Contour(self.xy, shape=self.shape)
 
