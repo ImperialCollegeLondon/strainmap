@@ -37,17 +37,17 @@ def test_dilate():
     assert 2 * xy == approx(c2.xy)
 
 
-def test_xy2d_to_xy():
+def test_image_to_coordinates():
     import numpy as np
-    from strainmap.models.contour_mask import Contour, xy2d_to_xy
+    from strainmap.models.contour_mask import Contour, image_to_coordinates
 
     c = Contour.circle((250, 250), radius=60)
 
-    xy = xy2d_to_xy(c.xy2d)
+    xy = image_to_coordinates(c.image)
     xidx = xy[:, 1].round().astype(int)
     yidx = xy[:, 0].round().astype(int)
 
-    assert np.all(c.xy2d[xidx, yidx] == 1)
+    assert np.all(c.image[xidx, yidx] == 1)
 
 
 def test_contour():
@@ -72,17 +72,17 @@ def test_contour():
     assert c.polar.theta == approx(theta)
 
 
-def test_contour_from_xy2d():
+def test_contour_from_image():
     import numpy as np
     from strainmap.models.contour_mask import Contour
 
     c = Contour.circle((250, 250), radius=60)
-    c2 = Contour(c.xy2d)
+    c2 = Contour(c.image)
 
-    assert np.all(c.xy2d == c2.xy2d)
+    assert np.all(c.image == c2.image)
 
 
-def test_contour_xy2d():
+def test_contour_image():
     import numpy as np
     from strainmap.models.contour_mask import Contour
 
@@ -94,7 +94,7 @@ def test_contour_xy2d():
     expected = np.ones(shape)
     expected[1, 1] = 0
 
-    assert c.xy2d == approx(expected)
+    assert c.image == approx(expected)
 
 
 def test_contour_mask():

@@ -19,7 +19,7 @@ class Contour(object):
     def __init__(self, xy: np.ndarray, shape: Tuple[int, int] = (512, 512)):
 
         if 2 not in xy.shape:
-            self._xy = xy2d_to_xy(xy)
+            self._xy = image_to_coordinates(xy)
             self.shape = xy.shape
         else:
             self._xy = xy
@@ -57,7 +57,7 @@ class Contour(object):
         self.xy = self.centroid + pol2cart(polar)
 
     @property
-    def xy2d(self):
+    def image(self):
         """Returns the XY data as 1-valued pixels in a 0-valued MxN array.
 
         To ensure a closed contour, the curve is first finely interpolated.
@@ -82,7 +82,7 @@ class Contour(object):
     @property
     def mask(self):
         """Binary image, with 1 inside and 0 outside the contour."""
-        return ndimage.morphology.binary_fill_holes(self.xy2d).astype(int)
+        return ndimage.morphology.binary_fill_holes(self.image).astype(int)
 
     def dilate(self, p: float = 1) -> Contour:
         """Creates an expanded (or contracted y p<1) copy of a contour."""
@@ -230,16 +230,15 @@ def dilate(contour: Contour, p: float = 1) -> Contour:
     return result
 
 
-def xy2d_to_xy(xd2d: np.ndarray) -> np.ndarray:
-    """Transforms a contour defined as ones in a mask of zeros to a XY
-    contour."""
-    centroid = np.array(ndimage.measurements.center_of_mass(xd2d))
-    grid = np.indices(xd2d.shape)
+def image_to_coordinates(image: np.ndarray) -> np.ndarray:
+    """Transforms image of contour to array of cartesian coordinates."""
+    centroid = np.array(ndimage.measurements.center_of_mass(image))
+    grid = np.indices(image.shape)
     x = grid[0] - centroid[0]
     y = grid[1] - centroid[1]
 
-    theta = np.mod(np.arctan2(y, x), 2 * np.pi)[xd2d == 1]
-    r = np.sqrt(x ** 2 + y ** 2)[xd2d == 1]
+    theta = np.mod(np.arctan2(y, x), 2 * np.pi)[image == 1]
+    r = np.sqrt(x ** 2 + y ** 2)[image == 1]
     idx = np.argsort(theta)
 
     return pol2cart(np.array([r[idx], theta[idx]]).T) + centroid
@@ -251,11 +250,11 @@ if __name__ == "__main__":
     center = np.array([250, 250])
     c = Contour.circle(center, radius=60)
 
-    xy = xy2d_to_xy(c.xy2d)
+    xy = image_to_coordinates(c.image)
 
     assert np.all(
-        c.xy2d[xy[:, 1].round().astype(int), xy[:, 0].round().astype(int)] == 1
+        c.image[xy[:, 1].round().astype(int), xy[:, 0].round().astype(int)] == 1
     )
-    plt.imshow(c.xy2d)
+    plt.imshow(c.image)
     plt.plot(xy[:, 0], xy[:, 1])
     plt.show()
