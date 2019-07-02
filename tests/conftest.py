@@ -90,3 +90,20 @@ def data_view(main_window):
     from strainmap.gui.data_view import DataTaskView
 
     return DataTaskView(main_window)
+
+
+@fixture
+def void_segmenter():
+    from strainmap.models.segmenters import SegmenterBase
+
+    class VoidSegmenter(SegmenterBase):
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+
+        def _run(self, *args, **kwargs):
+            pass
+
+        def _run3d(self, *args, **kwargs):
+            pass
+
+    return VoidSegmenter

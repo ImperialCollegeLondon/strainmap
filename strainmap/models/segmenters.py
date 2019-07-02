@@ -11,7 +11,11 @@ from skimage.segmentation import (
 
 from .filters import REGISTERED_FILTERS
 from .contour_mask import Contour
-from .propagators import PROPAGATORS, COMBINED_PROPAGATORS_SIGNATURE
+from .propagators import (
+    PROPAGATORS,
+    COMBINED_PROPAGATORS,
+    COMBINED_PROPAGATORS_SIGNATURE,
+)
 
 
 SEGMENTERS: dict = {}
@@ -96,7 +100,7 @@ class SegmenterBase(ABC):
         self,
         img: Union[List[np.ndarray], Tuple[List[np.ndarray], List[np.ndarray]]],
         initial: Tuple[Contour, Contour],
-        propagation: Optional[COMBINED_PROPAGATORS_SIGNATURE] = None,
+        propagation: Union[COMBINED_PROPAGATORS_SIGNATURE, Text] = "initial_combined",
         params: Union[dict, Tuple[dict, dict], None] = None,
         filter_params: Union[dict, Tuple[dict, dict], None] = None,
         propagation_params: Optional[dict] = None,
@@ -110,8 +114,8 @@ class SegmenterBase(ABC):
         and, optionally, two sets of input images.
 
         This method allows for more elaborate propagation methods, for example
-        considering the velocity to estimate the next initial condition. If not for this
-        it is simpler to just use 'segment_series' above.
+        considering the velocity to estimate the next initial condition. If not for
+        this, it is simpler to just use 'segment_series' above.
         """
         if isinstance(img, List):
             img = (img, img)
@@ -130,7 +134,9 @@ class SegmenterBase(ABC):
         mparams: Tuple[dict, dict] = ({}, {})
         fparams: Tuple[dict, dict] = ({}, {})
 
-        propagate = propagation if callable(propagation) else lambda x, y, p: x
+        propagate = (
+            propagation if callable(propagation) else COMBINED_PROPAGATORS[propagation]
+        )
 
         next_init = copy(initial)
         for i in range(len(img[0])):
@@ -151,7 +157,7 @@ class SegmenterBase(ABC):
             snakes[1].append(snake)
 
             next_init = propagate(
-                initial, (snakes[0][-1], snakes[1][-1]), propagation_params
+                initial, (snakes[0][-1], snakes[1][-1]), i, propagation_params
             )
 
         return snakes, mparams, fparams
@@ -234,10 +240,10 @@ class MorphologicalGeodesicActiveContour(SegmenterBase):
         return Contour(snake)
 
     def _run3d(self, img: np.ndarray, initial: Contour, params: dict) -> List[Contour]:
-        ini = np.array([initial.xy2d] * len(img.shape[0]))
+        ini = np.array([initial.xy2d] * img.shape[0])
         iterations = params.pop("iterations", 1000)
         snake = self.method(img, iterations=iterations, init_level_set=ini, **params)
-        return [Contour(snake[i]) for i in range(len(img.shape[0]))]
+        return [Contour(snake[i]) for i in range(img.shape[0])]
 
 
 @register_segmenter
@@ -263,10 +269,10 @@ class MorphologicalChanVese(SegmenterBase):
         return Contour(snake)
 
     def _run3d(self, img: np.ndarray, initial: Contour, params: dict) -> List[Contour]:
-        ini = np.array([initial.xy2d] * len(img.shape[0]))
+        ini = np.array([initial.xy2d] * img.shape[0])
         iterations = params.pop("iterations", 1000)
         snake = self.method(img, iterations=iterations, init_level_set=ini, **params)
-        return [Contour(snake[i]) for i in range(len(img.shape[0]))]
+        return [Contour(snake[i]) for i in range(img.shape[0])]
 
 
 def update_dict(original: dict, new: Optional[dict] = None) -> dict:

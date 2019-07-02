@@ -7,13 +7,16 @@ from .contour_mask import Contour
 PROPAGATORS: dict = {}
 """ Dictionary with all the propagators available in StrainMap."""
 
+COMBINED_PROPAGATORS: dict = {}
+""" Dictionary with all the combined propagators available in StrainMap."""
+
 PROPAGATORS_SIGNATURE = Callable[
     [Optional[Contour], Optional[Contour], Optional[dict]], Contour
 ]
 """Propagators signature."""
 
 COMBINED_PROPAGATORS_SIGNATURE = Callable[
-    [Tuple[Contour, Contour], Tuple[Contour, Contour], Optional[dict]],
+    [Tuple[Contour, Contour], Tuple[Contour, Contour], int, Optional[dict]],
     Tuple[Contour, Contour],
 ]
 """Combined propagators signature."""
@@ -22,10 +25,21 @@ COMBINED_PROPAGATORS_SIGNATURE = Callable[
 def register_propagator(fun: PROPAGATORS_SIGNATURE):
     """ Register a propagator, so it is available across StrainMap. """
 
-    msg = f"Propagator named {fun.__name__} already exists."
+    msg = f"Propagator {fun.__name__} already exists."
     assert fun.__name__ not in PROPAGATORS, msg
 
     PROPAGATORS[fun.__name__] = fun
+
+    return fun
+
+
+def register_combined_propagator(fun: COMBINED_PROPAGATORS_SIGNATURE):
+    """ Register a propagator, so it is available across StrainMap. """
+
+    msg = f"Combined_propagator {fun.__name__} already exists."
+    assert fun.__name__ not in COMBINED_PROPAGATORS, msg
+
+    COMBINED_PROPAGATORS[fun.__name__] = fun
 
     return fun
 
@@ -84,3 +98,14 @@ def weighted(
     out.polar = np.array([rho, previous.polar[:, 1]]).T
 
     return out
+
+
+@register_combined_propagator
+def initial_combined(
+    initial: Tuple[Contour, Contour],
+    previous: Tuple[Contour, Contour],
+    step: int,
+    options: Optional[dict] = None,
+) -> Tuple[Contour, Contour]:
+    """ There is no propagation: always use the same initial contour. """
+    return initial
