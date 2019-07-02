@@ -79,8 +79,7 @@ class Contour(object):
 
     @property
     def mask(self):
-        """Returns a 0-valued MxN array with 1-valued pixels inside the xy
-        contour."""
+        """Binary image, with 1 inside and 0 outside the contour."""
         return ndimage.morphology.binary_fill_holes(self.xy2d).astype(int)
 
     def dilate(self, p: float = 1) -> "Contour":
@@ -88,8 +87,7 @@ class Contour(object):
         return dilate(self, p)
 
     def to_contour(self) -> "Contour":
-        """Returns a new contour preserving only the XY coordinates and
-        shape."""
+        """New contour preserving only the XY coordinates and shape."""
         return Contour(self.xy, shape=self.shape)
 
     @staticmethod
@@ -114,12 +112,7 @@ class Contour(object):
     def spline(
         nodes: Sequence[np.ndarray], points: int = 360, order: int = 3, **kwargs
     ):
-        """Constructs a contour based on a sequence of points that define a
-        spline.
-
-        Once created, this behaves as a normal contour, although it retains the
-        information of the original nodes and spline that created it.
-        """
+        """Contour defined by a closed spline."""
 
         x = np.r_[nodes[0], nodes[0][0]]
         y = np.r_[nodes[1], nodes[1][0]]
