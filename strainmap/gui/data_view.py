@@ -20,6 +20,7 @@ class DataTaskView(TaskViewBase):
         self.data_folder = tk.StringVar()
         self.output_file = tk.StringVar()
         self.dataselector = None
+        self.patient_info = None
         self.create_controls()
 
         # Visualization-related attributes
@@ -28,40 +29,27 @@ class DataTaskView(TaskViewBase):
         self.time_step = None
         self.fig = None
         self.ax = None
-        self.series_types_var = tk.StringVar()
-        self.variables_var = tk.StringVar(value="MagZ")
+        self.datasets_var = tk.StringVar()
+        self.maps_var = tk.StringVar(value="MagZ")
+        self.cine_frame_var = tk.IntVar(value=0)
         self.anim = False
 
     def create_controls(self) -> None:
         """ Creates the controls to load and save data."""
 
-        self.control.columnconfigure(0, weight=1)
+        self.control.columnconfigure(0, weight=4)
+        self.control.columnconfigure(1, weight=2)
 
+        # Current data folder widgets -----------
         ttk.Button(
             master=self.control,
             name="chooseDataFolder",
-            text="New analysis from data folder",
+            text="New analysis",
             command=self.load_data,
-        ).grid(sticky=tk.NSEW)
+        ).grid(sticky=tk.NSEW, rowspan=2)
 
-        ttk.Button(
-            master=self.control,
-            name="openStrainMapFile",
-            text="Resume analysis from StrainMap file",
-            command=self.open_existing_file,
-        ).grid(sticky=tk.NSEW)
-
-        ttk.Button(
-            master=self.control,
-            name="chooseOutputFile",
-            text="Save analysis as...",
-            command=self.select_output_file,
-            state="disabled",
-        ).grid(sticky=tk.NSEW)
-
-        # Current data folder widgets -----------
-        info = ttk.Labelframe(self.control, text="Current data folder:")
-        info.grid(row=60, sticky=(tk.EW, tk.N), pady=5)
+        info = ttk.Labelframe(self.control, text="Data folder:")
+        info.grid(column=1, row=0, rowspan=2, sticky=tk.NSEW, padx=5, pady=5)
         info.columnconfigure(0, weight=1)
 
         ttk.Entry(
@@ -72,8 +60,24 @@ class DataTaskView(TaskViewBase):
         ).grid(sticky=tk.NSEW)
 
         # Current output file widgets -----------
-        info = ttk.Labelframe(self.control, text="Current output file:")
-        info.grid(sticky=(tk.EW, tk.N))
+        ttk.Button(
+            master=self.control,
+            name="openStrainMapFile",
+            text="Resume analysis",
+            command=self.open_existing_file,
+            width=25,
+        ).grid(sticky=tk.NSEW)
+
+        ttk.Button(
+            master=self.control,
+            name="chooseOutputFile",
+            text="Save analysis as...",
+            command=self.select_output_file,
+            state="disabled",
+        ).grid(sticky=tk.NSEW)
+
+        info = ttk.Labelframe(self.control, text="Output file:")
+        info.grid(column=1, row=2, rowspan=2, sticky=tk.NSEW, padx=5, pady=5)
         info.columnconfigure(0, weight=1)
 
         ttk.Entry(
@@ -89,66 +93,66 @@ class DataTaskView(TaskViewBase):
             name="clearAllData",
             text="Clear all data",
             command=self.clear_data,
-        ).grid(sticky=tk.NSEW)
+        ).grid(row=99, columnspan=2, sticky=tk.NSEW)
 
     def create_data_selector(self):
         """ Creates the selector for the data. """
-        self.dataselector = ttk.LabelFrame(
-            self.control, name="dataSelector", text="Data selector:"
-        )
-        self.dataselector.grid(row=40, sticky=(tk.EW, tk.S), pady=5)
+        values = sorted(self.data.data_files.keys())
+        texts = [
+            "Magnitude",
+            "Through-plane velocity map (Z)",
+            "In-plane velocity map (X)",
+            "In-plane velocity map (Y)",
+        ]
+        var_values = ["MagZ", "PhaseZ", "PhaseX", "PhaseY"]
+        cine_frames = [*range(len(self.data.data_files[values[0]]["MagZ"]))]
+        patient_data = self.data.read_dicom_file_tags(values[0], "MagZ", 0)
+        self.datasets_var.set(values[0])
+        self.cine_frame_var.set(cine_frames[0])
+
+        self.dataselector = ttk.Frame(self.control, name="dataSelector")
+        self.dataselector.grid(row=40, columnspan=2, sticky=tk.NSEW, pady=5)
         self.dataselector.columnconfigure(0, weight=1)
 
-        slice = ttk.Labelframe(self.dataselector, text="Slice:")
-        slice.grid(column=0, row=0, sticky=(tk.EW, tk.N), padx=5, pady=5)
-        slice.columnconfigure(0, weight=1)
+        patient_frame = ttk.Labelframe(self.dataselector, text="Patient Information:")
+        patient_frame.grid(column=0, sticky=tk.NSEW, padx=5, pady=5)
+        patient_frame.columnconfigure(1, weight=1)
 
-        values = sorted(self.data.data_files.keys())
-        self.series_types_var.set(values[0])
-        for v in values:
-            ttk.Radiobutton(
-                master=slice,
-                variable=self.series_types_var,
-                text=v,
-                value=v,
-                command=self.update_visualization,
-            ).grid(column=0, sticky=tk.NSEW, padx=5, pady=5)
+        ttk.Label(master=patient_frame, text="Name:").grid(sticky=tk.W, padx=10)
+        ttk.Label(master=patient_frame, text="DoB:").grid(sticky=tk.W, padx=10)
+        ttk.Label(master=patient_frame, text="Date of scan:").grid(sticky=tk.W, padx=10)
 
-        maps = ttk.Labelframe(self.dataselector, text="Map:")
-        maps.grid(column=0, row=1, sticky=(tk.EW, tk.N), padx=5, pady=5)
-        maps.columnconfigure(0, weight=1)
+        ttk.Label(master=patient_frame, text=patient_data["PatientName"]).grid(
+            column=1, row=0, sticky=tk.W
+        )
+        ttk.Label(master=patient_frame, text=patient_data["PatientBirthDate"]).grid(
+            column=1, row=1, sticky=tk.W
+        )
+        ttk.Label(master=patient_frame, text=patient_data["StudyDate"]).grid(
+            column=1, row=2, sticky=tk.W
+        )
 
-        for v in ["MagZ", "PhaseZ", "MagX", "PhaseX", "MagY", "PhaseY"]:
-            ttk.Radiobutton(
-                master=maps,
-                variable=self.variables_var,
-                text=v,
-                value=v,
-                command=self.update_visualization,
-            ).grid(sticky=tk.NSEW, padx=5, pady=5)
+        dataset_frame = ttk.Labelframe(self.dataselector, text="Datasets:")
+        dataset_frame.grid(column=0, sticky=tk.NSEW, padx=5, pady=5)
+        dataset_frame.columnconfigure(0, weight=1)
 
-        timestep = ttk.Labelframe(self.dataselector, name="timeStep", text="Time step:")
-        timestep.grid(column=0, row=2, sticky=(tk.EW, tk.N), padx=5, pady=5)
-        timestep.columnconfigure(0, weight=1)
-        timestep.columnconfigure(1, weight=1)
-
-        values = [*range(len(self.data.data_files[values[0]]["MagZ"]))]
-        self.time_step = ttk.Spinbox(
-            master=timestep,
-            name="stepFilenum",
-            command=lambda: self.update_visualization(step_changed=True),
+        datasets_box = ttk.Combobox(
+            master=dataset_frame,
+            textvariable=self.datasets_var,
             values=values,
             state="readonly",
         )
-        self.time_step.grid(column=0, row=0, sticky=tk.NSEW)
-        self.time_step.set(values[0])
+        datasets_box.bind("<<ComboboxSelected>>", self.update_visualization)
+        datasets_box.grid(column=0, sticky=tk.NSEW, padx=5, pady=5)
 
-        ttk.Button(
-            master=timestep,
-            name="playAnimation",
-            command=lambda: self.update_visualization(play_stop=True),
-            text="> / ||",
-        ).grid(column=1, row=0, sticky=tk.NSEW)
+        for t, v in zip(texts, var_values):
+            ttk.Radiobutton(
+                master=self.dataselector,
+                variable=self.maps_var,
+                text=t,
+                value=v,
+                command=self.update_visualization,
+            ).grid(sticky=tk.NSEW, padx=5, pady=5)
 
     def create_data_viewer(self):
         """ Creates the viewer for the data, including the animation and the DICOM. """
@@ -230,13 +234,14 @@ class DataTaskView(TaskViewBase):
         messagebox.showinfo(message="This functionality is not implemented, yet.")
         self.output_file.set("")
 
-    def update_visualization(self, step_changed=False, play_stop=False):
+    def update_visualization(self, *args, step_changed=False, play_stop=False):
         """ Updates the visualization whenever the data selected changes. """
-        series = self.series_types_var.get()
-        variable = self.variables_var.get()
+        series = self.datasets_var.get()
+        variable = self.maps_var.get()
         data = self.data.get_images(series, variable)
-        self.time_step["values"] = [*range(len(data))]
-        idx = int(self.time_step.get())
+        # self.time_step["values"] = [*range(len(data))]
+        # idx = int(self.time_step.get())
+        idx = 0
 
         if self.notebook.tab(self.notebook.select(), "text") == "Animation":
             if step_changed:
