@@ -47,16 +47,6 @@ def test_update_and_clear_widgets(data_view, strainmap_data):
     )
 
 
-def test_play_animation_button(data_view, strainmap_data):
-
-    assert not data_view.anim
-    data_view.data = strainmap_data
-    assert data_view.anim
-
-    data_view.nametowidget("control.dataSelector.timeStep.playAnimation").invoke()
-    assert data_view.anim and not data_view.anim.event_source
-
-
 def test_update_visualization_plot(data_view, strainmap_data):
 
     assert not data_view.anim
