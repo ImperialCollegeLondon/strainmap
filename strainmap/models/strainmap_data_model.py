@@ -54,8 +54,6 @@ def factory(
     elif df:
         data = StrainMapData(data_files=df, bg_files=bg)
     else:
-        raise StrainMapLoadError(
-            "Insufficient information to create or update a StrainMapData object."
-        )
+        data = StrainMapData(data_files={}, bg_files={})
 
     return data

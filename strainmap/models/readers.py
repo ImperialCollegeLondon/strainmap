@@ -19,9 +19,11 @@ def read_dicom_directory_tree(path: Union[Path, Text]) -> Mapping:
     var_idx: Dict = {}
     for f in filenames:
         ds = pydicom.dcmread(f)
-        assert "SeriesDescription" in ds.dir()
 
-        if ds.SeriesDescription not in data_files.keys():
+        if "ProtocolName" not in ds.dir() or "ParallelSpirals" not in ds.ProtocolName:
+            continue
+
+        if ds.ProtocolName not in data_files.keys():
             data_files[ds.SeriesDescription] = OrderedDict()
             var_idx = {}
             for var in VAR_OFFSET:
@@ -42,6 +44,9 @@ def read_dicom_file_tags(
 ) -> Mapping:
     """ Returns a dictionary with the tags and values available in a DICOM file. """
     if isinstance(origin, Mapping):
+        if len(origin) == 0:
+            return {}
+
         assert series in origin
         assert variable in origin[series]
         assert isinstance(timestep, int) and timestep < len(origin[series][variable])
@@ -60,6 +65,9 @@ def read_dicom_file_tags(
 
 def read_images(origin: Mapping, series: Text, variable: Text) -> List:
     """ Returns the images for a given series and variable. """
+    if len(origin) == 0:
+        return []
+
     assert series in origin
     assert variable in origin[series]
 

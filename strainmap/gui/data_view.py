@@ -97,18 +97,15 @@ class DataTaskView(TaskViewBase):
 
     def create_data_selector(self):
         """ Creates the selector for the data. """
-        values = sorted(self.data.data_files.keys())
-        texts = [
-            "Magnitude",
-            "Through-plane velocity map (Z)",
-            "In-plane velocity map (X)",
-            "In-plane velocity map (Y)",
-        ]
-        var_values = ["MagZ", "PhaseZ", "PhaseX", "PhaseY"]
-        cine_frames = [*range(len(self.data.data_files[values[0]]["MagZ"]))]
-        patient_data = self.data.read_dicom_file_tags(values[0], "MagZ", 0)
+        values, texts, var_values, cine_frames, patient_data = (
+            self.get_data_information()
+        )
         self.datasets_var.set(values[0])
         self.cine_frame_var.set(cine_frames[0])
+
+        patient_name = patient_data.get("PatientName", "")
+        patient_dob = patient_data.get("PatientBirthDate", "")
+        patient_study_date = patient_data.get("StudyDate", "")
 
         self.dataselector = ttk.Frame(self.control, name="dataSelector")
         self.dataselector.grid(row=40, columnspan=2, sticky=tk.NSEW, pady=5)
@@ -122,13 +119,13 @@ class DataTaskView(TaskViewBase):
         ttk.Label(master=patient_frame, text="DoB:").grid(sticky=tk.W, padx=10)
         ttk.Label(master=patient_frame, text="Date of scan:").grid(sticky=tk.W, padx=10)
 
-        ttk.Label(master=patient_frame, text=patient_data["PatientName"]).grid(
+        ttk.Label(master=patient_frame, text=patient_name).grid(
             column=1, row=0, sticky=tk.W
         )
-        ttk.Label(master=patient_frame, text=patient_data["PatientBirthDate"]).grid(
+        ttk.Label(master=patient_frame, text=patient_dob).grid(
             column=1, row=1, sticky=tk.W
         )
-        ttk.Label(master=patient_frame, text=patient_data["StudyDate"]).grid(
+        ttk.Label(master=patient_frame, text=patient_study_date).grid(
             column=1, row=2, sticky=tk.W
         )
 
@@ -147,7 +144,7 @@ class DataTaskView(TaskViewBase):
 
         for t, v in zip(texts, var_values):
             ttk.Radiobutton(
-                master=self.dataselector,
+                master=dataset_frame,
                 variable=self.maps_var,
                 text=t,
                 value=v,
@@ -234,11 +231,37 @@ class DataTaskView(TaskViewBase):
         messagebox.showinfo(message="This functionality is not implemented, yet.")
         self.output_file.set("")
 
+    def get_data_information(self):
+        """ Gets some information related to the available datasets, frames, etc. """
+        values = sorted(self.data.data_files.keys())
+        if len(values) > 0:
+            texts = [
+                "Magnitude",
+                "Through-plane velocity map (Z)",
+                "In-plane velocity map (X)",
+                "In-plane velocity map (Y)",
+            ]
+            var_values = ["MagZ", "PhaseZ", "PhaseX", "PhaseY"]
+            cine_frames = [*range(len(self.data.data_files[values[0]]["MagZ"]))]
+            patient_data = self.data.read_dicom_file_tags(values[0], "MagZ", 0)
+        else:
+            values = ["No suitable datasets available."]
+            texts = []
+            var_values = []
+            cine_frames = [""]
+            patient_data = {}
+
+        return values, texts, var_values, cine_frames, patient_data
+
     def update_visualization(self, *args, step_changed=False, play_stop=False):
         """ Updates the visualization whenever the data selected changes. """
         series = self.datasets_var.get()
         variable = self.maps_var.get()
         data = self.data.get_images(series, variable)
+
+        if len(data) == 0:
+            return
+
         # self.time_step["values"] = [*range(len(data))]
         # idx = int(self.time_step.get())
         idx = 0
