@@ -38,10 +38,10 @@ def factory(
     """
     df: Optional[Mapping] = None
     bg: Optional[Mapping] = None
-    if data_files:
+    if data_files is not None:
         df = read_dicom_directory_tree(data_files)
 
-    if bg_files:
+    if bg_files is not None:
         bg = read_dicom_directory_tree(bg_files)
 
     if strainmap_file is not None:
@@ -49,8 +49,8 @@ def factory(
         pass
 
     if isinstance(data, StrainMapData):
-        data.data_files = df if df else data.data_files
-        data.bg_files = bg if bg else data.bg_files
+        data.data_files = df if df is not None else data.data_files
+        data.bg_files = bg if bg is not None else data.bg_files
     elif df:
         data = StrainMapData(data_files=df, bg_files=bg)
     else:
