@@ -27,7 +27,7 @@ class Contour(object):
 
     @property
     def points(self):
-        """Nomber of points of the contour."""
+        """Number of points of the contour."""
         return len(self._xy)
 
     @property
