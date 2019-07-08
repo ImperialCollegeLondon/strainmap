@@ -1,4 +1,4 @@
-from typing import Callable, Text, Optional, Union, List
+from typing import Callable, Text, Optional, Union, List, Dict
 import numpy as np
 
 from skimage.segmentation import (
@@ -7,13 +7,21 @@ from skimage.segmentation import (
     morphological_chan_vese,
 )
 
-from .filters import REGISTERED_FILTERS
+from .filters import get_filter
 from .contour_mask import Contour
-from .propagators import PROPAGATORS
+from .propagators import get_propagator
 
 
 SEGMENTERS: dict = {}
 """ Dictionary with all the segmenters available in StrainMap."""
+
+
+def get_segmenter_model(name: Text) -> Callable:
+    """Returns the callable of the chosen segmenter model."""
+    try:
+        return SEGMENTERS[name]
+    except KeyError:
+        raise KeyError(f"Segmenter {name} does not exists!")
 
 
 def register_segmenter(
@@ -32,7 +40,7 @@ def register_segmenter(
 
 
 @register_segmenter(name="AC")
-def active_contour_model(img: np.ndarray, initial: Contour, params: dict) -> Contour:
+def active_contour_model(img: np.ndarray, initial: Contour, params: Dict) -> Contour:
     """Segmentation using the active contour model."""
     if img.ndim > 2:
         msg = f"The active contour segmentation model can't perform 3D segmentations."
@@ -45,7 +53,7 @@ def active_contour_model(img: np.ndarray, initial: Contour, params: dict) -> Con
 
 @register_segmenter(name="MorphGAC")
 def morphological_geodesic_active_contour_model(
-    img: np.ndarray, initial: Contour, params: dict
+    img: np.ndarray, initial: Contour, params: Dict
 ) -> Union[Contour, List[Contour]]:
     """Segmentation using the morphological geodesic active contour model."""
     iterations = params.pop("iterations", 1000)
@@ -60,16 +68,14 @@ def morphological_geodesic_active_contour_model(
     )
 
     if img.ndim > 2:
-        result = [Contour(snake[i]) for i in range(img.shape[0])]
+        return [Contour(snake[i]) for i in range(img.shape[0])]
     else:
-        result = Contour(snake)
-
-    return result
+        return Contour(snake)
 
 
 @register_segmenter(name="MorphCV")
 def morphological_chan_vese_model(
-    img: np.ndarray, initial: Contour, params: dict
+    img: np.ndarray, initial: Contour, params: Dict
 ) -> Union[Contour, List[Contour]]:
     """Segmentation using the morphological Chan Vese model."""
     iterations = params.pop("iterations", 1000)
@@ -84,48 +90,57 @@ def morphological_chan_vese_model(
     )
 
     if img.ndim > 2:
-        result = [Contour(snake[i]) for i in range(img.shape[0])]
+        return [Contour(snake[i]) for i in range(img.shape[0])]
     else:
-        result = Contour(snake)
-
-    return result
+        return Contour(snake)
 
 
 class Segmenter(object):
     """Class to create a segmenter that includes a model, a filter and a propagation."""
 
-    def __init__(
-        self,
+    @classmethod
+    def setup(
+        cls,
         model: Text = "AC",
         ffilter: Text = "gaussian",
         propagator: Text = "initial",
     ):
-        self._model = get_segmenter_model(model)
-        self._filter = get_filter(ffilter)
-        self._propagator = get_propagator(propagator)
-        self._segmenter = (
-            self._global_segmenter
-            if not self._propagator
-            else self._propagated_segmenter
+        return cls(
+            get_segmenter_model(model), get_filter(ffilter), get_propagator(propagator)
         )
+
+    def __init__(self, model: Callable, ffilter: Callable, propagator: Callable):
+        self._model = model
+        self._filter = ffilter
+        self._propagator = propagator
+
+        if propagator.__name__ == "<lambda>":
+            self._segmenter = self._global_segmenter
+        else:
+            self._segmenter = self._propagated_segmenter
 
     def __call__(
         self,
         image: np.ndarray,
         initial: Contour,
-        mparams: Optional[dict] = None,
-        fparams: Optional[dict] = None,
-        pparams: Optional[dict] = None,
+        model_params: Optional[Dict] = None,
+        filter_params: Optional[Dict] = None,
+        propagator_params: Optional[Dict] = None,
     ) -> Union[Contour, List[Contour]]:
+
+        mparams = model_params if model_params is not None else {}
+        fparams = filter_params if filter_params is not None else {}
+        pparams = propagator_params if propagator_params is not None else {}
+
         return self._segmenter(image, initial, mparams, fparams, pparams)
 
     def _global_segmenter(
         self,
         image: np.ndarray,
         initial: Contour,
-        mparams: Optional[dict] = None,
-        fparams: Optional[dict] = None,
-        **kwargs,
+        mparams: Dict,
+        fparams: Dict,
+        pparams: Dict,
     ) -> Union[Contour, List[Contour]]:
         """ Segments a single image or array of images at once (3d segmentation)."""
 
@@ -138,10 +153,9 @@ class Segmenter(object):
         self,
         image: np.ndarray,
         initial: Contour,
-        mparams: Optional[dict] = None,
-        fparams: Optional[dict] = None,
-        pparams: Optional[dict] = None,
-        **kwargs,
+        mparams: Dict,
+        fparams: Dict,
+        pparams: Dict,
     ) -> Union[Contour, List[Contour]]:
         """Segments an array of images propagating the snake from one to the next."""
 
@@ -151,30 +165,12 @@ class Segmenter(object):
 
         snakes = []
         next_init = initial.to_contour()
-        for image in fimg:
+        for i, image in enumerate(fimg):
             snake = self._model(image, next_init, **mparams)
             snakes.append(snake)
-            next_init = self._propagator(initial, snake, **pparams)
+            next_init = self._propagator(initial, snake, i, **pparams)
+
+        if len(snakes) == 1:
+            snakes = snakes[0]
 
         return snakes
-
-
-def get_segmenter_model(name: Text) -> Callable:
-    """Returns the callable of the chosen segmenter model."""
-    try:
-        return SEGMENTERS[name]
-    except KeyError:
-        raise KeyError(f"Segmenter {name} does not exists!")
-
-
-def get_filter(name: Text) -> Callable:
-    """Returns the callable of the chosen filter model."""
-    try:
-        return REGISTERED_FILTERS[name]
-    except KeyError:
-        raise KeyError(f"Filter {name} does not exists!")
-
-
-def get_propagator(name: Text) -> Callable:
-    """Returns the callable of the chosen propagator model."""
-    return PROPAGATORS.get(name, None)

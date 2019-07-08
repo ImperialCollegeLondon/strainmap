@@ -1,4 +1,4 @@
-from typing import Optional, Callable, Tuple
+from typing import Optional, Callable, Text
 import numpy as np
 
 from .contour_mask import Contour
@@ -7,19 +7,15 @@ from .contour_mask import Contour
 PROPAGATORS: dict = {}
 """ Dictionary with all the propagators available in StrainMap."""
 
-COMBINED_PROPAGATORS: dict = {}
-""" Dictionary with all the combined propagators available in StrainMap."""
-
 PROPAGATORS_SIGNATURE = Callable[
-    [Optional[Contour], Optional[Contour], Optional[dict]], Contour
+    [Optional[Contour], Optional[Contour], Optional[int], Optional[dict]], Contour
 ]
 """Propagators signature."""
 
-COMBINED_PROPAGATORS_SIGNATURE = Callable[
-    [Tuple[Contour, Contour], Tuple[Contour, Contour], int, Optional[dict]],
-    Tuple[Contour, Contour],
-]
-"""Combined propagators signature."""
+
+def get_propagator(name: Text) -> Callable:
+    """Returns the callable of the chosen propagator model."""
+    return PROPAGATORS.get(name, lambda *args, **kwargs: Contour.circle())
 
 
 def register_propagator(fun: PROPAGATORS_SIGNATURE):
@@ -33,21 +29,11 @@ def register_propagator(fun: PROPAGATORS_SIGNATURE):
     return fun
 
 
-def register_combined_propagator(fun: COMBINED_PROPAGATORS_SIGNATURE):
-    """ Register a propagator, so it is available across StrainMap. """
-
-    msg = f"Combined_propagator {fun.__name__} already exists."
-    assert fun.__name__ not in COMBINED_PROPAGATORS, msg
-
-    COMBINED_PROPAGATORS[fun.__name__] = fun
-
-    return fun
-
-
 @register_propagator
 def initial(
     initial: Optional[Contour] = None,
     previous: Optional[Contour] = None,
+    i: Optional[int] = None,
     options: Optional[dict] = None,
 ) -> Contour:
     """ There is no propagation: always use the same initial contour. """
@@ -61,6 +47,7 @@ def initial(
 def previous(
     initial: Optional[Contour] = None,
     previous: Optional[Contour] = None,
+    i: Optional[int] = None,
     options: Optional[dict] = None,
 ) -> Contour:
     """ The next initial is equal to the previously calculated one.
@@ -78,6 +65,7 @@ def previous(
 def weighted(
     initial: Optional[Contour] = None,
     previous: Optional[Contour] = None,
+    i: Optional[int] = None,
     options: Optional[dict] = None,
 ) -> Contour:
     """ The next initial is a weighted average between the previous and the initial.
@@ -92,20 +80,9 @@ def weighted(
     w = np.clip(options.get("weight", 0), 0, 1) if options else 0
     out = previous.to_contour()
 
-    irho = np.interp(previous.polar[:, 1], initial.polar[:, 1], initial.polar[:, 0])
-    rho = w * irho + (1 - w) * previous.polar[:, 0]
+    ir = np.interp(previous.polar.theta, initial.polar.theta, initial.polar.r)
+    r = w * ir + (1 - w) * previous.polar.r
 
-    out.polar = np.array([rho, previous.polar[:, 1]]).T
+    out.polar = np.array([r, previous.polar.theta]).T
 
     return out
-
-
-@register_combined_propagator
-def initial_combined(
-    initial: Tuple[Contour, Contour],
-    previous: Tuple[Contour, Contour],
-    step: int,
-    options: Optional[dict] = None,
-) -> Tuple[Contour, Contour]:
-    """ There is no propagation: always use the same initial contour. """
-    return initial
