@@ -126,7 +126,7 @@ class DataTaskView(TaskViewBase):
             master=dataset_frame,
             textvariable=self.datasets_var,
             values=values,
-            state="readonly",
+            state="readonly" if len(patient_data) > 0 else "disabled",
         )
         datasets_box.bind("<<ComboboxSelected>>", self.update_visualization)
         datasets_box.grid(column=0, sticky=tk.NSEW, padx=5, pady=5)
@@ -147,6 +147,7 @@ class DataTaskView(TaskViewBase):
             variable=self.phantom_check,
             onvalue=True,
             offvalue=False,
+            state="enable" if len(patient_data) > 0 else "disabled",
         ).grid(sticky=tk.NSEW, padx=5, pady=5)
 
         self.phantoms_box = ttk.Combobox(
@@ -209,7 +210,7 @@ class DataTaskView(TaskViewBase):
 
         output = {}
         if path != "":
-            output = {"data_files": path}
+            output = dict(data_files=path)
 
         return output
 
@@ -217,16 +218,17 @@ class DataTaskView(TaskViewBase):
     def load_phantom(self):
         """Loads phantom data into a data structure."""
 
+        result = {}
         if self.phantom_check.get():
             path = tk.filedialog.askdirectory(title="Select PHANTOM directory")
-
-            output = {}
-            if path != "":
-                output = dict(bg_files=path, data=self.data)
+            if path == "":
+                self.phantom_check.set(False)
+            else:
+                result = dict(bg_files=path, data=self.data)
         else:
-            output = dict(bg_files="", data=self.data)
+            self.phantoms_box.grid_remove()
 
-        return output
+        return result
 
     @trigger_event
     def clear_data(self):
@@ -355,14 +357,13 @@ class DataTaskView(TaskViewBase):
         self.create_data_viewer()
         self.update_visualization()
 
-        if self.phantom_check.get():
-            values = sorted(self.data.bg_files.keys())
+        values = sorted(self.data.bg_files.keys())
+        if self.phantom_check.get() and len(values) > 0:
             self.phantoms_box["values"] = values
             self.phantoms_box.current(0)
             self.phantoms_box.grid(column=0, sticky=tk.NSEW, padx=5, pady=5)
         else:
-            self.phantoms_box["values"] = []
-            self.phantoms_box.grid_remove()
+            self.phantom_check.set(False)
 
     def clear_widgets(self):
         """ Clear widgets after removing the data. """
