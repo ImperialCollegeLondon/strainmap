@@ -1,3 +1,4 @@
 from strainmap import controller
 
-controller.StrainMap().run()
+if __name__ == "__main__":
+    controller.StrainMap().run()
