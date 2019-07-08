@@ -88,25 +88,23 @@ class Contour(object):
         """Creates an expanded (or contracted y p<1) copy of a contour."""
         return dilate(self, p)
 
-    def to_contour(self) -> Contour:
-        """New contour preserving only the XY coordinates and shape."""
-        return Contour(self.xy, shape=self.shape)
-
     @staticmethod
     def circle(
-        center: Tuple[int, int] = (256, 256),
+        center: Optional[Tuple[int, int]] = None,
         radius: int = 50,
         points: int = 360,
-        **kwargs,
+        shape: Tuple[int, int] = (512, 512),
     ):
         """Circular contour."""
+        if center is None:
+            center = (np.array(shape) - 1) / 2
         center = np.array(center)
         polar = np.ones((points, 2))
         polar[:, 0] *= radius
         polar[:, 1] = np.linspace(0, 2 * np.pi, points)
         xy = pol2cart(polar) + center
 
-        return Contour(xy, **kwargs)
+        return Contour(xy, shape=shape)
 
     @staticmethod
     def spline(
@@ -207,6 +205,85 @@ def angular_sectors(
     steps = np.linspace(0, 2 * np.pi, nsectors + 1)
     for n in range(1, nsectors):
         result[theta > steps[n]] = n
+
+    return result
+
+
+def ribon_sectors(
+    outer: Contour,
+    inner: Contour,
+    nr: int = 3,
+    shape: Optional[Tuple[int, int]] = None,
+    center: Optional[Tuple[float, float]] = None,
+):
+    """Splits difference between two contours into several radial regions.
+
+    The two contours should create a ribbon between outer and inner. This ribbon is
+    split into `nr` seperate region.
+
+    Returns:
+        An image where 0 is outside the region, and 1 - nr (included) indicate
+        radially separated regions.
+
+    Examples:
+        Lets try to split a ribbon defined by two circles in two:
+
+        >>> from strainmap.models.contour_mask import Contour, ribon_sectors
+        >>> outer = Contour.circle(shape=(15, 15), radius=6)
+        >>> inner = Contour.circle(shape=(10, 10), center=(5.5, 6), radius=3)
+        >>> regions = ribon_sectors(outer, inner, nr=3)
+        >>> print(regions)
+        [[0 0 0 0 0 0 0 0 0 0 0 0 0 0 0]
+         [0 0 0 0 0 0 0 3 0 0 0 0 0 0 0]
+         [0 0 0 0 3 2 2 2 3 3 3 0 0 0 0]
+         [0 0 0 3 1 1 1 1 2 2 3 3 0 0 0]
+         [0 0 3 1 0 0 0 0 1 2 2 3 3 0 0]
+         [0 0 2 0 0 0 0 0 0 1 2 2 3 0 0]
+         [0 0 2 0 0 0 0 0 0 1 2 2 3 0 0]
+         [0 0 2 0 0 0 0 0 0 1 2 2 3 3 0]
+         [0 0 2 1 0 0 0 0 1 1 2 2 3 0 0]
+         [0 0 3 2 1 1 1 1 1 2 2 3 3 0 0]
+         [0 0 3 2 2 2 1 1 2 2 2 3 3 0 0]
+         [0 0 0 3 3 2 2 2 2 3 3 3 0 0 0]
+         [0 0 0 0 3 3 3 3 3 3 3 0 0 0 0]
+         [0 0 0 0 0 0 0 3 0 0 0 0 0 0 0]
+         [0 0 0 0 0 0 0 0 0 0 0 0 0 0 0]]
+
+        Note that it is an error if the outer and inner boundaries are swapped:
+
+        >>> ribon_sectors(inner, outer, nr=3)
+        Traceback (most recent call last):
+            ...
+        ValueError: Inner and outer boundaries cannot cross.
+    """
+    if center is None:
+        origin = outer.centroid
+    else:
+        origin = np.array(center)
+
+    if shape is None:
+        shape = outer.shape
+
+    x = np.arange(0, shape[0], dtype=int)[None, :] - origin[0]
+    y = np.arange(0, shape[1], dtype=int)[:, None] - origin[1]
+
+    thetas = np.arctan2(y, x)
+    r = np.sqrt(x * x + y * y)
+    polar = cart2pol(outer.xy - origin)
+    outer_pol = np.interp(thetas, polar.theta, polar.r, period=2 * np.pi)
+    polar = cart2pol(inner.xy - origin)
+    inner_pol = np.interp(thetas, polar.theta, polar.r, period=2 * np.pi)
+
+    # ensure numerical noise doesn't push the inner contour to the outside
+    outer_pol = np.where(
+        np.isclose(outer_pol, inner_pol), np.minimum(inner_pol, outer_pol), outer_pol
+    )
+    if (outer_pol < inner_pol).any():
+        raise ValueError("Inner and outer boundaries cannot cross.")
+
+    result = np.zeros(shape, dtype=int)
+    for i in range(nr, -1, -1):
+        result[(outer_pol - inner_pol) / nr * i + inner_pol >= r] = i
 
     return result
 
