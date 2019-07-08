@@ -288,7 +288,7 @@ def bulk_component(
 def cylindrical_projection(
     field: np.ndarray, origin: np.array, axis: int = 0
 ) -> np.ndarray:
-    """Project field on cylindrical coordinates.
+    """Project vector field on the local basis of a cylindrical coordinate system.
 
     Args:
         field: 2d or 3d vector field where the (x, y, [z]) components are on dimension
