@@ -82,7 +82,7 @@ class Contour(object):
     @property
     def mask(self):
         """Binary image, with 1 inside and 0 outside the contour."""
-        return ndimage.morphology.binary_fill_holes(self.image).astype(int)
+        return ndimage.morphology.binary_fill_holes(self.image)
 
     def dilate(self, p: float = 1) -> Contour:
         """Creates an expanded (or contracted y p<1) copy of a contour."""
@@ -95,14 +95,12 @@ class Contour(object):
     @staticmethod
     def circle(
         center: Tuple[int, int] = (256, 256),
-        edge: Tuple[int, int] = (256, 306),
+        radius: int = 50,
         points: int = 360,
-        radius: Optional[int] = None,
         **kwargs,
     ):
         """Circular contour."""
         center = np.array(center)
-        radius = radius if radius else np.linalg.norm(center - np.array(edge))
         polar = np.ones((points, 2))
         polar[:, 0] *= radius
         polar[:, 1] = np.linspace(0, 2 * np.pi, points)
