@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import copy
-from typing import Mapping, Optional, Sequence, Text, Tuple, Union
+from typing import Optional, Sequence, Tuple, Union
 
 import numpy as np
 from scipy import interpolate, ndimage
@@ -124,73 +124,93 @@ class Contour(object):
         return Contour(xy, **kwargs)
 
 
-class Mask(object):
+def contour_diff(
+    c1: Union[Contour, np.ndarray],
+    c2: Union[Contour, np.ndarray],
+    shape: Tuple[int, int] = (512, 512),
+) -> np.ndarray:
     """Creates a mask array from the difference between two contours.
 
-    To create the combined mask, the mask associated to c2 is subtracted from c1, and
-    the result clip to (0, 1). c2 can be omitted, in which case this mask is identical
-    to the c1 one.
-
-    Out of this mask, specific masks for angular sectors can be calculated.
+    Returns a mask that contains c1 but not c2.
     """
+    if isinstance(c1, Contour):
+        mask1 = c1.mask
+    elif isinstance(c1, np.ndarray) and 2 in c1.shape:
+        mask1 = Contour(c1, shape).mask
+    elif isinstance(c1, np.ndarray):
+        mask1 = c1
+    else:
+        raise TypeError("Inputs must be Contours or numpy arrays.")
 
-    def __init__(
-        self,
-        c1: Union[Contour, np.ndarray],
-        c2: Union[Contour, np.ndarray, None] = None,
-        shape: Tuple[int, int] = (512, 512),
-    ):
-        if isinstance(c1, Contour):
-            mask1 = c1.mask
-        elif isinstance(c1, np.ndarray) and 2 in c1.shape:
-            mask1 = Contour(c1, shape).mask
-        elif isinstance(c1, np.ndarray):
-            mask1 = c1
-        else:
-            raise TypeError("Inputs must be Contours or numpy arrays.")
+    if isinstance(c2, Contour):
+        mask2 = c2.mask
+    elif isinstance(c2, np.ndarray) and 2 in c2.shape:
+        mask2 = Contour(c2, shape).mask
+    elif isinstance(c2, np.ndarray):
+        mask2 = c2
+    else:
+        raise TypeError("Inputs must be Contours or numpy arrays.")
 
-        if not c2:
-            mask2 = 0.0 * mask1
-        elif isinstance(c2, Contour):
-            mask2 = c2.mask
-        elif isinstance(c2, np.ndarray) and 2 in c2.shape:
-            mask2 = Contour(c2, shape).mask
-        elif isinstance(c2, np.ndarray):
-            mask2 = c2
-        else:
-            raise TypeError("Inputs must be Contours or numpy arrays.")
+    msg = "Error: Only contours with the same shape can make a mask."
+    assert mask1.shape == mask2.shape, msg
+    return mask1 & (mask1 ^ mask2)
 
-        msg = "Error: Only contours with the same shape can make a mask."
-        assert mask1.shape == mask2.shape, msg
 
-        self.shape = mask1.shape
-        self.mask = (mask1 - mask2).clip(0, 1)
-        self.centroid = np.array(ndimage.measurements.center_of_mass(self.mask))
+def angular_sectors(
+    nsectors: int = 6,
+    origin: Optional[Sequence[int]] = None,
+    theta0: float = 0,
+    clockwise: bool = True,
+    shape: Tuple[int, int] = (512, 512),
+) -> np.ndarray:
+    """Array defining angular sectors.
 
-    def sector_mask(
-        self,
-        number: int = 6,
-        zero_angle: float = 0,
-        labels: Optional[Sequence[Text]] = None,
-    ) -> Mapping:
-        """Creates a dictionary of masks for a number of angular sectors."""
-        zero_angle = np.radians(zero_angle)
+    The sectors are defined by a numpy array with integer values in `range(nsectors)`.
 
-        labels = labels if labels else [*range(1, number + 1)]
-        number = len(labels)
+    Args:
+        nsectors: Number of angular sectors.
+        origin: Origin the cartesian coordinates. By default, the origin is set in the
+            center of the image.
+        theta0: By default theta=0 is for a vector pointing right. This argument makes
+            it possible the start of the sectors. This transformation is applied
+            **before** correcting for handedness!
+        clockwise: Clockwise by default. Set to False for counter-clockwise.
+        shape: size of the resulting image
 
-        grid = np.indices(self.shape)
-        x = grid[0] - self.centroid[0]
-        y = grid[1] - self.centroid[1]
-        theta = np.mod(np.arctan2(y, x), 2 * np.pi)
+    Examples:
 
-        angles = np.linspace(zero_angle, zero_angle + 2 * np.pi, number + 1)
+        We can simply quarter an image as follows:
 
-        sectors = {}
-        for i, l in enumerate(labels):
-            sectors[l] = (angles[i] <= theta) * (theta < angles[i + 1]) * self.mask
+        >>> from strainmap.models.contour_mask import angular_sectors
+        >>> sectors = angular_sectors(nsectors=4, shape=(10, 10))
+        >>> print(sectors)
+        [[2 2 2 2 2 2 3 3 3 3]
+         [2 2 2 2 2 2 3 3 3 3]
+         [2 2 2 2 2 2 3 3 3 3]
+         [2 2 2 2 2 2 3 3 3 3]
+         [2 2 2 2 2 2 3 3 3 3]
+         [1 1 1 1 1 0 0 0 0 0]
+         [1 1 1 1 1 0 0 0 0 0]
+         [1 1 1 1 1 0 0 0 0 0]
+         [1 1 1 1 1 0 0 0 0 0]
+         [1 1 1 1 1 0 0 0 0 0]]
+    """
+    if origin is None:
+        origin = np.array(shape) / 2
+    x = np.arange(0, shape[0], dtype=int)[None, :] - origin[0]
+    y = np.arange(0, shape[1], dtype=int)[:, None] - origin[1]
 
-        return sectors
+    theta = np.mod(np.arctan2(y, x) + theta0, 2 * np.pi)
+    if not clockwise:
+        theta = -theta
+
+    result = np.zeros(theta.shape, dtype=int)
+
+    steps = np.linspace(0, 2 * np.pi, nsectors + 1)
+    for n in range(1, nsectors):
+        result[theta > steps[n]] = n
+
+    return result
 
 
 def cart2pol(cart: np.ndarray) -> np.recarray:
