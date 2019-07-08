@@ -291,9 +291,14 @@ def cylindrical_projection(
     """Project field on cylindrical coordinates.
 
     Args:
-        field: 2d vector field where the (x, y) components are on axis `axis`.
+        field: 2d or 3d vector field where the (x, y, [z]) components are on dimension
+            `axis`.
         origin: Origin of the cylindrical coordinate system
         axis: Axis of the field components
+
+    Return:
+        A 2d or 3d field where dimension `axis` contains (r, theta, [z])
+
 
     Examples:
         We can create a normalized centripedal field, i.e. a vector field where each
@@ -316,11 +321,35 @@ def cylindrical_projection(
         True
         >>> np.allclose(projection[:, :, 1], 0)
         True
+
+        A 3d field that is centrepedal in x and y only should give us the same result,
+        with the z component unchanged from the input:
+
+        >>> z = np.random.randint(0, 10, (10, 10))
+        >>> field3d = np.concatenate((unit_field, z[:, :, None]), axis=2)
+        >>> proj3d = cylindrical_projection(field3d, origin=[3.5, 5, 0], axis=2)
+        >>> proj3d.shape
+        (10, 10, 3)
+        >>> np.allclose(proj3d[:, :, 0], 1)
+        True
+        >>> np.allclose(proj3d[:, :, 1], 0)
+        True
+        >>> np.allclose(proj3d[:, :, 2], z)
+        True
     """
+    origin = np.array(origin)
+    field = np.array(field)
+
     assert field.ndim == 3
     assert axis >= 0 and axis < field.ndim
-    assert origin.ndim == 1 and origin.size == 2
-    assert field.shape[axis] == origin.size
+    assert origin.ndim == 1 and origin.size == field.shape[axis]
+    assert field.shape[axis] in (2, 3)
+
+    if field.shape[axis] == 3:
+        result = cylindrical_projection(
+            np.take(field, range(2), axis=axis), origin[:2], axis=axis
+        )
+        return np.concatenate((result, np.take(field, (2,), axis=axis)), axis=axis)
 
     x = np.arange(0, field.shape[0], dtype=int)[None, :] - origin[0]
     y = np.arange(0, field.shape[1], dtype=int)[:, None] - origin[1]
