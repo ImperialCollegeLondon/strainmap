@@ -1,7 +1,11 @@
-from pytest import mark
 from unittest.mock import MagicMock
 
+from pytest import mark
 
+from conftest import patch_dialogs
+
+
+@patch_dialogs
 def test_load_data_button(data_view, dicom_data_path):
     from strainmap.gui.base_window_and_task import EVENTS
 
@@ -12,6 +16,7 @@ def test_load_data_button(data_view, dicom_data_path):
     assert data_view.data_folder.get() == str(dicom_data_path)
 
 
+@patch_dialogs
 def test_clear_data_button(data_view, dicom_data_path):
     from strainmap.gui.base_window_and_task import EVENTS
 

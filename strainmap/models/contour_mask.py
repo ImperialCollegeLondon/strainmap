@@ -244,6 +244,135 @@ def image_to_coordinates(image: np.ndarray) -> np.ndarray:
     return pol2cart(np.array([r[idx], theta[idx]]).T) + centroid
 
 
+def bulk_component(
+    data: np.ndarray, mask: Optional[np.ndarray] = None, **kwargs
+) -> np.ndarray:
+    """Mean across masked array.
+
+    Args:
+        data: Data from which to extract the mean component
+        mask: Mask over the data.
+
+    Examples:
+        If no mask is given, then this function is equivalent to taking the mean
+
+        >>> from numpy import sum
+        >>> from numpy.random import randint
+        >>> from strainmap.models.contour_mask import bulk_component
+        >>> data = randint(0, 10, (10, 10))
+        >>> (bulk_component(data, axis=1) == sum(data, axis=1) / data.shape[0]).all()
+        True
+        >>> (bulk_component(data, axis=1) == data.mean(axis=1)).all()
+        True
+
+        If a mask is given, then those values are not taken into account in the mean:
+
+        >>> from numpy import ma
+        >>> mask = randint(0, 10, data.shape) > 3
+        >>> (
+        ...     sum(data * mask, axis=1) / sum(mask, axis=1)
+        ...     == bulk_component(data, mask, axis=1)
+        ... ).all()
+        True
+
+        More specifically, it is equivalent to the mean from a masked numpy array.
+
+        >>> bulk_component(data, mask) == ma.array(data, mask=~mask).mean()
+        True
+    """
+    if mask is not None:
+        data = np.ma.array(data, mask=~mask)
+    return data.mean(**kwargs)
+
+
+def cylindrical_projection(
+    field: np.ndarray, origin: np.array, axis: int = 0
+) -> np.ndarray:
+    """Project vector field on the local basis of a cylindrical coordinate system.
+
+    Args:
+        field: 2d or 3d vector field where the (x, y, [z]) components are on dimension
+            `axis`.
+        origin: Origin of the cylindrical coordinate system
+        axis: Axis of the field components
+
+    Return:
+        A 2d or 3d field where dimension `axis` contains (r, theta, [z])
+
+
+    Examples:
+        We can create a normalized centripedal field, i.e. a vector field where each
+        vector points to the origin, and each vector is normalized in magnitude. Then
+        the r components of the cylindrical projection should all be 1, and the theta
+        components should all be zero.
+
+        >>> import numpy as np
+        >>> from strainmap.models.contour_mask import cylindrical_projection
+        >>> origin = np.array([3.5, 5])
+        >>> field = np.stack(
+        ...   (
+        ...       np.arange(0, 10, dtype=int)[None, :] + np.zeros((10, 10), dtype=int),
+        ...       np.arange(0, 10, dtype=int)[:, None] + np.zeros((10, 10), dtype=int)
+        ...   ), axis=2
+        ... ) - origin[None, None, :]
+        >>> unit_field = field / np.linalg.norm(field, axis=2)[:, :, None]
+        >>> projection = cylindrical_projection(unit_field, origin=origin, axis=2)
+        >>> np.allclose(projection[:, :, 0], 1)
+        True
+        >>> np.allclose(projection[:, :, 1], 0)
+        True
+
+        A 3d field that is centrepedal in x and y only should give us the same result,
+        with the z component unchanged from the input:
+
+        >>> z = np.random.randint(0, 10, (10, 10))
+        >>> field3d = np.concatenate((unit_field, z[:, :, None]), axis=2)
+        >>> proj3d = cylindrical_projection(field3d, origin=[3.5, 5, 0], axis=2)
+        >>> proj3d.shape
+        (10, 10, 3)
+        >>> np.allclose(proj3d[:, :, 0], 1)
+        True
+        >>> np.allclose(proj3d[:, :, 1], 0)
+        True
+        >>> np.allclose(proj3d[:, :, 2], z)
+        True
+    """
+    origin = np.array(origin)
+    field = np.array(field)
+
+    assert field.ndim == 3
+    assert axis >= 0 and axis < field.ndim
+    assert origin.ndim == 1 and origin.size == field.shape[axis]
+    assert field.shape[axis] in (2, 3)
+
+    if field.shape[axis] == 3:
+        result = cylindrical_projection(
+            np.take(field, range(2), axis=axis), origin[:2], axis=axis
+        )
+        return np.concatenate((result, np.take(field, (2,), axis=axis)), axis=axis)
+
+    x = np.arange(0, field.shape[0], dtype=int)[None, :] - origin[0]
+    y = np.arange(0, field.shape[1], dtype=int)[:, None] - origin[1]
+
+    theta = np.arctan2(y, x)
+    shape = list(theta.shape)
+    shape.insert(axis, 1)
+    r_vec = np.concatenate(
+        (np.cos(theta).reshape(shape), np.sin(theta).reshape(shape)), axis=axis
+    )
+    theta_vec = np.concatenate(
+        (-np.sin(theta).reshape(shape), np.cos(theta).reshape(shape)), axis=axis
+    )
+    result = np.concatenate(
+        (
+            np.sum(r_vec * field, axis=axis).reshape(shape),
+            np.sum(theta_vec * field, axis=axis).reshape(shape),
+        ),
+        axis=axis,
+    )
+    return result
+
+
 if __name__ == "__main__":
     import matplotlib.pyplot as plt
 
