@@ -69,7 +69,8 @@ class StrainMap(object):
         """ Creates a StrainMapData object. """
         if kwargs:
             data = factory(**kwargs)
-            self.unlock(Requisites.DATALOADED)
+            if data.data_files:
+                self.unlock(Requisites.DATALOADED)
             self.update_views(data)
 
     @bind_event
