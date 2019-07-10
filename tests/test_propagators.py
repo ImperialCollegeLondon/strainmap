@@ -26,7 +26,7 @@ def test_previous():
 
     c3 = c2.dilate(p=2)
 
-    actual = previous(initial=c, previous=c2, options={"dilation_factor": 2})
+    actual = previous(initial=c, previous=c2, dilation_factor=2)
 
     assert c3.xy == approx(actual.xy)
 
@@ -40,9 +40,9 @@ def test_weighted():
     c2 = c.dilate(p=2)
     c3 = c.dilate(p=1.5)
 
-    actual = weighted(initial=c, previous=c2, options={"weight": 1})
+    actual = weighted(initial=c, previous=c2, weight=1)
     assert np.mean(c.polar.r) == approx(np.mean(actual.polar.r), rel=0.01)
-    actual = weighted(initial=c, previous=c2, options={"weight": 0})
+    actual = weighted(initial=c, previous=c2, weight=0)
     assert np.mean(c2.polar.r) == approx(np.mean(actual.polar.r), rel=0.01)
-    actual = weighted(initial=c, previous=c2, options={"weight": 0.5})
+    actual = weighted(initial=c, previous=c2, weight=0.5)
     assert np.mean(c3.polar.r) == approx(np.mean(actual.polar.r), rel=0.01)

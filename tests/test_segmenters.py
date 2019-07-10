@@ -30,7 +30,7 @@ def test_segmenter_global_segmenter():
 
     c2 = c.dilate(p=1.5)
 
-    sec = Segmenter(model, ffilter, lambda: None)
+    sec = Segmenter(model, ffilter)
 
     actual = sec(c.mask, c2)
     assert c.xy == approx(actual.xy)
@@ -45,8 +45,7 @@ def test_segmenter_propagated_segmenter():
 
     model = MagicMock(return_value=c)
     ffilter = MagicMock(side_effect=lambda x, **kwargs: x)
-    propagator = MagicMock(side_effect=lambda x, *args, **kwargs: x)
-    propagator.__name__ = "dummy"
+    propagator = MagicMock(side_effect=lambda initial, *args, **kwargs: initial)
 
     c2 = c.dilate(p=1.5)
 

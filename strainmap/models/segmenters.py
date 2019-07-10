@@ -1,4 +1,4 @@
-from typing import Callable, Text, Optional, Union, List, Dict
+from typing import Callable, Text, Optional, Union, List, Dict, Any
 import numpy as np
 
 from skimage.segmentation import (
@@ -7,21 +7,13 @@ from skimage.segmentation import (
     morphological_chan_vese,
 )
 
-from .filters import get_filter
+from .filters import REGISTERED_FILTERS
 from .contour_mask import Contour
-from .propagators import get_propagator
+from .propagators import REGISTERED_PROPAGATORS
 
 
-SEGMENTERS: dict = {}
+SEGMENTERS: Dict[Text, Callable[..., Any]] = {}
 """ Dictionary with all the segmenters available in StrainMap."""
-
-
-def get_segmenter_model(name: Text) -> Callable:
-    """Returns the callable of the chosen segmenter model."""
-    try:
-        return SEGMENTERS[name]
-    except KeyError:
-        raise KeyError(f"Segmenter {name} does not exists!")
 
 
 def register_segmenter(
@@ -96,25 +88,59 @@ def morphological_chan_vese_model(
 
 
 class Segmenter(object):
-    """Class to create a segmenter that includes a model, a filter and a propagation."""
+    """Class to create a segmenter that includes a model, a filter and a propagation.
+
+    - The model is the name of the segmentation algorithm that will search for the
+    edges of an image starting with an initial contour. Possible values for the model
+    are (all implemented in scikit-image):
+
+        - AC: Active contour model
+        - MorphGAC: Morphological geodesic active contour
+        - MorphCV: Morphological Chan Vese model
+
+    - The filter is applied to the input images to facilitate the search of the contours
+    by enhancing the edges or smoothing noisy areas. Possible values are (again, on
+    scikit-image):
+
+        - gaussian
+        - inverse_gaussian
+
+    - Finally, the propagator controls how a segmentation done with an image can be used
+    to facilitate the segmentation of the next one of the series, using it as the
+    initial condition for the model. Possible values are (included in propagators.py):
+
+        - initial: Uses the same initial condition for all images
+        - previous: Uses the previous segment as the initial condition for the next one
+        - weighted: Uses a weighted average between the initial contour and the previous
+                    segment.
+    """
 
     @classmethod
     def setup(
         cls,
         model: Text = "AC",
         ffilter: Text = "gaussian",
-        propagator: Text = "initial",
+        propagator: Optional[Text] = None,
     ):
-        return cls(
-            get_segmenter_model(model), get_filter(ffilter), get_propagator(propagator)
-        )
+        if propagator is not None:
+            return cls(  # type: ignore
+                SEGMENTERS.get(model),
+                REGISTERED_FILTERS.get(ffilter),
+                REGISTERED_PROPAGATORS.get(propagator),
+            )
+        else:
+            return cls(  # type: ignore
+                SEGMENTERS.get(model), REGISTERED_FILTERS.get(ffilter)
+            )
 
-    def __init__(self, model: Callable, ffilter: Callable, propagator: Callable):
+    def __init__(
+        self, model: Callable, ffilter: Callable, propagator: Optional[Callable] = None
+    ):
         self._model = model
         self._filter = ffilter
         self._propagator = propagator
 
-        if propagator.__name__ == "<lambda>":
+        if self._propagator is None:
             self._segmenter = self._global_segmenter
         else:
             self._segmenter = self._propagated_segmenter
@@ -168,7 +194,9 @@ class Segmenter(object):
         for i, image in enumerate(fimg):
             snake = self._model(image, next_init, **mparams)
             snakes.append(snake)
-            next_init = self._propagator(initial, snake, i, **pparams)
+            next_init = self._propagator(  # type: ignore
+                initial=initial, previous=snake, step=i, **pparams
+            )
 
         if len(snakes) == 1:
             snakes = snakes[0]

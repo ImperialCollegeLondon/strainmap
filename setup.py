@@ -12,7 +12,6 @@ setup(
     install_requires=[
         "pillow",
         "pydicom",
-        "scikit-learn",
         "scikit-image",
         "matplotlib",
         "numpy",
