@@ -1,10 +1,12 @@
-from matplotlib.figure import Figure
-import matplotlib.pyplot as plt
-from enum import Flag, auto
-from typing import Dict, Optional, Callable
-from time import time
-from functools import partial
 import weakref
+from collections import deque
+from enum import Flag, auto
+from functools import partial
+from time import time
+from typing import Callable, Dict, Optional
+
+import matplotlib.pyplot as plt
+from matplotlib.figure import Figure
 
 
 class Location(Flag):
@@ -21,9 +23,7 @@ class Button(Flag):
     LEFT = auto()
     RIGHT = auto()
     CENTRE = auto()
-    UP = auto()
-    DOWN = auto()
-    SCROLL = UP | DOWN
+    SCROLL = auto()
 
 
 class Action(Flag):
@@ -34,6 +34,15 @@ class Action(Flag):
 
 ACTIONS: Dict = dict()
 """Registry of the available mouse actions."""
+
+MOUSE_BUTTONS = {
+    1: Button.LEFT,
+    2: Button.CENTRE,
+    3: Button.RIGHT,
+    "up": Button.SCROLL,
+    "down": Button.SCROLL,
+}
+"""Translates the event.button information into an enumeration."""
 
 
 def register_action(
@@ -68,77 +77,68 @@ def register_action(
     return fun
 
 
-def get_action(*keys):
-    """Provides the action corresponding to the given keys."""
+class InteractivePlot(object):
+    """Adds some interactivity functionality to a matplotlib figure.
 
-    def dummy(*args):
-        pass
+    This class adds several interactive functionality to a standard figure, replacing
+    (to some extent) the actions toolbar by different mouse gestures happening in
+    different areas of the axes.
 
-    return ACTIONS.get(keys, dummy)
+    The functionality it adds is:
 
+    - pan: when left click&drag starting around the center of the plot.
+    - zoom: when left click&drag starting around the edges of the plot.
+    - change brightness: right click&drag in the vertical direction.
+    - change contrast: right click&drag in the horizontal direction.
+    - scroll images: change between images in a plot with several images overlayed.
 
-class PlotInteractions(object):
-    @classmethod
-    def new_figure(cls, figure_canvas=None, master=None, **kwargs):
-        """Factory method to create a new figure with interactive functionality.
+    The active area of the first two is controlled by the 'axis_fraction' input
+    parameter. Brightness and contrast controls is only active when the plot contains an
+    image.
 
-        If figure_canvas is provided, this must be a subclass of FigureCanvasBase
-        (e.g. FigureCanvasQTAgg, FigureCanvasTkAgg, FigureCanvasKivyAgg, etc.). For
-        FigureCanvasTkAgg, then the parent widget need to be provided, too. To show the
-        plot, the canvas in figure.canvas will need to be incorporated to the rest
-        of the frontend. E.g:
+    Example:
 
-        Tkinter:
-            figure.canvas.get_tk_widget().pack()
-        PyQt:
-            parent_widget.addWidget(figure.canvas)
+        >>> import matplotlib.pyplot as plt
+        >>> import numpy as np
+        >>> from strainmap.gui.plots import InteractivePlot
+        >>> data = np.random.random((100, 100))
+        >>> fig = plt.figure()
+        >>> InteractivePlot(fig)
+        >>> ax = fig.add_subplot()
+        >>> ax.imshow(data, cmap=plt.get_cmap("binary"))
 
-        If figure_canvas is not provided, then pyplot is used to create a plot using
-        the systems default window manager. To show the plot, a call to pyplot.show()
-        will do.
-        """
+    The figure updated with the interactive functionality can be used normally as with
+    any other figure.
 
-        if figure_canvas is None:
-            figure = plt.figure(**kwargs)
-        else:
-            figure = Figure(**kwargs)
-            if master is not None:
-                figure_canvas(figure, master)
-            else:
-                figure_canvas(figure)
+    If the figure is to be used embedded in a GUI framework (e.g. Tkinter, Kivy, QT...),
+    adding the interactive functionality must be done AFTER the figure has been added
+    to the GUI.
+    """
 
-        return cls.from_figure(figure, **kwargs)
-
-    @classmethod
-    def from_figure(cls, figure: Figure, **kwargs):
-        """Adds interactions to an existing figure."""
-        figure.interactions = cls(figure, **kwargs)
-        return figure
-
-    def __init__(
-        self, figure: Figure, axis_fraction=0.2, delta_time=0.2, step_factor=1.1
-    ):
-
-        self._figure = weakref.ref(figure)
+    def __init__(self, figure: Figure, axis_fraction=0.2, delta_time=0.2):
         self.axis_fraction = axis_fraction
-        self.step_factor = step_factor
         self.delta_time = delta_time
+        self._canvas = weakref.ref(figure.canvas)
         self._time_init = 0
+        self._img_shift = 0
         self._event = None
         self._action = None
 
         # Connect the relevant events
-        self.figure.canvas.mpl_connect("button_press_event", self._on_mouse_clicked)
-        self.figure.canvas.mpl_connect("button_release_event", self._on_mouse_released)
-        self.move_event_id = self.figure.canvas.mpl_connect(
+        self.canvas.mpl_connect("button_press_event", self._on_mouse_clicked)
+        self.canvas.mpl_connect("button_release_event", self._on_mouse_released)
+        self.move_event_id = self.canvas.mpl_connect(
             "motion_notify_event", self._on_mouse_moved
         )
-        self.figure.canvas.mpl_connect("scroll_event", self._on_scrolled)
+        self.canvas.mpl_connect("scroll_event", self._on_mouse_scrolled)
+        self.canvas.mpl_connect("axes_enter_event", self._on_entering_axes)
+
+        figure.interactions = self
 
     @property
-    def figure(self):
-        """The Figure this interaction is connected to."""
-        return self._figure()
+    def canvas(self):
+        """The canvas this interaction is connected to."""
+        return self._canvas()
 
     def _on_mouse_clicked(self, event):
         """Triggers the timer.
@@ -161,47 +161,69 @@ class PlotInteractions(object):
 
     def _on_mouse_released(self, event):
         """Stops the timer and executes a clicked event, if necessary."""
-        if time() - self.time_init > self.delta_time:
+        if event.inaxes is None:
+            return
+        elif time() - self.time_init > self.delta_time:
             self._event = None
             self._action = None
             return
 
         location = self._get_mouse_location(self._event.xdata, self._event.ydata)
-        button = self._get_mouse_button(self._event.button)
+        button = MOUSE_BUTTONS[self._event.button]
         action = Action.CLICK
 
-        get_action(location, button, action)(self, self._event)
+        ACTIONS.get((location, button, action), lambda *args: None)(self, self._event)
 
         self._event = None
         self._action = None
 
     def _on_mouse_moved(self, event):
-        """Runs the action due to dragging if time since click is too long."""
-        if self._event is None or event.inaxes is None:
+        """Runs actions related to moving the mouse over the figure.
+
+        Since this can happen for a variety of reasons and under different circumstances
+        it is necessary to consider several cases separately.
+
+        - If the mouse is in the figure but outside an axes, nothing happens.
+        - If there is not an ongoing event due to a previous click or if the time since
+            the click is too short, again nothing happens.
+        - Assuming we got this far, if there is no action configured for this movement,
+            one is configured depending on where the original click event happen.
+        - Otherwise, the configured action is executed.
+        """
+        if event.inaxes is None:
             return
-        elif time() - self.time_init < self.delta_time:
+        elif self._event is None or time() - self.time_init < self.delta_time:
             return
         elif self._action is None:
             location = self._get_mouse_location(self._event.xdata, self._event.ydata)
-            button = self._get_mouse_button(self._event.button)
+            button = MOUSE_BUTTONS[self._event.button]
             action = Action.DRAG
-            self._action = get_action(location, button, action)
+            self._action = ACTIONS.get((location, button, action), lambda *args: None)
 
         self._action(self, event)
 
-    def _on_scrolled(self, event):
-        pass
+    def _on_mouse_scrolled(self, event):
+        """The images available in the axes, if more than one, are scrolled."""
+        if event.inaxes is None:
+            return
 
-    @staticmethod
-    def _get_mouse_button(button):
-        """Assigns a logical value for the mouse button that was clicked."""
-        return {
-            1: Button.LEFT,
-            2: Button.CENTRE,
-            3: Button.RIGHT,
-            "up": Button.SCROLL,
-            "down": Button.SCROLL,
-        }[button]
+        img = deque(event.inaxes.images)
+        if len(img) == 0:
+            return
+
+        self._img_shift += event.step
+        self._img_shift = self._img_shift % len(img)
+        event.inaxes.set_title(f"Cine frame: {self._img_shift}", loc="left")
+        img.rotate(event.step)
+        event.inaxes.images = list(img)
+
+        self.canvas.draw()
+
+    def _on_entering_axes(self, event):
+        """Shows the cine frame number on top of the axes."""
+        if len(event.inaxes.images) > 0:
+            event.inaxes.set_title(f"Cine frame: {self._img_shift}", loc="left")
+            self.canvas.draw()
 
     def _get_mouse_location(self, x, y):
         """Assigns a logical location based on where the mouse was."""
@@ -268,7 +290,7 @@ class PlotInteractions(object):
 
         self._event.inaxes.set_xlim(new_xlim)
         self._event.inaxes.set_ylim(new_ylim)
-        self.figure.canvas.draw()
+        self.canvas.draw()
 
         self._event = event
 
@@ -286,7 +308,7 @@ class PlotInteractions(object):
 
         self._event.inaxes.set_xlim(new_xlim)
         self._event.inaxes.set_ylim(new_ylim)
-        self.figure.canvas.draw()
+        self.canvas.draw()
 
         self._event = event
 
@@ -294,7 +316,8 @@ class PlotInteractions(object):
     def _brigthness_and_contrast(self, event):
         """Controls the brightness and contrast of an image.
 
-        If there are more than one image in the axes, only the last one is used.
+        If there are more than one image in the axes, the one on top (the last one on
+        the list) is used.
         """
         if len(self._event.inaxes.get_images()) == 0:
             return
@@ -311,7 +334,7 @@ class PlotInteractions(object):
         yspan = ylim[1] - ylim[0]
         deltay = deltay / yspan
 
-        clim = self._event.inaxes.get_images()[-1].properties()["clim"]
+        clim = self._event.inaxes.get_images()[-1].get_clim()
         cspan = clim[1] - clim[0]
 
         # Movement in Y controls the brightness
@@ -320,52 +343,53 @@ class PlotInteractions(object):
         # Movement in X controls the contrast
         clim_low, clim_high = clim_low + cspan * deltax, clim_high - cspan * deltax
 
-        self._event.inaxes.get_images()[-1].update({"clim": (clim_low, clim_high)})
-        self.figure.canvas.draw()
+        self._event.inaxes.get_images()[-1].set_clim(clim_low, clim_high)
+        self.canvas.draw()
 
         self._event = event
-
-    @register_action(location=Location.ANY, button=Button.SCROLL, action=Action.SCROLL)
-    def _scroll_frames(self, event):
-        print("Scrolling...")
-
-    @register_action(location=Location.SE, button=Button.LEFT, action=Action.CLICK)
-    def _edit_mode(self, event):
-        print("Entering Edit mode... Is it really needed?")
 
     @register_action(location=Location.SW, button=Button.LEFT, action=Action.CLICK)
     def _reset_zoom_and_pan(self, event):
         """Resets the axis limits to the original ones, before any zoom and pan."""
         self._event.inaxes.relim()
         self._event.inaxes.autoscale()
-        self.figure.canvas.draw()
-
-    @register_action(location=Location.NE, button=Button.LEFT, action=Action.CLICK)
-    def _reset_brighness(self, event):
-        print("Reset brightness.")
+        self.canvas.draw()
 
     @register_action(location=Location.NW, button=Button.LEFT, action=Action.CLICK)
-    def _reset_contrast(self, event):
-        print("Reset contrast.")
+    def _reset_brighness_and_contrast(self, event):
+        """Resets the brightness and contrast to the limits based on the data."""
+        array = self._event.inaxes.get_images()[-1].get_array()
+        clim_low, clim_high = array.min(), array.max()
+        self._event.inaxes.get_images()[-1].set_clim(clim_low, clim_high)
+        self.canvas.draw()
 
 
 if __name__ == "__main__":
     import numpy as np
 
+    # from pprint import pprint
+
     data = np.random.random((100, 100))
+    data2 = np.random.random((100, 100))
 
     # Using Pyplot
-    fig = PlotInteractions.new_figure()
+    fig = plt.figure()
+    InteractivePlot(fig)
     ax = fig.add_subplot()
-    im = ax.imshow(data, cmap=plt.get_cmap("binary"))
-    ax.get_images()[0].update({"clim": (-1, 0.5)})
+    ax.imshow(data, cmap=plt.get_cmap("binary"))
+    ax.imshow(data2, cmap=plt.get_cmap("binary"))
     plt.show()
+
+    # pprint(ax.properties())
+    # print(ax.images)
+    # ax.images[0], ax.images[1] = ax.images[1], ax.images[0]
+    # print(ax.images)
 
     # In Tkinter
     # import tkinter
     # from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
     #
-    # fig = PlotInteractions.new_figure(
+    # fig = InteractivePlot.new_figure(
     #     figure_canvas=FigureCanvasTkAgg, master=tkinter.Tk()
     # )
     # fig.canvas.get_tk_widget().pack()
