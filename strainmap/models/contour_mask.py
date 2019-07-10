@@ -152,23 +152,23 @@ def contour_diff(
     return mask1 & (mask1 ^ mask2)
 
 
-def angular_sectors(
-    nsectors: int = 6,
+def angular_segments(
+    nsegments: int = 6,
     origin: Optional[Sequence[int]] = None,
     theta0: float = 0,
     clockwise: bool = True,
     shape: Tuple[int, int] = (512, 512),
 ) -> np.ndarray:
-    """Array defining angular sectors.
+    """Array defining angular segments.
 
-    The sectors are defined by a numpy array with integer values in `range(nsectors)`.
+    The segments are defined by a numpy array with integer values in `range(nsegments)`.
 
     Args:
-        nsectors: Number of angular sectors.
+        nsegments: Number of angular segments.
         origin: Origin the cartesian coordinates. By default, the origin is set in the
             center of the image.
         theta0: By default theta=0 is for a vector pointing right. This argument makes
-            it possible the start of the sectors. This transformation is applied
+            it possible the start of the segments. This transformation is applied
             **before** correcting for handedness!
         clockwise: Clockwise by default. Set to False for counter-clockwise.
         shape: size of the resulting image
@@ -177,9 +177,9 @@ def angular_sectors(
 
         We can simply quarter an image as follows:
 
-        >>> from strainmap.models.contour_mask import angular_sectors
-        >>> sectors = angular_sectors(nsectors=4, shape=(10, 10))
-        >>> print(sectors)
+        >>> from strainmap.models.contour_mask import angular_segments
+        >>> segments = angular_segments(nsegments=4, shape=(10, 10))
+        >>> print(segments)
         [[2 2 2 2 2 2 3 3 3 3]
          [2 2 2 2 2 2 3 3 3 3]
          [2 2 2 2 2 2 3 3 3 3]
@@ -202,24 +202,34 @@ def angular_sectors(
 
     result = np.zeros(theta.shape, dtype=int)
 
-    steps = np.linspace(0, 2 * np.pi, nsectors + 1)
-    for n in range(1, nsectors):
+    steps = np.linspace(0, 2 * np.pi, nsegments + 1)
+    for n in range(1, nsegments):
         result[theta > steps[n]] = n
 
     return result
 
 
-def ribon_sectors(
+def radial_segments(
     outer: Contour,
     inner: Contour,
     nr: int = 3,
     shape: Optional[Tuple[int, int]] = None,
     center: Optional[Tuple[float, float]] = None,
 ):
-    """Splits difference between two contours into several radial regions.
+    """Splits difference between two contours into several radial segments.
 
     The two contours should create a ribbon between outer and inner. This ribbon is
-    split into `nr` seperate region.
+    split into `nr` seperate segments. For each angle theta in the cylindrical
+    coordinate system with origin `center`, the ribbon is split into `nr` segments of
+    equal width.
+
+    Args:
+        outer: Contour delineating the outer boundary of the segmented ribbon.
+        inner: Contour delineating the inner boundary of the segmented ribbon.
+        nr: Number of segments.
+        shape: Size of the returned image. Defaults to `outer.shape`.
+        center: Origin of the cylindrical coordinate system used to split the ribbons.
+            Defaults to `outer.center`.
 
     Returns:
         An image where 0 is outside the region, and 1 - nr (included) indicate
@@ -228,10 +238,10 @@ def ribon_sectors(
     Examples:
         Lets try to split a ribbon defined by two circles in two:
 
-        >>> from strainmap.models.contour_mask import Contour, ribon_sectors
+        >>> from strainmap.models.contour_mask import Contour, radial_segments
         >>> outer = Contour.circle(shape=(15, 15), radius=6)
         >>> inner = Contour.circle(shape=(10, 10), center=(5.5, 6), radius=3)
-        >>> regions = ribon_sectors(outer, inner, nr=3)
+        >>> regions = radial_segments(outer, inner, nr=3)
         >>> print(regions)
         [[0 0 0 0 0 0 0 0 0 0 0 0 0 0 0]
          [0 0 0 0 0 0 0 3 0 0 0 0 0 0 0]
@@ -251,7 +261,7 @@ def ribon_sectors(
 
         Note that it is an error if the outer and inner boundaries are swapped:
 
-        >>> ribon_sectors(inner, outer, nr=3)
+        >>> radial_segments(inner, outer, nr=3)
         Traceback (most recent call last):
             ...
         ValueError: Inner and outer boundaries cannot cross.
