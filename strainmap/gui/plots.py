@@ -3,10 +3,12 @@ from collections import deque
 from enum import Flag, auto
 from functools import partial
 from time import time
-from typing import Callable, Dict, Optional
+from typing import Callable, Dict, List, Optional, Tuple
 
 import matplotlib.pyplot as plt
+import numpy as np
 from matplotlib.figure import Figure
+from matplotlib.lines import Line2D
 
 
 class Location(Flag):
@@ -364,21 +366,131 @@ class InteractivePlot(object):
         self.canvas.draw()
 
 
+def simple_close_contour(points: List[Tuple[float, float]]) -> np.ndarray:
+    """Adds the first point to the end of the list and returns the resulting array."""
+    return np.array(points + [points[0]]).T
+
+
+def circle(points: List[Tuple[float, float]], resolution=360) -> np.ndarray:
+    """Adds the first point to the end of the list and returns the resulting array."""
+    from matplotlib.patches import CirclePolygon
+
+    radius = np.linalg.norm(np.array(points[0] - np.array(points[1])))
+    circle = CirclePolygon(points[0], radius, resolution=resolution)
+    verts = circle.get_path().vertices
+    trans = circle.get_patch_transform()
+
+    return trans.transform(verts).T
+
+
+class DrawingPlot(object):
+    def __init__(
+        self,
+        figure: Figure,
+        num_points: int = -1,
+        callback: Callable = simple_close_contour,
+        **kwargs,
+    ):
+        self.num_points = num_points
+        self.callback = partial(callback, **kwargs)
+        self.points: List = []
+        self.marks: List = []
+        self.contour: Dict = {}
+        self._canvas = weakref.ref(figure.canvas)
+
+        # Connect the relevant events
+        self.canvas.mpl_connect("button_press_event", self._on_mouse_clicked)
+        self.canvas.mpl_connect("pick_event", self.pop_selected)
+
+        figure.drawing = self
+
+    @property
+    def canvas(self):
+        """The canvas this interaction is connected to."""
+        return self._canvas()
+
+    def draw(self):
+        """Convenience method for re-drawing the canvas."""
+        self.canvas.draw()
+
+    def _on_mouse_clicked(self, event):
+        """Response to the click events."""
+        if event.inaxes is None:
+            return
+
+        if MOUSE_BUTTONS[event.button] is Button.RIGHT and event.dblclick:
+            self.clear_drawing(event)
+        elif MOUSE_BUTTONS[event.button] is Button.LEFT:
+            self.add_click(event)
+
+    def add_click(self, event):
+        """Records the position of the click and marks it on the plot."""
+        if len(self.points) == self.num_points:
+            return
+
+        self.points.append((event.xdata, event.ydata))
+
+        line = Line2D([event.xdata], [event.ydata], marker="+", color="r", picker=5)
+        event.inaxes.add_line(line)
+        self.marks.append(line)
+        self.draw()
+
+        if len(self.points) == self.num_points:
+            self.connect(event.inaxes)
+
+    def pop_selected(self, event):
+        """Removes from the list the point that has been clicked."""
+        ids = [id(m) for m in self.marks]
+        if (
+            MOUSE_BUTTONS[event.mouseevent.button] is Button.LEFT
+            or len(self.points) == 0
+            or id(event.artist) not in ids
+        ):
+            return
+
+        index = ids.index(id(event.artist))
+        self.points.pop(index)
+        self.marks.pop(index).remove()
+        if self.contour.get(event.mouseevent.inaxes, None) is not None:
+            self.contour.pop(event.mouseevent.inaxes).remove()
+        self.draw()
+
+    def connect(self, axes):
+        """Plots the data resulting from the callback.
+
+        Normally, this will be a figure constructed out of the points clicked in the
+        figure, for example a circle, an spline, etc."""
+        data = self.callback(self.points)
+        self.contour[axes] = Line2D(data[0], data[1], color="r")
+        axes.add_line(self.contour[axes])
+        self.draw()
+
+    def clear_drawing(self, event):
+        """Clears all the data accumulated in the drawing."""
+        self.points = []
+        for mark in self.marks:
+            mark.remove()
+        self.marks = []
+        if self.contour.get(event.mouseevent.inaxes, None) is not None:
+            self.contour.pop(event.mouseevent.inaxes).remove()
+        self.draw()
+
+
 if __name__ == "__main__":
     import numpy as np
 
     # from pprint import pprint
 
-    data = np.random.random((100, 100))
-    data2 = np.random.random((100, 100))
-
-    # Using Pyplot
-    fig = plt.figure()
-    InteractivePlot(fig)
-    ax = fig.add_subplot()
-    ax.imshow(data, cmap=plt.get_cmap("binary"))
-    ax.imshow(data2, cmap=plt.get_cmap("binary"))
-    plt.show()
+    # data = np.random.random((100, 100))
+    # data2 = np.random.random((100, 100))
+    #
+    # # Using Pyplot
+    # fig = plt.figure()
+    # InteractivePlot(fig)
+    # ax = fig.add_subplot()
+    # ax.imshow(data, cmap=plt.get_cmap("binary"))
+    # ax.imshow(data2, cmap=plt.get_cmap("binary"))
+    # plt.show()
 
     # pprint(ax.properties())
     # print(ax.images)
@@ -400,3 +512,11 @@ if __name__ == "__main__":
 
     #
     # tkinter.mainloop()
+
+    data = np.random.random((100, 100))
+
+    fig = plt.figure()
+    DrawingPlot(fig, num_points=2, callback=circle)
+    ax = fig.add_subplot()
+    ax.imshow(data, cmap=plt.get_cmap("binary"))
+    plt.show()
