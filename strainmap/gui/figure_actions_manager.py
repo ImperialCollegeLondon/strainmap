@@ -1,0 +1,392 @@
+from __future__ import annotations
+
+import weakref
+from enum import Flag, auto
+from time import time
+from typing import Callable, Dict, NamedTuple, Optional, Type, List, Text
+
+import numpy as np
+from matplotlib.backend_bases import Event
+from matplotlib.figure import Figure
+
+
+class Location(Flag):
+    N = auto()
+    S = auto()
+    E = auto()
+    W = auto()
+    NW = auto()
+    NE = auto()
+    SW = auto()
+    SE = auto()
+    CENTRE = auto()
+    EDGE = N | S | E | W | NW | NE | SW | SE
+    ANY = CENTRE | EDGE
+    OUTSIDE = ~ANY
+
+
+class Button(Flag):
+    NONE = auto()
+    LEFT = auto()
+    RIGHT = auto()
+    CENTRE = auto()
+
+
+class MouseAction(Flag):
+    MOVE = auto()
+    DRAG = auto()
+    CLICK = auto()
+    DCLICK = auto()
+    SCROLL = auto()
+    PICK = auto()
+    DPICK = auto()
+    PICKDRAG = auto()
+    ENTERAXES = auto()
+    LEAVEAXES = auto()
+
+
+class TriggerSignature(NamedTuple):
+    """ Contains the signature triad needed to trigger an event.
+
+    - location (Location): The location where the pointer must be
+    - button (Button): The button that must be pressed
+    - action (MouseAction): The action that is carried
+    """
+
+    location: Location
+    button: Button
+    mouse_action: MouseAction
+
+    @property
+    def locations_contained(self):
+        """Provides all the locations that are contained by this one.
+
+        For example, if a signature has Location.EDGE, a click event that takes
+        place at Location.N and another that takes place at Location.S should both
+        trigger the same action, as N and S are contained by EDGE.
+        """
+        return [loc for loc in Location if self.location & loc == loc]
+
+    def __contains__(self, other) -> bool:
+        if not isinstance(other, TriggerSignature):
+            raise TypeError("Only a TriggerSignature can be assert equal with another.")
+
+        return (
+            other.location in self.locations_contained
+            and other.button == self.button
+            and other.mouse_action == self.mouse_action
+        )
+
+
+class ActionBase(object):
+    """Base class for the actions.
+
+    It ensures that all actions will have a signatures attribute containing all triggers
+    relevant for the action.
+    """
+
+    def __init__(self, **kwargs):
+        self._signatures: Dict[
+            TriggerSignature, Callable[[Event, Event], Optional[Event]]
+        ] = dict()
+
+    @property
+    def signatures(
+        self
+    ) -> Dict[TriggerSignature, Callable[[Event, Event], Optional[Event]]]:
+        return self._signatures
+
+
+class FigureActionsManager(object):
+    """Adds some interactivity functionality to a Matplotlib figure.
+
+    This class adds interactive functionality to a standard figure, replacing
+    the actions toolbar, by using only different mouse gestures happening in different
+    areas of the axes (indeed, using it in combination with the toolbar might have
+    strange results).
+
+    The figure updated with the interactive functionality can be used normally as with
+    any other figure. If the figure is to be used embedded in a GUI framework (e.g.
+    Tkinter, Kivy, QT...), adding the interactive functionality must be done AFTER the
+    figure has been added to the GUI.
+    """
+
+    def __init__(self, figure: Figure, *args, axis_fraction=0.2, delay=0.2, **kwargs):
+        """An existing Matplotlib figure is the only input needed by the Manager.
+
+        By default, this does not add any extra functionality. This can be included
+        later on with the self.add_action method or during creation by providing the
+        Actions as extra positional arguments.
+
+        Args:
+            figure: An instance of a Matplotlib Figure.
+            *args: Actions that need to be added.
+            axis_fraction: Fraction of the axes that define the edge on each side.
+            delay: Time delay used to differentiate clicks from drag events.
+            **kwargs: Parameters to be passed during to the creation of the Actions.
+        """
+        self.axis_fraction = np.clip(axis_fraction, 0, 0.5)
+        self.delay = max(delay, 0)
+
+        self._figure = weakref.ref(figure)
+        self._time_init = 0
+        self._event: List = []
+        self._last_event = None
+        self._current_action = None
+        self._actions: Dict = dict()
+
+        self._connect_events()
+
+        for action in args:
+            self.add_action(action, **kwargs)
+
+        figure.actions_manager = self
+
+    @property
+    def canvas(self):
+        """The canvas this interaction is connected to."""
+        return self._figure().canvas
+
+    def draw(self):
+        """Convenience method for re-drawing the canvas."""
+        self.canvas.draw()
+
+    def _connect_events(self):
+        """Connects the relevant events to the canvas."""
+        self.canvas.mpl_connect("button_press_event", self._on_mouse_clicked)
+        self.canvas.mpl_connect("button_release_event", self._on_mouse_released)
+        self.canvas.mpl_connect("motion_notify_event", self._on_mouse_moved)
+        self.canvas.mpl_connect("scroll_event", self._on_mouse_scrolled)
+        self.canvas.mpl_connect("axes_enter_event", self._on_entering_axes)
+        self.canvas.mpl_connect("axes_leave_event", self._on_leaving_axes)
+        self.canvas.mpl_connect("pick_event", self._on_mouse_clicked)
+
+    def clean_events(self):
+        """Removes all information related to previous events."""
+        self._event = []
+        self._last_event = None
+        self._current_action = None
+
+    def _on_mouse_clicked(self, event):
+        """Initial response to the click events by triggering the timer.
+
+        After clicking a mouse button, several things might happen:
+
+        1- The button is released in a time defined by self.delay. In this case,
+            it is recorded as a clicked event and some action happens, which might be
+            a single click, a double click or a pick action.
+        2- The button is released but it takes longer. The clicked event is lost and
+            nothing happens.
+        3- The mouse is dragged while clicked. After self.delay, the action
+            associated with that dragging is executed.
+        """
+        self._event.append(event)
+        self._time_init = time()
+
+    def _on_mouse_moved(self, event):
+        """Runs actions related to moving the mouse over the figure."""
+        if time() - self._time_init < self.delay:
+            return
+
+        elif self._current_action is None:
+            self._last_event, mouse_action, mouse_event = self.select_movement_type(
+                event
+            )
+            # print(self._last_event, self._event[-1])
+            button = MOUSE_BUTTONS.get(mouse_event.button, Button.NONE)
+            location = self.select_location(mouse_event)
+
+            self._current_action = self.select_action(location, button, mouse_action)
+
+        if self._current_action is not None:
+            self._last_event = self._current_action(event, self._last_event)
+
+            self.draw()
+
+    def _on_mouse_released(self, event):
+        """Stops the timer and executes the original click event, if necessary."""
+        if time() - self._time_init > self.delay:
+            self.clean_events()
+            return
+
+        ev, mouse_action, mouse_event = self.select_click_type()
+        button = MOUSE_BUTTONS.get(mouse_event.button, Button.NONE)
+        location = self.select_location(mouse_event)
+
+        self._current_action = self.select_action(location, button, mouse_action)
+
+        if self._current_action is not None:
+            self._current_action(event, ev)
+
+        self.clean_events()
+        self.draw()
+
+    def _on_mouse_scrolled(self, event):
+        """Executes scroll events."""
+        mouse_action = MouseAction.SCROLL
+        button = Button.CENTRE
+        location = self.select_location(event)
+
+        self.select_action(location, button, mouse_action)(event, None)
+
+        self.draw()
+
+    def _on_entering_axes(self, event):
+        """Executes the actions related to entering a new axes."""
+        mouse_action = MouseAction.ENTERAXES
+        button = Button.NONE
+        location = self.select_location(event)
+
+        self.select_action(location, button, mouse_action)(event, None)
+        self.clean_events()
+        self.draw()
+
+    def _on_leaving_axes(self, event):
+        """Executes the actions related to leaving an axes."""
+        mouse_action = MouseAction.LEAVEAXES
+        button = Button.NONE
+        location = self.select_location(event)
+
+        self.select_action(location, button, mouse_action)(event, None)
+        self.clean_events()
+        self.draw()
+
+    def select_click_type(self):
+        """Select the type of click.
+
+        Here we need to discriminate between single clicks, double clicks and pick
+        events (which might also generate a single click).
+        """
+        if len([p for p in self._event if p.name == "pick_event"]) > 0:
+            ev = [p for p in self._event if p.name == "pick_event"][-1]
+            if ev.mouseevent.dblclick:
+                mouse_action = MouseAction.DPICK
+            else:
+                mouse_action = MouseAction.PICK
+            mouse_event = ev.mouseevent
+
+        elif self._event[0].dblclick:
+            mouse_event = ev = self._event[0]
+            mouse_action = MouseAction.DCLICK
+
+        else:
+            mouse_event = ev = self._event[0]
+            mouse_action = MouseAction.CLICK
+
+        return ev, mouse_action, mouse_event
+
+    def select_movement_type(self, event):
+        """Select the type of movement.
+
+        Here we need to discriminate between just  move, drag and pickdrag.
+        """
+        if len(self._event) == 0:
+            mouse_action = MouseAction.MOVE
+            mouse_event = event
+            ev = None
+        elif len([p for p in self._event if p.name == "pick_event"]) > 0:
+            ev = [p for p in self._event if p.name == "pick_event"][-1]
+            mouse_action = MouseAction.PICKDRAG
+            mouse_event = ev.mouseevent
+        else:
+            mouse_action = MouseAction.DRAG
+            mouse_event = ev = self._event[-1]
+
+        return ev, mouse_action, mouse_event
+
+    def select_location(self, event) -> Location:
+        """Select the type of location."""
+        if event.inaxes is None:
+            location = Location.OUTSIDE
+        else:
+            x, y = event.xdata, event.ydata
+            xmin, xmax = sorted(event.inaxes.get_xlim())
+            ymin, ymax = sorted(event.inaxes.get_ylim())
+            location = get_mouse_location(
+                x, y, xmin, xmax, ymin, ymax, self.axis_fraction
+            )
+
+        return location
+
+    def select_action(self, location, button, mouse_action):
+        """Select the action to execute based on the received trigger signature."""
+        trigger = TriggerSignature(location, button, mouse_action)
+
+        options = [
+            action
+            for signature, action in self._actions.items()
+            if trigger in signature
+        ]
+
+        if len(options) > 1:
+            msg = f"Multiple actions for signature {trigger}. Actions: {options}"
+            raise RuntimeError(msg)
+        elif len(options) == 0:
+            action = None
+        else:
+            action = options[0]
+
+        return action
+
+    def add_action(self, action: Type[ActionBase], **kwargs):
+        """Adds an action to the Manager."""
+        options = kwargs.get("options", {}).get(action.__name__, {})
+        acc = action(**options)
+        self._actions.update(acc.signatures)
+        self.__dict__[action.__name__] = acc
+
+    def remove_action(self, action_name: Text):
+        """Removes an action from the Manager."""
+        action = self.__dict__[action_name]
+        for k in action.signatures:
+            del self._actions[k]
+        del self.__dict__[action_name]
+
+
+MOUSE_BUTTONS = {
+    1: Button.LEFT,
+    2: Button.CENTRE,
+    3: Button.RIGHT,
+    "up": Button.CENTRE,
+    "down": Button.CENTRE,
+}
+"""Translates the event.button information into an enumeration."""
+
+
+def get_mouse_location(x, y, xmin, xmax, ymin, ymax, fraction):
+    """Assigns a logical location based on where the mouse is."""
+    deltax = abs(xmax - xmin) * fraction
+    deltay = abs(ymax - ymin) * fraction
+
+    if xmin <= x <= xmin + deltax:
+        if ymin <= y <= ymin + deltay:
+            location = Location.NW
+        elif ymax - deltay <= y <= ymax:
+            location = Location.SW
+        else:
+            location = Location.W
+    elif xmax - deltax <= x <= xmax:
+        if ymin <= y <= ymin + deltay:
+            location = Location.NE
+        elif ymax - deltay <= y <= ymax:
+            location = Location.SE
+        else:
+            location = Location.E
+    else:
+        if ymin <= y <= ymin + deltay:
+            location = Location.N
+        elif ymax - deltay <= y <= ymax:
+            location = Location.S
+        else:
+            location = Location.CENTRE
+
+    return location
+
+
+if __name__ == "__main__":
+    import matplotlib.pyplot as plt
+
+    fig = plt.figure()
+    fam = FigureActionsManager(fig)
+
+    assert fam == fig.actions_manager
