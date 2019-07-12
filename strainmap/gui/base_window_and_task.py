@@ -6,6 +6,7 @@ end related aspect of any StrainMap action and the registers needed to register 
 views.
 """
 import tkinter as tk
+import sys
 from abc import ABC, abstractmethod
 from enum import Flag, auto
 from pathlib import Path
@@ -174,13 +175,15 @@ class MainWindow(tk.Tk):
 
         TODO: Investigate if there is a more elegant solution to this.
         """
-
-        while not self.closed:
-            try:
-                self.update_idletasks()
-                self.update()
-            except UnicodeDecodeError:
-                print("Caught Scroll Error")
+        if sys.platform == "darwin":
+            while not self.closed:
+                try:
+                    self.update_idletasks()
+                    self.update()
+                except UnicodeDecodeError:
+                    print("Caught Scroll Error")
+        else:
+            self.mainloop(*args)
 
     def __quit(self):
         """ Safe quit the program."""
