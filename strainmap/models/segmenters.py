@@ -184,13 +184,14 @@ class Segmenter(object):
         pparams: Dict,
     ) -> Union[Contour, List[Contour]]:
         """Segments an array of images propagating the snake from one to the next."""
+        from copy import copy
 
         fimg = self._filter(image, **fparams)
         if fimg.ndim == 2:
             fimg = np.array([fimg])
 
         snakes = []
-        next_init = initial.to_contour()
+        next_init = copy(initial)
         for i, image in enumerate(fimg):
             snake = self._model(image, next_init, **mparams)
             snakes.append(snake)

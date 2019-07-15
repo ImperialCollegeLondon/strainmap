@@ -44,12 +44,13 @@ def weighted(*, initial, previous, **kwargs) -> Contour:
     The relative weight is given by the keyword 'weight', with 1 resulting in the
     initial contour and 0 resulting in the previous one.
     """
+    from copy import copy
     if previous is None or initial is None:
         msg = "'initial' and 'previous' cannot be None in the 'weighted' propagator."
         raise RuntimeError(msg)
 
     w = np.clip(kwargs.get("weight", 0), 0, 1) if kwargs else 0
-    out = previous.to_contour()
+    out = copy(previous)
 
     ir = np.interp(previous.polar.theta, initial.polar.theta, initial.polar.r)
     r = w * ir + (1 - w) * previous.polar.r
