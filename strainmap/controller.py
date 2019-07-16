@@ -5,7 +5,6 @@ from .gui.base_window_and_task import (
     REGISTERED_BINDINGS,
     REGISTERED_TRIGGERS,
     EVENTS,
-    MainWindow,
     Requisites,
     bind_event,
 )
@@ -19,6 +18,7 @@ class StrainMap(object):
     registered_views = REGISTERED_VIEWS
 
     def __init__(self):
+        from .gui.base_window_and_task import MainWindow
 
         self.window = MainWindow()
         self.achieved = Requisites.NONE
@@ -69,7 +69,8 @@ class StrainMap(object):
         """ Creates a StrainMapData object. """
         if kwargs:
             data = factory(**kwargs)
-            self.unlock(Requisites.DATALOADED)
+            if data.data_files:
+                self.unlock(Requisites.DATALOADED)
             self.update_views(data)
 
     @bind_event

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import copy
-from typing import Mapping, Optional, Sequence, Text, Tuple, Union
+from typing import Optional, Sequence, Tuple, Union
 
 import numpy as np
 from scipy import interpolate, ndimage
@@ -82,33 +82,29 @@ class Contour(object):
     @property
     def mask(self):
         """Binary image, with 1 inside and 0 outside the contour."""
-        return ndimage.morphology.binary_fill_holes(self.image).astype(int)
+        return ndimage.morphology.binary_fill_holes(self.image)
 
     def dilate(self, p: float = 1) -> Contour:
         """Creates an expanded (or contracted y p<1) copy of a contour."""
         return dilate(self, p)
 
-    def to_contour(self) -> Contour:
-        """New contour preserving only the XY coordinates and shape."""
-        return Contour(self.xy, shape=self.shape)
-
     @staticmethod
     def circle(
-        center: Tuple[int, int] = (256, 256),
-        edge: Tuple[int, int] = (256, 306),
+        center: Optional[Tuple[int, int]] = None,
+        radius: int = 50,
         points: int = 360,
-        radius: Optional[int] = None,
-        **kwargs,
+        shape: Tuple[int, int] = (512, 512),
     ):
         """Circular contour."""
+        if center is None:
+            center = (np.array(shape) - 1) / 2
         center = np.array(center)
-        radius = radius if radius else np.linalg.norm(center - np.array(edge))
         polar = np.ones((points, 2))
         polar[:, 0] *= radius
         polar[:, 1] = np.linspace(0, 2 * np.pi, points)
         xy = pol2cart(polar) + center
 
-        return Contour(xy, **kwargs)
+        return Contour(xy, shape=shape)
 
     @staticmethod
     def spline(
@@ -124,73 +120,182 @@ class Contour(object):
         return Contour(xy, **kwargs)
 
 
-class Mask(object):
+def contour_diff(
+    c1: Union[Contour, np.ndarray],
+    c2: Union[Contour, np.ndarray],
+    shape: Tuple[int, int] = (512, 512),
+) -> np.ndarray:
     """Creates a mask array from the difference between two contours.
 
-    To create the combined mask, the mask associated to c2 is subtracted from c1, and
-    the result clip to (0, 1). c2 can be omitted, in which case this mask is identical
-    to the c1 one.
-
-    Out of this mask, specific masks for angular sectors can be calculated.
+    Returns a mask that contains c1 but not c2.
     """
+    if isinstance(c1, Contour):
+        mask1 = c1.mask
+    elif isinstance(c1, np.ndarray) and 2 in c1.shape:
+        mask1 = Contour(c1, shape).mask
+    elif isinstance(c1, np.ndarray):
+        mask1 = c1
+    else:
+        raise TypeError("Inputs must be Contours or numpy arrays.")
 
-    def __init__(
-        self,
-        c1: Union[Contour, np.ndarray],
-        c2: Union[Contour, np.ndarray, None] = None,
-        shape: Tuple[int, int] = (512, 512),
-    ):
-        if isinstance(c1, Contour):
-            mask1 = c1.mask
-        elif isinstance(c1, np.ndarray) and 2 in c1.shape:
-            mask1 = Contour(c1, shape).mask
-        elif isinstance(c1, np.ndarray):
-            mask1 = c1
-        else:
-            raise TypeError("Inputs must be Contours or numpy arrays.")
+    if isinstance(c2, Contour):
+        mask2 = c2.mask
+    elif isinstance(c2, np.ndarray) and 2 in c2.shape:
+        mask2 = Contour(c2, shape).mask
+    elif isinstance(c2, np.ndarray):
+        mask2 = c2
+    else:
+        raise TypeError("Inputs must be Contours or numpy arrays.")
 
-        if not c2:
-            mask2 = 0.0 * mask1
-        elif isinstance(c2, Contour):
-            mask2 = c2.mask
-        elif isinstance(c2, np.ndarray) and 2 in c2.shape:
-            mask2 = Contour(c2, shape).mask
-        elif isinstance(c2, np.ndarray):
-            mask2 = c2
-        else:
-            raise TypeError("Inputs must be Contours or numpy arrays.")
+    msg = "Error: Only contours with the same shape can make a mask."
+    assert mask1.shape == mask2.shape, msg
+    return mask1 & (mask1 ^ mask2)
 
-        msg = "Error: Only contours with the same shape can make a mask."
-        assert mask1.shape == mask2.shape, msg
 
-        self.shape = mask1.shape
-        self.mask = (mask1 - mask2).clip(0, 1)
-        self.centroid = np.array(ndimage.measurements.center_of_mass(self.mask))
+def angular_segments(
+    nsegments: int = 6,
+    origin: Optional[Sequence[int]] = None,
+    theta0: float = 0,
+    clockwise: bool = True,
+    shape: Tuple[int, int] = (512, 512),
+) -> np.ndarray:
+    """Array defining angular segments.
 
-    def sector_mask(
-        self,
-        number: int = 6,
-        zero_angle: float = 0,
-        labels: Optional[Sequence[Text]] = None,
-    ) -> Mapping:
-        """Creates a dictionary of masks for a number of angular sectors."""
-        zero_angle = np.radians(zero_angle)
+    The segments are defined by a numpy array with integer values in `range(nsegments)`.
 
-        labels = labels if labels else [*range(1, number + 1)]
-        number = len(labels)
+    Args:
+        nsegments: Number of angular segments.
+        origin: Origin the cartesian coordinates. By default, the origin is set in the
+            center of the image.
+        theta0: By default theta=0 is for a vector pointing right. This argument makes
+            it possible the start of the segments. This transformation is applied
+            **before** correcting for handedness!
+        clockwise: Clockwise by default. Set to False for counter-clockwise.
+        shape: size of the resulting image
 
-        grid = np.indices(self.shape)
-        x = grid[0] - self.centroid[0]
-        y = grid[1] - self.centroid[1]
-        theta = np.mod(np.arctan2(y, x), 2 * np.pi)
+    Examples:
 
-        angles = np.linspace(zero_angle, zero_angle + 2 * np.pi, number + 1)
+        We can simply quarter an image as follows:
 
-        sectors = {}
-        for i, l in enumerate(labels):
-            sectors[l] = (angles[i] <= theta) * (theta < angles[i + 1]) * self.mask
+        >>> from strainmap.models.contour_mask import angular_segments
+        >>> segments = angular_segments(nsegments=4, shape=(10, 10))
+        >>> print(segments)
+        [[2 2 2 2 2 2 3 3 3 3]
+         [2 2 2 2 2 2 3 3 3 3]
+         [2 2 2 2 2 2 3 3 3 3]
+         [2 2 2 2 2 2 3 3 3 3]
+         [2 2 2 2 2 2 3 3 3 3]
+         [1 1 1 1 1 0 0 0 0 0]
+         [1 1 1 1 1 0 0 0 0 0]
+         [1 1 1 1 1 0 0 0 0 0]
+         [1 1 1 1 1 0 0 0 0 0]
+         [1 1 1 1 1 0 0 0 0 0]]
+    """
+    if origin is None:
+        origin = np.array(shape) / 2
+    x = np.arange(0, shape[0], dtype=int)[None, :] - origin[0]
+    y = np.arange(0, shape[1], dtype=int)[:, None] - origin[1]
 
-        return sectors
+    theta = np.mod(np.arctan2(y, x) + theta0, 2 * np.pi)
+    if not clockwise:
+        theta = -theta
+
+    result = np.zeros(theta.shape, dtype=int)
+
+    steps = np.linspace(0, 2 * np.pi, nsegments + 1)
+    for n in range(1, nsegments):
+        result[theta > steps[n]] = n
+
+    return result
+
+
+def radial_segments(
+    outer: Contour,
+    inner: Contour,
+    nr: int = 3,
+    shape: Optional[Tuple[int, int]] = None,
+    center: Optional[Tuple[float, float]] = None,
+):
+    """Splits difference between two contours into several radial segments.
+
+    The two contours should create a ribbon between outer and inner. This ribbon is
+    split into `nr` seperate segments. For each angle theta in the cylindrical
+    coordinate system with origin `center`, the ribbon is split into `nr` segments of
+    equal width.
+
+    Args:
+        outer: Contour delineating the outer boundary of the segmented ribbon.
+        inner: Contour delineating the inner boundary of the segmented ribbon.
+        nr: Number of segments.
+        shape: Size of the returned image. Defaults to `outer.shape`.
+        center: Origin of the cylindrical coordinate system used to split the ribbons.
+            Defaults to `outer.center`.
+
+    Returns:
+        An image where 0 is outside the region, and 1 - nr (included) indicate
+        radially separated regions.
+
+    Examples:
+        Lets try to split a ribbon defined by two circles in two:
+
+        >>> from strainmap.models.contour_mask import Contour, radial_segments
+        >>> outer = Contour.circle(shape=(15, 15), radius=6)
+        >>> inner = Contour.circle(shape=(10, 10), center=(5.5, 6), radius=3)
+        >>> regions = radial_segments(outer, inner, nr=3)
+        >>> print(regions)
+        [[0 0 0 0 0 0 0 0 0 0 0 0 0 0 0]
+         [0 0 0 0 0 0 0 3 0 0 0 0 0 0 0]
+         [0 0 0 0 3 2 2 2 3 3 3 0 0 0 0]
+         [0 0 0 3 1 1 1 1 2 2 3 3 0 0 0]
+         [0 0 3 1 0 0 0 0 1 2 2 3 3 0 0]
+         [0 0 2 0 0 0 0 0 0 1 2 2 3 0 0]
+         [0 0 2 0 0 0 0 0 0 1 2 2 3 0 0]
+         [0 0 2 0 0 0 0 0 0 1 2 2 3 3 0]
+         [0 0 2 1 0 0 0 0 1 1 2 2 3 0 0]
+         [0 0 3 2 1 1 1 1 1 2 2 3 3 0 0]
+         [0 0 3 2 2 2 1 1 2 2 2 3 3 0 0]
+         [0 0 0 3 3 2 2 2 2 3 3 3 0 0 0]
+         [0 0 0 0 3 3 3 3 3 3 3 0 0 0 0]
+         [0 0 0 0 0 0 0 3 0 0 0 0 0 0 0]
+         [0 0 0 0 0 0 0 0 0 0 0 0 0 0 0]]
+
+        Note that it is an error if the outer and inner boundaries are swapped:
+
+        >>> radial_segments(inner, outer, nr=3)
+        Traceback (most recent call last):
+            ...
+        ValueError: Inner and outer boundaries cannot cross.
+    """
+    if center is None:
+        origin = outer.centroid
+    else:
+        origin = np.array(center)
+
+    if shape is None:
+        shape = outer.shape
+
+    x = np.arange(0, shape[0], dtype=int)[None, :] - origin[0]
+    y = np.arange(0, shape[1], dtype=int)[:, None] - origin[1]
+
+    thetas = np.arctan2(y, x)
+    r = np.sqrt(x * x + y * y)
+    polar = cart2pol(outer.xy - origin)
+    outer_pol = np.interp(thetas, polar.theta, polar.r, period=2 * np.pi)
+    polar = cart2pol(inner.xy - origin)
+    inner_pol = np.interp(thetas, polar.theta, polar.r, period=2 * np.pi)
+
+    # ensure numerical noise doesn't push the inner contour to the outside
+    outer_pol = np.where(
+        np.isclose(outer_pol, inner_pol), np.minimum(inner_pol, outer_pol), outer_pol
+    )
+    if (outer_pol < inner_pol).any():
+        raise ValueError("Inner and outer boundaries cannot cross.")
+
+    result = np.zeros(shape, dtype=int)
+    for i in range(nr, -1, -1):
+        result[(outer_pol - inner_pol) / nr * i + inner_pol >= r] = i
+
+    return result
 
 
 def cart2pol(cart: np.ndarray) -> np.recarray:
@@ -242,6 +347,135 @@ def image_to_coordinates(image: np.ndarray) -> np.ndarray:
     idx = np.argsort(theta)
 
     return pol2cart(np.array([r[idx], theta[idx]]).T) + centroid
+
+
+def bulk_component(
+    data: np.ndarray, mask: Optional[np.ndarray] = None, **kwargs
+) -> np.ndarray:
+    """Mean across masked array.
+
+    Args:
+        data: Data from which to extract the mean component
+        mask: Mask over the data.
+
+    Examples:
+        If no mask is given, then this function is equivalent to taking the mean
+
+        >>> from numpy import sum
+        >>> from numpy.random import randint
+        >>> from strainmap.models.contour_mask import bulk_component
+        >>> data = randint(0, 10, (10, 10))
+        >>> (bulk_component(data, axis=1) == sum(data, axis=1) / data.shape[0]).all()
+        True
+        >>> (bulk_component(data, axis=1) == data.mean(axis=1)).all()
+        True
+
+        If a mask is given, then those values are not taken into account in the mean:
+
+        >>> from numpy import ma
+        >>> mask = randint(0, 10, data.shape) > 3
+        >>> (
+        ...     sum(data * mask, axis=1) / sum(mask, axis=1)
+        ...     == bulk_component(data, mask, axis=1)
+        ... ).all()
+        True
+
+        More specifically, it is equivalent to the mean from a masked numpy array.
+
+        >>> bulk_component(data, mask) == ma.array(data, mask=~mask).mean()
+        True
+    """
+    if mask is not None:
+        data = np.ma.array(data, mask=~mask)
+    return data.mean(**kwargs)
+
+
+def cylindrical_projection(
+    field: np.ndarray, origin: np.array, axis: int = 0
+) -> np.ndarray:
+    """Project vector field on the local basis of a cylindrical coordinate system.
+
+    Args:
+        field: 2d or 3d vector field where the (x, y, [z]) components are on dimension
+            `axis`.
+        origin: Origin of the cylindrical coordinate system
+        axis: Axis of the field components
+
+    Return:
+        A 2d or 3d field where dimension `axis` contains (r, theta, [z])
+
+
+    Examples:
+        We can create a normalized centripedal field, i.e. a vector field where each
+        vector points to the origin, and each vector is normalized in magnitude. Then
+        the r components of the cylindrical projection should all be 1, and the theta
+        components should all be zero.
+
+        >>> import numpy as np
+        >>> from strainmap.models.contour_mask import cylindrical_projection
+        >>> origin = np.array([3.5, 5])
+        >>> field = np.stack(
+        ...   (
+        ...       np.arange(0, 10, dtype=int)[None, :] + np.zeros((10, 10), dtype=int),
+        ...       np.arange(0, 10, dtype=int)[:, None] + np.zeros((10, 10), dtype=int)
+        ...   ), axis=2
+        ... ) - origin[None, None, :]
+        >>> unit_field = field / np.linalg.norm(field, axis=2)[:, :, None]
+        >>> projection = cylindrical_projection(unit_field, origin=origin, axis=2)
+        >>> np.allclose(projection[:, :, 0], 1)
+        True
+        >>> np.allclose(projection[:, :, 1], 0)
+        True
+
+        A 3d field that is centrepedal in x and y only should give us the same result,
+        with the z component unchanged from the input:
+
+        >>> z = np.random.randint(0, 10, (10, 10))
+        >>> field3d = np.concatenate((unit_field, z[:, :, None]), axis=2)
+        >>> proj3d = cylindrical_projection(field3d, origin=[3.5, 5, 0], axis=2)
+        >>> proj3d.shape
+        (10, 10, 3)
+        >>> np.allclose(proj3d[:, :, 0], 1)
+        True
+        >>> np.allclose(proj3d[:, :, 1], 0)
+        True
+        >>> np.allclose(proj3d[:, :, 2], z)
+        True
+    """
+    origin = np.array(origin)
+    field = np.array(field)
+
+    assert field.ndim == 3
+    assert axis >= 0 and axis < field.ndim
+    assert origin.ndim == 1 and origin.size == field.shape[axis]
+    assert field.shape[axis] in (2, 3)
+
+    if field.shape[axis] == 3:
+        result = cylindrical_projection(
+            np.take(field, range(2), axis=axis), origin[:2], axis=axis
+        )
+        return np.concatenate((result, np.take(field, (2,), axis=axis)), axis=axis)
+
+    x = np.arange(0, field.shape[0], dtype=int)[None, :] - origin[0]
+    y = np.arange(0, field.shape[1], dtype=int)[:, None] - origin[1]
+
+    theta = np.arctan2(y, x)
+    shape = list(theta.shape)
+    shape.insert(axis, 1)
+    r_vec = np.concatenate(
+        (np.cos(theta).reshape(shape), np.sin(theta).reshape(shape)), axis=axis
+    )
+    theta_vec = np.concatenate(
+        (-np.sin(theta).reshape(shape), np.cos(theta).reshape(shape)), axis=axis
+    )
+    result = np.concatenate(
+        (
+            np.sum(r_vec * field, axis=axis).reshape(shape),
+            np.sum(theta_vec * field, axis=axis).reshape(shape),
+        ),
+        axis=axis,
+    )
+    return result
 
 
 if __name__ == "__main__":

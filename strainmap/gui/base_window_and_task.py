@@ -198,14 +198,18 @@ EVENTS: dict = {}
 """ Dictionary with the events linked to the control."""
 
 
-def trigger_event(fun: Callable, name=None):
+def trigger_event(fun: Optional[Callable] = None, name: Optional[Text] = None):
     """Registers a view method that will trigger an event. """
+
+    if fun is None:
+        return lambda x: trigger_event(x, name=name)
 
     name = name if name else fun.__name__
 
     @wraps(fun)
     def wrapper(*args, **kwargs):
         params = fun(*args, **kwargs)
+        params = params if params else {}
         EVENTS[name](**params)
         return
 
