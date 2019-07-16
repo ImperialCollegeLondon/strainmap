@@ -6,11 +6,12 @@ from .figure_actions_manager import (
     ActionBase,
 )
 import numpy as np
-from collections import deque
-from typing import Callable, Tuple, List, Dict
+from scipy import interpolate
+from typing import Callable, Dict, Optional
 from functools import partial
 from matplotlib.patches import CirclePolygon
 from matplotlib.lines import Line2D
+from collections import defaultdict
 
 
 def get_deltas(event, last_event):
@@ -34,15 +35,16 @@ class ZoomAndPan(ActionBase):
         ),
     ):
 
-        super().__init__()
+        super().__init__(
+            signatures={
+                zoom: self.zoom,
+                pan: self.pan,
+                reset_zoom_and_pan: self.reset_zoom_and_pan,
+            }
+        )
 
-        self._signatures = {
-            zoom: self.zoom,
-            pan: self.pan,
-            reset_zoom_and_pan: self.reset_zoom_and_pan,
-        }
-
-    def zoom(self, event, last_event):
+    @staticmethod
+    def zoom(event, last_event):
         """Implements the zoom in and out functionality."""
         if not event.inaxes:
             return last_event
@@ -70,7 +72,8 @@ class ZoomAndPan(ActionBase):
 
         return event
 
-    def pan(self, event, last_event):
+    @staticmethod
+    def pan(event, last_event):
         """Pan functionality."""
         if not event.inaxes:
             return last_event
@@ -89,7 +92,8 @@ class ZoomAndPan(ActionBase):
 
         return event
 
-    def reset_zoom_and_pan(self, event, *args):
+    @staticmethod
+    def reset_zoom_and_pan(event, *args):
         """Resets the axis limits to the original ones, before any zoom and pan."""
         event.inaxes.relim()
         event.inaxes.autoscale()
@@ -98,7 +102,7 @@ class ZoomAndPan(ActionBase):
 class BrightnessAndContrast(ActionBase):
     def __init__(
         self,
-        brigthness_and_contrast=TriggerSignature(
+        brightness_and_contrast=TriggerSignature(
             Location.ANY, Button.RIGHT, MouseAction.DRAG
         ),
         reset_brighness_and_contrast=TriggerSignature(
@@ -106,14 +110,15 @@ class BrightnessAndContrast(ActionBase):
         ),
     ):
 
-        super().__init__()
+        super().__init__(
+            signatures={
+                brightness_and_contrast: self.brightness_and_contrast,
+                reset_brighness_and_contrast: self.reset_brightness_and_contrast,
+            }
+        )
 
-        self._signatures = {
-            brigthness_and_contrast: self.brigthness_and_contrast,
-            reset_brighness_and_contrast: self.reset_brighness_and_contrast,
-        }
-
-    def brigthness_and_contrast(self, event, last_event):
+    @staticmethod
+    def brightness_and_contrast(event, last_event):
         """Controls the brightness and contrast of an image.
 
         If there are more than one image in the axes, the one on top (the last
@@ -148,7 +153,8 @@ class BrightnessAndContrast(ActionBase):
 
         return event
 
-    def reset_brighness_and_contrast(self, event, *args):
+    @staticmethod
+    def reset_brightness_and_contrast(event, *args):
         """Resets the brightness and contrast to the limits based on the data."""
         array = event.inaxes.get_images()[-1].get_array()
         clim_low, clim_high = array.min(), array.max()
@@ -166,116 +172,264 @@ class ScrollFrames(ActionBase):
             Location.ANY, Button.NONE, MouseAction.LEAVEAXES
         ),
     ):
-        super().__init__()
+        super().__init__(
+            signatures={
+                scroll_frames: self.scroll_frames,
+                show_frame_number: self.show_frame_number,
+                hide_frame_number: self.hide_frame_number,
+            }
+        )
         self._img_shift = 0
-        self._signatures = {
-            scroll_frames: self.scroll_frames,
-            show_frame_number: self.show_frame_number,
-            hide_frame_number: self.hide_frame_number,
-        }
+        self._images = {}
 
     def scroll_frames(self, event, *args):
         """The images available in the axes, if more than one, are scrolled."""
-        img = deque(event.inaxes.images)
-        if len(img) <= 1:
-            return
-
         self._img_shift += event.step
-        self._img_shift = self._img_shift % len(img)
+        self._img_shift = self._img_shift % len(self._images[event.inaxes])
+        event.inaxes.images[0] = self._images[event.inaxes][self._img_shift]
         event.inaxes.set_title(f"Frame: {self._img_shift}", loc="left")
-        img.rotate(event.step)
-        event.inaxes.images = list(img)
 
     def show_frame_number(self, event, *args):
-        """Shows the frame number on top of the axes."""
-        if len(event.inaxes.images) > 1:
-            event.inaxes.set_title(f"Frame: {self._img_shift}", loc="left")
+        """Shows the frame number on top of the axes.
+
+        If it is the first time, all images but one are extracted from the axes."""
+        if self._images.get(event.inaxes, None) is None:
+            self.extract_images(event)
+
+        event.inaxes.set_title(f"Frame: {self._img_shift}", loc="left")
 
     @staticmethod
     def hide_frame_number(event, *args):
         """Hides the frame number on top of the axes."""
         event.inaxes.set_title("", loc="left")
 
+    def extract_images(self, event):
+        """Images are extracted from the axes.
 
-def simple_close_contour(points: List[Tuple[float, float]], **kwargs) -> np.ndarray:
-    """Adds the first point to the end of the list and returns the resulting array."""
-    return np.array(points + [points[0]]).T
+        Scrolling with many images loaded in the axes is very expensive, so the first
+        time the pointer entyers into the axes, the images are extracted from the axes.
+        When scrolling, they will be added back one at a time, replacing the one on
+        display."""
+        self._images[event.inaxes] = []
+        for i in range(len(event.inaxes.images)):
+            self._images[event.inaxes].append(event.inaxes.images.pop())
+
+        event.inaxes.images.clear()
+        event.inaxes.images = [self._images[event.inaxes][self._img_shift]]
 
 
-def circle(points: List[Tuple[float, float]], resolution=360) -> np.ndarray:
+def circle(
+    points: np.ndarray, resolution=360, points_per_contour=2, **kwargs
+) -> Optional[np.ndarray]:
     """Calculates the points of the perimeter of a circle."""
-    radius = np.linalg.norm(np.array(points[0] - np.array(points[1])))
-    circle = CirclePolygon(points[0], radius, resolution=resolution)
+    if points.shape[1] == 1 or points.shape[0] % points_per_contour == 1:
+        return None
+
+    radius = np.linalg.norm(points[-2] - points[-1])
+    circle = CirclePolygon(points[-2], radius, resolution=resolution)
     verts = circle.get_path().vertices
     trans = circle.get_patch_transform()
 
     return trans.transform(verts).T
 
 
-class DrawSegments(ActionBase):
+def simple_closed_contour(
+    points: np.ndarray, points_per_contour=6, **kwargs
+) -> Optional[np.ndarray]:
+    """Adds the first point to the end of the list and returns the resulting array."""
+    if points.shape[1] == 1 or points.shape[0] % points_per_contour != 0:
+        return None
+
+    data = np.vstack(points[-points_per_contour:], points[-points_per_contour])
+    return data.T
+
+
+def spline(
+    points: np.ndarray, points_per_contour=6, resolution=360, degree=3, **kwargs
+) -> Optional[np.ndarray]:
+    """Returns a spline that passes through the given points."""
+    if points.shape[1] == 1 or points.shape[0] % points_per_contour != 0:
+        return None
+
+    data = np.vstack((points[-points_per_contour:], points[-points_per_contour]))
+    tck, u = interpolate.splprep([data[:, 0], data[:, 1]], s=0, per=True, k=degree)[:2]
+    return np.array(interpolate.splev(np.linspace(0, 1, resolution), tck)).T
+
+
+class DrawContours(ActionBase):
     def __init__(
         self,
-        num_points: int = -1,
-        callback: Callable = simple_close_contour,
+        num_contours: int = -1,
+        draw_contour: Callable = circle,
+        contours_updated: Optional[Callable] = None,
         add_point=TriggerSignature(Location.CENTRE, Button.LEFT, MouseAction.CLICK),
-        remove_point=TriggerSignature(Location.CENTRE, Button.RIGHT, MouseAction.PICK),
+        remove_artist=TriggerSignature(Location.CENTRE, Button.RIGHT, MouseAction.PICK),
         clear_drawing=TriggerSignature(
             Location.CENTRE, Button.RIGHT, MouseAction.DCLICK
         ),
         **kwargs,
     ):
-        super().__init__()
-        self.num_points = num_points
-        self.callback = partial(callback, **kwargs)
-        self.points: List = []
-        self.marks: List = []
-        self.contour: Dict = {}
-        self._signatures = {
-            add_point: self.add_point,
-            remove_point: self.remove_point,
-            clear_drawing: self.clear_drawing,
-        }
+        """Add the capability of drawing contours in a figure.
+
+        This action enables to draw points in an axes and draw a contour out of them.
+        The points (and the resulting contours) can be removed. By default, it draws
+        circles every 2 points, but the user can provide a draw_contour function that
+        uses the available points in a different way.
+
+        After drawing each contour, contours_updated is called, enabling the user to
+        retrieve the data. Alternatively, the data can be directly accessed from:
+
+         - figure.actions_manager.DrawContours.contour_data
+
+        which is a dictionary with all the contours per axes.
+
+        Args:
+            num_contours: Number of contours to add. Negative number for unlimited.
+            draw_contour: Function used to create the contour. This function should take
+                as first argument an array with all the points currently in the axes and
+                return an array with the data to plot. Kwargs of this call will be
+                passed to this function.
+            contours_updated: Function called whenever the number of contours changes.
+                It should take the list of contours as first argument and a list of all
+                the points as a second argument. Kwargs of this call will be
+                passed to this function.
+            add_point: TriggerSignature for this action.
+            remove_artist: TriggerSignature for this action.
+            clear_drawing: TriggerSignature for this action.
+            **kwargs: Arguments passed to either draw_contour or contours_updated.
+        """
+        super().__init__(
+            signatures={
+                add_point: self.add_point,
+                remove_artist: self.remove_artist,
+                clear_drawing: self.clear_drawing,
+            }
+        )
+        self.num_contours = num_contours
+        self.contour_callback = partial(draw_contour, **kwargs)
+        self.contours_updated = (
+            partial(contours_updated, **kwargs)
+            if contours_updated is not None
+            else lambda *args: None
+        )
+
+        self.num_points = -1
+        self.points: Dict = defaultdict(list)
+        self.contour_data: Dict = defaultdict(list)
+        self.marks: Dict = defaultdict(list)
+        self.contours: Dict = defaultdict(list)
 
     def add_point(self, _, event, *args):
-        """Records the position of the click and marks it on the plot."""
-        if len(self.points) == self.num_points:
+        """Records the position of the click and marks it on the plot.
+
+        Args:
+            _: The event associated with the button released (ignored).
+            event: The event associated with the button click.
+            *args: (ignored)
+
+        Returns:
+            None
+        """
+        if (
+            len(self.contours[event.inaxes]) == self.num_contours
+            or len(self.points[event.inaxes]) == self.num_points
+        ):
             return
 
-        self.points.append((event.xdata, event.ydata))
+        self.points[event.inaxes].append((event.xdata, event.ydata))
 
-        line = Line2D([event.xdata], [event.ydata], marker="o", color="r", picker=5)
+        line = Line2D([event.xdata], [event.ydata], marker="o", color="r", picker=4)
         event.inaxes.add_line(line)
-        self.marks.append(line)
+        self.marks[event.inaxes].append(line)
+        self.add_contour(event.inaxes)
 
-        if len(self.points) == self.num_points:
-            self.plot_segment(event.inaxes)
+    def remove_artist(self, _, event, *args) -> None:
+        """ Removes an artist (point or contour) from the plot.
 
-    def remove_point(self, _, event, *args):
-        """Removes from the list the point that has been clicked."""
-        ids = [id(m) for m in self.marks]
-        if len(self.points) == 0 or id(event.artist) not in ids:
+        Args:
+            _: The event associated with the button released (ignored).
+            event: The event associated with the button click.
+            *args: (ignored)
+
+        Returns:
+            None
+        """
+        axes = event.mouseevent.inaxes
+        if axes not in self.points:
             return
 
-        index = ids.index(id(event.artist))
-        self.points.pop(index)
-        self.marks.pop(index).remove()
-        if self.contour.get(event.mouseevent.inaxes, None) is not None:
-            self.contour.pop(event.mouseevent.inaxes).remove()
+        ids_marks = [id(m) for m in self.marks[axes]]
+        ids_contours = [id(m) for m in self.contours[axes]]
 
-    def clear_drawing(self, event, *args):
-        """Clears all the data accumulated in the drawing."""
-        self.points = []
-        for mark in self.marks:
+        if id(event.artist) in ids_marks:
+            index = ids_marks.index(id(event.artist))
+            self.points[axes].pop(index)
+            self.marks[axes].pop(index).remove()
+
+        elif id(event.artist) in ids_contours:
+            index = ids_contours.index(id(event.artist))
+            self.contour_data[axes].pop(index)
+            self.contours[axes].pop(index).remove()
+
+            self.contours_updated(  # type: ignore
+                self.contour_data[axes], np.array(self.points[axes])
+            )
+
+    def clear_drawing(self, event, *args) -> None:
+        """ Clears all the data accumulated in the drawing and the axes.
+
+        Args:
+            event: The event that triggered this action.
+            *args: (ignored)
+
+        Returns:
+            None
+        """
+        axes = event.inaxes
+
+        self.points[axes].clear()
+        self.contour_data[axes].clear()
+
+        for mark in self.marks[axes]:
             mark.remove()
-        self.marks = []
-        if self.contour.get(event.inaxes, None) is not None:
-            self.contour.pop(event.inaxes).remove()
 
-    def plot_segment(self, axes):
-        """Plots the data resulting from the callback.
+        for contour in self.contours[axes]:
+            contour.remove()
 
-        Normally, this will be a figure constructed out of the points clicked in the
-        figure, for example a circle, an spline, etc."""
-        data = self.callback(self.points)
-        self.contour[axes] = Line2D(data[0], data[1], color="r")
-        axes.add_line(self.contour[axes])
+        self.marks[axes].clear()
+        self.contours[axes].clear()
+
+        self.contours_updated(  # type: ignore
+            self.contour_data[axes], np.array(self.points[axes])
+        )
+
+    def add_contour(self, axes) -> None:
+        """ Calls the contour callback and add a contour to the axes with the data.
+
+        When completed, if the data is not none, contours_updated callback is called
+        with all the contour data and all the points as arguments.
+
+        The first time the contour is plot, the number of total points is also
+        calculated.
+
+        Args:
+            axes: Axes to add the contour to.
+
+        Returns:
+            None
+        """
+        data = self.contour_callback(np.array(self.points[axes]))
+
+        if data is not None:
+            if self.num_points == -1:
+                self.num_points = len(self.points[axes]) * self.num_contours
+
+            self.contour_data[axes].append(data)
+
+            line = Line2D(*data, color="r", picker=2)
+            axes.add_line(line)
+            self.contours[axes].append(line)
+
+            self.contours_updated(  # type: ignore
+                self.contour_data[axes], np.array(self.points[axes])
+            )

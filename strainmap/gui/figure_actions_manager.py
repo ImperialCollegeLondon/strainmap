@@ -4,6 +4,8 @@ import weakref
 from enum import Flag, auto
 from time import time
 from typing import Callable, Dict, NamedTuple, Optional, Type, List, Text
+from collections import defaultdict
+from itertools import chain
 
 import numpy as np
 from matplotlib.backend_bases import Event
@@ -43,6 +45,8 @@ class MouseAction(Flag):
     PICKDRAG = auto()
     ENTERAXES = auto()
     LEAVEAXES = auto()
+    ENTERFIGURE = auto()
+    LEAVEFIGURE = auto()
 
 
 class TriggerSignature(NamedTuple):
@@ -85,16 +89,11 @@ class ActionBase(object):
     relevant for the action.
     """
 
-    def __init__(self, **kwargs):
-        self._signatures: Dict[
-            TriggerSignature, Callable[[Event, Event], Optional[Event]]
-        ] = dict()
-
-    @property
-    def signatures(
-        self
-    ) -> Dict[TriggerSignature, Callable[[Event, Event], Optional[Event]]]:
-        return self._signatures
+    def __init__(
+        self,
+        signatures: Dict[TriggerSignature, Callable[[Event, Event], Optional[Event]]],
+    ):
+        self.signatures = signatures
 
 
 class FigureActionsManager(object):
@@ -109,14 +108,22 @@ class FigureActionsManager(object):
     any other figure. If the figure is to be used embedded in a GUI framework (e.g.
     Tkinter, Kivy, QT...), adding the interactive functionality must be done AFTER the
     figure has been added to the GUI.
+
+    By default, the FigureActionsManager does not add any extra functionality. This
+    can be included later on with the self.add_action method or during creation by
+    providing the Actions as extra positional arguments. Arguments to the Actions
+    can be passed as kwargs dictionaries using: options_ActionName = {}.
+
+    For example, to add ZoomAndPan functionality to figure 'fig' and the ability to
+    draw contours with certain options, one could do:
+
+    fam = FigureActionsManager( fig, ZoomAndPan, DrawContours,
+                                options_DrawContours=dict(num_contours=2 )
+                                )
     """
 
     def __init__(self, figure: Figure, *args, axis_fraction=0.2, delay=0.2, **kwargs):
         """An existing Matplotlib figure is the only input needed by the Manager.
-
-        By default, this does not add any extra functionality. This can be included
-        later on with the self.add_action method or during creation by providing the
-        Actions as extra positional arguments.
 
         Args:
             figure: An instance of a Matplotlib Figure.
@@ -133,7 +140,7 @@ class FigureActionsManager(object):
         self._event: List = []
         self._last_event = None
         self._current_action = None
-        self._actions: Dict = dict()
+        self._actions: Dict = defaultdict(list)
 
         self._connect_events()
 
@@ -159,6 +166,8 @@ class FigureActionsManager(object):
         self.canvas.mpl_connect("scroll_event", self._on_mouse_scrolled)
         self.canvas.mpl_connect("axes_enter_event", self._on_entering_axes)
         self.canvas.mpl_connect("axes_leave_event", self._on_leaving_axes)
+        self.canvas.mpl_connect("figure_enter_event", self._on_entering_figure)
+        self.canvas.mpl_connect("figure_leave_event", self._on_leaving_figure)
         self.canvas.mpl_connect("pick_event", self._on_mouse_clicked)
 
     def clean_events(self):
@@ -198,10 +207,16 @@ class FigureActionsManager(object):
 
             self._current_action = self.select_action(location, button, mouse_action)
 
-        if self._current_action is not None:
-            self._last_event = self._current_action(event, self._last_event)
+        if len(self._current_action) == 1:
+            self._last_event = self._current_action[0](event, self._last_event)
 
-            self.draw()
+        else:
+            for ac in self._current_action:
+                ac(event, self._last_event)
+
+            self._current_action = None
+
+        self.draw()
 
     def _on_mouse_released(self, event):
         """Stops the timer and executes the original click event, if necessary."""
@@ -213,10 +228,10 @@ class FigureActionsManager(object):
         button = MOUSE_BUTTONS.get(mouse_event.button, Button.NONE)
         location = self.select_location(mouse_event)
 
-        self._current_action = self.select_action(location, button, mouse_action)
+        action = self.select_action(location, button, mouse_action)
 
-        if self._current_action is not None:
-            self._current_action(event, ev)
+        for ac in action:
+            ac(event, ev)
 
         self.clean_events()
         self.draw()
@@ -227,7 +242,10 @@ class FigureActionsManager(object):
         button = Button.CENTRE
         location = self.select_location(event)
 
-        self.select_action(location, button, mouse_action)(event, None)
+        action = self.select_action(location, button, mouse_action)
+
+        for ac in action:
+            ac(event, None)
 
         self.draw()
 
@@ -237,7 +255,11 @@ class FigureActionsManager(object):
         button = Button.NONE
         location = self.select_location(event)
 
-        self.select_action(location, button, mouse_action)(event, None)
+        action = self.select_action(location, button, mouse_action)
+
+        for ac in action:
+            ac(event, None)
+
         self.clean_events()
         self.draw()
 
@@ -247,7 +269,39 @@ class FigureActionsManager(object):
         button = Button.NONE
         location = self.select_location(event)
 
-        self.select_action(location, button, mouse_action)(event, None)
+        action = self.select_action(location, button, mouse_action)
+
+        for ac in action:
+            ac(event, None)
+
+        self.clean_events()
+        self.draw()
+
+    def _on_entering_figure(self, event):
+        """Executes the actions related to entering the figure."""
+        mouse_action = MouseAction.ENTERFIGURE
+        button = Button.NONE
+        location = Location.OUTSIDE
+
+        action = self.select_action(location, button, mouse_action)
+
+        for ac in action:
+            ac(event, None)
+
+        self.clean_events()
+        self.draw()
+
+    def _on_leaving_figure(self, event):
+        """Executes the actions related to leaving a figure."""
+        mouse_action = MouseAction.LEAVEFIGURE
+        button = Button.NONE
+        location = Location.OUTSIDE
+
+        action = self.select_action(location, button, mouse_action)
+
+        for ac in action:
+            ac(event, None)
+
         self.clean_events()
         self.draw()
 
@@ -265,12 +319,12 @@ class FigureActionsManager(object):
                 mouse_action = MouseAction.PICK
             mouse_event = ev.mouseevent
 
-        elif self._event[0].dblclick:
-            mouse_event = ev = self._event[0]
+        elif self._event[-1].dblclick:
+            mouse_event = ev = self._event[-1]
             mouse_action = MouseAction.DCLICK
 
         else:
-            mouse_event = ev = self._event[0]
+            mouse_event = ev = self._event[-1]
             mouse_action = MouseAction.CLICK
 
         return ev, mouse_action, mouse_event
@@ -278,7 +332,7 @@ class FigureActionsManager(object):
     def select_movement_type(self, event):
         """Select the type of movement.
 
-        Here we need to discriminate between just  move, drag and pickdrag.
+        Here we need to discriminate between just move, drag and pickdrag.
         """
         if len(self._event) == 0:
             mouse_action = MouseAction.MOVE
@@ -309,37 +363,46 @@ class FigureActionsManager(object):
         return location
 
     def select_action(self, location, button, mouse_action):
-        """Select the action to execute based on the received trigger signature."""
+        """Select the action to execute based on the received trigger signature.
+
+        There might be several matching signatures. In that case, a list of actions
+        is returned. Whether all actions are executed or not depends on the type of
+        action.
+
+        All actions are executed if:
+            - Relate to simple mouse movement
+            - Relate to clicks or picks
+
+        Only the first action is executed if:
+            - Relate to drag events (normal DRAG and PICKDRAG)
+        """
         trigger = TriggerSignature(location, button, mouse_action)
 
-        options = [
-            action
-            for signature, action in self._actions.items()
-            if trigger in signature
-        ]
-
-        if len(options) > 1:
-            msg = f"Multiple actions for signature {trigger}. Actions: {options}"
-            raise RuntimeError(msg)
-        elif len(options) == 0:
-            action = None
-        else:
-            action = options[0]
-
-        return action
+        return list(
+            chain.from_iterable(
+                [
+                    action
+                    for signature, action in self._actions.items()
+                    if trigger in signature
+                ]
+            )
+        )
 
     def add_action(self, action: Type[ActionBase], **kwargs):
         """Adds an action to the Manager."""
-        options = kwargs.get("options", {}).get(action.__name__, {})
+        options = kwargs.get("options_" + action.__name__, {})
         acc = action(**options)
-        self._actions.update(acc.signatures)
+        for k, v in acc.signatures.items():
+            self._actions[k].append(v)
         self.__dict__[action.__name__] = acc
 
     def remove_action(self, action_name: Text):
         """Removes an action from the Manager."""
         action = self.__dict__[action_name]
-        for k in action.signatures:
-            del self._actions[k]
+        for k, v in action.signatures.items():
+            for i in self._actions[k]:
+                if self._actions[k][i] == v:
+                    del self._actions[k][i]
         del self.__dict__[action_name]
 
 
