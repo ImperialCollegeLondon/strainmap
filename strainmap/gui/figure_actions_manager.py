@@ -201,7 +201,6 @@ class FigureActionsManager(object):
             self._last_event, mouse_action, mouse_event = self.select_movement_type(
                 event
             )
-            # print(self._last_event, self._event[-1])
             button = MOUSE_BUTTONS.get(mouse_event.button, Button.NONE)
             location = self.select_location(mouse_event)
 
@@ -398,11 +397,12 @@ class FigureActionsManager(object):
 
     def remove_action(self, action_name: Text):
         """Removes an action from the Manager."""
-        action = self.__dict__[action_name]
-        for k, v in action.signatures.items():
-            for i in self._actions[k]:
-                if self._actions[k][i] == v:
-                    del self._actions[k][i]
+        for k, v in self.__dict__[action_name].signatures.items():
+            for act in self._actions[k]:
+                if act == v:
+                    self._actions[k].remove(act)
+            if len(self._actions[k]) == 0:
+                self._actions.pop(k)
         del self.__dict__[action_name]
 
 
