@@ -17,10 +17,11 @@ class DataTaskView(TaskViewBase):
         super().__init__(root, button_text="Data", button_image="save.gif")
 
         # Control-related attributes
-        self.data_folder = tk.StringVar()
-        self.output_file = tk.StringVar()
+        self.data_folder = tk.StringVar(value="")
+        self.output_file = tk.StringVar(value="")
+        self.phantom_check = tk.BooleanVar(value=False)
         self.dataselector = None
-        self.create_controls()
+        self.patient_info = None
 
         # Visualization-related attributes
         self.notebook = None
@@ -28,28 +29,33 @@ class DataTaskView(TaskViewBase):
         self.time_step = None
         self.fig = None
         self.ax = None
-        self.series_types_var = tk.StringVar()
-        self.variables_var = tk.StringVar(value="MagZ")
+        self.datasets_var = tk.StringVar(value="")
+        self.maps_var = tk.StringVar(value="MagZ")
+        self.cine_frame_var = tk.IntVar(value=0)
+        self.phantoms_box = None
         self.anim = False
+
+        self.create_controls()
 
     def create_controls(self) -> None:
         """ Creates the controls to load and save data."""
 
-        self.control.columnconfigure(0, weight=1)
+        self.control.columnconfigure(1, weight=1)
 
         ttk.Button(
             master=self.control,
             name="chooseDataFolder",
-            text="New analysis from data folder",
+            text="New analysis",
             command=self.load_data,
-        ).grid(sticky=tk.NSEW)
+        ).grid(sticky=tk.NSEW, columnspan=2)
 
         ttk.Button(
             master=self.control,
             name="openStrainMapFile",
-            text="Resume analysis from StrainMap file",
+            text="Resume analysis",
             command=self.open_existing_file,
-        ).grid(sticky=tk.NSEW)
+            width=25,
+        ).grid(sticky=tk.NSEW, columnspan=2)
 
         ttk.Button(
             master=self.control,
@@ -57,98 +63,96 @@ class DataTaskView(TaskViewBase):
             text="Save analysis as...",
             command=self.select_output_file,
             state="disabled",
-        ).grid(sticky=tk.NSEW)
+        ).grid(sticky=tk.NSEW, columnspan=2)
 
-        # Current data folder widgets -----------
-        info = ttk.Labelframe(self.control, text="Current data folder:")
-        info.grid(row=60, sticky=(tk.EW, tk.N), pady=5)
-        info.columnconfigure(0, weight=1)
+        ttk.Label(master=self.control, text="Data folder: ").grid(row=4, sticky=tk.W)
 
         ttk.Entry(
-            master=info,
-            textvariable=self.data_folder,
-            state="disabled",
-            justify="center",
-        ).grid(sticky=tk.NSEW)
+            master=self.control, textvariable=self.data_folder, state="disabled"
+        ).grid(row=4, column=1, sticky=tk.NSEW)
 
-        # Current output file widgets -----------
-        info = ttk.Labelframe(self.control, text="Current output file:")
-        info.grid(sticky=(tk.EW, tk.N))
-        info.columnconfigure(0, weight=1)
+        ttk.Label(master=self.control, text="Output file: ").grid(row=5, sticky=tk.W)
 
         ttk.Entry(
-            master=info,
-            textvariable=self.output_file,
-            state="disabled",
-            justify="center",
-        ).grid(sticky=tk.NSEW)
+            master=self.control, textvariable=self.output_file, state="disabled"
+        ).grid(row=5, column=1, sticky=tk.NSEW)
 
-        # Clear data widget -------------
         ttk.Button(
             master=self.control,
             name="clearAllData",
             text="Clear all data",
             command=self.clear_data,
-        ).grid(sticky=tk.NSEW)
+        ).grid(row=99, columnspan=2, sticky=tk.NSEW)
 
     def create_data_selector(self):
         """ Creates the selector for the data. """
-        self.dataselector = ttk.LabelFrame(
-            self.control, name="dataSelector", text="Data selector:"
+        values, texts, var_values, cine_frames, patient_data = (
+            self.get_data_information()
         )
-        self.dataselector.grid(row=40, sticky=(tk.EW, tk.S), pady=5)
+        self.datasets_var.set(values[0])
+        self.cine_frame_var.set(cine_frames[0])
+
+        patient_name = patient_data.get("PatientName", "")
+        patient_dob = patient_data.get("PatientBirthDate", "")
+        patient_study_date = patient_data.get("StudyDate", "")
+
+        self.dataselector = ttk.Frame(self.control, name="dataSelector")
+        self.dataselector.grid(row=40, columnspan=2, sticky=tk.NSEW, pady=5)
         self.dataselector.columnconfigure(0, weight=1)
 
-        slice = ttk.Labelframe(self.dataselector, text="Slice:")
-        slice.grid(column=0, row=0, sticky=(tk.EW, tk.N), padx=5, pady=5)
-        slice.columnconfigure(0, weight=1)
+        patient_frame = ttk.Labelframe(self.dataselector, text="Patient Information:")
+        patient_frame.grid(column=0, sticky=tk.NSEW, padx=5, pady=5)
+        patient_frame.columnconfigure(1, weight=1)
 
-        values = sorted(self.data.data_files.keys())
-        self.series_types_var.set(values[0])
-        for v in values:
+        ttk.Label(master=patient_frame, text="Name:").grid(sticky=tk.W, padx=10)
+        ttk.Label(master=patient_frame, text="DoB:").grid(sticky=tk.W, padx=10)
+        ttk.Label(master=patient_frame, text="Date of scan:").grid(sticky=tk.W, padx=10)
+
+        ttk.Label(master=patient_frame, text=patient_name).grid(
+            column=1, row=0, sticky=tk.W
+        )
+        ttk.Label(master=patient_frame, text=patient_dob).grid(
+            column=1, row=1, sticky=tk.W
+        )
+        ttk.Label(master=patient_frame, text=patient_study_date).grid(
+            column=1, row=2, sticky=tk.W
+        )
+
+        dataset_frame = ttk.Labelframe(self.dataselector, text="Datasets:")
+        dataset_frame.grid(column=0, sticky=tk.NSEW, padx=5, pady=5)
+        dataset_frame.columnconfigure(0, weight=1)
+
+        datasets_box = ttk.Combobox(
+            master=dataset_frame,
+            textvariable=self.datasets_var,
+            values=values,
+            state="readonly" if len(patient_data) > 0 else "disabled",
+        )
+        datasets_box.bind("<<ComboboxSelected>>", self.update_visualization)
+        datasets_box.grid(column=0, sticky=tk.NSEW, padx=5, pady=5)
+
+        for t, v in zip(texts, var_values):
             ttk.Radiobutton(
-                master=slice,
-                variable=self.series_types_var,
-                text=v,
-                value=v,
-                command=self.update_visualization,
-            ).grid(column=0, sticky=tk.NSEW, padx=5, pady=5)
-
-        maps = ttk.Labelframe(self.dataselector, text="Map:")
-        maps.grid(column=0, row=1, sticky=(tk.EW, tk.N), padx=5, pady=5)
-        maps.columnconfigure(0, weight=1)
-
-        for v in ["MagZ", "PhaseZ", "MagX", "PhaseX", "MagY", "PhaseY"]:
-            ttk.Radiobutton(
-                master=maps,
-                variable=self.variables_var,
-                text=v,
+                master=dataset_frame,
+                variable=self.maps_var,
+                text=t,
                 value=v,
                 command=self.update_visualization,
             ).grid(sticky=tk.NSEW, padx=5, pady=5)
 
-        timestep = ttk.Labelframe(self.dataselector, name="timeStep", text="Time step:")
-        timestep.grid(column=0, row=2, sticky=(tk.EW, tk.N), padx=5, pady=5)
-        timestep.columnconfigure(0, weight=1)
-        timestep.columnconfigure(1, weight=1)
+        ttk.Checkbutton(
+            master=self.dataselector,
+            text="Use phantom subtraction.",
+            command=self.load_phantom,
+            variable=self.phantom_check,
+            onvalue=True,
+            offvalue=False,
+            state="enable" if len(patient_data) > 0 else "disabled",
+        ).grid(sticky=tk.NSEW, padx=5, pady=5)
 
-        values = [*range(len(self.data.data_files[values[0]]["MagZ"]))]
-        self.time_step = ttk.Spinbox(
-            master=timestep,
-            name="stepFilenum",
-            command=lambda: self.update_visualization(step_changed=True),
-            values=values,
-            state="readonly",
+        self.phantoms_box = ttk.Combobox(
+            master=self.dataselector, values=[], state="readonly"
         )
-        self.time_step.grid(column=0, row=0, sticky=tk.NSEW)
-        self.time_step.set(values[0])
-
-        ttk.Button(
-            master=timestep,
-            name="playAnimation",
-            command=lambda: self.update_visualization(play_stop=True),
-            text="> / ||",
-        ).grid(column=1, row=0, sticky=tk.NSEW)
 
     def create_data_viewer(self):
         """ Creates the viewer for the data, including the animation and the DICOM. """
@@ -200,15 +204,31 @@ class DataTaskView(TaskViewBase):
 
     @trigger_event
     def load_data(self):
-
+        """Loads new data into StrainMap"""
         path = tk.filedialog.askdirectory(title="Select DATA directory")
+        self.data_folder.set(path)
 
         output = {}
         if path != "":
-            self.data_folder.set(path)
-            output = {"data_files": path}
+            output = dict(data_files=path)
 
         return output
+
+    @trigger_event(name="load_data")
+    def load_phantom(self):
+        """Loads phantom data into a data structure."""
+
+        result = {}
+        if self.phantom_check.get():
+            path = tk.filedialog.askdirectory(title="Select PHANTOM directory")
+            if path == "":
+                self.phantom_check.set(False)
+            else:
+                result = dict(bg_files=path, data=self.data)
+        else:
+            self.phantoms_box.grid_remove()
+
+        return result
 
     @trigger_event
     def clear_data(self):
@@ -230,13 +250,40 @@ class DataTaskView(TaskViewBase):
         messagebox.showinfo(message="This functionality is not implemented, yet.")
         self.output_file.set("")
 
-    def update_visualization(self, step_changed=False, play_stop=False):
+    def get_data_information(self):
+        """ Gets some information related to the available datasets, frames, etc. """
+        values = sorted(self.data.data_files.keys())
+        if len(values) > 0:
+            texts = [
+                "Magnitude",
+                "Through-plane velocity map (Z)",
+                "In-plane velocity map (X)",
+                "In-plane velocity map (Y)",
+            ]
+            var_values = ["MagZ", "PhaseZ", "PhaseX", "PhaseY"]
+            cine_frames = [*range(len(self.data.data_files[values[0]]["MagZ"]))]
+            patient_data = self.data.read_dicom_file_tags(values[0], "MagZ", 0)
+        else:
+            values = ["No suitable datasets available."]
+            texts = []
+            var_values = []
+            cine_frames = [""]
+            patient_data = {}
+
+        return values, texts, var_values, cine_frames, patient_data
+
+    def update_visualization(self, *args, step_changed=False, play_stop=False):
         """ Updates the visualization whenever the data selected changes. """
-        series = self.series_types_var.get()
-        variable = self.variables_var.get()
+        series = self.datasets_var.get()
+        variable = self.maps_var.get()
         data = self.data.get_images(series, variable)
-        self.time_step["values"] = [*range(len(data))]
-        idx = int(self.time_step.get())
+
+        if len(data) == 0:
+            return
+
+        # self.time_step["values"] = [*range(len(data))]
+        # idx = int(self.time_step.get())
+        idx = 0
 
         if self.notebook.tab(self.notebook.select(), "text") == "Animation":
             if step_changed:
@@ -310,6 +357,14 @@ class DataTaskView(TaskViewBase):
         self.create_data_viewer()
         self.update_visualization()
 
+        values = sorted(self.data.bg_files.keys())
+        if self.phantom_check.get() and len(values) > 0:
+            self.phantoms_box["values"] = values
+            self.phantoms_box.current(0)
+            self.phantoms_box.grid(column=0, sticky=tk.NSEW, padx=5, pady=5)
+        else:
+            self.phantom_check.set(False)
+
     def clear_widgets(self):
         """ Clear widgets after removing the data. """
         self.data_folder.set("")
@@ -318,6 +373,7 @@ class DataTaskView(TaskViewBase):
 
         if self.notebook:
             self.dataselector.grid_remove()
+            self.phantom_check.set(False)
             self.notebook.destroy()
             self.notebook = None
             self.dataselector = None

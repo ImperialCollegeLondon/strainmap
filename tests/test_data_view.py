@@ -1,7 +1,11 @@
-from pytest import mark
 from unittest.mock import MagicMock
 
+from pytest import mark
 
+from conftest import patch_dialogs
+
+
+@patch_dialogs
 def test_load_data_button(data_view, dicom_data_path):
     from strainmap.gui.base_window_and_task import EVENTS
 
@@ -12,6 +16,7 @@ def test_load_data_button(data_view, dicom_data_path):
     assert data_view.data_folder.get() == str(dicom_data_path)
 
 
+@patch_dialogs
 def test_clear_data_button(data_view, dicom_data_path):
     from strainmap.gui.base_window_and_task import EVENTS
 
@@ -45,16 +50,6 @@ def test_update_and_clear_widgets(data_view, strainmap_data):
     assert (
         str(data_view.nametowidget("control.chooseOutputFile")["state"]) == "disabled"
     )
-
-
-def test_play_animation_button(data_view, strainmap_data):
-
-    assert not data_view.anim
-    data_view.data = strainmap_data
-    assert data_view.anim
-
-    data_view.nametowidget("control.dataSelector.timeStep.playAnimation").invoke()
-    assert data_view.anim and not data_view.anim.event_source
 
 
 def test_update_visualization_plot(data_view, strainmap_data):

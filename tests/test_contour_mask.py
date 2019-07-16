@@ -141,25 +141,10 @@ def test_spline():
 
 
 def test_mask():
-    from strainmap.models.contour_mask import Mask, Contour
+    from strainmap.models.contour_mask import Contour, contour_diff
 
     c1 = Contour.circle()
     c2 = Contour.circle()
 
-    m = Mask(c1, c2)
-    assert not m.mask.any()
-
-    m = Mask(c1)
-    assert m.mask == approx(c1.mask)
-
-
-def test_mask_sector_mask():
-    import numpy as np
-    from strainmap.models.contour_mask import Mask, Contour
-
-    c1 = Contour.circle()
-    m = Mask(c1)
-    smasks = m.sector_mask()
-
-    sum_smasks = np.array([smasks[i].sum() for i in smasks.keys()]).sum()
-    assert sum_smasks == approx(m.mask.sum())
+    mask = contour_diff(c1, c2)
+    assert not mask.any()
