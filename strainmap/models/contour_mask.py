@@ -6,6 +6,8 @@ from typing import Optional, Sequence, Tuple, Union
 import numpy as np
 from scipy import interpolate, ndimage
 
+from skimage.draw import polygon_perimeter
+
 
 class Contour(object):
     """Creates a contour object.
@@ -62,20 +64,12 @@ class Contour(object):
 
         To ensure a closed contour, the curve is first finely interpolated.
         """
-        idx = np.linspace(0, self.points + 1, self.shape[0] * self.shape[1] * 10)
-        xy = np.vstack((self.xy, self.xy[0, :]))
-
-        xy = (
-            interpolate.CubicSpline(range(self.points + 1), xy, bc_type="periodic")(idx)
-            .round()
-            .astype(int)
+        rr, cc = polygon_perimeter(
+            self.xy[:, 0], self.xy[:, 1], shape=self.shape, clip=True
         )
 
-        xy[:, 0] = np.clip(xy[:, 0], a_min=0, a_max=self.shape[1] - 1)
-        xy[:, 1] = np.clip(xy[:, 1], a_min=0, a_max=self.shape[0] - 1)
-
         result = np.zeros(self.shape, dtype=int)
-        result[xy[:, 1], xy[:, 0]] = 1
+        result[rr, cc] = 1
 
         return result
 
@@ -339,14 +333,15 @@ def image_to_coordinates(image: np.ndarray) -> np.ndarray:
     """Transforms image of contour to array of cartesian coordinates."""
     centroid = np.array(ndimage.measurements.center_of_mass(image))
     grid = np.indices(image.shape)
-    x = grid[0] - centroid[0]
-    y = grid[1] - centroid[1]
+    x = (grid[0] - centroid[0])[image == 1]
+    y = (grid[1] - centroid[1])[image == 1]
 
-    theta = np.mod(np.arctan2(y, x), 2 * np.pi)[image == 1]
-    r = np.sqrt(x ** 2 + y ** 2)[image == 1]
+    theta = np.mod(np.arctan2(y, x), 2 * np.pi)
     idx = np.argsort(theta)
 
-    return pol2cart(np.array([r[idx], theta[idx]]).T) + centroid
+    x = grid[0][image == 1][idx]
+    y = grid[1][image == 1][idx]
+    return np.array([x, y]).T
 
 
 def bulk_component(

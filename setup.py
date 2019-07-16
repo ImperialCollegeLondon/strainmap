@@ -9,7 +9,14 @@ setup(
     author="Research Computing Service, Imperial College London",
     author_email="rcs-support@imperial.ac.uk",
     setup_requires=["pytest-runner"],
-    install_requires=["pillow", "pydicom", "matplotlib", "numpy", "scipy"],
+    install_requires=[
+        "pillow",
+        "pydicom",
+        "scikit-image",
+        "matplotlib",
+        "numpy",
+        "scipy",
+    ],
     tests_require=tests_require,
     extras_require={"dev": tests_require},
 )
