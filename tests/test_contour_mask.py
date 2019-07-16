@@ -44,10 +44,8 @@ def test_image_to_coordinates():
     c = Contour.circle((250, 250), radius=60)
 
     xy = image_to_coordinates(c.image)
-    xidx = xy[:, 1].round().astype(int)
-    yidx = xy[:, 0].round().astype(int)
 
-    assert np.all(c.image[xidx, yidx] == 1)
+    assert np.all(c.image[xy[:, 0], xy[:, 1]] == 1)
 
 
 def test_contour():

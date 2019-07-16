@@ -1,14 +1,8 @@
 from typing import Callable, Text, Optional, Union, List, Dict, Any
 import numpy as np
 
-from skimage.segmentation import (
-    active_contour,
-    morphological_geodesic_active_contour,
-    morphological_chan_vese,
-)
-
-from .filters import REGISTERED_FILTERS
 from .contour_mask import Contour
+from .filters import REGISTERED_FILTERS
 from .propagators import REGISTERED_PROPAGATORS
 
 
@@ -34,6 +28,8 @@ def register_segmenter(
 @register_segmenter(name="AC")
 def active_contour_model(img: np.ndarray, initial: Contour, params: Dict) -> Contour:
     """Segmentation using the active contour model."""
+    from skimage.segmentation import active_contour
+
     if img.ndim > 2:
         msg = f"The active contour segmentation model can't perform 3D segmentations."
         raise NotImplementedError(msg)
@@ -48,6 +44,8 @@ def morphological_geodesic_active_contour_model(
     img: np.ndarray, initial: Contour, params: Dict
 ) -> Union[Contour, List[Contour]]:
     """Segmentation using the morphological geodesic active contour model."""
+    from skimage.segmentation import morphological_geodesic_active_contour
+
     iterations = params.pop("iterations", 1000)
 
     if img.ndim > 2:
@@ -70,6 +68,8 @@ def morphological_chan_vese_model(
     img: np.ndarray, initial: Contour, params: Dict
 ) -> Union[Contour, List[Contour]]:
     """Segmentation using the morphological Chan Vese model."""
+    from skimage.segmentation import morphological_chan_vese
+
     iterations = params.pop("iterations", 1000)
 
     if img.ndim > 2:

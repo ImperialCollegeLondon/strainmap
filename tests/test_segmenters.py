@@ -1,22 +1,5 @@
-from pytest import approx, raises, mark
+from pytest import approx, raises
 from unittest.mock import MagicMock, patch
-
-patch(
-    "skimage.segmentation.active_contour", lambda img, ini, *args, **kwargs: ini
-).start()
-patch(
-    "skimage.segmentation.morphological_geodesic_active_contour",
-    lambda img, iterations, init_level_set, *args, **kwargs: init_level_set,
-).start()
-patch(
-    "skimage.segmentation.morphological_chan_vese",
-    lambda img, iterations, init_level_set, *args, **kwargs: init_level_set,
-).start()
-
-from strainmap.models.segmenters import (  # noqa: F403,F401
-    morphological_geodesic_active_contour_model,
-    morphological_chan_vese_model,
-)
 
 
 def test_segmenter_global_segmenter():
@@ -60,37 +43,65 @@ def test_segmenter_propagated_segmenter():
         assert c.xy == approx(act.xy)
 
 
+@patch("skimage.segmentation.active_contour", lambda img, ini, *args, **kwargs: ini)
 def test_active_contour():
     """ This only tests if methods are called correctly, NOT if the algorithm works."""
-    from strainmap.models.segmenters import active_contour_model
     from strainmap.models.contour_mask import Contour
+    from strainmap.models.segmenters import active_contour_model
     import numpy as np
 
     c = Contour.circle()
 
-    expected = c
     actual = active_contour_model(img=c.mask, initial=c, params={})
-    assert expected.xy == approx(actual.xy)
+    assert c.xy == approx(actual.xy)
 
     with raises(NotImplementedError):
         active_contour_model(img=np.array([c.mask] * 3), initial=c, params={})
 
 
-@mark.parametrize(
-    "solver",
-    [morphological_geodesic_active_contour_model, morphological_chan_vese_model],
+@patch(
+    "skimage.segmentation.morphological_geodesic_active_contour",
+    lambda img, iterations, init_level_set, *args, **kwargs: init_level_set,
 )
-def test_morphological_geodesic_active_contour(solver):
+def test_morph_gac_model():
     """ This only tests if methods are called correctly, NOT if the algorithm works."""
     import numpy as np
     from strainmap.models.contour_mask import Contour
+    from strainmap.models.segmenters import morphological_geodesic_active_contour_model
 
     c = Contour.circle()
 
-    actual = solver(img=c.mask, initial=c, params={})
+    actual = morphological_geodesic_active_contour_model(
+        img=c.mask, initial=c, params={}
+    )
+    assert (c.image == actual.image).all()
+
+    actual = morphological_geodesic_active_contour_model(
+        img=np.array([c.mask] * 3), initial=c, params={}
+    )
+    assert len(actual) == 3
+    for act in actual:
+        assert (c.image == act.image).all()
+
+
+@patch(
+    "skimage.segmentation.morphological_chan_vese",
+    lambda img, iterations, init_level_set, *args, **kwargs: init_level_set,
+)
+def test_morph_cv_model():
+    """ This only tests if methods are called correctly, NOT if the algorithm works."""
+    import numpy as np
+    from strainmap.models.contour_mask import Contour
+    from strainmap.models.segmenters import morphological_chan_vese_model
+
+    c = Contour.circle()
+
+    actual = morphological_chan_vese_model(img=c.mask, initial=c, params={})
     assert c.mask == approx(actual.mask)
 
-    actual = solver(img=np.array([c.mask] * 3), initial=c, params={})
+    actual = morphological_chan_vese_model(
+        img=np.array([c.mask] * 3), initial=c, params={}
+    )
     assert len(actual) == 3
     for act in actual:
         assert c.mask == approx(act.mask)
