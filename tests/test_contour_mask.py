@@ -146,3 +146,28 @@ def test_mask():
 
     mask = contour_diff(c1, c2)
     assert not mask.any()
+
+
+def test_masked_means():
+    from numpy import zeros
+    from numpy.random import randint, random
+    from strainmap.models.contour_mask import masked_means
+    from strainmap.models.readers import ImageTimeSeries
+
+    # constructs cartesian velocities with known means
+    N = 3
+    cartvel = zeros((3, 5, 512, 512))
+    labels = randint(0, N, (512, 512))
+
+    meanvel = random((N, 3, cartvel.shape[1]))
+    for l in range(N):
+        for t in range(cartvel.shape[1]):
+            view = cartvel[:, t, :, :]
+            view[0][labels == l] = meanvel[l, 0, t]
+            view[1][labels == l] = meanvel[l, 1, t]
+            view[2][labels == l] = meanvel[l, 2, t]
+
+    actual = masked_means(
+        cartvel, labels, axes=ImageTimeSeries.image_axes
+    )
+    assert actual == approx(meanvel[1:, :, :])

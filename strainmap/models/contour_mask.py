@@ -13,8 +13,8 @@ class Contour(object):
 
     Contours are closed paths in a plane. They can be defined as a N-2 array in
     cartesian coordinates but also as a centroid and an N-2 array of polar coordinates.
-    This later representation is useful for expanding and contracting the contour
-    around the centroid.
+    This later representation is useful for expanding and contracting the contour around
+    the centroid.
     """
 
     def __init__(self, xy: np.ndarray, shape: Tuple[int, int] = (512, 512)):
@@ -385,18 +385,24 @@ def bulk_component(
 
 
 def cylindrical_projection(
-    field: np.ndarray, origin: np.array, axis: int = 0
+    field: np.ndarray,
+    origin: np.array,
+    vector_axis: int = 0,
+    image_axes: Tuple[int, int] = (1, 2),
 ) -> np.ndarray:
-    """Project vector field on the local basis of a cylindrical coordinate system.
+    """Project vector field on the local basis of a cylindrical coordinate
+    system.
 
     Args:
         field: 2d or 3d vector field where the (x, y, [z]) components are on dimension
-            `axis`.
+            `vector_axis`, and the images are on the axes `image_axes`. Other dimensions
+            are treated independantly.
         origin: Origin of the cylindrical coordinate system
-        axis: Axis of the field components
+        vector_axis: Axis of the field components
+        image_axes: Axes making up an image
 
     Return:
-        A 2d or 3d field where dimension `axis` contains (r, theta, [z])
+        A 2d or 3d field where dimension `vector_axis` contains (r, theta, [z])
 
 
     Examples:
@@ -412,10 +418,13 @@ def cylindrical_projection(
         ...   (
         ...       np.arange(0, 10, dtype=int)[None, :] + np.zeros((10, 10), dtype=int),
         ...       np.arange(0, 10, dtype=int)[:, None] + np.zeros((10, 10), dtype=int)
-        ...   ), axis=2
+        ...   ),
+        ...   axis=2
         ... ) - origin[None, None, :]
         >>> unit_field = field / np.linalg.norm(field, axis=2)[:, :, None]
-        >>> projection = cylindrical_projection(unit_field, origin=origin, axis=2)
+        >>> projection = cylindrical_projection(
+        ...     unit_field, origin=origin, vector_axis=2, image_axes=(0, 1)
+        ... )
         >>> np.allclose(projection[:, :, 0], 1)
         True
         >>> np.allclose(projection[:, :, 1], 0)
@@ -426,7 +435,9 @@ def cylindrical_projection(
 
         >>> z = np.random.randint(0, 10, (10, 10))
         >>> field3d = np.concatenate((unit_field, z[:, :, None]), axis=2)
-        >>> proj3d = cylindrical_projection(field3d, origin=[3.5, 5, 0], axis=2)
+        >>> proj3d = cylindrical_projection(
+        ...     field3d, origin=[3.5, 5, 0], image_axes=(0, 1), vector_axis=2
+        ... )
         >>> proj3d.shape
         (10, 10, 3)
         >>> np.allclose(proj3d[:, :, 0], 1)
@@ -439,37 +450,75 @@ def cylindrical_projection(
     origin = np.array(origin)
     field = np.array(field)
 
-    assert field.ndim == 3
-    assert axis >= 0 and axis < field.ndim
-    assert origin.ndim == 1 and origin.size == field.shape[axis]
-    assert field.shape[axis] in (2, 3)
+    assert field.ndim >= 3
+    assert vector_axis >= 0 and vector_axis < field.ndim
+    assert vector_axis not in image_axes
+    assert len(image_axes) == 2
+    assert image_axes[0] >= 0 and image_axes[0] < field.ndim
+    assert image_axes[1] >= 0 and image_axes[1] < field.ndim
+    assert image_axes[0] != image_axes[1]
+    assert origin.ndim == 1 and origin.size in (2, 3)
+    assert field.shape[vector_axis] in (2, 3)
 
-    if field.shape[axis] == 3:
+    if field.shape[vector_axis] == 3:
         result = cylindrical_projection(
-            np.take(field, range(2), axis=axis), origin[:2], axis=axis
+            np.take(field, range(2), axis=vector_axis),
+            origin[:2],
+            vector_axis=vector_axis,
+            image_axes=image_axes,
         )
-        return np.concatenate((result, np.take(field, (2,), axis=axis)), axis=axis)
+        return np.concatenate(
+            (result, np.take(field, (2,), axis=vector_axis)), axis=vector_axis
+        )
 
-    x = np.arange(0, field.shape[0], dtype=int)[None, :] - origin[0]
-    y = np.arange(0, field.shape[1], dtype=int)[:, None] - origin[1]
+    x = np.arange(0, field.shape[image_axes[0]], dtype=int)[None, :] - origin[0]
+    y = np.arange(0, field.shape[image_axes[1]], dtype=int)[:, None] - origin[1]
 
     theta = np.arctan2(y, x)
-    shape = list(theta.shape)
-    shape.insert(axis, 1)
+    shape = tuple(field.shape[i] if i in image_axes else 1 for i in range(field.ndim))
     r_vec = np.concatenate(
-        (np.cos(theta).reshape(shape), np.sin(theta).reshape(shape)), axis=axis
+        (np.cos(theta).reshape(shape), np.sin(theta).reshape(shape)), axis=vector_axis
     )
     theta_vec = np.concatenate(
-        (-np.sin(theta).reshape(shape), np.cos(theta).reshape(shape)), axis=axis
+        (-np.sin(theta).reshape(shape), np.cos(theta).reshape(shape)), axis=vector_axis
     )
+
+    rshape = list(field.shape)
+    rshape[vector_axis] = 1
     result = np.concatenate(
         (
-            np.sum(r_vec * field, axis=axis).reshape(shape),
-            np.sum(theta_vec * field, axis=axis).reshape(shape),
+            np.sum(r_vec * field, axis=vector_axis).reshape(rshape),
+            np.sum(theta_vec * field, axis=vector_axis).reshape(rshape),
         ),
-        axis=axis,
+        axis=vector_axis,
     )
     return result
+
+
+def masked_means(
+    data: Union[np.ndarray], labels: np.ndarray, axes: Tuple[int, int] = (1, 2)
+) -> np.ndarray:
+    """Computes means for each separate region in labels.
+
+    Args:
+        data: Data for which to compute the mean.
+        labels: integer array with dimensions matching the dimensions over which to
+            compute the mean. Each integer value greater than 0 denotes a separate mask.
+            For each mask, the mean is computed. 0 is ignored.
+        axes: Axes over which to compute the mean.
+    """
+    from numpy.ma import MaskedArray
+
+    image_shape = tuple(data.shape[i] for i in axes)
+    assert labels.squeeze().shape == image_shape
+    blabels = np.broadcast_to(labels, data.shape)
+
+    def _mean(data, mask):
+        result = MaskedArray(data, mask).mean(axis=axes).data
+        return result.reshape(1, *result.shape)
+
+    indices = set(labels.flat) - {0}
+    return np.concatenate(list(_mean(data, blabels != l) for l in indices))
 
 
 if __name__ == "__main__":
