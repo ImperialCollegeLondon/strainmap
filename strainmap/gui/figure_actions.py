@@ -218,11 +218,9 @@ class ScrollFrames(ActionBase):
         event.inaxes.images = [self._images[event.inaxes][self._img_shift]]
 
 
-def circle(
-    points: np.ndarray, resolution=360, points_per_contour=2, **kwargs
-) -> Optional[np.ndarray]:
+def circle(points: np.ndarray, resolution=360, **kwargs) -> Optional[np.ndarray]:
     """Calculates the points of the perimeter of a circle."""
-    if points.shape[1] == 1 or points.shape[0] % points_per_contour == 1:
+    if points.shape[1] == 1 or points.shape[0] % 2 == 1:
         return None
 
     radius = np.linalg.norm(points[-2] - points[-1])
@@ -240,7 +238,7 @@ def simple_closed_contour(
     if points.shape[1] == 1 or points.shape[0] % points_per_contour != 0:
         return None
 
-    data = np.vstack(points[-points_per_contour:], points[-points_per_contour])
+    data = np.vstack((points[-points_per_contour:], points[-points_per_contour]))
     return data.T
 
 

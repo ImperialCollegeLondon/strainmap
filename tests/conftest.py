@@ -132,3 +132,13 @@ def action():
             super().__init__({s1: lambda: None, s2: lambda: None, s3: lambda: None})
 
     return DummyAction
+
+
+@fixture
+def figure():
+    import matplotlib.pyplot as plt
+
+    fig = plt.figure()
+    fig.add_subplot()
+
+    return fig
