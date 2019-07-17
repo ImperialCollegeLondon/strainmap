@@ -1,17 +1,17 @@
-from typing import Mapping, Tuple, Text, Union, Optional
 from pathlib import Path
+from typing import Mapping, Text, Tuple, Union
 
 
 def search_in_tree(
     tree: Mapping, filename: Union[Path, Text]
-) -> Optional[Tuple[Text, Text, int]]:
+) -> Tuple[Text, Text, int]:
 
     for s in tree:
         for v in tree[s]:
             if filename in tree[s][v]:
                 return s, v, tree[s][v].index(filename)
 
-    return None
+    raise ValueError(f"Could not find file in tree {filename}")
 
 
 def test_read_dicom_directory_tree(dicom_data_path):
