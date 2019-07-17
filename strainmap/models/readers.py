@@ -12,7 +12,7 @@ VAR_OFFSET = {"MagZ": 0, "PhaseZ": 1, "MagX": 2, "PhaseX": 3, "MagY": 4, "PhaseY
 
 
 def read_dicom_directory_tree(path: Union[Path, Text]) -> Mapping:
-    """ Creates a dictionary with the available series and associated filenames. """
+    """Creates a dictionary with the available series and associated filenames."""
 
     path = str(Path(path) / "*.dcm")
     filenames = sorted(glob.glob(path))
@@ -55,7 +55,7 @@ def read_dicom_file_tags(
     variable: Optional[Text] = None,
     timestep: Optional[int] = None,
 ) -> Mapping:
-    """ Returns a dictionary with the tags and values available in a DICOM file. """
+    """Returns a dictionary with the tags and values available in a DICOM file."""
     if isinstance(origin, Mapping):
         if len(origin) == 0:
             return {}
@@ -77,7 +77,7 @@ def read_dicom_file_tags(
 
 
 def read_images(origin: Mapping, series: Text, variable: Text) -> List:
-    """ Returns the images for a given series and variable. """
+    """Returns the images for a given series and variable."""
     if len(origin) == 0:
         return []
 
@@ -93,14 +93,77 @@ def read_images(origin: Mapping, series: Text, variable: Text) -> List:
 
 
 def read_all_images(origin: Mapping) -> Mapping:
-    """ Returns all the images organised by series and variables. """
-    images = deepcopy(origin)
+    """Returns all the images organised by series and variables."""
+    return {
+        series: {
+            variable: [pydicom.dcmread(f).pixel_array for f in images]
+            for variable, images in variables.items()
+        }
+        for series, variables in origin.items()
+    }
 
-    for series in images:
-        for variable in images[series]:
-            images[series][variable] = read_images(origin, series, variable)
 
-    return images
+@dataclass
+class ImageTimeSeries:
+    """Aggregates dicom images into two numpy arrays.
+
+    Each arrays has the format (vector component, time, horizontal, vertical).
+    """
+
+    magnitude: ndarray
+    phase: ndarray
+
+    vector_axis: ClassVar[int] = 0
+    """Axis with x, y, z components."""
+    time_axis: ClassVar[int] = 1
+    """Axis representing time."""
+    image_axes: ClassVar[Tuple[int, int]] = (2, 3)
+    """Axis representing images"""
+
+    def __getitem__(self, index):
+        if isinstance(index, Iterable):
+            return list(self[i] for i in index)
+        elif isinstance(index, slice):
+            return self[range(*index.indices(2))]
+        elif index == 0:
+            return self.magnitude
+        elif index == 1:
+            return self.phase
+        else:
+            raise IndexError(f"Invalid index {index}")
+
+    def __len__(self):
+        return 2
+
+    def __iter__(self):
+        return iter((self.magnitude, self.phase))
+
+
+def images_to_numpy(data: Mapping) -> Mapping[Text, ImageTimeSeries]:
+    """Aggregates dicom images into numpy arrays."""
+
+    def to_numpy(pattern: Text, data: Mapping) -> ndarray:
+        from numpy import stack, argsort
+
+        result = stack(
+            tuple(
+                stack(data[key]) for key in map(lambda x: pattern + x, ("X", "Y", "Z"))
+            )
+        )
+        return result.transpose(
+            argsort(
+                (
+                    ImageTimeSeries.vector_axis,
+                    ImageTimeSeries.time_axis,
+                    *ImageTimeSeries.image_axes,
+                )
+            )
+        )
+
+    return {
+        k: ImageTimeSeries(to_numpy("Mag", v), to_numpy("Phase", v))
+        for k, v in data.items()
+    }
 
 
 def read_strainmap_file(filename: Union[Path, Text]):
@@ -114,10 +177,10 @@ def read_strainmap_file(filename: Union[Path, Text]):
 
 
 def read_h5_file(filename: Union[Path, Text]):
-    """ Reads a HDF5 file. """
+    """Reads a HDF5 file."""
     raise NotImplementedError
 
 
 def read_matlab_file(filename: Union[Path, Text]):
-    """ Reads a Matlab file. """
+    """Reads a Matlab file."""
     raise NotImplementedError
