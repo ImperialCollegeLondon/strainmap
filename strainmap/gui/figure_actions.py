@@ -9,6 +9,7 @@ import numpy as np
 from scipy import interpolate
 from typing import Callable, Dict, Optional
 from functools import partial
+import matplotlib.animation as animation
 from matplotlib.patches import CirclePolygon
 from matplotlib.lines import Line2D
 from collections import defaultdict
@@ -171,29 +172,30 @@ class ScrollFrames(ActionBase):
         hide_frame_number=TriggerSignature(
             Location.ANY, Button.NONE, MouseAction.LEAVEAXES
         ),
+        animate=TriggerSignature(Location.NE, Button.LEFT, MouseAction.DCLICK),
     ):
         super().__init__(
             signatures={
                 scroll_frames: self.scroll_frames,
                 show_frame_number: self.show_frame_number,
                 hide_frame_number: self.hide_frame_number,
+                animate: self.animate,
             }
         )
         self._img_shift = 0
-        self._images = {}
+        self._images = defaultdict(list)
+        self._anim = {}
+        self._anim_running = {}
 
     def scroll_frames(self, event, *args):
         """The images available in the axes, if more than one, are scrolled."""
-        self._img_shift += event.step
-        self._img_shift = self._img_shift % len(self._images[event.inaxes])
-        event.inaxes.images[0] = self._images[event.inaxes][self._img_shift]
-        event.inaxes.set_title(f"Frame: {self._img_shift}", loc="left")
+        self.scroll_frames_(None, event.step, event.inaxes)
 
     def show_frame_number(self, event, *args):
         """Shows the frame number on top of the axes.
 
         If it is the first time, all images but one are extracted from the axes."""
-        if self._images.get(event.inaxes, None) is None:
+        if len(self._images[event.inaxes]) == 0:
             self.extract_images(event)
 
         event.inaxes.set_title(f"Frame: {self._img_shift}", loc="left")
@@ -203,6 +205,32 @@ class ScrollFrames(ActionBase):
         """Hides the frame number on top of the axes."""
         event.inaxes.set_title("", loc="left")
 
+    def animate(self, event, *args):
+        """Animate the sequence of images in the axes.
+
+        If it is the first time, all images but one are extracted from the axes."""
+        if len(self._images[event.inaxes]) == 0:
+            self.extract_images(event)
+
+        fig = event.canvas.figure
+        axes = event.inaxes
+
+        if not self._anim_running.get(axes, False):
+            self._anim[axes] = animation.FuncAnimation(
+                fig, self.scroll_frames_, interval=50, fargs=(1, axes)
+            )
+            self._anim_running[axes] = True
+        else:
+            self._anim[axes].event_source.stop()
+            self._anim_running[axes] = False
+
+    def scroll_frames_(self, _, step, axes):
+        """Internal function that actually carries the scrolling."""
+        self._img_shift += step
+        self._img_shift = self._img_shift % len(self._images[axes])
+        axes.images[0] = self._images[axes][self._img_shift]
+        axes.set_title(f"Frame: {self._img_shift}", loc="left")
+
     def extract_images(self, event):
         """Images are extracted from the axes.
 
@@ -210,7 +238,6 @@ class ScrollFrames(ActionBase):
         time the pointer entyers into the axes, the images are extracted from the axes.
         When scrolling, they will be added back one at a time, replacing the one on
         display."""
-        self._images[event.inaxes] = []
         for i in range(len(event.inaxes.images)):
             self._images[event.inaxes].append(event.inaxes.images.pop())
 

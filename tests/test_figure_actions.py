@@ -160,6 +160,24 @@ def test_scroll_frames(figure):
     assert scroll._images[ax][1] == ax.images[0]
 
 
+def test_animate(figure):
+    from matplotlib.backend_bases import MouseEvent
+    from strainmap.gui.figure_actions import ScrollFrames
+    import numpy as np
+
+    ax = figure.axes[0]
+    for i in range(3):
+        ax.imshow(np.random.random((10, 10)))
+
+    scroll = ScrollFrames()
+    event = MouseEvent("click", figure.canvas, x=100, y=100)
+
+    scroll.animate(event)
+    assert ax in scroll._anim
+    assert ax in scroll._anim_running
+    assert scroll._anim[ax].event_source
+
+
 def test_circle():
     from strainmap.gui.figure_actions import circle
     import numpy as np
