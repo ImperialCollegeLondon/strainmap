@@ -20,6 +20,9 @@ class StrainMapData(object):
     def get_images(self, series, variable):
         return read_images(self.data_files, series, variable)
 
+    def get_bg_images(self, series, variable):
+        return read_images(self.bg_files, series, variable)
+
 
 def factory(
     data: Optional[StrainMapData] = None,

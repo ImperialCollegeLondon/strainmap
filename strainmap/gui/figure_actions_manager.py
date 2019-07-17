@@ -23,6 +23,7 @@ class Location(Flag):
     SE = auto()
     CENTRE = auto()
     EDGE = N | S | E | W | NW | NE | SW | SE
+    CROSS = CENTRE | N | S | E | W
     ANY = CENTRE | EDGE
     OUTSIDE = ~ANY
 

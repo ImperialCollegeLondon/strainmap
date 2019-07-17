@@ -302,10 +302,10 @@ class DrawContours(ActionBase):
         num_contours: int = -1,
         draw_contour: Callable = circle,
         contours_updated: Optional[Callable] = None,
-        add_point=TriggerSignature(Location.CENTRE, Button.LEFT, MouseAction.CLICK),
-        remove_artist=TriggerSignature(Location.CENTRE, Button.RIGHT, MouseAction.PICK),
+        add_point=TriggerSignature(Location.CROSS, Button.LEFT, MouseAction.CLICK),
+        remove_artist=TriggerSignature(Location.CROSS, Button.RIGHT, MouseAction.PICK),
         clear_drawing=TriggerSignature(
-            Location.CENTRE, Button.RIGHT, MouseAction.DCLICK
+            Location.CROSS, Button.RIGHT, MouseAction.DCLICK
         ),
         **kwargs,
     ):

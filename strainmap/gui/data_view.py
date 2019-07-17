@@ -16,15 +16,19 @@ class DataTaskView(TaskViewBase):
     def __init__(self, root):
 
         super().__init__(root, button_text="Data", button_image="save.gif")
+        self.rowconfigure(0, weight=1)
+        self.columnconfigure(1, weight=1)
 
         # Control-related attributes
         self.data_folder = tk.StringVar(value="")
         self.output_file = tk.StringVar(value="")
         self.phantom_check = tk.BooleanVar(value=False)
+        self.control = None
         self.dataselector = None
         self.patient_info = None
 
         # Visualization-related attributes
+        self.visualise = None
         self.notebook = None
         self.treeview = None
         self.time_step = None
@@ -39,8 +43,17 @@ class DataTaskView(TaskViewBase):
 
     def create_controls(self) -> None:
         """ Creates the controls to load and save data."""
-
+        self.control = ttk.Frame(master=self, width=300, name="control")
+        self.control.grid(column=0, row=0, sticky=tk.NSEW, padx=10, pady=10)
+        self.control.rowconfigure(50, weight=1)
+        self.control.grid_propagate(flag=False)
         self.control.columnconfigure(1, weight=1)
+
+        self.visualise = ttk.Frame(master=self, name="visualise")
+        self.visualise.grid(column=1, row=0, sticky=tk.NSEW, padx=10, pady=10)
+        self.visualise.columnconfigure(0, weight=1)
+        self.visualise.rowconfigure(0, weight=1)
+        self.visualise.grid_propagate(flag=False)
 
         ttk.Button(
             master=self.control,
@@ -299,6 +312,7 @@ class DataTaskView(TaskViewBase):
         ax.get_xaxis().set_visible(False)
         ax.get_yaxis().set_visible(False)
 
+        self.fig.set_tight_layout(True)
         self.fig.canvas.draw()
 
     def update_tree(self, series, variable):
