@@ -2,12 +2,12 @@ import tkinter as tk
 import tkinter.filedialog
 from tkinter import messagebox, ttk
 
+import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.figure import Figure
-import matplotlib.pyplot as plt
 
 from .base_window_and_task import TaskViewBase, register_view, trigger_event
-from .figure_actions import ZoomAndPan, BrightnessAndContrast, ScrollFrames
+from .figure_actions import BrightnessAndContrast, ScrollFrames, ZoomAndPan
 from .figure_actions_manager import FigureActionsManager
 
 

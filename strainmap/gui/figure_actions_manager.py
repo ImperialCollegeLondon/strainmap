@@ -1,11 +1,11 @@
 from __future__ import annotations
 
 import weakref
-from enum import Flag, auto
-from time import time
-from typing import Callable, Dict, NamedTuple, Optional, Type, List, Text
 from collections import defaultdict
+from enum import Flag, auto
 from itertools import chain
+from time import time
+from typing import Callable, Dict, List, NamedTuple, Optional, Text, Type
 
 import numpy as np
 from matplotlib.backend_bases import Event

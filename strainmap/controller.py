@@ -1,15 +1,15 @@
 """ Entry point of StrainMap, creating the main window and variables used along the
 whole code. """
+from .gui import *  # noqa: F403,F401
 from .gui.base_window_and_task import (
-    REGISTERED_VIEWS,
+    EVENTS,
     REGISTERED_BINDINGS,
     REGISTERED_TRIGGERS,
-    EVENTS,
+    REGISTERED_VIEWS,
     Requisites,
     bind_event,
 )
 from .models.strainmap_data_model import factory
-from .gui import *  # noqa: F403,F401
 
 
 class StrainMap(object):

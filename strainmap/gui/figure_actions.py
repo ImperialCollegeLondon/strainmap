@@ -1,18 +1,20 @@
+from collections import defaultdict
+from functools import partial
+from typing import Callable, Dict, Optional
+
+import matplotlib.animation as animation
+import numpy as np
+from matplotlib.lines import Line2D
+from matplotlib.patches import CirclePolygon
+from scipy import interpolate
+
 from .figure_actions_manager import (
-    Location,
+    ActionBase,
     Button,
+    Location,
     MouseAction,
     TriggerSignature,
-    ActionBase,
 )
-import numpy as np
-from scipy import interpolate
-from typing import Callable, Dict, Optional
-from functools import partial
-import matplotlib.animation as animation
-from matplotlib.patches import CirclePolygon
-from matplotlib.lines import Line2D
-from collections import defaultdict
 
 
 def get_deltas(event, last_event):

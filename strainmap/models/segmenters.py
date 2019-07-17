@@ -1,10 +1,10 @@
-from typing import Callable, Text, Optional, Union, List, Dict, Any
+from typing import Any, Callable, Dict, List, Optional, Text, Union
+
 import numpy as np
 
 from .contour_mask import Contour
 from .filters import REGISTERED_FILTERS
 from .propagators import REGISTERED_PROPAGATORS
-
 
 SEGMENTERS: Dict[Text, Callable[..., Any]] = {}
 """ Dictionary with all the segmenters available in StrainMap."""

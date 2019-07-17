@@ -1,18 +1,17 @@
 import tkinter as tk
 from tkinter import ttk
 
-from .base_window_and_task import Requisites, TaskViewBase, register_view
-
-from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
-from matplotlib.figure import Figure
 import matplotlib.pyplot as plt
 import numpy as np
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+from matplotlib.figure import Figure
 
+from .base_window_and_task import Requisites, TaskViewBase, register_view
 from .figure_actions import (
-    ZoomAndPan,
     BrightnessAndContrast,
-    ScrollFrames,
     DrawContours,
+    ScrollFrames,
+    ZoomAndPan,
 )
 from .figure_actions_manager import FigureActionsManager
 

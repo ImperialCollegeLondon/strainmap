@@ -8,10 +8,10 @@ views.
 import tkinter as tk
 from abc import ABC, abstractmethod
 from enum import Flag, auto
+from functools import wraps
 from pathlib import Path
 from tkinter import ttk
-from typing import Optional, Text, Type, List, Callable
-from functools import wraps
+from typing import Callable, List, Optional, Text, Type
 
 from PIL import Image, ImageTk
 

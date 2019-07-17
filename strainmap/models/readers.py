@@ -1,12 +1,12 @@
 import glob
+import re
 from collections import OrderedDict
 from copy import deepcopy
 from pathlib import Path
-from typing import List, Mapping, Optional, Text, Union, Dict
-import re
+from typing import Dict, List, Mapping, Optional, Text, Union
 
-from nibabel.nicom import csareader as csar
 import pydicom
+from nibabel.nicom import csareader as csar
 
 VAR_OFFSET = {"MagZ": 0, "PhaseZ": 1, "MagX": 2, "PhaseX": 3, "MagY": 4, "PhaseY": 5}
 
