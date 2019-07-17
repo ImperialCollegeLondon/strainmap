@@ -52,32 +52,15 @@ def test_update_and_clear_widgets(data_view, strainmap_data):
     )
 
 
-def test_update_visualization_plot(data_view, strainmap_data):
+def test_update_plot(data_view, strainmap_data):
 
-    assert not data_view.anim
+    assert not data_view.fig
     data_view.data = strainmap_data
-    assert data_view.anim
-
-    # Stop animation when the timestep is manually changed
-    data_view.update_visualization(step_changed=True)
-    assert data_view.anim and not data_view.anim.event_source
-
-    # Resume animation if a new variable (or slice) is selected
-    data_view.update_visualization()
-    assert data_view.anim and data_view.anim.event_source
+    assert data_view.fig.axes
 
 
-def test_update_visualization_dicom(data_view, strainmap_data):
+def test_update_tree(data_view, strainmap_data):
 
-    data_view.update_tree = MagicMock()
+    assert not data_view.treeview
     data_view.data = strainmap_data
-
-    data_view.notebook.hide(data_view.notebook.select())
-
-    # Update the information tree when a new timestep is selected
-    data_view.update_visualization(step_changed=True)
-    assert data_view.update_tree.call_count == 1
-
-    # And also if a new variable (or slice) is selected
-    data_view.update_visualization()
-    assert data_view.update_tree.call_count == 2
+    assert len(data_view.treeview.get_children()) > 0

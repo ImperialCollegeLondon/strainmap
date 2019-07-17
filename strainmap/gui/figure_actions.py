@@ -215,11 +215,16 @@ class ScrollFrames(ActionBase):
         fig = event.canvas.figure
         axes = event.inaxes
 
-        if not self._anim_running.get(axes, False):
+        if axes not in self._anim:
             self._anim[axes] = animation.FuncAnimation(
-                fig, self.scroll_frames_, interval=50, fargs=(1, axes)
+                fig, self.scroll_frames_, interval=20, fargs=(1, axes)
             )
             self._anim_running[axes] = True
+
+        elif not self._anim_running[axes]:
+            self._anim[axes].event_source.start()
+            self._anim_running[axes] = True
+
         else:
             self._anim[axes].event_source.stop()
             self._anim_running[axes] = False
@@ -243,6 +248,16 @@ class ScrollFrames(ActionBase):
 
         event.inaxes.images.clear()
         event.inaxes.images = [self._images[event.inaxes][self._img_shift]]
+
+    def clear(self):
+        """Removes the information stored in the ScrollFrame object."""
+        for ax, anim in self._anim.items():
+            anim.event_source.stop()
+            del anim
+        self._anim = {}
+        self._anim_running = {}
+        self._images = defaultdict(list)
+        self._img_shift = 0
 
 
 def circle(points: np.ndarray, resolution=360, **kwargs) -> Optional[np.ndarray]:
