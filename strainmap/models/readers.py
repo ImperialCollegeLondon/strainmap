@@ -1,18 +1,30 @@
 import glob
 import re
 from collections import OrderedDict
-from copy import deepcopy
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List, Mapping, Optional, Text, Union
+from typing import (
+    ClassVar,
+    Dict,
+    Iterable,
+    List,
+    Mapping,
+    Optional,
+    Text,
+    Tuple,
+    Union,
+)
 
 import pydicom
 from nibabel.nicom import csareader as csar
+from numpy import ndarray
 
 VAR_OFFSET = {"MagZ": 0, "PhaseZ": 1, "MagX": 2, "PhaseX": 3, "MagY": 4, "PhaseY": 5}
 
 
 def read_dicom_directory_tree(path: Union[Path, Text]) -> Mapping:
-    """Creates a dictionary with the available series and associated filenames."""
+    """Creates a dictionary with the available series and associated
+    filenames."""
 
     path = str(Path(path) / "*.dcm")
     filenames = sorted(glob.glob(path))
@@ -44,6 +56,8 @@ def parallel_spirals(dicom_data):
     try:
         ascii_header = csa["tags"]["MrPhoenixProtocol"]["items"][0]
         tSequenceFileName = re.search('tSequenceFileName\t = \t""(.*)""', ascii_header)
+        if tSequenceFileName is None:
+            return False
         return True if "ParallelSpirals" in tSequenceFileName[1] else False
     except TypeError:
         return False
@@ -55,7 +69,8 @@ def read_dicom_file_tags(
     variable: Optional[Text] = None,
     timestep: Optional[int] = None,
 ) -> Mapping:
-    """Returns a dictionary with the tags and values available in a DICOM file."""
+    """Returns a dictionary with the tags and values available in a DICOM
+    file."""
     if isinstance(origin, Mapping):
         if len(origin) == 0:
             return {}
@@ -78,18 +93,7 @@ def read_dicom_file_tags(
 
 def read_images(origin: Mapping, series: Text, variable: Text) -> List:
     """Returns the images for a given series and variable."""
-    if len(origin) == 0:
-        return []
-
-    assert series in origin
-    assert variable in origin[series]
-
-    images = []
-    for f in origin[series][variable]:
-        ds = pydicom.dcmread(f)
-        images.append(ds.pixel_array)
-
-    return images
+    return [pydicom.dcmread(f).pixel_array for f in origin[series][variable]]
 
 
 def read_all_images(origin: Mapping) -> Mapping:
@@ -167,7 +171,8 @@ def images_to_numpy(data: Mapping) -> Mapping[Text, ImageTimeSeries]:
 
 
 def read_strainmap_file(filename: Union[Path, Text]):
-    """ Reads a StrainMap file with existing information on previous segmentations. """
+    """Reads a StrainMap file with existing information on previous
+    segmentations."""
     if str(filename).endswith(".h5"):
         return read_h5_file(filename)
     elif str(filename).endswith(".m"):

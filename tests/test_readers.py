@@ -90,3 +90,14 @@ def test_read_all_images(data_tree):
             assert v in images[s].keys()
             for i in images[s][v]:
                 assert isinstance(i, np.ndarray)
+
+
+def test_to_numpy(data_tree):
+    from strainmap.models.readers import images_to_numpy, read_all_images
+
+    data = images_to_numpy(read_all_images(data_tree))
+    assert set(data.keys()) == set(data_tree.keys())
+
+    magnitude, phase = data[list(data.keys())[0]]
+    assert magnitude.shape == (3, 3, 512, 512)
+    assert phase.shape == (3, 3, 512, 512)
