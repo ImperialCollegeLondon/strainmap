@@ -27,7 +27,7 @@ def test_mouse_clicked(actions_manager):
     from matplotlib.backend_bases import MouseEvent
 
     event = MouseEvent("clicked", actions_manager.canvas, 100, 200)
-    actions_manager._on_mouse_clicked(event)
+    actions_manager._on_mouse_pressed(event)
     assert len(actions_manager._event) == 1
 
 
@@ -36,24 +36,24 @@ def test_mouse_moved(actions_manager):
     from time import sleep, time
 
     event = MouseEvent("moved", actions_manager.canvas, 100, 200)
-    actions_manager.select_action = MagicMock(return_value=[])
+    actions_manager._select_action = MagicMock(return_value=[])
 
     # Too soon to do anything
     actions_manager._time_init = time()
     actions_manager._on_mouse_moved(event)
-    assert not actions_manager.select_action.called
+    assert not actions_manager._select_action.called
 
     # No event to execute
     actions_manager._time_init = time()
     sleep(0.25)
     actions_manager._on_mouse_moved(event)
-    assert actions_manager.select_action.called
+    assert actions_manager._select_action.called
 
     # One event to execute
     action1 = MagicMock()
     actions_manager._current_action = None
 
-    actions_manager.select_action = MagicMock(return_value=[action1])
+    actions_manager._select_action = MagicMock(return_value=[action1])
     actions_manager._time_init = time()
     sleep(0.25)
     actions_manager._on_mouse_moved(event)
@@ -64,7 +64,7 @@ def test_mouse_moved(actions_manager):
     action2 = MagicMock()
     actions_manager._current_action = None
 
-    actions_manager.select_action = MagicMock(return_value=[action1, action2])
+    actions_manager._select_action = MagicMock(return_value=[action1, action2])
     actions_manager._time_init = time()
     sleep(0.25)
     actions_manager._on_mouse_moved(event)
@@ -78,8 +78,8 @@ def test_mouse_released(actions_manager):
     from time import sleep, time
 
     event = MouseEvent("moved", actions_manager.canvas, 100, 200)
-    actions_manager.select_action = MagicMock()
-    actions_manager.select_click_type = MagicMock(
+    actions_manager._select_action = MagicMock()
+    actions_manager._select_click_type = MagicMock(
         return_value=(None, MouseAction.CLICK, event)
     )
 
@@ -87,12 +87,12 @@ def test_mouse_released(actions_manager):
     actions_manager._time_init = time()
     sleep(0.25)
     actions_manager._on_mouse_released(event)
-    assert not actions_manager.select_action.called
+    assert not actions_manager._select_action.called
 
     # A release event
     actions_manager._time_init = time()
     actions_manager._on_mouse_released(event)
-    actions_manager.select_action.assert_called_once_with(
+    actions_manager._select_action.assert_called_once_with(
         Location.OUTSIDE, Button.NONE, MouseAction.CLICK
     )
 
@@ -102,10 +102,10 @@ def test_mouse_scroll(actions_manager):
     from strainmap.gui.figure_actions_manager import Location, Button, MouseAction
 
     event = MouseEvent("moved", actions_manager.canvas, 100, 200, button=2)
-    actions_manager.select_action = MagicMock()
+    actions_manager._select_action = MagicMock()
 
     actions_manager._on_mouse_scrolled(event)
-    actions_manager.select_action.assert_called_once_with(
+    actions_manager._select_action.assert_called_once_with(
         Location.OUTSIDE, Button.CENTRE, MouseAction.SCROLL
     )
 
@@ -115,10 +115,10 @@ def test_mouse_enter_axes(actions_manager):
     from strainmap.gui.figure_actions_manager import Location, Button, MouseAction
 
     event = MouseEvent("moved", actions_manager.canvas, 100, 200)
-    actions_manager.select_action = MagicMock()
+    actions_manager._select_action = MagicMock()
 
     actions_manager._on_entering_axes(event)
-    actions_manager.select_action.assert_called_once_with(
+    actions_manager._select_action.assert_called_once_with(
         Location.OUTSIDE, Button.NONE, MouseAction.ENTERAXES
     )
 
@@ -128,10 +128,10 @@ def test_mouse_leave_axes(actions_manager):
     from strainmap.gui.figure_actions_manager import Location, Button, MouseAction
 
     event = MouseEvent("moved", actions_manager.canvas, 100, 200)
-    actions_manager.select_action = MagicMock()
+    actions_manager._select_action = MagicMock()
 
     actions_manager._on_leaving_axes(event)
-    actions_manager.select_action.assert_called_once_with(
+    actions_manager._select_action.assert_called_once_with(
         Location.OUTSIDE, Button.NONE, MouseAction.LEAVEAXES
     )
 
@@ -141,10 +141,10 @@ def test_mouse_enter_figure(actions_manager):
     from strainmap.gui.figure_actions_manager import Location, Button, MouseAction
 
     event = MouseEvent("moved", actions_manager.canvas, 100, 200)
-    actions_manager.select_action = MagicMock()
+    actions_manager._select_action = MagicMock()
 
     actions_manager._on_entering_figure(event)
-    actions_manager.select_action.assert_called_once_with(
+    actions_manager._select_action.assert_called_once_with(
         Location.OUTSIDE, Button.NONE, MouseAction.ENTERFIGURE
     )
 
@@ -154,10 +154,10 @@ def test_mouse_leave_figure(actions_manager):
     from strainmap.gui.figure_actions_manager import Location, Button, MouseAction
 
     event = MouseEvent("moved", actions_manager.canvas, 100, 200)
-    actions_manager.select_action = MagicMock()
+    actions_manager._select_action = MagicMock()
 
     actions_manager._on_leaving_figure(event)
-    actions_manager.select_action.assert_called_once_with(
+    actions_manager._select_action.assert_called_once_with(
         Location.OUTSIDE, Button.NONE, MouseAction.LEAVEFIGURE
     )
 
@@ -169,7 +169,7 @@ def test_select_click_type(actions_manager):
     event = MouseEvent("click", actions_manager.canvas, 100, 200)
     pickevent = PickEvent("pick_event", actions_manager.canvas, event, None)
     actions_manager._event = [event, pickevent]
-    ev, mouse_action, mouse_event = actions_manager.select_click_type()
+    ev, mouse_action, mouse_event = actions_manager._select_click_type()
     assert mouse_action == MouseAction.PICK
     assert ev == pickevent
     assert mouse_event == event
@@ -177,21 +177,21 @@ def test_select_click_type(actions_manager):
     event = MouseEvent("click", actions_manager.canvas, 100, 200, dblclick=True)
     pickevent = PickEvent("pick_event", actions_manager.canvas, event, None)
     actions_manager._event = [event, pickevent]
-    ev, mouse_action, mouse_event = actions_manager.select_click_type()
+    ev, mouse_action, mouse_event = actions_manager._select_click_type()
     assert mouse_action == MouseAction.DPICK
     assert ev == pickevent
     assert mouse_event == event
 
     event = MouseEvent("click", actions_manager.canvas, 100, 200, dblclick=True)
     actions_manager._event = [event]
-    ev, mouse_action, mouse_event = actions_manager.select_click_type()
+    ev, mouse_action, mouse_event = actions_manager._select_click_type()
     assert mouse_action == MouseAction.DCLICK
     assert ev == event
     assert mouse_event == event
 
     event = MouseEvent("click", actions_manager.canvas, 100, 200)
     actions_manager._event = [event]
-    ev, mouse_action, mouse_event = actions_manager.select_click_type()
+    ev, mouse_action, mouse_event = actions_manager._select_click_type()
     assert mouse_action == MouseAction.CLICK
     assert ev == event
     assert mouse_event == event
@@ -203,7 +203,7 @@ def test_select_movement_type(actions_manager):
 
     event = MouseEvent("click", actions_manager.canvas, 100, 200)
     actions_manager._event = []
-    ev, mouse_action, mouse_event = actions_manager.select_movement_type(event)
+    ev, mouse_action, mouse_event = actions_manager._select_movement_type(event)
     assert mouse_action == MouseAction.MOVE
     assert ev is None
     assert mouse_event == event
@@ -211,14 +211,14 @@ def test_select_movement_type(actions_manager):
     event = MouseEvent("click", actions_manager.canvas, 100, 200)
     pickevent = PickEvent("pick_event", actions_manager.canvas, event, None)
     actions_manager._event = [event, pickevent]
-    ev, mouse_action, mouse_event = actions_manager.select_movement_type(event)
+    ev, mouse_action, mouse_event = actions_manager._select_movement_type(event)
     assert mouse_action == MouseAction.PICKDRAG
     assert ev == pickevent
     assert mouse_event == event
 
     event = MouseEvent("click", actions_manager.canvas, 100, 200)
     actions_manager._event = [event]
-    ev, mouse_action, mouse_event = actions_manager.select_movement_type(event)
+    ev, mouse_action, mouse_event = actions_manager._select_movement_type(event)
     assert mouse_action == MouseAction.DRAG
     assert ev == event
     assert mouse_event == event
@@ -231,11 +231,11 @@ def test_select_location(actions_manager):
     actions_manager._figure().add_subplot()
 
     event = MouseEvent("click", actions_manager.canvas, 0, 0)
-    location = actions_manager.select_location(event)
+    location = actions_manager._select_location(event)
     assert location == Location.OUTSIDE
 
     event = MouseEvent("click", actions_manager.canvas, 100, 200)
-    location = actions_manager.select_location(event)
+    location = actions_manager._select_location(event)
     assert location != Location.OUTSIDE
 
 
@@ -255,20 +255,20 @@ def test_select_action(actions_manager):
     actions_manager._actions[s2].append(None)
     actions_manager._actions[s3].append(None)
 
-    actions = actions_manager.select_action(
+    actions = actions_manager._select_action(
         Location.OUTSIDE, Button.LEFT, MouseAction.MOVE
     )
     assert len(actions) == 0
 
-    actions = actions_manager.select_action(
+    actions = actions_manager._select_action(
         Location.CENTRE, Button.LEFT, MouseAction.MOVE
     )
     assert len(actions) == 1
 
-    actions = actions_manager.select_action(Location.S, Button.LEFT, MouseAction.MOVE)
+    actions = actions_manager._select_action(Location.S, Button.LEFT, MouseAction.MOVE)
     assert len(actions) == 1
 
-    actions = actions_manager.select_action(Location.N, Button.LEFT, MouseAction.MOVE)
+    actions = actions_manager._select_action(Location.N, Button.LEFT, MouseAction.MOVE)
     assert len(actions) == 2
 
 
