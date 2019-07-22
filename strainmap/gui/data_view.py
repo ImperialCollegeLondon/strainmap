@@ -241,6 +241,7 @@ class DataTaskView(TaskViewBase):
                 result = dict(bg_files=path, data=self.data)
         else:
             self.phantoms_box.grid_remove()
+            result = dict(bg_files="", data=self.data)
 
         return result
 
@@ -300,7 +301,6 @@ class DataTaskView(TaskViewBase):
 
     def update_plot(self, data):
         """Updates the data contained in the plot."""
-        self.fig.axes.clear()
         self.fig.actions_manager.ScrollFrames.clear()
 
         ax = self.fig.add_subplot()

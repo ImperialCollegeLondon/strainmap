@@ -427,8 +427,18 @@ class DrawContours(ActionBase):
         Returns:
             None
         """
-        axes = event.inaxes
+        self.clear_drawing_(event.inaxes)
 
+    def clear_drawing_(self, axes, *args) -> None:
+        """ Clears all the data accumulated in the drawing and the axes.
+
+        Args:
+            axes: The axes from which to delete everything.
+            *args: (ignored)
+
+        Returns:
+            None
+        """
         self.points[axes].clear()
         self.contour_data[axes].clear()
 
@@ -440,10 +450,6 @@ class DrawContours(ActionBase):
 
         self.marks[axes].clear()
         self.contours[axes].clear()
-
-        self.contours_updated(  # type: ignore
-            self.contour_data[axes], np.array(self.points[axes])
-        )
 
     def add_contour(self, axes) -> None:
         """ Calls the contour callback and add a contour to the axes with the data.
