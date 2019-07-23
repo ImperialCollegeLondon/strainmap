@@ -10,7 +10,7 @@ def test_create_velocity_plot(dicom_data_path):
 
     cartesian = images_to_numpy(
         read_all_images(read_dicom_directory_tree(dicom_data_path))
-    )['ParallelSpirals_R3_MID'].phase
+    )["ParallelSpirals_R3_MID"].phase
 
     outer = Contour.circle((320, 350), 100)
     inner = Contour.circle((315, 350), 60)
