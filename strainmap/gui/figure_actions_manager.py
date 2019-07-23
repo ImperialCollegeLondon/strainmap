@@ -123,6 +123,14 @@ class FigureActionsManager(object):
                                 )
     """
 
+    MOUSE_BUTTONS = {
+        1: Button.LEFT,
+        2: Button.CENTRE,
+        3: Button.RIGHT,
+        "up": Button.CENTRE,
+        "down": Button.CENTRE,
+    }
+
     def __init__(self, figure: Figure, *args, axis_fraction=0.2, delay=0.2, **kwargs):
         """An existing Matplotlib figure is the only input needed by the Manager.
 
@@ -148,8 +156,6 @@ class FigureActionsManager(object):
         for action in args:
             self.add_action(action, **kwargs)
 
-        figure.actions_manager = self
-
     @property
     def canvas(self):
         """The canvas this interaction is connected to."""
@@ -159,17 +165,23 @@ class FigureActionsManager(object):
         """Convenience method for re-drawing the canvas."""
         self.canvas.draw()
 
-    def _connect_events(self):
-        """Connects the relevant events to the canvas."""
-        self.canvas.mpl_connect("button_press_event", self._on_mouse_clicked)
-        self.canvas.mpl_connect("button_release_event", self._on_mouse_released)
-        self.canvas.mpl_connect("motion_notify_event", self._on_mouse_moved)
-        self.canvas.mpl_connect("scroll_event", self._on_mouse_scrolled)
-        self.canvas.mpl_connect("axes_enter_event", self._on_entering_axes)
-        self.canvas.mpl_connect("axes_leave_event", self._on_leaving_axes)
-        self.canvas.mpl_connect("figure_enter_event", self._on_entering_figure)
-        self.canvas.mpl_connect("figure_leave_event", self._on_leaving_figure)
-        self.canvas.mpl_connect("pick_event", self._on_mouse_clicked)
+    def add_action(self, action: Type[ActionBase], **kwargs):
+        """Adds an action to the Manager."""
+        options = kwargs.get("options_" + action.__name__, {})
+        acc = action(**options)
+        for k, v in acc.signatures.items():
+            self._actions[k].append(v)
+        self.__dict__[action.__name__] = acc
+
+    def remove_action(self, action_name: Text):
+        """Removes an action from the Manager."""
+        for k, v in self.__dict__[action_name].signatures.items():
+            for act in self._actions[k]:
+                if act == v:
+                    self._actions[k].remove(act)
+            if len(self._actions[k]) == 0:
+                self._actions.pop(k)
+        del self.__dict__[action_name]
 
     def clean_events(self):
         """Removes all information related to previous events."""
@@ -177,10 +189,22 @@ class FigureActionsManager(object):
         self._last_event = None
         self._current_action = None
 
-    def _on_mouse_clicked(self, event):
+    def _connect_events(self):
+        """Connects the relevant events to the canvas."""
+        self.canvas.mpl_connect("button_press_event", self._on_mouse_pressed)
+        self.canvas.mpl_connect("button_release_event", self._on_mouse_released)
+        self.canvas.mpl_connect("motion_notify_event", self._on_mouse_moved)
+        self.canvas.mpl_connect("scroll_event", self._on_mouse_scrolled)
+        self.canvas.mpl_connect("axes_enter_event", self._on_entering_axes)
+        self.canvas.mpl_connect("axes_leave_event", self._on_leaving_axes)
+        self.canvas.mpl_connect("figure_enter_event", self._on_entering_figure)
+        self.canvas.mpl_connect("figure_leave_event", self._on_leaving_figure)
+        self.canvas.mpl_connect("pick_event", self._on_mouse_pressed)
+
+    def _on_mouse_pressed(self, event):
         """Initial response to the click events by triggering the timer.
 
-        After clicking a mouse button, several things might happen:
+        After pressing a mouse button, several things might happen:
 
         1- The button is released in a time defined by self.delay. In this case,
             it is recorded as a clicked event and some action happens, which might be
@@ -199,13 +223,13 @@ class FigureActionsManager(object):
             return
 
         elif self._current_action is None:
-            self._last_event, mouse_action, mouse_event = self.select_movement_type(
+            self._last_event, mouse_action, mouse_event = self._select_movement_type(
                 event
             )
-            button = MOUSE_BUTTONS.get(mouse_event.button, Button.NONE)
-            location = self.select_location(mouse_event)
+            button = self.MOUSE_BUTTONS.get(mouse_event.button, Button.NONE)
+            location = self._select_location(mouse_event)
 
-            self._current_action = self.select_action(location, button, mouse_action)
+            self._current_action = self._select_action(location, button, mouse_action)
 
         if len(self._current_action) == 1:
             self._last_event = self._current_action[0](event, self._last_event)
@@ -224,58 +248,35 @@ class FigureActionsManager(object):
             self.clean_events()
             return
 
-        ev, mouse_action, mouse_event = self.select_click_type()
-        button = MOUSE_BUTTONS.get(mouse_event.button, Button.NONE)
-        location = self.select_location(mouse_event)
+        ev, mouse_action, mouse_event = self._select_click_type()
+        button = self.MOUSE_BUTTONS.get(mouse_event.button, Button.NONE)
+        location = self._select_location(mouse_event)
 
-        action = self.select_action(location, button, mouse_action)
-
-        for ac in action:
-            ac(event, ev)
-
-        self.clean_events()
-        self.draw()
+        self._execute_action_and_redraw(event, ev, location, button, mouse_action)
 
     def _on_mouse_scrolled(self, event):
         """Executes scroll events."""
         mouse_action = MouseAction.SCROLL
         button = Button.CENTRE
-        location = self.select_location(event)
+        location = self._select_location(event)
 
-        action = self.select_action(location, button, mouse_action)
-
-        for ac in action:
-            ac(event, None)
-
-        self.draw()
+        self._execute_action_and_redraw(event, None, location, button, mouse_action)
 
     def _on_entering_axes(self, event):
         """Executes the actions related to entering a new axes."""
         mouse_action = MouseAction.ENTERAXES
         button = Button.NONE
-        location = self.select_location(event)
+        location = self._select_location(event)
 
-        action = self.select_action(location, button, mouse_action)
-
-        for ac in action:
-            ac(event, None)
-
-        self.clean_events()
-        self.draw()
+        self._execute_action_and_redraw(event, None, location, button, mouse_action)
 
     def _on_leaving_axes(self, event):
         """Executes the actions related to leaving an axes."""
         mouse_action = MouseAction.LEAVEAXES
         button = Button.NONE
-        location = self.select_location(event)
+        location = self._select_location(event)
 
-        action = self.select_action(location, button, mouse_action)
-
-        for ac in action:
-            ac(event, None)
-
-        self.clean_events()
-        self.draw()
+        self._execute_action_and_redraw(event, None, location, button, mouse_action)
 
     def _on_entering_figure(self, event):
         """Executes the actions related to entering the figure."""
@@ -283,13 +284,7 @@ class FigureActionsManager(object):
         button = Button.NONE
         location = Location.OUTSIDE
 
-        action = self.select_action(location, button, mouse_action)
-
-        for ac in action:
-            ac(event, None)
-
-        self.clean_events()
-        self.draw()
+        self._execute_action_and_redraw(event, None, location, button, mouse_action)
 
     def _on_leaving_figure(self, event):
         """Executes the actions related to leaving a figure."""
@@ -297,15 +292,21 @@ class FigureActionsManager(object):
         button = Button.NONE
         location = Location.OUTSIDE
 
-        action = self.select_action(location, button, mouse_action)
+        self._execute_action_and_redraw(event, None, location, button, mouse_action)
+
+    def _execute_action_and_redraw(
+        self, event, last_event, location, button, mouse_action
+    ):
+        """Execute one or more actions and redraws the plot."""
+        action = self._select_action(location, button, mouse_action)
 
         for ac in action:
-            ac(event, None)
+            ac(event, last_event)
 
         self.clean_events()
         self.draw()
 
-    def select_click_type(self):
+    def _select_click_type(self):
         """Select the type of click.
 
         Here we need to discriminate between single clicks, double clicks and pick
@@ -329,7 +330,7 @@ class FigureActionsManager(object):
 
         return ev, mouse_action, mouse_event
 
-    def select_movement_type(self, event):
+    def _select_movement_type(self, event):
         """Select the type of movement.
 
         Here we need to discriminate between just move, drag and pickdrag.
@@ -348,7 +349,7 @@ class FigureActionsManager(object):
 
         return ev, mouse_action, mouse_event
 
-    def select_location(self, event) -> Location:
+    def _select_location(self, event) -> Location:
         """Select the type of location."""
         if event.inaxes is None:
             location = Location.OUTSIDE
@@ -362,7 +363,7 @@ class FigureActionsManager(object):
 
         return location
 
-    def select_action(self, location, button, mouse_action):
+    def _select_action(self, location, button, mouse_action):
         """Select the action to execute based on the received trigger signature.
 
         There might be several matching signatures. In that case, a list of actions
@@ -387,34 +388,6 @@ class FigureActionsManager(object):
                 ]
             )
         )
-
-    def add_action(self, action: Type[ActionBase], **kwargs):
-        """Adds an action to the Manager."""
-        options = kwargs.get("options_" + action.__name__, {})
-        acc = action(**options)
-        for k, v in acc.signatures.items():
-            self._actions[k].append(v)
-        self.__dict__[action.__name__] = acc
-
-    def remove_action(self, action_name: Text):
-        """Removes an action from the Manager."""
-        for k, v in self.__dict__[action_name].signatures.items():
-            for act in self._actions[k]:
-                if act == v:
-                    self._actions[k].remove(act)
-            if len(self._actions[k]) == 0:
-                self._actions.pop(k)
-        del self.__dict__[action_name]
-
-
-MOUSE_BUTTONS = {
-    1: Button.LEFT,
-    2: Button.CENTRE,
-    3: Button.RIGHT,
-    "up": Button.CENTRE,
-    "down": Button.CENTRE,
-}
-"""Translates the event.button information into an enumeration."""
 
 
 def get_mouse_location(x, y, xmin, xmax, ymin, ymax, fraction):

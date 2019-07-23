@@ -190,7 +190,9 @@ class DataTaskView(TaskViewBase):
         canvas.draw()
         canvas.get_tk_widget().grid(sticky=tk.NSEW, padx=5, pady=5)
 
-        FigureActionsManager(self.fig, ZoomAndPan, BrightnessAndContrast, ScrollFrames)
+        self.fig.actions_manager = FigureActionsManager(
+            self.fig, ZoomAndPan, BrightnessAndContrast, ScrollFrames
+        )
 
         return animation_frame
 
@@ -297,7 +299,7 @@ class DataTaskView(TaskViewBase):
             return
 
         self.update_plot(data)
-        self.update_tree(series, variable)
+        self.update_dicom_data_view(series, variable)
 
     def update_plot(self, data):
         """Updates the data contained in the plot."""
@@ -315,7 +317,7 @@ class DataTaskView(TaskViewBase):
         self.fig.set_tight_layout(True)
         self.fig.canvas.draw()
 
-    def update_tree(self, series, variable):
+    def update_dicom_data_view(self, series, variable):
         """ Updates the treeview with data from the selected options.
 
         Only data for cine = 0 is loaded."""
