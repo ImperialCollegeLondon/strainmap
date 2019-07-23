@@ -387,7 +387,7 @@ def bulk_component(
 def cylindrical_projection(
     field: np.ndarray,
     origin: np.array,
-    vector_axis: int = 0,
+    component_axis: int = 0,
     image_axes: Tuple[int, int] = (1, 2),
 ) -> np.ndarray:
     """Project vector field on the local basis of a cylindrical coordinate
@@ -395,14 +395,14 @@ def cylindrical_projection(
 
     Args:
         field: 2d or 3d vector field where the (x, y, [z]) components are on dimension
-            `vector_axis`, and the images are on the axes `image_axes`. Other dimensions
-            are treated independantly.
+            `component_axis`, and the images are on the axes `image_axes`. Other
+            dimensions are treated independantly.
         origin: Origin of the cylindrical coordinate system
-        vector_axis: Axis of the field components
+        component_axis: Axis of the field components
         image_axes: Axes making up an image
 
     Return:
-        A 2d or 3d field where dimension `vector_axis` contains (r, theta, [z])
+        A 2d or 3d field where dimension `component_axis` contains (r, theta, [z])
 
 
     Examples:
@@ -423,7 +423,7 @@ def cylindrical_projection(
         ... ) - origin[None, None, :]
         >>> unit_field = field / np.linalg.norm(field, axis=2)[:, :, None]
         >>> projection = cylindrical_projection(
-        ...     unit_field, origin=origin, vector_axis=2, image_axes=(0, 1)
+        ...     unit_field, origin=origin, component_axis=2, image_axes=(0, 1)
         ... )
         >>> np.allclose(projection[:, :, 0], 1)
         True
@@ -436,7 +436,7 @@ def cylindrical_projection(
         >>> z = np.random.randint(0, 10, (10, 10))
         >>> field3d = np.concatenate((unit_field, z[:, :, None]), axis=2)
         >>> proj3d = cylindrical_projection(
-        ...     field3d, origin=[3.5, 5, 0], image_axes=(0, 1), vector_axis=2
+        ...     field3d, origin=[3.5, 5, 0], image_axes=(0, 1), component_axis=2
         ... )
         >>> proj3d.shape
         (10, 10, 3)
@@ -451,24 +451,24 @@ def cylindrical_projection(
     field = np.array(field)
 
     assert field.ndim >= 3
-    assert vector_axis >= 0 and vector_axis < field.ndim
-    assert vector_axis not in image_axes
+    assert component_axis >= 0 and component_axis < field.ndim
+    assert component_axis not in image_axes
     assert len(image_axes) == 2
     assert image_axes[0] >= 0 and image_axes[0] < field.ndim
     assert image_axes[1] >= 0 and image_axes[1] < field.ndim
     assert image_axes[0] != image_axes[1]
     assert origin.ndim == 1 and origin.size in (2, 3)
-    assert field.shape[vector_axis] in (2, 3)
+    assert field.shape[component_axis] in (2, 3)
 
-    if field.shape[vector_axis] == 3:
+    if field.shape[component_axis] == 3:
         result = cylindrical_projection(
-            np.take(field, range(2), axis=vector_axis),
+            np.take(field, range(2), axis=component_axis),
             origin[:2],
-            vector_axis=vector_axis,
+            component_axis=component_axis,
             image_axes=image_axes,
         )
         return np.concatenate(
-            (result, np.take(field, (2,), axis=vector_axis)), axis=vector_axis
+            (result, np.take(field, (2,), axis=component_axis)), axis=component_axis
         )
 
     x = np.arange(0, field.shape[image_axes[0]], dtype=int)[None, :] - origin[0]
@@ -477,20 +477,22 @@ def cylindrical_projection(
     theta = np.arctan2(y, x)
     shape = tuple(field.shape[i] if i in image_axes else 1 for i in range(field.ndim))
     r_vec = np.concatenate(
-        (np.cos(theta).reshape(shape), np.sin(theta).reshape(shape)), axis=vector_axis
+        (np.cos(theta).reshape(shape), np.sin(theta).reshape(shape)),
+        axis=component_axis,
     )
     theta_vec = np.concatenate(
-        (-np.sin(theta).reshape(shape), np.cos(theta).reshape(shape)), axis=vector_axis
+        (-np.sin(theta).reshape(shape), np.cos(theta).reshape(shape)),
+        axis=component_axis,
     )
 
     rshape = list(field.shape)
-    rshape[vector_axis] = 1
+    rshape[component_axis] = 1
     result = np.concatenate(
         (
-            np.sum(r_vec * field, axis=vector_axis).reshape(rshape),
-            np.sum(theta_vec * field, axis=vector_axis).reshape(rshape),
+            np.sum(r_vec * field, axis=component_axis).reshape(rshape),
+            np.sum(theta_vec * field, axis=component_axis).reshape(rshape),
         ),
-        axis=vector_axis,
+        axis=component_axis,
     )
     return result
 
@@ -502,15 +504,13 @@ def masked_means(
 
     Args:
         data: Data for which to compute the mean.
-        labels: integer array with dimensions matching the dimensions over which to
-            compute the mean. Each integer value greater than 0 denotes a separate mask.
-            For each mask, the mean is computed. 0 is ignored.
+        labels: integer array with dimensions matching at least the dimensions over
+            which to compute the mean. Each integer value greater than 0 denotes a
+            separate mask. For each mask, the mean is computed. 0 is ignored.
         axes: Axes over which to compute the mean.
     """
     from numpy.ma import MaskedArray
 
-    image_shape = tuple(data.shape[i] for i in axes)
-    assert labels.squeeze().shape == image_shape
     blabels = np.broadcast_to(labels, data.shape)
 
     def _mean(data, mask):
