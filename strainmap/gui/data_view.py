@@ -2,12 +2,13 @@ import tkinter as tk
 import tkinter.filedialog
 from tkinter import messagebox, ttk
 
-import matplotlib.animation as animation
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.figure import Figure
 import matplotlib.pyplot as plt
 
 from .base_window_and_task import TaskViewBase, register_view, trigger_event
+from .figure_actions import ZoomAndPan, BrightnessAndContrast, ScrollFrames
+from .figure_actions_manager import FigureActionsManager
 
 
 @register_view
@@ -28,7 +29,6 @@ class DataTaskView(TaskViewBase):
         self.treeview = None
         self.time_step = None
         self.fig = None
-        self.ax = None
         self.datasets_var = tk.StringVar(value="")
         self.maps_var = tk.StringVar(value="MagZ")
         self.cine_frame_var = tk.IntVar(value=0)
@@ -168,7 +168,6 @@ class DataTaskView(TaskViewBase):
         """ Creates the animation plot area. """
 
         self.fig = Figure()
-        self.ax = self.fig.add_subplot()
 
         animation_frame = ttk.Frame(self.notebook)
         animation_frame.columnconfigure(0, weight=1)
@@ -177,6 +176,10 @@ class DataTaskView(TaskViewBase):
         canvas = FigureCanvasTkAgg(self.fig, master=animation_frame)
         canvas.draw()
         canvas.get_tk_widget().grid(sticky=tk.NSEW, padx=5, pady=5)
+
+        self.fig.actions_manager = FigureActionsManager(
+            self.fig, ZoomAndPan, BrightnessAndContrast, ScrollFrames
+        )
 
         return animation_frame
 
@@ -272,7 +275,7 @@ class DataTaskView(TaskViewBase):
 
         return values, texts, var_values, cine_frames, patient_data
 
-    def update_visualization(self, *args, step_changed=False, play_stop=False):
+    def update_visualization(self, *args):
         """ Updates the visualization whenever the data selected changes. """
         series = self.datasets_var.get()
         variable = self.maps_var.get()
@@ -281,72 +284,33 @@ class DataTaskView(TaskViewBase):
         if len(data) == 0:
             return
 
-        # self.time_step["values"] = [*range(len(data))]
-        # idx = int(self.time_step.get())
-        idx = 0
+        self.update_plot(data)
+        self.update_dicom_data_view(series, variable)
 
-        if self.notebook.tab(self.notebook.select(), "text") == "Animation":
-            if step_changed:
-                self.plot_step(data, idx)
-            else:
-                self.play_animation(data, idx, play_stop)
-        elif self.notebook.tab(self.notebook.select(), "text") == "DICOM Data":
-            self.update_tree(series, variable, idx)
+    def update_plot(self, data):
+        """Updates the data contained in the plot."""
+        self.fig.axes.clear()
+        self.fig.actions_manager.ScrollFrames.clear()
 
-    def plot_step(self, data, idx):
-        """ Static plot of a given image. Stops the running simulation, if any. """
-        if self.anim and self.anim.event_source:
-            self.ax.clear()
-            self.anim._stop()
-        else:
-            self.ax.clear()
+        ax = self.fig.add_subplot()
+        ax.clear()
 
-        self.ax.imshow(data[idx])
-        self.ax.get_xaxis().set_visible(False)
-        self.ax.get_yaxis().set_visible(False)
-        plt.tight_layout()
+        for img in data:
+            ax.imshow(img, cmap=plt.get_cmap("binary_r"))
+
+        ax.get_xaxis().set_visible(False)
+        ax.get_yaxis().set_visible(False)
 
         self.fig.canvas.draw()
 
-    def play_animation(self, data, idx, play_stop=False):
-        """ Plays the animation. """
+    def update_dicom_data_view(self, series, variable):
+        """ Updates the treeview with data from the selected options.
 
-        if self.anim and self.anim.event_source:
-            self.ax.clear()
-            self.anim._stop()
-            if play_stop:
-                return
-
-        im = self.ax.imshow(data[idx], animated=True)
-        self.ax.get_xaxis().set_visible(False)
-        self.ax.get_yaxis().set_visible(False)
-        plt.tight_layout()
-
-        def updatefig(*args):
-            i = args[0] % len(data)
-            im.set_array(data[i])
-            return (im,)
-
-        anim_running = True
-
-        def on_click(event):
-            nonlocal anim_running
-            if self.anim and self.anim.event_source:
-                if anim_running:
-                    self.anim.event_source.stop()
-                else:
-                    self.anim.event_source.start()
-                anim_running = not anim_running
-
-        self.fig.canvas.mpl_connect("button_press_event", on_click)
-        self.anim = animation.FuncAnimation(self.fig, updatefig, interval=20, blit=True)
-
-    def update_tree(self, series, variable, idx):
-        """ Updates the treeview with data from the selected options. """
+        Only data for cine = 0 is loaded."""
 
         self.treeview.delete(*self.treeview.get_children())
 
-        data = self.data.read_dicom_file_tags(series, variable, idx)
+        data = self.data.read_dicom_file_tags(series, variable, 0)
         for d in data:
             self.treeview.insert("", tk.END, values=(d, data.get(d)))
 

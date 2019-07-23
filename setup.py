@@ -16,6 +16,7 @@ setup(
         "matplotlib",
         "numpy",
         "scipy",
+        "nibabel",
     ],
     tests_require=tests_require,
     extras_require={"dev": tests_require},

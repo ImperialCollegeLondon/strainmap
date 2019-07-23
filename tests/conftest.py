@@ -102,3 +102,43 @@ def data_view(main_window):
     from strainmap.gui.data_view import DataTaskView
 
     return DataTaskView(main_window)
+
+
+@fixture
+def actions_manager():
+    from matplotlib.pyplot import figure
+    from strainmap.gui.figure_actions_manager import FigureActionsManager
+
+    fig = figure()
+    return FigureActionsManager(fig)
+
+
+@fixture
+def action():
+    from strainmap.gui.figure_actions_manager import (
+        ActionBase,
+        TriggerSignature,
+        Location,
+        MouseAction,
+        Button,
+    )
+
+    s1 = TriggerSignature(Location.EDGE, Button.LEFT, MouseAction.MOVE)
+    s2 = TriggerSignature(Location.N, Button.LEFT, MouseAction.MOVE)
+    s3 = TriggerSignature(Location.CENTRE, Button.LEFT, MouseAction.MOVE)
+
+    class DummyAction(ActionBase):
+        def __init__(self):
+            super().__init__({s1: lambda: None, s2: lambda: None, s3: lambda: None})
+
+    return DummyAction
+
+
+@fixture
+def figure():
+    import matplotlib.pyplot as plt
+
+    fig = plt.figure()
+    fig.add_subplot()
+
+    return fig

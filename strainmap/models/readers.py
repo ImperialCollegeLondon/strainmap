@@ -3,7 +3,9 @@ from collections import OrderedDict
 from copy import deepcopy
 from pathlib import Path
 from typing import List, Mapping, Optional, Text, Union, Dict
+import re
 
+from nibabel.nicom import csareader as csar
 import pydicom
 
 VAR_OFFSET = {"MagZ": 0, "PhaseZ": 1, "MagX": 2, "PhaseX": 3, "MagY": 4, "PhaseY": 5}
@@ -20,7 +22,7 @@ def read_dicom_directory_tree(path: Union[Path, Text]) -> Mapping:
     for f in filenames:
         ds = pydicom.dcmread(f)
 
-        if "ProtocolName" not in ds.dir() or "ParallelSpirals" not in ds.ProtocolName:
+        if not parallel_spirals(ds):
             continue
 
         if ds.ProtocolName not in data_files.keys():
@@ -34,6 +36,15 @@ def read_dicom_directory_tree(path: Union[Path, Text]) -> Mapping:
         data_files[ds.SeriesDescription][var].append(f)
 
     return data_files
+
+
+def parallel_spirals(dicom_data):
+    """Checks if ParallelSpirals is in the tSequenceFileName."""
+    csa = csar.get_csa_header(dicom_data, "series")
+    ascii_header = csa["tags"]["MrPhoenixProtocol"]["items"][0]
+    tSequenceFileName = re.search('tSequenceFileName\t = \t""(.*)""', ascii_header)[1]
+
+    return True if "ParallelSpirals" in tSequenceFileName else False
 
 
 def read_dicom_file_tags(
