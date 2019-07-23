@@ -125,39 +125,25 @@ def test_reset_brightness_and_contrast(figure):
     assert clim == reset_clim
 
 
-def test_show_frame_number(figure):
-    from matplotlib.backend_bases import MouseEvent
-    from strainmap.gui.figure_actions import ScrollFrames
-    import numpy as np
-
-    ax = figure.axes[0]
-    for i in range(3):
-        ax.imshow(np.random.random((10, 10)))
-
-    scroll = ScrollFrames()
-    event = MouseEvent("click", figure.canvas, x=100, y=100)
-
-    scroll.show_frame_number(event)
-    assert len(scroll._images[ax]) == 3
-
-
 def test_scroll_frames(figure):
     from matplotlib.backend_bases import MouseEvent
-    from strainmap.gui.figure_actions import ScrollFrames
+    from strainmap.gui.figure_actions import ScrollFrames, data_generator
     import numpy as np
 
+    data = np.random.random((3, 10, 10))
+
     ax = figure.axes[0]
-    for i in range(3):
-        ax.imshow(np.random.random((10, 10)))
+    ax.imshow(data[0])
 
     scroll = ScrollFrames()
+    scroll.set_generators(data_generator(data), axes=ax)
     event = MouseEvent("click", figure.canvas, x=100, y=100, step=1)
 
     scroll.show_frame_number(event)
-    assert scroll._images[ax][0] == ax.images[0]
+    assert event.inaxes.images[0].get_array().data == approx(data[0])
 
-    scroll.scroll_frames(event)
-    assert scroll._images[ax][1] == ax.images[0]
+    scroll.scroll_axes(event)
+    assert event.inaxes.images[0].get_array().data == approx(data[1])
 
 
 def test_animate(figure):

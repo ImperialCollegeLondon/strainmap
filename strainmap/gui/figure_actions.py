@@ -164,6 +164,27 @@ class BrightnessAndContrast(ActionBase):
         event.inaxes.get_images()[-1].set_clim(clim_low, clim_high)
 
 
+def data_generator(data, axis=0):
+    """Creates and initialises a generator for the data.
+
+    This function will create a generator that, when called, will return the next
+    element in data along the axis provided. The generator will go forward or backwards,
+    depending on the value given to the send command.
+    """
+
+    def generator():
+        j = 0
+        while True:
+            k = yield
+            j = (j + k) % data.shape[axis]
+            yield data.take(indices=j, axis=axis), j
+
+    gen = generator()
+    next(gen)
+
+    return gen
+
+
 class ScrollFrames(ActionBase):
     def __init__(
         self,
@@ -178,29 +199,50 @@ class ScrollFrames(ActionBase):
     ):
         super().__init__(
             signatures={
-                scroll_frames: self.scroll_frames,
+                scroll_frames: self.scroll_axes,
                 show_frame_number: self.show_frame_number,
                 hide_frame_number: self.hide_frame_number,
                 animate: self.animate,
             }
         )
         self._img_shift = 0
-        self._images = defaultdict(list)
         self._anim = {}
         self._anim_running = {}
+        self._images_generator = {}
+        self._lines_generator = {}
+        self._linked_axes = {}
 
-    def scroll_frames(self, event, *args):
+    def set_generators(self, generator, axes, artist="images"):
+        """Sets the generator function that will produce the new data when scrolling."""
+        if artist == "images":
+            self._images_generator[axes] = generator
+        elif artist == "lines":
+            self._lines_generator[axes] = generator
+        else:
+            msg = "'artist' keyword in 'set_generators' must be 'images' or 'lines'."
+            raise ValueError(msg)
+
+    def link_axes(self, axes1, axes2):
+        """Links two axes, so scrolling happens simultaneously in both."""
+        if axes1 in self._linked_axes or axes2 in self._linked_axes:
+            raise RuntimeError("An axes can only be linked to a single other.")
+
+        self._linked_axes[axes1] = axes2
+        self._linked_axes[axes2] = axes1
+
+    def unlink_axes(self, axes1, axes2):
+        """Unlinks two linked axes."""
+        self._linked_axes.pop(axes1, None)
+        self._linked_axes.pop(axes2, None)
+
+    def scroll_axes(self, event, *args):
         """The images available in the axes, if more than one, are scrolled."""
-        self.scroll_frames_(None, event.step, event.inaxes)
+        self.scroll_axes_(None, event.step, event.inaxes)
 
-    def show_frame_number(self, event, *args):
-        """Shows the frame number on top of the axes.
-
-        If it is the first time, all images but one are extracted from the axes."""
-        if len(self._images[event.inaxes]) == 0:
-            self.extract_images(event)
-
-        event.inaxes.set_title(f"Frame: {self._img_shift}", loc="left")
+    @staticmethod
+    def show_frame_number(event, *args):
+        """Shows the frame number on top of the axes."""
+        event.inaxes.set_title(f"Frame: 0", loc="left")
 
     @staticmethod
     def hide_frame_number(event, *args):
@@ -208,18 +250,14 @@ class ScrollFrames(ActionBase):
         event.inaxes.set_title("", loc="left")
 
     def animate(self, event, *args):
-        """Animate the sequence of images in the axes.
-
-        If it is the first time, all images but one are extracted from the axes."""
-        if len(self._images[event.inaxes]) == 0:
-            self.extract_images(event)
+        """Animate the sequence of images in the axes."""
 
         fig = event.canvas.figure
         axes = event.inaxes
 
         if axes not in self._anim:
             self._anim[axes] = animation.FuncAnimation(
-                fig, self.scroll_frames_, interval=20, fargs=(1, axes)
+                fig, self.scroll_axes_, interval=20, fargs=(1, axes)
             )
             self._anim_running[axes] = True
 
@@ -231,25 +269,34 @@ class ScrollFrames(ActionBase):
             self._anim[axes].event_source.stop()
             self._anim_running[axes] = False
 
-    def scroll_frames_(self, _, step, axes):
-        """Internal function that actually carries the scrolling."""
-        self._img_shift += step
-        self._img_shift = self._img_shift % len(self._images[axes])
-        axes.images[0] = self._images[axes][self._img_shift]
-        axes.set_title(f"Frame: {self._img_shift}", loc="left")
+    def scroll_axes_(self, aux, step, axes):
+        """Internal function that decides what to scroll."""
+        if axes in self._images_generator and len(axes.images) == 1:
+            self.scroll_images(step, axes, self._images_generator[axes])
+        if axes in self._lines_generator and len(axes.lines) >= 1:
+            self.scroll_lines(step, axes, self._lines_generator[axes])
+        if axes in self._linked_axes and aux != "linked":
+            self.scroll_axes_("linked", step, self._linked_axes[axes])
 
-    def extract_images(self, event):
-        """Images are extracted from the axes.
+    @staticmethod
+    def scroll_images(step, axes, generator):
+        """Actually scroll the data of a single axes."""
+        new_data, frame = generator.send(step)
+        axes.images[0].set_data(new_data)
+        axes.set_title(f"Frame: {frame}", loc="left")
+        generator.send(0)
 
-        Scrolling with many images loaded in the axes is very expensive, so the first
-        time the pointer entyers into the axes, the images are extracted from the axes.
-        When scrolling, they will be added back one at a time, replacing the one on
-        display."""
-        for i in range(len(event.inaxes.images)):
-            self._images[event.inaxes].append(event.inaxes.images.pop())
-
-        event.inaxes.images.clear()
-        event.inaxes.images = [self._images[event.inaxes][self._img_shift]]
+    @staticmethod
+    def scroll_lines(step, axes, generator):
+        """Actually scroll the data of a single axes."""
+        new_data, frame = generator.send(step)
+        if len(axes.lines) == 1:
+            axes.lines[0].set_data(new_data)
+        else:
+            for i, d in enumerate(new_data):
+                axes.lines[i].set_data(d)
+        axes.set_title(f"Frame: {frame}", loc="left")
+        generator.send(0)
 
     def clear(self):
         """Removes the information stored in the ScrollFrame object."""
@@ -258,7 +305,6 @@ class ScrollFrames(ActionBase):
             del anim
         self._anim = {}
         self._anim_running = {}
-        self._images = defaultdict(list)
         self._img_shift = 0
 
 

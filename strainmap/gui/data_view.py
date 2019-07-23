@@ -7,7 +7,12 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.figure import Figure
 
 from .base_window_and_task import TaskViewBase, register_view, trigger_event
-from .figure_actions import BrightnessAndContrast, ScrollFrames, ZoomAndPan
+from .figure_actions import (
+    BrightnessAndContrast,
+    ScrollFrames,
+    ZoomAndPan,
+    data_generator,
+)
 from .figure_actions_manager import FigureActionsManager
 
 
@@ -181,6 +186,7 @@ class DataTaskView(TaskViewBase):
         """ Creates the animation plot area. """
 
         self.fig = Figure()
+        self.fig.add_subplot()
 
         animation_frame = ttk.Frame(self.notebook)
         animation_frame.columnconfigure(0, weight=1)
@@ -305,11 +311,12 @@ class DataTaskView(TaskViewBase):
         """Updates the data contained in the plot."""
         self.fig.actions_manager.ScrollFrames.clear()
 
-        ax = self.fig.add_subplot()
+        ax = self.fig.axes[-1]
         ax.clear()
 
-        for img in data:
-            ax.imshow(img, cmap=plt.get_cmap("binary_r"))
+        ax.imshow(data[0], cmap=plt.get_cmap("binary_r"))
+
+        self.fig.actions_manager.ScrollFrames.set_generators(data_generator(data), ax)
 
         ax.get_xaxis().set_visible(False)
         ax.get_yaxis().set_visible(False)

@@ -24,14 +24,14 @@ def find_segmentation(
     all_data = get_data_to_segment(data, dataset, phantom_dataset)
 
     shape = all_data[endo_target][0].shape
-    data.segments["endocardium"] = segmenter(
+    data.segments[dataset]["endocardium"] = segmenter(
         all_data[endo_target],
         Contour(endo_initial.T, shape=shape),
         model_params=model_params_endo,
         filter_params=filter_params_endo,
         propagator_params=propagator_params_endo,
     )
-    data.segments["epicardium"] = segmenter(
+    data.segments[dataset]["epicardium"] = segmenter(
         all_data[epi_target],
         Contour(epi_initial.T, shape=shape),
         model_params=model_params_epi,

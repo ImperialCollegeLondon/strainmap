@@ -16,6 +16,7 @@ from .figure_actions import (
     DrawContours,
     ScrollFrames,
     ZoomAndPan,
+    data_generator,
 )
 from .figure_actions_manager import FigureActionsManager
 
@@ -167,10 +168,11 @@ class SegmentationTaskView(TaskViewBase):
         canvas.draw()
         canvas.get_tk_widget().grid(sticky=tk.NSEW)
 
-        FigureActionsManager(
+        self.fig.actions_manager = FigureActionsManager(
             self.fig, ZoomAndPan, BrightnessAndContrast, ScrollFrames, DrawContours
         )
         self.fig.actions_manager.DrawContours.num_contours = 0
+        self.fig.actions_manager.ScrollFrames.link_axes(self.ax_mag, self.ax_vel)
 
         return
 
@@ -186,7 +188,7 @@ class SegmentationTaskView(TaskViewBase):
         self.ax_mag.clear()
         self.ax_vel.clear()
 
-        self.update_images()
+        self.plot_images()
         self.plot_segments()
 
         if xlim is not None:
@@ -195,32 +197,49 @@ class SegmentationTaskView(TaskViewBase):
 
         self.fig.canvas.draw()
 
-    def update_images(self):
+    def plot_images(self):
         """Updates the images in the plot."""
         data_to_segment = self.get_data_to_segment()
 
-        for img in data_to_segment[0]:
-            self.ax_mag.imshow(img, cmap=plt.get_cmap("binary_r"))
+        self.ax_mag.imshow(data_to_segment[0][0], cmap=plt.get_cmap("binary_r"))
+        self.fig.actions_manager.ScrollFrames.set_generators(
+            data_generator(data_to_segment[0]), self.ax_mag
+        )
 
-        for img in data_to_segment[1]:
-            self.ax_vel.imshow(img, cmap=plt.get_cmap("binary_r"))
+        self.ax_vel.imshow(data_to_segment[1][0], cmap=plt.get_cmap("binary_r"))
+        self.fig.actions_manager.ScrollFrames.set_generators(
+            data_generator(data_to_segment[1]), self.ax_vel
+        )
 
     def plot_segments(self):
-        """Updates the segments - if any - in the plot."""
-        if len(self.data.segments) == 0:
+        """Updates the segments in the plot, if any."""
+        dataset = self.datasets_var.get()
+
+        if len(self.data.segments[dataset]) == 0:
             return
 
-        num = len(self.data.segments["endocardium"])
-        for i in range(num):
-            endo = self.data.segments["endocardium"][i].xy
-            epi = self.data.segments["epicardium"][i].xy
-            self.ax_mag.plot(endo[:, 0], endo[:, 1])
-            self.ax_vel.plot(endo[:, 0], endo[:, 1])
-            self.ax_mag.plot(epi[:, 0], epi[:, 1])
-            self.ax_vel.plot(epi[:, 0], epi[:, 1])
+        endo = np.array(
+            [segment.xy.T for segment in self.data.segments[dataset]["endocardium"]]
+        )
+        epi = np.array(
+            [segment.xy.T for segment in self.data.segments[dataset]["epicardium"]]
+        )
+
+        self.ax_mag.plot(*endo[0])
+        self.ax_vel.plot(*endo[0])
+        self.ax_mag.plot(*epi[0])
+        self.ax_vel.plot(*epi[0])
+
+        endo_epi = np.array([endo, epi])
+        self.fig.actions_manager.ScrollFrames.set_generators(
+            data_generator(endo_epi, axis=1), axes=self.ax_mag, artist="lines"
+        )
+        self.fig.actions_manager.ScrollFrames.set_generators(
+            data_generator(endo_epi, axis=1), axes=self.ax_vel, artist="lines"
+        )
 
     def get_data_to_segment(self):
-        """Gets the data that will be segmented and removes the phantom, if needed"""
+        """Gets the data that will be segmented."""
         dataset = self.datasets_var.get()
 
         magz = np.array(self.data.get_images(dataset, "MagZ"))
@@ -228,14 +247,6 @@ class SegmentationTaskView(TaskViewBase):
         magy = np.array(self.data.get_images(dataset, "MagY"))
         mag = magx + magy + magz
         vel = np.array(self.data.get_images(dataset, "PhaseZ"))
-
-        if len(self.data.bg_files) > 0:
-            dataset = self.phantom_var.get()
-            magz = np.array(self.data.get_bg_images(dataset, "MagZ"))
-            magx = np.array(self.data.get_bg_images(dataset, "MagX"))
-            magy = np.array(self.data.get_bg_images(dataset, "MagY"))
-            mag = mag - (magx + magy + magz)
-            vel = vel - np.array(self.data.get_bg_images(dataset, "PhaseZ"))
 
         return mag, vel
 
