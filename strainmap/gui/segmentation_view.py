@@ -10,7 +10,7 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.widgets import Cursor
 from matplotlib.figure import Figure
 
-from .base_window_and_task import Requisites, TaskViewBase, register_view
+from .base_window_and_task import Requisites, TaskViewBase, register_view, trigger_event
 from .figure_actions import (
     BrightnessAndContrast,
     DrawContours,
@@ -33,7 +33,6 @@ class SegmentationTaskView(TaskViewBase):
 
         # Control-related attributes
         self.control = None
-        self.data_to_segment = None
         self.initial_segments = {"endocardium": None, "epicardium": None}
         self.final_segments = {"endocardium": None, "epicardium": None}
         self.endocardium_target_var = tk.StringVar(value="mag")
@@ -141,8 +140,8 @@ class SegmentationTaskView(TaskViewBase):
         ttk.Button(
             master=self.control,
             name="runSegmentation",
-            text="Run segmentation",
-            command=self.run_automatic_segmentation,
+            text="Find segmentation",
+            command=self.find_segmentation,
             state="disabled",
         ).grid(row=0, column=2, sticky=tk.NSEW)
 
@@ -177,19 +176,48 @@ class SegmentationTaskView(TaskViewBase):
 
     def update_plots(self, *args):
         """Updates an existing plot when a new dataset is chosen."""
-        self.data_to_segment = self.get_data_to_segment()
-
         self.fig.actions_manager.ScrollFrames.clear()
+
+        xlim = ylim = None
+        if len(self.ax_mag.images) > 0:
+            xlim = self.ax_mag.get_xlim()
+            ylim = self.ax_mag.get_ylim()
+
         self.ax_mag.clear()
         self.ax_vel.clear()
 
-        for img in self.data_to_segment[0]:
-            self.ax_mag.imshow(img, cmap=plt.get_cmap("binary_r"))
+        self.update_images()
+        self.plot_segments()
 
-        for img in self.data_to_segment[1]:
-            self.ax_vel.imshow(img, cmap=plt.get_cmap("binary_r"))
+        if xlim is not None:
+            self.ax_mag.set_xlim(*xlim)
+            self.ax_mag.set_ylim(*ylim)
 
         self.fig.canvas.draw()
+
+    def update_images(self):
+        """Updates the images in the plot."""
+        data_to_segment = self.get_data_to_segment()
+
+        for img in data_to_segment[0]:
+            self.ax_mag.imshow(img, cmap=plt.get_cmap("binary_r"))
+
+        for img in data_to_segment[1]:
+            self.ax_vel.imshow(img, cmap=plt.get_cmap("binary_r"))
+
+    def plot_segments(self):
+        """Updates the segments - if any - in the plot."""
+        if len(self.data.segments) == 0:
+            return
+
+        num = len(self.data.segments["endocardium"])
+        for i in range(num):
+            endo = self.data.segments["endocardium"][i].xy
+            epi = self.data.segments["epicardium"][i].xy
+            self.ax_mag.plot(endo[:, 0], endo[:, 1])
+            self.ax_vel.plot(endo[:, 0], endo[:, 1])
+            self.ax_mag.plot(epi[:, 0], epi[:, 1])
+            self.ax_vel.plot(epi[:, 0], epi[:, 1])
 
     def get_data_to_segment(self):
         """Gets the data that will be segmented and removes the phantom, if needed"""
@@ -309,6 +337,8 @@ class SegmentationTaskView(TaskViewBase):
             else:
                 self.initial_segments = {"endocardium": None, "epicardium": None}
 
+            self.nametowidget("control.runSegmentation")["state"] = "disabled"
+
         if initial_or_final in ["final", "both"]:
             if side == "endocardium":
                 self.final_segments["endocardium"] = None
@@ -317,10 +347,8 @@ class SegmentationTaskView(TaskViewBase):
             else:
                 self.final_segments = {"endocardium": None, "epicardium": None}
 
-        self.nametowidget("control.runSegmentation")["state"] = "disabled"
-
         self.plot_initial_segments()
-        self.plot_final_segments()
+        self.plot_segments()
         self.fig.canvas.draw()
 
     def plot_initial_segments(self):
@@ -331,18 +359,19 @@ class SegmentationTaskView(TaskViewBase):
                 self.ax_mag.plot(*self.initial_segments[side], **style)
                 self.ax_vel.plot(*self.initial_segments[side], **style)
 
-    def plot_final_segments(self):
-        """PLots the initial segments."""
-        style = dict(color="yellow", ls="-", linewidth=2)
-        for side in self.final_segments:
-            if self.final_segments[side] is not None:
-                for s in self.final_segments[side]:
-                    self.ax_mag.plot(*s, **style)
-                    self.ax_vel.plot(*s, **style)
-
-    def run_automatic_segmentation(self):
+    @trigger_event
+    def find_segmentation(self):
         """Runs an automatic segmentation sequence."""
-        pass
+        self.clear_segments(side="both", initial_or_final="final")
+        return dict(
+            data=self.data,
+            dataset=self.datasets_var.get(),
+            phantom_dataset=self.phantom_var.get(),
+            endo_target=self.endocardium_target_var.get(),
+            epi_target=self.epicardium_target_var.get(),
+            endo_initial=self.initial_segments["endocardium"],
+            epi_initial=self.initial_segments["epicardium"],
+        )
 
     def update_widgets(self):
         """ Updates widgets after an update in the data variable. """

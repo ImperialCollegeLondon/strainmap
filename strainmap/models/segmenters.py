@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from typing import Any, Callable, Dict, List, Optional, Text, Union
 
 import numpy as np
@@ -26,7 +28,7 @@ def register_segmenter(
 
 
 @register_segmenter(name="AC")
-def active_contour_model(img: np.ndarray, initial: Contour, params: Dict) -> Contour:
+def active_contour_model(img: np.ndarray, initial: Contour, **params: Dict) -> Contour:
     """Segmentation using the active contour model."""
     from skimage.segmentation import active_contour
 
@@ -41,7 +43,7 @@ def active_contour_model(img: np.ndarray, initial: Contour, params: Dict) -> Con
 
 @register_segmenter(name="MorphGAC")
 def morphological_geodesic_active_contour_model(
-    img: np.ndarray, initial: Contour, params: Dict
+    img: np.ndarray, initial: Contour, **params: Dict
 ) -> Union[Contour, List[Contour]]:
     """Segmentation using the morphological geodesic active contour model."""
     from skimage.segmentation import morphological_geodesic_active_contour
@@ -65,7 +67,7 @@ def morphological_geodesic_active_contour_model(
 
 @register_segmenter(name="MorphCV")
 def morphological_chan_vese_model(
-    img: np.ndarray, initial: Contour, params: Dict
+    img: np.ndarray, initial: Contour, **params: Dict
 ) -> Union[Contour, List[Contour]]:
     """Segmentation using the morphological Chan Vese model."""
     from skimage.segmentation import morphological_chan_vese
@@ -120,8 +122,8 @@ class Segmenter(object):
         cls,
         model: Text = "AC",
         ffilter: Text = "gaussian",
-        propagator: Optional[Text] = None,
-    ):
+        propagator: Text = "initial",
+    ) -> Segmenter:
         if propagator is not None:
             return cls(  # type: ignore
                 SEGMENTERS.get(model),
