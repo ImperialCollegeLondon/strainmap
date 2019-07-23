@@ -13,8 +13,8 @@ class StrainMapData(object):
 
         self.data_files = data_files
         self.bg_files = bg_files if bg_files else {}
-        self.segments = {}
-        self.velocities = {}
+        self.segments: dict = {}
+        self.velocities: dict = {}
 
     def read_dicom_file_tags(self, series, variable, idx):
         return read_dicom_file_tags(self.data_files, series, variable, idx)
