@@ -107,3 +107,67 @@ def test_segmentation_ready(segmentation_view):
     assert (
         segmentation_view.nametowidget("control.runSegmentation")["state"] == "enable"
     )
+
+
+def test_plot_segments(segmentation_view, strainmap_data):
+    from strainmap.models.contour_mask import Contour
+    import numpy as np
+    from copy import deepcopy
+
+    contour = np.random.random((2, 5))
+    dataset = sorted(strainmap_data.data_files.keys())[0]
+
+    segmentation_view.data = deepcopy(strainmap_data)
+    segmentation_view.data.segments[dataset]["endocardium"] = [Contour(contour)]
+    segmentation_view.data.segments[dataset]["epicardium"] = [Contour(contour)]
+
+    segmentation_view.plot_segments()
+
+    generators = segmentation_view.fig.actions_manager.ScrollFrames._lines_generator
+
+    assert segmentation_view.ax_mag in generators
+    assert segmentation_view.ax_vel in generators
+
+
+def test_initial_contour(segmentation_view):
+    import numpy as np
+
+    segmentation_view.define_initial_contour("endocardium")
+    actual = segmentation_view.nametowidget("control.segmentFrame.initialEndo")["text"]
+    assert actual == "Cancel"
+
+    segmentation_view.initial_contour("endocardium")
+    actual = segmentation_view.nametowidget("control.segmentFrame.initialEndo")["text"]
+    assert actual == "Define endocardium"
+
+    segmentation_view.define_initial_contour("endocardium")
+    contour = np.random.random((2, 5))
+    segmentation_view.get_contour([contour], side="endocardium")
+    actual = segmentation_view.nametowidget("control.segmentFrame.initialEndo")["text"]
+    assert actual == "Clear endocardium"
+
+    segmentation_view.clear_segments = MagicMock()
+    segmentation_view.initial_contour("endocardium")
+    actual = segmentation_view.nametowidget("control.segmentFrame.initialEndo")["text"]
+    assert actual == "Define endocardium"
+
+
+def test_clear_segments(segmentation_view):
+    import numpy as np
+
+    segmentation_view.plot_segments = MagicMock()
+    segmentation_view.plot_initial_segments = MagicMock()
+
+    contour = np.random.random((2, 5))
+
+    segmentation_view.initial_segments["endocardium"] = contour
+    segmentation_view.initial_segments["epicardium"] = contour
+    segmentation_view.final_segments["endocardium"] = contour
+    segmentation_view.final_segments["epicardium"] = contour
+
+    segmentation_view.clear_segments()
+
+    assert segmentation_view.initial_segments["endocardium"] is None
+    assert segmentation_view.initial_segments["epicardium"] is None
+    assert segmentation_view.final_segments["endocardium"] is None
+    assert segmentation_view.final_segments["epicardium"] is None
