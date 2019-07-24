@@ -156,13 +156,13 @@ class SegmentationTaskView(TaskViewBase):
         self.ax_vel = self.fig.add_subplot(
             1, 2, 2, sharex=self.ax_mag, sharey=self.ax_mag
         )
+        self.ax_mag.set_position((0.03, 0.05, 0.45, 0.85))
+        self.ax_vel.set_position((0.52, 0.05, 0.45, 0.85))
 
         self.ax_mag.get_xaxis().set_visible(False)
         self.ax_mag.get_yaxis().set_visible(False)
         self.ax_vel.get_xaxis().set_visible(False)
         self.ax_vel.get_yaxis().set_visible(False)
-
-        self.fig.set_tight_layout(True)
 
         canvas = FigureCanvasTkAgg(self.fig, master=self.visualise)
         canvas.draw()
@@ -173,8 +173,6 @@ class SegmentationTaskView(TaskViewBase):
         )
         self.fig.actions_manager.DrawContours.num_contours = 0
         self.fig.actions_manager.ScrollFrames.link_axes(self.ax_mag, self.ax_vel)
-
-        return
 
     def update_plots(self, *args):
         """Updates an existing plot when a new dataset is chosen."""
@@ -187,6 +185,9 @@ class SegmentationTaskView(TaskViewBase):
 
         self.ax_mag.clear()
         self.ax_vel.clear()
+
+        self.ax_mag.set_title("Magnitude", loc="right")
+        self.ax_vel.set_title("Velocity", loc="right")
 
         self.plot_images()
         self.plot_segments()
@@ -387,14 +388,22 @@ class SegmentationTaskView(TaskViewBase):
     def update_widgets(self):
         """ Updates widgets after an update in the data variable. """
         values = sorted(self.data.data_files.keys())
+        current = self.datasets_var.get()
         self.nametowidget("control.datasetsFrame.datasetsBox")["values"] = values
-        self.datasets_var.set(values[0])
+        if current in values:
+            self.datasets_var.set(current)
+        else:
+            self.datasets_var.set(values[0])
 
         if len(self.data.bg_files.keys()) > 0:
             bg_values = sorted(self.data.bg_files.keys())
+            current = self.datasets_var.get()
             self.nametowidget("control.datasetsFrame.phantomBox")["values"] = bg_values
             self.nametowidget("control.datasetsFrame.phantomBox")["state"] = "enable"
-            self.phantom_var.set(bg_values[0])
+            if current in bg_values:
+                self.phantom_var.set(current)
+            else:
+                self.phantom_var.set(bg_values[0])
         else:
             self.nametowidget("control.datasetsFrame.phantomBox")["values"] = []
             self.nametowidget("control.datasetsFrame.phantomBox")["state"] = "disabled"

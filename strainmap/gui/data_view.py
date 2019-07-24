@@ -186,7 +186,8 @@ class DataTaskView(TaskViewBase):
         """ Creates the animation plot area. """
 
         self.fig = Figure()
-        self.fig.add_subplot()
+        ax = self.fig.add_subplot()
+        ax.set_position((0.05, 0.05, 0.9, 0.9))
 
         animation_frame = ttk.Frame(self.notebook)
         animation_frame.columnconfigure(0, weight=1)
@@ -321,7 +322,6 @@ class DataTaskView(TaskViewBase):
         ax.get_xaxis().set_visible(False)
         ax.get_yaxis().set_visible(False)
 
-        self.fig.set_tight_layout(True)
         self.fig.canvas.draw()
 
     def update_dicom_data_view(self, series, variable):
