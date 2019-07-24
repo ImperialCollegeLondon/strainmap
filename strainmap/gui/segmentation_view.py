@@ -243,11 +243,11 @@ class SegmentationTaskView(TaskViewBase):
         """Gets the data that will be segmented."""
         dataset = self.datasets_var.get()
 
-        magz = np.array(self.data.get_images(dataset, "MagZ"))
-        magx = np.array(self.data.get_images(dataset, "MagX"))
-        magy = np.array(self.data.get_images(dataset, "MagY"))
+        magz = self.data.get_images(dataset, "MagZ")
+        magx = self.data.get_images(dataset, "MagX")
+        magy = self.data.get_images(dataset, "MagY")
         mag = magx + magy + magz
-        vel = np.array(self.data.get_images(dataset, "PhaseZ"))
+        vel = self.data.get_images(dataset, "PhaseZ")
 
         return mag, vel
 

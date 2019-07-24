@@ -165,24 +165,13 @@ class BrightnessAndContrast(ActionBase):
 
 
 def data_generator(data, axis=0):
-    """Creates and initialises a generator for the data.
+    """Creates a generator for the data that can be called when scrolling."""
 
-    This function will create a generator that, when called, will return the next
-    element in data along the axis provided. The generator will go forward or backwards,
-    depending on the value given to the send command.
-    """
+    def generator(i):
+        j = i % data.shape[axis]
+        return data.take(indices=j, axis=axis), j
 
-    def generator():
-        j = 0
-        while True:
-            k = yield
-            j = (j + k) % data.shape[axis]
-            yield data.take(indices=j, axis=axis), j
-
-    gen = generator()
-    next(gen)
-
-    return gen
+    return generator
 
 
 class ScrollFrames(ActionBase):
@@ -208,6 +197,7 @@ class ScrollFrames(ActionBase):
         self._img_shift = 0
         self._anim = {}
         self._anim_running = {}
+        self._current_frames = defaultdict(lambda: 0)
         self._images_generator = {}
         self._lines_generator = {}
         self._linked_axes = {}
@@ -269,34 +259,43 @@ class ScrollFrames(ActionBase):
             self._anim[axes].event_source.stop()
             self._anim_running[axes] = False
 
-    def scroll_axes_(self, aux, step, axes):
+    def scroll_axes_(self, _, step, axes):
         """Internal function that decides what to scroll."""
-        if axes in self._images_generator and len(axes.images) == 1:
-            self.scroll_images(step, axes, self._images_generator[axes])
-        if axes in self._lines_generator and len(axes.lines) >= 1:
-            self.scroll_lines(step, axes, self._lines_generator[axes])
-        if axes in self._linked_axes and aux != "linked":
-            self.scroll_axes_("linked", step, self._linked_axes[axes])
+        self._current_frames[axes] += step
+        self.scroll_images(axes)
+        self.scroll_lines(axes)
 
-    @staticmethod
-    def scroll_images(step, axes, generator):
+        if axes in self._linked_axes:
+            self._current_frames[self._linked_axes[axes]] += step
+            self.scroll_images(self._linked_axes[axes])
+            self.scroll_lines(self._linked_axes[axes])
+
+    def scroll_images(self, axes):
         """Actually scroll the data of a single axes."""
-        new_data, frame = generator.send(step)
+        if axes not in self._images_generator or len(axes.images) != 1:
+            return
+
+        new_data, self._current_frames[axes] = self._images_generator[axes](
+            self._current_frames[axes]
+        )
         axes.images[0].set_data(new_data)
-        axes.set_title(f"Frame: {frame}", loc="left")
-        generator.send(0)
+        axes.set_title(f"Frame: {self._current_frames[axes]}", loc="left")
 
-    @staticmethod
-    def scroll_lines(step, axes, generator):
+    def scroll_lines(self, axes):
         """Actually scroll the data of a single axes."""
-        new_data, frame = generator.send(step)
+        if axes not in self._lines_generator:
+            return
+
+        new_data, self._current_frames[axes] = self._lines_generator[axes](
+            self._current_frames[axes]
+        )
         if len(axes.lines) == 1:
             axes.lines[0].set_data(new_data)
         else:
             for i, d in enumerate(new_data):
                 axes.lines[i].set_data(d)
-        axes.set_title(f"Frame: {frame}", loc="left")
-        generator.send(0)
+
+        axes.set_title(f"Frame: {self._current_frames[axes]}", loc="left")
 
     def clear(self):
         """Removes the information stored in the ScrollFrame object."""

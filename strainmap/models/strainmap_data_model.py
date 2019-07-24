@@ -1,6 +1,7 @@
 from pathlib import Path
 from typing import Mapping, Optional, Text, Union
 from collections import defaultdict
+import numpy as np
 
 from .readers import read_dicom_directory_tree, read_dicom_file_tags, read_images
 
@@ -21,10 +22,10 @@ class StrainMapData(object):
         return read_dicom_file_tags(self.data_files, series, variable, idx)
 
     def get_images(self, series, variable):
-        return read_images(self.data_files, series, variable)
+        return np.array(read_images(self.data_files, series, variable))
 
     def get_bg_images(self, series, variable):
-        return read_images(self.bg_files, series, variable)
+        return np.array(read_images(self.bg_files, series, variable))
 
 
 def factory(
