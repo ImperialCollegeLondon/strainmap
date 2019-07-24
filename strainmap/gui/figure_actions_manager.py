@@ -148,7 +148,7 @@ class FigureActionsManager(object):
         self._time_init = 0
         self._event: List = []
         self._last_event = None
-        self._current_action = None
+        self._current_action: list = []
         self._actions: Dict = defaultdict(list)
 
         self._connect_events()
@@ -187,7 +187,7 @@ class FigureActionsManager(object):
         """Removes all information related to previous events."""
         self._event = []
         self._last_event = None
-        self._current_action = None
+        self._current_action = []
 
     def _connect_events(self):
         """Connects the relevant events to the canvas."""
@@ -222,7 +222,7 @@ class FigureActionsManager(object):
         if time() - self._time_init < self.delay:
             return
 
-        elif self._current_action is None:
+        elif len(self._current_action) == 0:
             self._last_event, mouse_action, mouse_event = self._select_movement_type(
                 event
             )
@@ -231,14 +231,16 @@ class FigureActionsManager(object):
 
             self._current_action = self._select_action(location, button, mouse_action)
 
-        if len(self._current_action) == 1:
+        if len(self._current_action) == 0:
+            return
+        elif len(self._current_action) == 1:
             self._last_event = self._current_action[0](event, self._last_event)
-
         else:
+            print(self._current_action)
             for ac in self._current_action:
                 ac(event, self._last_event)
 
-            self._current_action = None
+            self._current_action = []
 
         self.draw()
 

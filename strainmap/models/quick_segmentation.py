@@ -1,5 +1,3 @@
-import numpy as np
-
 from .segmenters import Segmenter
 from .contour_mask import Contour
 
@@ -44,17 +42,17 @@ def find_segmentation(
 
 def get_data_to_segment(data, dataset, phantom_dataset):
     """Gets the data that will be segmented and removes the phantom, if needed"""
-    magz = np.array(data.get_images(dataset, "MagZ"))
-    magx = np.array(data.get_images(dataset, "MagX"))
-    magy = np.array(data.get_images(dataset, "MagY"))
+    magz = data.get_images(dataset, "MagZ")
+    magx = data.get_images(dataset, "MagX")
+    magy = data.get_images(dataset, "MagY")
     mag = magx + magy + magz
-    vel = np.array(data.get_images(dataset, "PhaseZ"))
+    vel = data.get_images(dataset, "PhaseZ")
 
     if phantom_dataset != "":
-        magz = np.array(data.get_bg_images(phantom_dataset, "MagZ"))
-        magx = np.array(data.get_bg_images(phantom_dataset, "MagX"))
-        magy = np.array(data.get_bg_images(phantom_dataset, "MagY"))
+        magz = data.get_bg_images(phantom_dataset, "MagZ")
+        magx = data.get_bg_images(phantom_dataset, "MagX")
+        magy = data.get_bg_images(phantom_dataset, "MagY")
         mag = mag - (magx + magy + magz)
-        vel = vel - np.array(data.get_bg_images(phantom_dataset, "PhaseZ"))
+        vel = vel - data.get_bg_images(phantom_dataset, "PhaseZ")
 
     return {"mag": mag, "vel": vel}
