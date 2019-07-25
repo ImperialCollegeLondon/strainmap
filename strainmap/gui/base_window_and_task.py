@@ -172,8 +172,15 @@ class MainWindow(tk.Tk):
 
     def __quit(self):
         """ Safe quit the program."""
+        self._stop_animations()
         self.closed = True
         self.quit()
+
+    def _stop_animations(self):
+        """Stop any animation that is running, if any."""
+        for view in self.views:
+            if hasattr(view, "stop_animation"):
+                view.stop_animation()
 
 
 REGISTERED_BINDINGS: dict = {}

@@ -385,6 +385,15 @@ class SegmentationTaskView(TaskViewBase):
             epi_initial=self.initial_segments["epicardium"],
         )
 
+    def stop_animation(self):
+        """Stops an animation, if there is one running."""
+        animations = self.fig.actions_manager.ScrollFrames._anim
+        running = self.fig.actions_manager.ScrollFrames._anim_running
+
+        for axes in running:
+            if running[axes]:
+                animations[axes].event_source.stop()
+
     def update_widgets(self):
         """ Updates widgets after an update in the data variable. """
         values = sorted(self.data.data_files.keys())
