@@ -25,7 +25,7 @@ def read_dicom_directory_tree(path: Union[Path, Text]) -> Mapping:
         if not parallel_spirals(ds):
             continue
 
-        if ds.ProtocolName not in data_files.keys():
+        if ds.SeriesDescription not in data_files.keys():
             data_files[ds.SeriesDescription] = OrderedDict()
             var_idx = {}
             for var in VAR_OFFSET:
