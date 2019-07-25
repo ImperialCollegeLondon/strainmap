@@ -261,6 +261,7 @@ class ScrollFrames(ActionBase):
 
     def scroll_axes_(self, _, step, axes):
         """Internal function that decides what to scroll."""
+        step = int(np.sign(step))
         self._current_frames[axes] += step
         self.scroll_images(axes)
         self.scroll_lines(axes)
