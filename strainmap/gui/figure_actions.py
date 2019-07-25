@@ -259,6 +259,12 @@ class ScrollFrames(ActionBase):
             self._anim[axes].event_source.stop()
             self._anim_running[axes] = False
 
+    def stop_animation(self):
+        """Stops an animation, if there is one running."""
+        for axes in self._anim_running:
+            if self._anim_running[axes]:
+                self._anim[axes].event_source.stop()
+
     def scroll_axes_(self, _, step, axes):
         """Internal function that decides what to scroll."""
         step = int(np.sign(step))
