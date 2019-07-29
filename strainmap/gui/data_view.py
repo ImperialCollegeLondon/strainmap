@@ -1,6 +1,7 @@
 import tkinter as tk
 import tkinter.filedialog
 from tkinter import messagebox, ttk
+import os
 
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
@@ -27,6 +28,7 @@ class DataTaskView(TaskViewBase):
         # Control-related attributes
         self.data_folder = tk.StringVar(value="")
         self.output_file = tk.StringVar(value="")
+        self.current = os.path.expanduser("~")
         self.phantom_check = tk.BooleanVar(value=False)
         self.control = None
         self.dataselector = None
@@ -228,12 +230,15 @@ class DataTaskView(TaskViewBase):
     @trigger_event
     def load_data(self):
         """Loads new data into StrainMap"""
-        path = tk.filedialog.askdirectory(title="Select DATA directory")
-        self.data_folder.set(path)
+        path = tk.filedialog.askdirectory(
+            title="Select DATA directory", initialdir=self.current
+        )
 
         output = {}
         if path != "":
+            self.current = path
             output = dict(data_files=path)
+            self.data_folder.set(self.current)
 
         return output
 
@@ -243,7 +248,9 @@ class DataTaskView(TaskViewBase):
 
         result = {}
         if self.phantom_check.get():
-            path = tk.filedialog.askdirectory(title="Select PHANTOM directory")
+            path = tk.filedialog.askdirectory(
+                title="Select PHANTOM directory", initialdir=self.current
+            )
             if path == "":
                 self.phantom_check.set(False)
             else:
