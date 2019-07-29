@@ -337,7 +337,10 @@ class DataTaskView(TaskViewBase):
 
     def stop_animation(self):
         """Stops an animation, if there is one running."""
-        self.fig.actions_manager.ScrollFrames.stop_animation()
+        if hasattr(self.fig, "actions_manager") and hasattr(
+            self.fig.actions_manager, "ScrollFrames"
+        ):
+            self.fig.actions_manager.ScrollFrames.stop_animation()
 
     def update_widgets(self):
         """ Updates widgets after an update in the data variable. """
