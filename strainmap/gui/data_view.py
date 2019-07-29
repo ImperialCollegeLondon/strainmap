@@ -276,7 +276,7 @@ class DataTaskView(TaskViewBase):
 
     def get_data_information(self):
         """ Gets some information related to the available datasets, frames, etc. """
-        values = sorted(self.data.data_files.keys())
+        values = list(self.data.data_files.keys())
         if len(values) > 0:
             texts = [
                 "Magnitude",
@@ -349,7 +349,7 @@ class DataTaskView(TaskViewBase):
         self.create_data_viewer()
         self.update_visualization()
 
-        values = sorted(self.data.bg_files.keys())
+        values = list(self.data.bg_files.keys())
         if self.phantom_check.get() and len(values) > 0:
             self.phantoms_box["values"] = values
             self.phantoms_box.current(0)

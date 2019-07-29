@@ -41,10 +41,12 @@ def read_dicom_directory_tree(path: Union[Path, Text]) -> Mapping:
 def parallel_spirals(dicom_data):
     """Checks if ParallelSpirals is in the tSequenceFileName."""
     csa = csar.get_csa_header(dicom_data, "series")
-    ascii_header = csa["tags"]["MrPhoenixProtocol"]["items"][0]
-    tSequenceFileName = re.search('tSequenceFileName\t = \t""(.*)""', ascii_header)[1]
-
-    return True if "ParallelSpirals" in tSequenceFileName else False
+    try:
+        ascii_header = csa["tags"]["MrPhoenixProtocol"]["items"][0]
+        tSequenceFileName = re.search('tSequenceFileName\t = \t""(.*)""', ascii_header)
+        return True if "ParallelSpirals" in tSequenceFileName[1] else False
+    except TypeError:
+        return False
 
 
 def read_dicom_file_tags(

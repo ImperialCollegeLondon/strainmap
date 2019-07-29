@@ -391,7 +391,7 @@ class SegmentationTaskView(TaskViewBase):
 
     def update_widgets(self):
         """ Updates widgets after an update in the data variable. """
-        values = sorted(self.data.data_files.keys())
+        values = list(self.data.data_files.keys())
         current = self.datasets_var.get()
         self.nametowidget("control.datasetsFrame.datasetsBox")["values"] = values
         if current in values:
@@ -400,7 +400,7 @@ class SegmentationTaskView(TaskViewBase):
             self.datasets_var.set(values[0])
 
         if len(self.data.bg_files.keys()) > 0:
-            bg_values = sorted(self.data.bg_files.keys())
+            bg_values = list(self.data.bg_files.keys())
             current = self.datasets_var.get()
             self.nametowidget("control.datasetsFrame.phantomBox")["values"] = bg_values
             self.nametowidget("control.datasetsFrame.phantomBox")["state"] = "enable"
