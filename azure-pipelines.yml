@@ -1,16 +1,29 @@
+strategy:
+  matrix:
+    windows:
+      imageName: windows-2019
+      pythonVersion: 3.7
+    linux:
+      imageName: ubuntu-16.04
+      pythonVersion: 3.7
+    umac:
+      imageName: macos-10.13
+      pythonVersion: 3.7
+
 pool:
-  vmImage: "ubuntu-16.04"
+  vmImage: $(imageName)
 
 steps:
   - task: UsePythonVersion@0
     inputs:
-      versionSpec: 3.7
+      versionSpec: $(pythonVersion)
       architecture: "x64"
 
   - script: |
       sudo apt update
       sudo apt install python3-tk xvfb
-    displayName: "Install system dependencies"
+    displayName: "Install system dependencies in Linux"
+    condition: eq(variables['Agent.OS'], 'Linux')
 
   - script: |
       pip install -e .
@@ -18,8 +31,13 @@ steps:
 
   - script: |
       xvfb-run -a python setup.py -q test
-    condition: succeededOrFailed()
-    displayName: "Run tests"
+    condition: and(succeededOrFailed(), eq(variables['Agent.OS'], 'Linux'))
+    displayName: "Run tests in Linux"
+
+  - script: |
+      python setup.py -q test
+    condition: and(succeededOrFailed(), ne(variables['Agent.OS'], 'Linux'))
+    displayName: "Run tests in Windows or MacOS"
 
   - task: PublishTestResults@2
     inputs:
