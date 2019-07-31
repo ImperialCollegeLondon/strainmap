@@ -4,8 +4,11 @@ import copy
 from typing import Optional, Sequence, Tuple, Union
 
 import numpy as np
+import pandas as pd
 from scipy import interpolate, ndimage
 from skimage.draw import polygon_perimeter
+
+from .readers import ImageTimeSeries
 
 
 class Contour(object):
@@ -91,11 +94,11 @@ class Contour(object):
         """Circular contour."""
         if center is None:
             center = (np.array(shape) - 1) / 2
-        center = np.array(center)
+        origin = np.array(center)
         polar = np.ones((points, 2))
         polar[:, 0] *= radius
         polar[:, 1] = np.linspace(0, 2 * np.pi, points)
-        xy = pol2cart(polar) + center
+        xy = pol2cart(polar) + origin
 
         return Contour(xy, shape=shape)
 
@@ -264,11 +267,10 @@ def radial_segments(
     else:
         origin = np.array(center)
 
-    if shape is None:
-        shape = outer.shape
+    nx, ny = (outer.shape[0], outer.shape[1]) if shape is None else shape
 
-    x = np.arange(0, shape[0], dtype=int)[None, :] - origin[0]
-    y = np.arange(0, shape[1], dtype=int)[:, None] - origin[1]
+    x = np.arange(0, nx, dtype=int)[None, :] - origin[0]
+    y = np.arange(0, ny, dtype=int)[:, None] - origin[1]
 
     thetas = np.arctan2(y, x)
     r = np.sqrt(x * x + y * y)
@@ -306,7 +308,7 @@ def pol2cart(polar: Union[np.ndarray, np.recarray]) -> np.ndarray:
     if hasattr(polar, "r") and hasattr(polar, "theta"):
         r, theta = polar.r, polar.theta
     elif (getattr(polar.dtype, "fields", None) is not None) and (
-        {"r", "theta"} == set(polar.dtype.fields)
+        {"r", "theta"} == set(polar.dtype.fields)  # type: ignore
     ):
         r, theta = polar["r"], polar["theta"]
     elif polar.ndim == 2 and polar.shape[1] == 2:
@@ -386,7 +388,7 @@ def bulk_component(
 
 def cylindrical_projection(
     field: np.ndarray,
-    origin: np.array,
+    origin: np.ndarray,
     component_axis: int = 0,
     image_axes: Tuple[int, int] = (1, 2),
 ) -> np.ndarray:
@@ -521,11 +523,74 @@ def masked_means(
     return np.concatenate(list(_mean(data, blabels != l) for l in indices))
 
 
+def mean_velocities(
+    velocities: np.ndarray,
+    labels: np.ndarray,
+    component_axis: int = ImageTimeSeries.component_axis,
+    image_axes: Tuple[int, int] = ImageTimeSeries.image_axes,
+    time_axis: Optional[int] = ImageTimeSeries.time_axis,
+    origin: Optional[np.ndarray] = None,
+    **kwargs,
+) -> pd.DataFame:
+    """Global and masked mean velocities in cylindrical basis.
+
+    Args:
+        velocities: phases in a cartesian basis
+        labels: regions for which to compute the mean
+        component_axis: axis of the (x, y, z) components
+        image_axes: axes corresponding to the image
+        time_axis: axis corresponding to time
+        figure: the figure on which to plot
+        origin: origin of the cylindrical basis
+
+    Returns:
+        An array of subplot axes.
+    """
+    assert velocities.ndim >= len(image_axes) + (1 if time_axis is None else 2)
+    if origin is None:
+        origin = ndimage.measurements.center_of_mass(labels > 0)
+
+    bulk_velocity = masked_means(velocities, labels > 0, axes=image_axes).reshape(
+        tuple(1 if i in image_axes else v for i, v in enumerate(velocities.shape))
+    )
+    cylindrical = cylindrical_projection(
+        velocities - bulk_velocity,
+        origin,
+        component_axis=component_axis,
+        image_axes=image_axes,
+    )
+    local_means = masked_means(cylindrical, labels, axes=image_axes)
+    global_means = masked_means(cylindrical, labels > 0, axes=image_axes)
+
+    data: np.ndarray = np.concatenate([global_means, local_means], axis=0)
+    columns = {"velocity": data}
+
+    columns["region"] = np.array(sorted(set(labels.flat).union({0})))
+    columns["component"] = np.array(["r", "theta", "z"])
+    if time_axis is not None:
+        columns["time"] = np.arange(velocities.shape[time_axis], dtype=int)
+
+    if time_axis is not None and time_axis > component_axis:
+        columns["region"] = columns["region"][:, None, None]
+        columns["component"] = columns["component"][None, :, None]
+        columns["time"] = columns["time"][None, None, :]
+    elif time_axis is not None:
+        columns["region"] = columns["region"][:, None, None]
+        columns["component"] = columns["component"][None, None, :]
+        columns["time"] = columns["time"][None, :, None]
+    else:
+        columns["region"] = columns["region"][:, None]
+        columns["component"] = columns["component"][None, :]
+
+    return pd.DataFrame(
+        {k: np.broadcast_to(v, data.shape).flat for k, v in columns.items()}
+    )
+
+
 if __name__ == "__main__":
     import matplotlib.pyplot as plt
 
-    center = np.array([250, 250])
-    c = Contour.circle(center, radius=60)
+    c = Contour.circle((250, 250), radius=60)
 
     xy = image_to_coordinates(c.image)
 

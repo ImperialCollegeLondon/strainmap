@@ -117,7 +117,7 @@ class ImageTimeSeries:
     magnitude: ndarray
     phase: ndarray
 
-    vector_axis: ClassVar[int] = 0
+    component_axis: ClassVar[int] = 0
     """Axis with x, y, z components."""
     time_axis: ClassVar[int] = 1
     """Axis representing time."""
@@ -157,7 +157,7 @@ def images_to_numpy(data: Mapping) -> Mapping[Text, ImageTimeSeries]:
         return result.transpose(
             argsort(
                 (
-                    ImageTimeSeries.vector_axis,
+                    ImageTimeSeries.component_axis,
                     ImageTimeSeries.time_axis,
                     *ImageTimeSeries.image_axes,
                 )

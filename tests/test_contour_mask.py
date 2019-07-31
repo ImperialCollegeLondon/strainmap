@@ -115,10 +115,9 @@ def test_circle():
     from strainmap.models.contour_mask import Contour
 
     radius = 10
-    center = np.array([3, 0])
-    c = Contour.circle(center, radius=radius, points=100000)
+    c = Contour.circle((3, 0), radius=radius, points=100000)
 
-    assert c.centroid == approx(center, rel=1e-2)
+    assert c.centroid == approx((3, 0), rel=1e-2)
     assert norm(c.xy - c.centroid, axis=1) == approx(
         np.ones(c.points) * radius, rel=1e-1
     )
@@ -192,3 +191,33 @@ def test_masked_means_time_axis():
 
     actual = masked_means(cartvel, labels, axes=ImageTimeSeries.image_axes)
     assert actual == approx(meanvel[1:, :, :])
+
+
+def test_mean_velocities():
+    from numpy import zeros, array
+    from numpy.random import randint, random
+    from strainmap.models.contour_mask import mean_velocities
+    from strainmap.models.readers import ImageTimeSeries
+
+    # constructs cartesian velocities with known means
+    N = 3
+    cartvel = zeros((3, 5, 512, 512))
+    labels = randint(0, N, (5, 512, 512))
+
+    meanvel = random((N, 3, cartvel.shape[1]))
+    for l in range(N):
+        for t in range(cartvel.shape[1]):
+            view = cartvel[:, t, :, :]
+            view[0][labels[t] == l] = meanvel[l, 0, t]
+            view[1][labels[t] == l] = meanvel[l, 1, t]
+            view[2][labels[t] == l] = meanvel[l, 2, t]
+
+    velocities = mean_velocities(
+        cartvel,
+        labels,
+        origin=array(cartvel.shape[2:]) / 2,
+        component_axis=ImageTimeSeries.component_axis,
+        image_axes=ImageTimeSeries.image_axes,
+    )
+
+    assert set(velocities.columns) == {"time", "region", "component", "velocity"}
