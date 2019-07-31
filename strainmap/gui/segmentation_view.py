@@ -16,7 +16,7 @@ from .figure_actions import (
     DrawContours,
     ScrollFrames,
     ZoomAndPan,
-    data_generator,
+    data_scroller,
 )
 from .figure_actions_manager import FigureActionsManager
 
@@ -204,12 +204,12 @@ class SegmentationTaskView(TaskViewBase):
 
         self.ax_mag.imshow(data_to_segment[0][0], cmap=plt.get_cmap("binary_r"))
         self.fig.actions_manager.ScrollFrames.set_generators(
-            data_generator(data_to_segment[0]), self.ax_mag
+            data_scroller(data_to_segment[0]), self.ax_mag
         )
 
         self.ax_vel.imshow(data_to_segment[1][0], cmap=plt.get_cmap("binary_r"))
         self.fig.actions_manager.ScrollFrames.set_generators(
-            data_generator(data_to_segment[1]), self.ax_vel
+            data_scroller(data_to_segment[1]), self.ax_vel
         )
 
     def plot_segments(self):
@@ -233,10 +233,10 @@ class SegmentationTaskView(TaskViewBase):
 
         endo_epi = np.array([endo, epi])
         self.fig.actions_manager.ScrollFrames.set_generators(
-            data_generator(endo_epi, axis=1), axes=self.ax_mag, artist="lines"
+            data_scroller(endo_epi, axis=1), axes=self.ax_mag, artist="lines"
         )
         self.fig.actions_manager.ScrollFrames.set_generators(
-            data_generator(endo_epi, axis=1), axes=self.ax_vel, artist="lines"
+            data_scroller(endo_epi, axis=1), axes=self.ax_vel, artist="lines"
         )
 
     def get_data_to_segment(self):
@@ -377,12 +377,13 @@ class SegmentationTaskView(TaskViewBase):
         self.clear_segments(side="both", initial_or_final="final")
         return dict(
             data=self.data,
-            dataset=self.datasets_var.get(),
-            phantom_dataset=self.phantom_var.get(),
-            endo_target=self.endocardium_target_var.get(),
-            epi_target=self.epicardium_target_var.get(),
-            endo_initial=self.initial_segments["endocardium"],
-            epi_initial=self.initial_segments["epicardium"],
+            dataset_name=self.datasets_var.get(),
+            phantom_dataset_name=self.phantom_var.get(),
+            targets={
+                "endocardium": self.endocardium_target_var.get(),
+                "epicardium": self.epicardium_target_var.get(),
+            },
+            initials=self.initial_segments,
         )
 
     def stop_animation(self):

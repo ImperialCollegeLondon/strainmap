@@ -164,14 +164,14 @@ class BrightnessAndContrast(ActionBase):
         event.inaxes.get_images()[-1].set_clim(clim_low, clim_high)
 
 
-def data_generator(data, axis=0):
-    """Creates a generator for the data that can be called when scrolling."""
+def data_scroller(data, axis=0):
+    """Creates a scroller for the data that can be called when scrolling."""
 
-    def generator(i):
+    def scroller(i):
         j = i % data.shape[axis]
         return data.take(indices=j, axis=axis), j
 
-    return generator
+    return scroller
 
 
 class ScrollFrames(ActionBase):
@@ -227,7 +227,7 @@ class ScrollFrames(ActionBase):
 
     def scroll_axes(self, event, *args):
         """The images available in the axes, if more than one, are scrolled."""
-        self.scroll_axes_(None, event.step, event.inaxes)
+        self._scroll_axes(None, event.step, event.inaxes)
 
     @staticmethod
     def show_frame_number(event, *args):
@@ -247,7 +247,7 @@ class ScrollFrames(ActionBase):
 
         if axes not in self._anim:
             self._anim[axes] = animation.FuncAnimation(
-                fig, self.scroll_axes_, interval=20, fargs=(1, axes)
+                fig, self._scroll_axes, interval=20, fargs=(1, axes)
             )
             self._anim_running[axes] = True
 
@@ -265,7 +265,7 @@ class ScrollFrames(ActionBase):
             if self._anim_running[axes]:
                 self._anim[axes].event_source.stop()
 
-    def scroll_axes_(self, _, step, axes):
+    def _scroll_axes(self, _, step, axes):
         """Internal function that decides what to scroll."""
         step = int(np.sign(step))
         self._current_frames[axes] += step

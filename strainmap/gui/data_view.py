@@ -12,7 +12,7 @@ from .figure_actions import (
     BrightnessAndContrast,
     ScrollFrames,
     ZoomAndPan,
-    data_generator,
+    data_scroller,
 )
 from .figure_actions_manager import FigureActionsManager
 
@@ -28,7 +28,7 @@ class DataTaskView(TaskViewBase):
         # Control-related attributes
         self.data_folder = tk.StringVar(value="")
         self.output_file = tk.StringVar(value="")
-        self.current = os.path.expanduser("~")
+        self.current_dir = os.path.expanduser("~")
         self.phantom_check = tk.BooleanVar(value=False)
         self.control = None
         self.dataselector = None
@@ -231,14 +231,14 @@ class DataTaskView(TaskViewBase):
     def load_data(self):
         """Loads new data into StrainMap"""
         path = tk.filedialog.askdirectory(
-            title="Select DATA directory", initialdir=self.current
+            title="Select DATA directory", initialdir=self.current_dir
         )
 
         output = {}
         if path != "":
-            self.current = path
+            self.current_dir = path
             output = dict(data_files=path)
-            self.data_folder.set(self.current)
+            self.data_folder.set(self.current_dir)
 
         return output
 
@@ -249,7 +249,7 @@ class DataTaskView(TaskViewBase):
         result = {}
         if self.phantom_check.get():
             path = tk.filedialog.askdirectory(
-                title="Select PHANTOM directory", initialdir=self.current
+                title="Select PHANTOM directory", initialdir=self.current_dir
             )
             if path == "":
                 self.phantom_check.set(False)
@@ -324,7 +324,7 @@ class DataTaskView(TaskViewBase):
 
         ax.imshow(data[0], cmap=plt.get_cmap("binary_r"))
 
-        self.fig.actions_manager.ScrollFrames.set_generators(data_generator(data), ax)
+        self.fig.actions_manager.ScrollFrames.set_generators(data_scroller(data), ax)
 
         ax.get_xaxis().set_visible(False)
         ax.get_yaxis().set_visible(False)

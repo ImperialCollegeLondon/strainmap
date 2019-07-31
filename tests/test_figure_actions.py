@@ -127,7 +127,7 @@ def test_reset_brightness_and_contrast(figure):
 
 def test_scroll_frames(figure):
     from matplotlib.backend_bases import MouseEvent
-    from strainmap.gui.figure_actions import ScrollFrames, data_generator
+    from strainmap.gui.figure_actions import ScrollFrames, data_scroller
     import numpy as np
 
     data = np.random.random((3, 10, 10))
@@ -136,7 +136,7 @@ def test_scroll_frames(figure):
     ax.imshow(data[0])
 
     scroll = ScrollFrames()
-    scroll.set_generators(data_generator(data), axes=ax)
+    scroll.set_generators(data_scroller(data), axes=ax)
     event = MouseEvent("click", figure.canvas, x=100, y=100, step=1)
 
     scroll.show_frame_number(event)

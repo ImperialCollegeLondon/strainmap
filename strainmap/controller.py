@@ -86,9 +86,8 @@ class StrainMap(object):
     @bind_event
     def find_segmentation(self, **kwargs):
         """Runs an automated segmentation routine."""
-        if kwargs:
-            reload(quick_segmentation)
-            data = quick_segmentation.find_segmentation(**kwargs)
-            if data.segments:
-                self.unlock(Requisites.SEGMENTED)
-            self.update_views(data)
+        reload(quick_segmentation)
+        data = quick_segmentation.find_segmentation(**kwargs)
+        if data.segments:
+            self.unlock(Requisites.SEGMENTED)
+        self.update_views(data)
