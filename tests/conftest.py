@@ -157,4 +157,6 @@ def figure():
     fig = plt.figure()
     fig.add_subplot()
 
-    return fig
+    yield fig
+
+    plt.close(fig)
