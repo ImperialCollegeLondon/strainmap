@@ -164,16 +164,6 @@ class BrightnessAndContrast(ActionBase):
         event.inaxes.get_images()[-1].set_clim(clim_low, clim_high)
 
 
-def data_scroller(data, axis=0):
-    """Creates a scroller for the data that can be called when scrolling."""
-
-    def scroller(i):
-        j = i % data.shape[axis]
-        return data.take(indices=j, axis=axis), j
-
-    return scroller
-
-
 class ScrollFrames(ActionBase):
     def __init__(
         self,
@@ -198,19 +188,12 @@ class ScrollFrames(ActionBase):
         self._anim = {}
         self._anim_running = {}
         self._current_frames = defaultdict(lambda: 0)
-        self._images_generator = {}
-        self._lines_generator = {}
+        self._scroller = {}
         self._linked_axes = {}
 
-    def set_generators(self, generator, axes, artist="images"):
+    def set_scroller(self, scroller, axes):
         """Sets the generator function that will produce the new data when scrolling."""
-        if artist == "images":
-            self._images_generator[axes] = generator
-        elif artist == "lines":
-            self._lines_generator[axes] = generator
-        else:
-            msg = "'artist' keyword in 'set_generators' must be 'images' or 'lines'."
-            raise ValueError(msg)
+        self._scroller[axes] = scroller
 
     def link_axes(self, axes1, axes2):
         """Links two axes, so scrolling happens simultaneously in both."""
@@ -229,10 +212,10 @@ class ScrollFrames(ActionBase):
         """The images available in the axes, if more than one, are scrolled."""
         self._scroll_axes(None, event.step, event.inaxes)
 
-    @staticmethod
-    def show_frame_number(event, *args):
+    def show_frame_number(self, event, *args):
         """Shows the frame number on top of the axes."""
-        event.inaxes.set_title(f"Frame: 0", loc="left")
+        axes = event.inaxes
+        axes.set_title(f"Frame: {self._current_frames[axes]}", loc="left")
 
     @staticmethod
     def hide_frame_number(event, *args):
@@ -269,38 +252,32 @@ class ScrollFrames(ActionBase):
         """Internal function that decides what to scroll."""
         step = int(np.sign(step))
         self._current_frames[axes] += step
-        self.scroll_images(axes)
-        self.scroll_lines(axes)
+        self.scroll_artists(axes)
 
         if axes in self._linked_axes:
             self._current_frames[self._linked_axes[axes]] += step
-            self.scroll_images(self._linked_axes[axes])
-            self.scroll_lines(self._linked_axes[axes])
+            self.scroll_artists(self._linked_axes[axes])
 
-    def scroll_images(self, axes):
+    def scroll_artists(self, axes):
         """Actually scroll the data of a single axes."""
-        if axes not in self._images_generator or len(axes.images) != 1:
+        if axes not in self._scroller:
             return
 
-        new_data, self._current_frames[axes] = self._images_generator[axes](
+        self._current_frames[axes], img, lines = self._scroller[axes](
             self._current_frames[axes]
         )
-        axes.images[0].set_data(new_data)
-        axes.set_title(f"Frame: {self._current_frames[axes]}", loc="left")
+        if img is not None:
+            axes.images[0].set_data(img)
 
-    def scroll_lines(self, axes):
-        """Actually scroll the data of a single axes."""
-        if axes not in self._lines_generator:
-            return
-
-        new_data, self._current_frames[axes] = self._lines_generator[axes](
-            self._current_frames[axes]
-        )
-        if len(axes.lines) == 1:
-            axes.lines[0].set_data(new_data)
+        if lines is None:
+            pass
+        elif isinstance(lines, tuple):
+            for i, l in enumerate(lines):
+                if l is None:
+                    continue
+                axes.lines[i].set_data(l)
         else:
-            for i, d in enumerate(new_data):
-                axes.lines[i].set_data(d)
+            axes.lines[0].set_data(lines)
 
         axes.set_title(f"Frame: {self._current_frames[axes]}", loc="left")
 
@@ -564,11 +541,15 @@ class DragContours(ActionBase):
         self.contour_fraction = np.clip(contour_fraction, a_min=0, a_max=1)
         self._current_artist = None
         self._drag_handle = 0
-        self.contour_updated = (
+        self._contour_updated = (
             partial(contour_updated, **kwargs)
             if contour_updated is not None
             else lambda *args: None
         )
+
+    def set_contour_updated(self, contour_updated: Callable):
+        """Sets the function to be called when the contour is updated."""
+        self._contour_updated = contour_updated
 
     def drag_point(self, event, last_event, *args):
         """Drags a point and all the neighbouring ones of a closed contour."""
@@ -600,7 +581,11 @@ class DragContours(ActionBase):
         self._current_artist.set_xdata(newx)
         self._current_artist.set_ydata(newy)
 
-        self.contour_updated(np.array([newx, newy]))
+        self._contour_updated(
+            self._current_artist.get_label(),
+            self._current_artist.axes,
+            np.array([newx, newy]),
+        )
 
         return event
 

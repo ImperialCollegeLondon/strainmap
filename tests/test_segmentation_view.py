@@ -28,7 +28,7 @@ def test_update_plots(segmentation_view, strainmap_data):
 def test_plot_images(segmentation_view, strainmap_data):
     segmentation_view.data = strainmap_data
 
-    generators = segmentation_view.fig.actions_manager.ScrollFrames._images_generator
+    generators = segmentation_view.fig.actions_manager.ScrollFrames._scroller
 
     assert segmentation_view.ax_mag in generators
     assert segmentation_view.ax_vel in generators
@@ -40,9 +40,9 @@ def test_get_data_to_segment(segmentation_view, strainmap_data):
     dataset = list(strainmap_data.data_files.keys())[0]
     expected_vel = strainmap_data.get_images(dataset, "PhaseZ")
 
-    mag, vel = segmentation_view.get_data_to_segment()
-    assert expected_vel == approx(vel)
-    assert expected_vel.shape == mag.shape
+    actual = segmentation_view.get_data_to_segment()
+    assert expected_vel == approx(actual["vel"])
+    assert expected_vel.shape == actual["mag"].shape
 
 
 def test_switch_button_text(segmentation_view):
@@ -123,7 +123,7 @@ def test_plot_segments(segmentation_view, strainmap_data):
 
     segmentation_view.plot_segments()
 
-    generators = segmentation_view.fig.actions_manager.ScrollFrames._lines_generator
+    generators = segmentation_view.fig.actions_manager.ScrollFrames._scroller
 
     assert segmentation_view.ax_mag in generators
     assert segmentation_view.ax_vel in generators

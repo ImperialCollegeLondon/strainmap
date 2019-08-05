@@ -1,7 +1,7 @@
 import tkinter as tk
 from tkinter import ttk
 
-from typing import Optional, Dict
+from typing import Optional, Dict, Tuple
 from functools import partial
 
 import matplotlib.pyplot as plt
@@ -16,7 +16,7 @@ from .figure_actions import (
     DrawContours,
     ScrollFrames,
     ZoomAndPan,
-    data_scroller,
+    DragContours,
 )
 from .figure_actions_manager import FigureActionsManager
 
@@ -34,8 +34,16 @@ class SegmentationTaskView(TaskViewBase):
 
         # Control-related attributes
         self.control = None
-        self.initial_segments = {"endocardium": None, "epicardium": None}
-        self.final_segments = {"endocardium": None, "epicardium": None}
+        self.current_frame = 0
+        self.images = Tuple[Optional[np.ndarray], Optional[np.ndarray]]
+        self.initial_segments: Dict[str, Optional[np.ndarray]] = {
+            "endocardium": None,
+            "epicardium": None,
+        }
+        self.final_segments: Dict[str, Optional[np.ndarray]] = {
+            "endocardium": None,
+            "epicardium": None,
+        }
         self.endocardium_target_var = tk.StringVar(value="mag")
         self.epicardium_target_var = tk.StringVar(value="mag")
         self.datasets_var = tk.StringVar(value="")
@@ -169,10 +177,16 @@ class SegmentationTaskView(TaskViewBase):
         canvas.get_tk_widget().grid(sticky=tk.NSEW)
 
         self.fig.actions_manager = FigureActionsManager(
-            self.fig, ZoomAndPan, BrightnessAndContrast, ScrollFrames, DrawContours
+            self.fig,
+            ZoomAndPan,
+            BrightnessAndContrast,
+            ScrollFrames,
+            DrawContours,
+            DragContours,
         )
         self.fig.actions_manager.DrawContours.num_contours = 0
         self.fig.actions_manager.ScrollFrames.link_axes(self.ax_mag, self.ax_vel)
+        self.fig.actions_manager.DragContours.set_contour_updated(self.contour_edited)
 
     def update_plots(self, *args):
         """Updates an existing plot when a new dataset is chosen."""
@@ -192,6 +206,13 @@ class SegmentationTaskView(TaskViewBase):
         self.plot_images()
         self.plot_segments()
 
+        self.fig.actions_manager.ScrollFrames.set_scroller(
+            lambda frame, axes="mag": self.scroll(frame, axes), self.ax_mag
+        )
+        self.fig.actions_manager.ScrollFrames.set_scroller(
+            lambda frame, axes="vel": self.scroll(frame, axes), self.ax_vel
+        )
+
         if xlim is not None:
             self.ax_mag.set_xlim(*xlim)
             self.ax_mag.set_ylim(*ylim)
@@ -200,17 +221,10 @@ class SegmentationTaskView(TaskViewBase):
 
     def plot_images(self):
         """Updates the images in the plot."""
-        data_to_segment = self.get_data_to_segment()
+        self.images = self.get_data_to_segment()
 
-        self.ax_mag.imshow(data_to_segment[0][0], cmap=plt.get_cmap("binary_r"))
-        self.fig.actions_manager.ScrollFrames.set_generators(
-            data_scroller(data_to_segment[0]), self.ax_mag
-        )
-
-        self.ax_vel.imshow(data_to_segment[1][0], cmap=plt.get_cmap("binary_r"))
-        self.fig.actions_manager.ScrollFrames.set_generators(
-            data_scroller(data_to_segment[1]), self.ax_vel
-        )
+        self.ax_mag.imshow(self.images["mag"][0], cmap=plt.get_cmap("binary_r"))
+        self.ax_vel.imshow(self.images["vel"][0], cmap=plt.get_cmap("binary_r"))
 
     def plot_segments(self):
         """Updates the segments in the plot, if any."""
@@ -219,25 +233,35 @@ class SegmentationTaskView(TaskViewBase):
         if len(self.data.segments[dataset]) == 0:
             return
 
-        endo = np.array(
-            [segment.xy.T for segment in self.data.segments[dataset]["endocardium"]]
-        )
-        epi = np.array(
-            [segment.xy.T for segment in self.data.segments[dataset]["epicardium"]]
-        )
+        for side in ["endocardium", "epicardium"]:
+            self.final_segments[side] = np.array(
+                [segment.xy.T for segment in self.data.segments[dataset][side]]
+            )
+            self.ax_mag.plot(*self.final_segments[side][0], picker=8, label=side)
+            self.ax_vel.plot(*self.final_segments[side][0], picker=8, label=side)
 
-        self.ax_mag.plot(*endo[0])
-        self.ax_vel.plot(*endo[0])
-        self.ax_mag.plot(*epi[0])
-        self.ax_vel.plot(*epi[0])
+    def scroll(self, frame, image=None):
+        """Provides the next images and lines to plot when scrolling."""
+        self.current_frame = frame % self.images["mag"].shape[0]
+        img = endo = epi = None
 
-        endo_epi = np.array([endo, epi])
-        self.fig.actions_manager.ScrollFrames.set_generators(
-            data_scroller(endo_epi, axis=1), axes=self.ax_mag, artist="lines"
-        )
-        self.fig.actions_manager.ScrollFrames.set_generators(
-            data_scroller(endo_epi, axis=1), axes=self.ax_vel, artist="lines"
-        )
+        if image in ["mag", "vel"]:
+            img = self.images[image][self.current_frame]
+        if self.final_segments["endocardium"] is not None:
+            endo = self.final_segments["endocardium"][self.current_frame]
+        if self.final_segments["epicardium"] is not None:
+            epi = self.final_segments["epicardium"][self.current_frame]
+
+        return self.current_frame, img, (endo, epi)
+
+    def contour_edited(self, label, axes, data):
+        """After a contour is modified, this function is executed."""
+        self.final_segments[label][self.current_frame] = data
+
+        for ax in set(self.fig.axes) - {axes}:
+            for l in ax.lines:
+                if l.get_label() == label:
+                    l.set_data(data)
 
     def get_data_to_segment(self):
         """Gets the data that will be segmented."""
@@ -249,7 +273,7 @@ class SegmentationTaskView(TaskViewBase):
         mag = magx + magy + magz
         vel = self.data.get_images(dataset, "PhaseZ")
 
-        return mag, vel
+        return {"mag": mag, "vel": vel}
 
     def initial_contour(self, side):
         """Starts, interrupts or clears the definition of an initial contour."""
@@ -337,7 +361,7 @@ class SegmentationTaskView(TaskViewBase):
             self.nametowidget("control.runSegmentation")["state"] = "enable"
 
     def clear_segments(self, side="both", initial_or_final="both"):
-        """Clears the initial segments."""
+        """Clears the segments."""
         self.ax_mag.lines.clear()
         self.ax_vel.lines.clear()
 
