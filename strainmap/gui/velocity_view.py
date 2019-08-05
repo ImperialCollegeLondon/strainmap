@@ -27,11 +27,14 @@ def plot_velocities(
     Returns:
         An array of subplot axes.
     """
+    from scipy.ndimage import center_of_mass
     from ..models.contour_mask import masked_means, cylindrical_projection
 
     assert velocities.ndim >= len(image_axes) + 1
     if figure is None:
         figure = plt.gcf()
+    if origin is None:
+        origin = center_of_mass(labels > 0)
 
     bulk_velocity = masked_means(velocities, labels > 0, axes=image_axes).reshape(
         tuple(1 if i in image_axes else v for i, v in enumerate(velocities.shape))

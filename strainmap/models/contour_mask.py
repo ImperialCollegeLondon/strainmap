@@ -267,7 +267,9 @@ def radial_segments(
     else:
         origin = np.array(center)
 
-    nx, ny = (outer.shape[0], outer.shape[1]) if shape is None else shape
+    if shape is None:
+        shape = outer.shape[0], outer.shape[1]
+    nx, ny = shape
 
     x = np.arange(0, nx, dtype=int)[None, :] - origin[0]
     y = np.arange(0, ny, dtype=int)[:, None] - origin[1]
