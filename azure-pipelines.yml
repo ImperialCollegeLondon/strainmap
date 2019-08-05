@@ -30,7 +30,8 @@ steps:
     displayName: "Install prerequisites"
 
   - script: |
-      xvfb-run -a python3 setup.py -q test
+      export PYTHONPATH=$PYTHONPATH:/usr/lib/python3.7
+      xvfb-run -a python setup.py -q test
     condition: and(succeededOrFailed(), eq(variables['Agent.OS'], 'Linux'))
     displayName: "Run tests in Linux"
 
