@@ -194,7 +194,7 @@ def test_masked_means_time_axis():
 
 
 def test_mean_velocities():
-    from numpy import logical_and, array, sum
+    from numpy import array, sum
     from numpy.random import randint, random
     from strainmap.models.contour_mask import mean_velocities, cylindrical_projection
 
@@ -208,7 +208,7 @@ def test_mean_velocities():
         cartvel, labels, origin=origin, component_axis=0, image_axes=(2, 3)
     )
 
-    assert set(velocities.columns) == {"time", "region", "component", "velocity"}
+    assert velocities.shape == (len(set(labels.flat)), 3, 5)
 
     nribbon = sum(labels > 0, axis=(1, 2))
     bulk = sum(cartvel * (labels > 0)[None, :, :, :], axis=(2, 3)) / nribbon
@@ -219,16 +219,8 @@ def test_mean_velocities():
         image_axes=(2, 3),
     )
     global_mean = (cylvel * (labels > 0)[None, :, :, :]).sum(axis=(2, 3)) / nribbon
-    for i, c in enumerate(("r", "theta", "z")):
-        actual = velocities[
-            logical_and(velocities.region == 0, velocities.component == c)
-        ]
-        assert actual.velocity.values == approx(global_mean[i])
+    assert velocities[0, :, :] == approx(global_mean)
 
     nmeans = (labels == 1).sum(axis=(1, 2))
     region1_mean = (cylvel * (labels == 1)[None, :, :, :]).sum(axis=(2, 3)) / nmeans
-    for i, c in enumerate(("r", "theta", "z")):
-        actual = velocities[
-            logical_and(velocities.region == 1, velocities.component == c)
-        ]
-        assert actual.velocity.values == approx(region1_mean[i])
+    assert velocities[1, :, :] == approx(region1_mean)

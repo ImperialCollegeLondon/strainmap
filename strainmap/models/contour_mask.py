@@ -4,7 +4,6 @@ import copy
 from typing import Optional, Sequence, Tuple, Union
 
 import numpy as np
-import pandas as pd
 from scipy import interpolate, ndimage
 from skimage.draw import polygon_perimeter
 
@@ -533,7 +532,7 @@ def mean_velocities(
     time_axis: Optional[int] = ImageTimeSeries.time_axis,
     origin: Optional[np.ndarray] = None,
     **kwargs,
-) -> pd.DataFame:
+) -> np.ndarray:
     """Global and masked mean velocities in cylindrical basis.
 
     Args:
@@ -546,7 +545,10 @@ def mean_velocities(
         origin: origin of the cylindrical basis
 
     Returns:
-        An array of subplot axes.
+        a numpy array where the first axis indicates the label, and the second axis
+        indicates the component (from `component_axis`). Subsequent axes are the extra
+        axes from `velocities` (other than component and image axes). Label 0 is the
+        global mean.
     """
     assert velocities.ndim >= len(image_axes) + (1 if time_axis is None else 2)
     if origin is None:
@@ -564,28 +566,9 @@ def mean_velocities(
     local_means = masked_means(cylindrical, labels, axes=image_axes)
     global_means = masked_means(cylindrical, labels > 0, axes=image_axes)
 
-    data: np.ndarray = np.concatenate([global_means, local_means], axis=0)
-    columns = {"velocity": data}
-
-    columns["region"] = np.array(sorted(set(labels.flat).union({0})))
-    columns["component"] = np.array(["r", "theta", "z"])
-    if time_axis is not None:
-        columns["time"] = np.arange(velocities.shape[time_axis], dtype=int)
-
-    if time_axis is not None and time_axis > component_axis:
-        columns["region"] = columns["region"][:, None, None]
-        columns["component"] = columns["component"][None, :, None]
-        columns["time"] = columns["time"][None, None, :]
-    elif time_axis is not None:
-        columns["region"] = columns["region"][:, None, None]
-        columns["component"] = columns["component"][None, None, :]
-        columns["time"] = columns["time"][None, :, None]
-    else:
-        columns["region"] = columns["region"][:, None]
-        columns["component"] = columns["component"][None, :]
-
-    return pd.DataFrame(
-        {k: np.broadcast_to(v, data.shape).flat for k, v in columns.items()}
+    return np.rollaxis(
+        np.concatenate([global_means, local_means], axis=0),
+        component_axis - sum(i < component_axis for i in image_axes),
     )
 
 
