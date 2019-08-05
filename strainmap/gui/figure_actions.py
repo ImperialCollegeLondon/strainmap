@@ -1,18 +1,20 @@
+from collections import defaultdict
+from functools import partial
+from typing import Callable, Dict, Optional
+
+import matplotlib.animation as animation
+import numpy as np
+from matplotlib.lines import Line2D
+from matplotlib.patches import CirclePolygon
+from scipy import interpolate
+
 from .figure_actions_manager import (
-    Location,
+    ActionBase,
     Button,
+    Location,
     MouseAction,
     TriggerSignature,
-    ActionBase,
 )
-import numpy as np
-from scipy import interpolate
-from typing import Callable, Dict, Optional
-from functools import partial
-import matplotlib.animation as animation
-from matplotlib.patches import CirclePolygon
-from matplotlib.lines import Line2D
-from collections import defaultdict
 
 
 def get_deltas(event, last_event):
@@ -162,6 +164,16 @@ class BrightnessAndContrast(ActionBase):
         event.inaxes.get_images()[-1].set_clim(clim_low, clim_high)
 
 
+def data_scroller(data, axis=0):
+    """Creates a scroller for the data that can be called when scrolling."""
+
+    def scroller(i):
+        j = i % data.shape[axis]
+        return data.take(indices=j, axis=axis), j
+
+    return scroller
+
+
 class ScrollFrames(ActionBase):
     def __init__(
         self,
@@ -176,29 +188,51 @@ class ScrollFrames(ActionBase):
     ):
         super().__init__(
             signatures={
-                scroll_frames: self.scroll_frames,
+                scroll_frames: self.scroll_axes,
                 show_frame_number: self.show_frame_number,
                 hide_frame_number: self.hide_frame_number,
                 animate: self.animate,
             }
         )
         self._img_shift = 0
-        self._images = defaultdict(list)
         self._anim = {}
         self._anim_running = {}
+        self._current_frames = defaultdict(lambda: 0)
+        self._images_generator = {}
+        self._lines_generator = {}
+        self._linked_axes = {}
 
-    def scroll_frames(self, event, *args):
+    def set_generators(self, generator, axes, artist="images"):
+        """Sets the generator function that will produce the new data when scrolling."""
+        if artist == "images":
+            self._images_generator[axes] = generator
+        elif artist == "lines":
+            self._lines_generator[axes] = generator
+        else:
+            msg = "'artist' keyword in 'set_generators' must be 'images' or 'lines'."
+            raise ValueError(msg)
+
+    def link_axes(self, axes1, axes2):
+        """Links two axes, so scrolling happens simultaneously in both."""
+        if axes1 in self._linked_axes or axes2 in self._linked_axes:
+            raise RuntimeError("An axes can only be linked to a single other.")
+
+        self._linked_axes[axes1] = axes2
+        self._linked_axes[axes2] = axes1
+
+    def unlink_axes(self, axes1, axes2):
+        """Unlinks two linked axes."""
+        self._linked_axes.pop(axes1, None)
+        self._linked_axes.pop(axes2, None)
+
+    def scroll_axes(self, event, *args):
         """The images available in the axes, if more than one, are scrolled."""
-        self.scroll_frames_(None, event.step, event.inaxes)
+        self._scroll_axes(None, event.step, event.inaxes)
 
-    def show_frame_number(self, event, *args):
-        """Shows the frame number on top of the axes.
-
-        If it is the first time, all images but one are extracted from the axes."""
-        if len(self._images[event.inaxes]) == 0:
-            self.extract_images(event)
-
-        event.inaxes.set_title(f"Frame: {self._img_shift}", loc="left")
+    @staticmethod
+    def show_frame_number(event, *args):
+        """Shows the frame number on top of the axes."""
+        event.inaxes.set_title(f"Frame: 0", loc="left")
 
     @staticmethod
     def hide_frame_number(event, *args):
@@ -206,18 +240,14 @@ class ScrollFrames(ActionBase):
         event.inaxes.set_title("", loc="left")
 
     def animate(self, event, *args):
-        """Animate the sequence of images in the axes.
-
-        If it is the first time, all images but one are extracted from the axes."""
-        if len(self._images[event.inaxes]) == 0:
-            self.extract_images(event)
+        """Animate the sequence of images in the axes."""
 
         fig = event.canvas.figure
         axes = event.inaxes
 
         if axes not in self._anim:
             self._anim[axes] = animation.FuncAnimation(
-                fig, self.scroll_frames_, interval=20, fargs=(1, axes)
+                fig, self._scroll_axes, interval=20, fargs=(1, axes)
             )
             self._anim_running[axes] = True
 
@@ -229,25 +259,50 @@ class ScrollFrames(ActionBase):
             self._anim[axes].event_source.stop()
             self._anim_running[axes] = False
 
-    def scroll_frames_(self, _, step, axes):
-        """Internal function that actually carries the scrolling."""
-        self._img_shift += step
-        self._img_shift = self._img_shift % len(self._images[axes])
-        axes.images[0] = self._images[axes][self._img_shift]
-        axes.set_title(f"Frame: {self._img_shift}", loc="left")
+    def stop_animation(self):
+        """Stops an animation, if there is one running."""
+        for axes in self._anim_running:
+            if self._anim_running[axes]:
+                self._anim[axes].event_source.stop()
 
-    def extract_images(self, event):
-        """Images are extracted from the axes.
+    def _scroll_axes(self, _, step, axes):
+        """Internal function that decides what to scroll."""
+        step = int(np.sign(step))
+        self._current_frames[axes] += step
+        self.scroll_images(axes)
+        self.scroll_lines(axes)
 
-        Scrolling with many images loaded in the axes is very expensive, so the first
-        time the pointer entyers into the axes, the images are extracted from the axes.
-        When scrolling, they will be added back one at a time, replacing the one on
-        display."""
-        for i in range(len(event.inaxes.images)):
-            self._images[event.inaxes].append(event.inaxes.images.pop())
+        if axes in self._linked_axes:
+            self._current_frames[self._linked_axes[axes]] += step
+            self.scroll_images(self._linked_axes[axes])
+            self.scroll_lines(self._linked_axes[axes])
 
-        event.inaxes.images.clear()
-        event.inaxes.images = [self._images[event.inaxes][self._img_shift]]
+    def scroll_images(self, axes):
+        """Actually scroll the data of a single axes."""
+        if axes not in self._images_generator or len(axes.images) != 1:
+            return
+
+        new_data, self._current_frames[axes] = self._images_generator[axes](
+            self._current_frames[axes]
+        )
+        axes.images[0].set_data(new_data)
+        axes.set_title(f"Frame: {self._current_frames[axes]}", loc="left")
+
+    def scroll_lines(self, axes):
+        """Actually scroll the data of a single axes."""
+        if axes not in self._lines_generator:
+            return
+
+        new_data, self._current_frames[axes] = self._lines_generator[axes](
+            self._current_frames[axes]
+        )
+        if len(axes.lines) == 1:
+            axes.lines[0].set_data(new_data)
+        else:
+            for i, d in enumerate(new_data):
+                axes.lines[i].set_data(d)
+
+        axes.set_title(f"Frame: {self._current_frames[axes]}", loc="left")
 
     def clear(self):
         """Removes the information stored in the ScrollFrame object."""
@@ -256,7 +311,6 @@ class ScrollFrames(ActionBase):
             del anim
         self._anim = {}
         self._anim_running = {}
-        self._images = defaultdict(list)
         self._img_shift = 0
 
 
@@ -302,10 +356,10 @@ class DrawContours(ActionBase):
         num_contours: int = -1,
         draw_contour: Callable = circle,
         contours_updated: Optional[Callable] = None,
-        add_point=TriggerSignature(Location.CENTRE, Button.LEFT, MouseAction.CLICK),
-        remove_artist=TriggerSignature(Location.CENTRE, Button.RIGHT, MouseAction.PICK),
+        add_point=TriggerSignature(Location.CROSS, Button.LEFT, MouseAction.CLICK),
+        remove_artist=TriggerSignature(Location.CROSS, Button.RIGHT, MouseAction.PICK),
         clear_drawing=TriggerSignature(
-            Location.CENTRE, Button.RIGHT, MouseAction.DCLICK
+            Location.CROSS, Button.RIGHT, MouseAction.DCLICK
         ),
         **kwargs,
     ):
@@ -425,8 +479,18 @@ class DrawContours(ActionBase):
         Returns:
             None
         """
-        axes = event.inaxes
+        self.clear_drawing_(event.inaxes)
 
+    def clear_drawing_(self, axes, *args) -> None:
+        """ Clears all the data accumulated in the drawing and the axes.
+
+        Args:
+            axes: The axes from which to delete everything.
+            *args: (ignored)
+
+        Returns:
+            None
+        """
         self.points[axes].clear()
         self.contour_data[axes].clear()
 
@@ -438,10 +502,6 @@ class DrawContours(ActionBase):
 
         self.marks[axes].clear()
         self.contours[axes].clear()
-
-        self.contours_updated(  # type: ignore
-            self.contour_data[axes], np.array(self.points[axes])
-        )
 
     def add_contour(self, axes) -> None:
         """ Calls the contour callback and add a contour to the axes with the data.

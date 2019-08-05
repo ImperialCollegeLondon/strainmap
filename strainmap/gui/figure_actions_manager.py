@@ -1,11 +1,11 @@
 from __future__ import annotations
 
 import weakref
-from enum import Flag, auto
-from time import time
-from typing import Callable, Dict, NamedTuple, Optional, Type, List, Text
 from collections import defaultdict
+from enum import Flag, auto
 from itertools import chain
+from time import time
+from typing import Callable, Dict, List, NamedTuple, Optional, Text, Type
 
 import numpy as np
 from matplotlib.backend_bases import Event
@@ -23,6 +23,7 @@ class Location(Flag):
     SE = auto()
     CENTRE = auto()
     EDGE = N | S | E | W | NW | NE | SW | SE
+    CROSS = CENTRE | N | S | E | W
     ANY = CENTRE | EDGE
     OUTSIDE = ~ANY
 
@@ -147,7 +148,7 @@ class FigureActionsManager(object):
         self._time_init = 0
         self._event: List = []
         self._last_event = None
-        self._current_action = None
+        self._current_action: list = []
         self._actions: Dict = defaultdict(list)
 
         self._connect_events()
@@ -186,7 +187,7 @@ class FigureActionsManager(object):
         """Removes all information related to previous events."""
         self._event = []
         self._last_event = None
-        self._current_action = None
+        self._current_action = []
 
     def _connect_events(self):
         """Connects the relevant events to the canvas."""
@@ -221,7 +222,7 @@ class FigureActionsManager(object):
         if time() - self._time_init < self.delay:
             return
 
-        elif self._current_action is None:
+        elif len(self._current_action) == 0:
             self._last_event, mouse_action, mouse_event = self._select_movement_type(
                 event
             )
@@ -230,14 +231,16 @@ class FigureActionsManager(object):
 
             self._current_action = self._select_action(location, button, mouse_action)
 
-        if len(self._current_action) == 1:
+        if len(self._current_action) == 0:
+            return
+        elif len(self._current_action) == 1:
             self._last_event = self._current_action[0](event, self._last_event)
-
         else:
+            print(self._current_action)
             for ac in self._current_action:
                 ac(event, self._last_event)
 
-            self._current_action = None
+            self._current_action = []
 
         self.draw()
 

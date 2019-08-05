@@ -2,7 +2,6 @@ import numpy as np
 
 from .contour_mask import Contour
 
-
 REGISTERED_PROPAGATORS: dict = {}
 """ Dictionary with all the propagators available in StrainMap."""
 
@@ -45,6 +44,7 @@ def weighted(*, initial, previous, **kwargs) -> Contour:
     initial contour and 0 resulting in the previous one.
     """
     from copy import copy
+
     if previous is None or initial is None:
         msg = "'initial' and 'previous' cannot be None in the 'weighted' propagator."
         raise RuntimeError(msg)

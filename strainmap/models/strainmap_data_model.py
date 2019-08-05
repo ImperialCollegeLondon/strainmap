@@ -1,5 +1,7 @@
 from pathlib import Path
 from typing import Mapping, Optional, Text, Union
+from collections import defaultdict
+import numpy as np
 
 from .readers import read_dicom_directory_tree, read_dicom_file_tags, read_images
 
@@ -13,12 +15,17 @@ class StrainMapData(object):
 
         self.data_files = data_files
         self.bg_files = bg_files if bg_files else {}
+        self.segments: dict = defaultdict(dict)
+        self.velocities: dict = defaultdict(dict)
 
     def read_dicom_file_tags(self, series, variable, idx):
         return read_dicom_file_tags(self.data_files, series, variable, idx)
 
     def get_images(self, series, variable):
-        return read_images(self.data_files, series, variable)
+        return np.array(read_images(self.data_files, series, variable))
+
+    def get_bg_images(self, series, variable):
+        return np.array(read_images(self.bg_files, series, variable))
 
 
 def factory(

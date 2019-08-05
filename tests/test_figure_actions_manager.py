@@ -51,7 +51,7 @@ def test_mouse_moved(actions_manager):
 
     # One event to execute
     action1 = MagicMock()
-    actions_manager._current_action = None
+    actions_manager._current_action = []
 
     actions_manager._select_action = MagicMock(return_value=[action1])
     actions_manager._time_init = time()
@@ -62,7 +62,7 @@ def test_mouse_moved(actions_manager):
     # More than one event to execute
     action1 = MagicMock()
     action2 = MagicMock()
-    actions_manager._current_action = None
+    actions_manager._current_action = []
 
     actions_manager._select_action = MagicMock(return_value=[action1, action2])
     actions_manager._time_init = time()

@@ -5,7 +5,6 @@ from typing import Optional, Sequence, Tuple, Union
 
 import numpy as np
 from scipy import interpolate, ndimage
-
 from skimage.draw import polygon_perimeter
 
 

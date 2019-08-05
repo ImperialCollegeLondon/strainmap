@@ -1,12 +1,12 @@
 import glob
+import re
 from collections import OrderedDict
 from copy import deepcopy
 from pathlib import Path
-from typing import List, Mapping, Optional, Text, Union, Dict
-import re
+from typing import Dict, List, Mapping, Optional, Text, Union
 
-from nibabel.nicom import csareader as csar
 import pydicom
+from nibabel.nicom import csareader as csar
 
 VAR_OFFSET = {"MagZ": 0, "PhaseZ": 1, "MagX": 2, "PhaseX": 3, "MagY": 4, "PhaseY": 5}
 
@@ -25,7 +25,7 @@ def read_dicom_directory_tree(path: Union[Path, Text]) -> Mapping:
         if not parallel_spirals(ds):
             continue
 
-        if ds.ProtocolName not in data_files.keys():
+        if ds.SeriesDescription not in data_files.keys():
             data_files[ds.SeriesDescription] = OrderedDict()
             var_idx = {}
             for var in VAR_OFFSET:
@@ -41,10 +41,12 @@ def read_dicom_directory_tree(path: Union[Path, Text]) -> Mapping:
 def parallel_spirals(dicom_data):
     """Checks if ParallelSpirals is in the tSequenceFileName."""
     csa = csar.get_csa_header(dicom_data, "series")
-    ascii_header = csa["tags"]["MrPhoenixProtocol"]["items"][0]
-    tSequenceFileName = re.search('tSequenceFileName\t = \t""(.*)""', ascii_header)[1]
-
-    return True if "ParallelSpirals" in tSequenceFileName else False
+    try:
+        ascii_header = csa["tags"]["MrPhoenixProtocol"]["items"][0]
+        tSequenceFileName = re.search('tSequenceFileName\t = \t""(.*)""', ascii_header)
+        return True if "ParallelSpirals" in tSequenceFileName[1] else False
+    except TypeError:
+        return False
 
 
 def read_dicom_file_tags(

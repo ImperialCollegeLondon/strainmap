@@ -1,15 +1,18 @@
 """ Entry point of StrainMap, creating the main window and variables used along the
 whole code. """
+from importlib import reload
+
+from .gui import *  # noqa: F403,F401
 from .gui.base_window_and_task import (
-    REGISTERED_VIEWS,
+    EVENTS,
     REGISTERED_BINDINGS,
     REGISTERED_TRIGGERS,
-    EVENTS,
+    REGISTERED_VIEWS,
     Requisites,
     bind_event,
 )
 from .models.strainmap_data_model import factory
-from .gui import *  # noqa: F403,F401
+from .models import quick_segmentation
 
 
 class StrainMap(object):
@@ -66,7 +69,7 @@ class StrainMap(object):
 
     @bind_event
     def load_data(self, **kwargs):
-        """ Creates a StrainMapData object. """
+        """Creates a StrainMapData object."""
         if kwargs:
             data = factory(**kwargs)
             if data.data_files:
@@ -75,7 +78,16 @@ class StrainMap(object):
 
     @bind_event
     def clear_data(self, **kwargs):
-        """ Clears the StrainMapData object from the widgets. """
+        """Clears the StrainMapData object from the widgets."""
         if kwargs.get("clear", False):
             self.lock(Requisites.DATALOADED)
             self.update_views(None)
+
+    @bind_event
+    def find_segmentation(self, **kwargs):
+        """Runs an automated segmentation routine."""
+        reload(quick_segmentation)
+        data = quick_segmentation.find_segmentation(**kwargs)
+        if data.segments:
+            self.unlock(Requisites.SEGMENTED)
+        self.update_views(data)
