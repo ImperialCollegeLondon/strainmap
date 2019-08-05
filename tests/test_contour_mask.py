@@ -194,30 +194,41 @@ def test_masked_means_time_axis():
 
 
 def test_mean_velocities():
-    from numpy import zeros, array
+    from numpy import logical_and, array, sum
     from numpy.random import randint, random
-    from strainmap.models.contour_mask import mean_velocities
-    from strainmap.models.readers import ImageTimeSeries
+    from strainmap.models.contour_mask import mean_velocities, cylindrical_projection
 
-    # constructs cartesian velocities with known means
     N = 3
-    cartvel = zeros((3, 5, 512, 512))
+    cartvel = random((3, 5, 512, 512))
     labels = randint(0, N, (5, 512, 512))
 
-    meanvel = random((N, 3, cartvel.shape[1]))
-    for l in range(N):
-        for t in range(cartvel.shape[1]):
-            view = cartvel[:, t, :, :]
-            view[0][labels[t] == l] = meanvel[l, 0, t]
-            view[1][labels[t] == l] = meanvel[l, 1, t]
-            view[2][labels[t] == l] = meanvel[l, 2, t]
+    origin = array((256, 256))
 
     velocities = mean_velocities(
-        cartvel,
-        labels,
-        origin=array(cartvel.shape[2:]) / 2,
-        component_axis=ImageTimeSeries.component_axis,
-        image_axes=ImageTimeSeries.image_axes,
+        cartvel, labels, origin=origin, component_axis=0, image_axes=(2, 3)
     )
 
     assert set(velocities.columns) == {"time", "region", "component", "velocity"}
+
+    nribbon = sum(labels > 0, axis=(1, 2))
+    bulk = sum(cartvel * (labels > 0)[None, :, :, :], axis=(2, 3)) / nribbon
+    cylvel = cylindrical_projection(
+        cartvel - bulk[:, :, None, None],
+        origin=origin,
+        component_axis=0,
+        image_axes=(2, 3),
+    )
+    global_mean = (cylvel * (labels > 0)[None, :, :, :]).sum(axis=(2, 3)) / nribbon
+    for i, c in enumerate(("r", "theta", "z")):
+        actual = velocities[
+            logical_and(velocities.region == 0, velocities.component == c)
+        ]
+        assert actual.velocity.values == approx(global_mean[i])
+
+    nmeans = (labels == 1).sum(axis=(1, 2))
+    region1_mean = (cylvel * (labels == 1)[None, :, :, :]).sum(axis=(2, 3)) / nmeans
+    for i, c in enumerate(("r", "theta", "z")):
+        actual = velocities[
+            logical_and(velocities.region == 1, velocities.component == c)
+        ]
+        assert actual.velocity.values == approx(region1_mean[i])
