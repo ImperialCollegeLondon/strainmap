@@ -1,13 +1,19 @@
 import tkinter as tk
 import tkinter.filedialog
 from tkinter import messagebox, ttk
+import os
 
+import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.figure import Figure
-import matplotlib.pyplot as plt
 
 from .base_window_and_task import TaskViewBase, register_view, trigger_event
-from .figure_actions import ZoomAndPan, BrightnessAndContrast, ScrollFrames
+from .figure_actions import (
+    BrightnessAndContrast,
+    ScrollFrames,
+    ZoomAndPan,
+    data_scroller,
+)
 from .figure_actions_manager import FigureActionsManager
 
 
@@ -16,15 +22,20 @@ class DataTaskView(TaskViewBase):
     def __init__(self, root):
 
         super().__init__(root, button_text="Data", button_image="save.gif")
+        self.rowconfigure(0, weight=1)
+        self.columnconfigure(1, weight=1)
 
         # Control-related attributes
         self.data_folder = tk.StringVar(value="")
         self.output_file = tk.StringVar(value="")
+        self.current_dir = os.path.expanduser("~")
         self.phantom_check = tk.BooleanVar(value=False)
+        self.control = None
         self.dataselector = None
         self.patient_info = None
 
         # Visualization-related attributes
+        self.visualise = None
         self.notebook = None
         self.treeview = None
         self.time_step = None
@@ -39,8 +50,17 @@ class DataTaskView(TaskViewBase):
 
     def create_controls(self) -> None:
         """ Creates the controls to load and save data."""
-
+        self.control = ttk.Frame(master=self, width=300, name="control")
+        self.control.grid(column=0, row=0, sticky=tk.NSEW, padx=10, pady=10)
+        self.control.rowconfigure(50, weight=1)
+        self.control.grid_propagate(flag=False)
         self.control.columnconfigure(1, weight=1)
+
+        self.visualise = ttk.Frame(master=self, name="visualise")
+        self.visualise.grid(column=1, row=0, sticky=tk.NSEW, padx=10, pady=10)
+        self.visualise.columnconfigure(0, weight=1)
+        self.visualise.rowconfigure(0, weight=1)
+        self.visualise.grid_propagate(flag=False)
 
         ttk.Button(
             master=self.control,
@@ -168,6 +188,8 @@ class DataTaskView(TaskViewBase):
         """ Creates the animation plot area. """
 
         self.fig = Figure()
+        ax = self.fig.add_subplot()
+        ax.set_position((0.05, 0.05, 0.9, 0.9))
 
         animation_frame = ttk.Frame(self.notebook)
         animation_frame.columnconfigure(0, weight=1)
@@ -208,12 +230,15 @@ class DataTaskView(TaskViewBase):
     @trigger_event
     def load_data(self):
         """Loads new data into StrainMap"""
-        path = tk.filedialog.askdirectory(title="Select DATA directory")
-        self.data_folder.set(path)
+        path = tk.filedialog.askdirectory(
+            title="Select DATA directory", initialdir=self.current_dir
+        )
 
         output = {}
         if path != "":
+            self.current_dir = path
             output = dict(data_files=path)
+            self.data_folder.set(self.current_dir)
 
         return output
 
@@ -223,13 +248,16 @@ class DataTaskView(TaskViewBase):
 
         result = {}
         if self.phantom_check.get():
-            path = tk.filedialog.askdirectory(title="Select PHANTOM directory")
+            path = tk.filedialog.askdirectory(
+                title="Select PHANTOM directory", initialdir=self.current_dir
+            )
             if path == "":
                 self.phantom_check.set(False)
             else:
                 result = dict(bg_files=path, data=self.data)
         else:
             self.phantoms_box.grid_remove()
+            result = dict(bg_files="", data=self.data)
 
         return result
 
@@ -255,7 +283,7 @@ class DataTaskView(TaskViewBase):
 
     def get_data_information(self):
         """ Gets some information related to the available datasets, frames, etc. """
-        values = sorted(self.data.data_files.keys())
+        values = list(self.data.data_files.keys())
         if len(values) > 0:
             texts = [
                 "Magnitude",
@@ -289,14 +317,14 @@ class DataTaskView(TaskViewBase):
 
     def update_plot(self, data):
         """Updates the data contained in the plot."""
-        self.fig.axes.clear()
         self.fig.actions_manager.ScrollFrames.clear()
 
-        ax = self.fig.add_subplot()
+        ax = self.fig.axes[-1]
         ax.clear()
 
-        for img in data:
-            ax.imshow(img, cmap=plt.get_cmap("binary_r"))
+        ax.imshow(data[0], cmap=plt.get_cmap("binary_r"))
+
+        self.fig.actions_manager.ScrollFrames.set_generators(data_scroller(data), ax)
 
         ax.get_xaxis().set_visible(False)
         ax.get_yaxis().set_visible(False)
@@ -314,6 +342,13 @@ class DataTaskView(TaskViewBase):
         for d in data:
             self.treeview.insert("", tk.END, values=(d, data.get(d)))
 
+    def stop_animation(self):
+        """Stops an animation, if there is one running."""
+        if hasattr(self.fig, "actions_manager") and hasattr(
+            self.fig.actions_manager, "ScrollFrames"
+        ):
+            self.fig.actions_manager.ScrollFrames.stop_animation()
+
     def update_widgets(self):
         """ Updates widgets after an update in the data variable. """
         self.nametowidget("control.chooseOutputFile")["state"] = "enable"
@@ -321,7 +356,7 @@ class DataTaskView(TaskViewBase):
         self.create_data_viewer()
         self.update_visualization()
 
-        values = sorted(self.data.bg_files.keys())
+        values = list(self.data.bg_files.keys())
         if self.phantom_check.get() and len(values) > 0:
             self.phantoms_box["values"] = values
             self.phantoms_box.current(0)

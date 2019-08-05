@@ -8,10 +8,10 @@ views.
 import tkinter as tk
 from abc import ABC, abstractmethod
 from enum import Flag, auto
+from functools import wraps
 from pathlib import Path
 from tkinter import ttk
-from typing import Optional, Text, Type, List, Callable
-from functools import wraps
+from typing import Callable, List, Optional, Text, Type
 
 from PIL import Image, ImageTk
 
@@ -56,8 +56,6 @@ class TaskViewBase(ABC, ttk.Frame):
     ):
         super().__init__(root)
         self.__data = None
-        self.rowconfigure(0, weight=1)
-        self.columnconfigure(1, weight=1)
 
         if button_image is not None:
             self.image = Image.open(ICONS_DIRECTORY / button_image)
@@ -74,17 +72,6 @@ class TaskViewBase(ABC, ttk.Frame):
             compound="top",
             command=self.tkraise,
         )
-
-        self.control = ttk.Frame(master=self, width=300, name="control")
-        self.control.grid(column=0, row=0, sticky=tk.NSEW, padx=10, pady=10)
-        self.control.rowconfigure(50, weight=1)
-        self.control.grid_propagate(flag=False)
-
-        self.visualise = ttk.Frame(master=self, name="visualise")
-        self.visualise.grid(column=1, row=0, sticky=tk.NSEW, padx=10, pady=10)
-        self.visualise.columnconfigure(0, weight=1)
-        self.visualise.rowconfigure(0, weight=1)
-        self.visualise.grid_propagate(flag=False)
 
     @property
     def data(self):
@@ -131,6 +118,7 @@ class MainWindow(tk.Tk):
         super().__init__()
         self.title("StrainMap")
         self.minsize(1280, 720)
+        self.geometry("{}x{}+0+0".format(*self.maxsize()))
         self.protocol("WM_DELETE_WINDOW", self.__quit)
         self.closed = False
 
@@ -184,8 +172,15 @@ class MainWindow(tk.Tk):
 
     def __quit(self):
         """ Safe quit the program."""
+        self._stop_animations()
         self.closed = True
         self.quit()
+
+    def _stop_animations(self):
+        """Stop any animation that is running, if any."""
+        for view in self.views:
+            if hasattr(view, "stop_animation"):
+                view.stop_animation()
 
 
 REGISTERED_BINDINGS: dict = {}

@@ -105,6 +105,20 @@ def data_view(main_window):
 
 
 @fixture
+def segmentation_view(main_window):
+    from strainmap.gui.segmentation_view import SegmentationTaskView
+
+    return SegmentationTaskView(main_window)
+
+
+@fixture
+def velocities_view(main_window):
+    from strainmap.gui.velocities_view import VelocitiesTaskView
+
+    return VelocitiesTaskView(main_window)
+
+
+@fixture
 def actions_manager():
     from matplotlib.pyplot import figure
     from strainmap.gui.figure_actions_manager import FigureActionsManager
