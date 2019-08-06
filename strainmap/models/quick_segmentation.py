@@ -4,11 +4,7 @@ from .contour_mask import Contour
 
 
 def find_segmentation(
-    data: StrainMapData,
-    dataset_name: str,
-    phantom_dataset_name: str,
-    targets: dict,
-    initials: dict,
+    data: StrainMapData, dataset_name: str, targets: dict, initials: dict
 ) -> StrainMapData:
     """Find the segmentation for the endocardium and the epicardium.
 
@@ -37,7 +33,7 @@ def find_segmentation(
 
     segmenter = Segmenter.setup(model=model, ffilter=ffilter, propagator=propagator)
 
-    all_data = get_data_to_segment(data, dataset_name, phantom_dataset_name)
+    all_data = get_data_to_segment(data, dataset_name)
     shape = all_data[targets["endocardium"]][0].shape
 
     data.segments[dataset_name]["endocardium"] = segmenter(
@@ -58,19 +54,12 @@ def find_segmentation(
     return data
 
 
-def get_data_to_segment(data, dataset_name, phantom_dataset_name):
+def get_data_to_segment(data, dataset_name):
     """Gets the data that will be segmented and removes the phantom, if needed"""
     magz = data.get_images(dataset_name, "MagZ")
     magx = data.get_images(dataset_name, "MagX")
     magy = data.get_images(dataset_name, "MagY")
     mag = magx + magy + magz
     vel = data.get_images(dataset_name, "PhaseZ")
-
-    if phantom_dataset_name != "":
-        magz = data.get_bg_images(phantom_dataset_name, "MagZ")
-        magx = data.get_bg_images(phantom_dataset_name, "MagX")
-        magy = data.get_bg_images(phantom_dataset_name, "MagY")
-        mag = mag - (magx + magy + magz)
-        vel = vel - data.get_bg_images(phantom_dataset_name, "PhaseZ")
 
     return {"mag": mag, "vel": vel}

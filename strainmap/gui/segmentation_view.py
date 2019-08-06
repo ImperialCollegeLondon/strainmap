@@ -378,7 +378,6 @@ class SegmentationTaskView(TaskViewBase):
         return dict(
             data=self.data,
             dataset_name=self.datasets_var.get(),
-            phantom_dataset_name=self.phantom_var.get(),
             targets={
                 "endocardium": self.endocardium_target_var.get(),
                 "epicardium": self.epicardium_target_var.get(),
@@ -402,13 +401,12 @@ class SegmentationTaskView(TaskViewBase):
 
         if len(self.data.bg_files.keys()) > 0:
             bg_values = list(self.data.bg_files.keys())
-            current = self.datasets_var.get()
             self.nametowidget("control.datasetsFrame.phantomBox")["values"] = bg_values
             self.nametowidget("control.datasetsFrame.phantomBox")["state"] = "enable"
             if current in bg_values:
                 self.phantom_var.set(current)
             else:
-                self.phantom_var.set(bg_values[0])
+                self.phantom_var.set("")
         else:
             self.nametowidget("control.datasetsFrame.phantomBox")["values"] = []
             self.nametowidget("control.datasetsFrame.phantomBox")["state"] = "disabled"
