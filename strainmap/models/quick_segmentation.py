@@ -126,7 +126,7 @@ def simple_segmentation(
     """
     segmenter = Segmenter.setup(model=model, ffilter=ffilter, propagator=propagator)
 
-    shape = data[0].shape
+    shape = data.shape[:2]
 
     segmentation = segmenter(
         data,
