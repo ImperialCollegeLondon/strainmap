@@ -1,9 +1,7 @@
 *.pyc
 
-**/htmlcov/
-**/junit/
+/reports/
 **/.coverage
-**/coverage.xml
 /StrainMap.egg-info/
 /pip-wheel-metadata/
 /.eggs/
