@@ -33,6 +33,7 @@ steps:
       xvfb-run -a python setup.py -q test
     condition: and(succeededOrFailed(), eq(variables['Agent.OS'], 'Linux'))
     displayName: "Run tests in Linux"
+    enabled: false
 
   - script: |
       python setup.py -q test
