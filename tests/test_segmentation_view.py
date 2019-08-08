@@ -4,13 +4,13 @@ from unittest.mock import MagicMock
 
 
 def test_update_and_clear_widgets(segmentation_view, strainmap_data):
-    segmentation_view.update_plots = MagicMock()
+    segmentation_view.dataset_changed = MagicMock()
     segmentation_view.data = strainmap_data
 
     expected = list(strainmap_data.data_files.keys())[0]
     assert segmentation_view.datasets_var.get() == expected
 
-    segmentation_view.update_plots.assert_called_once()
+    segmentation_view.dataset_changed.assert_called_once()
 
 
 def test_update_plots(segmentation_view, strainmap_data):
