@@ -121,8 +121,8 @@ def simple_segmentation(
             propagator. See the description of the propagators above.
 
     Returns:
-        A numpy array with the resulting segmentation. If the data input is 3D, the
-        returning array will also be 3D.
+        A 2D or 3D numpy array with the coordinates of the contour resulting from the
+        segmentation. If the data input is 3D, the returning array will also be 3D.
     """
     segmenter = Segmenter.setup(model=model, ffilter=ffilter, propagator=propagator)
 
