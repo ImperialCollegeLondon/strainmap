@@ -11,7 +11,7 @@ If these are already installed and the path correctly configured, the following 
 
 ```bash
 git clone https://github.com/ImperialCollegeLondon/strainmap.git
-cd python-guis
+cd strainmap
 python3 -mvenv venv
 . venv/bin/activate
 pip install -U setuptools wheel pip
