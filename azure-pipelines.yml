@@ -1,10 +1,9 @@
 strategy:
   matrix:
-    windows:
-      imageName: windows-2019
-      pythonVersion: 3.7
     linux:
       imageName: ubuntu-16.04
+    windows:
+      imageName: windows-2019
       pythonVersion: 3.7
     umac:
       imageName: macos-10.13
@@ -14,19 +13,20 @@ pool:
   vmImage: $(imageName)
 
 steps:
+  - script: |
+      docker build -t strainmap-test .
+      docker run --rm -v $(pwd)/reports:/usr/src/app/reports strainmap-test
+    condition: eq(variables['Agent.OS'], 'Linux')
+    displayName: "Run tests in Linux"
+
   - task: UsePythonVersion@0
     inputs:
       versionSpec: $(pythonVersion)
-      architecture: "x64"
-
-  - script: |
-      sudo apt update
-      sudo apt install python3-tk xvfb
-    displayName: "Install system dependencies in Linux"
-    condition: eq(variables['Agent.OS'], 'Linux')
+    condition: ne(variables['Agent.OS'], 'Linux')
 
   - script: |
       pip install -e .
+<<<<<<< HEAD
     displayName: "Install prerequisites"
 
   - script: |
@@ -35,18 +35,20 @@ steps:
     displayName: "Run tests in Linux"
 
   - script: |
+=======
+>>>>>>> 7ffc6d7... Run tests on Linux in Docker to avoid issues with Tkinter availability (#47)
       python setup.py -q test
-    condition: and(succeededOrFailed(), ne(variables['Agent.OS'], 'Linux'))
-    displayName: "Run tests in Windows or MacOS"
+    condition: ne(variables['Agent.OS'], 'Linux')
+    displayName: "Run tests in Windows and macOS"
 
   - task: PublishTestResults@2
     inputs:
-      testResultsFiles: "**/test-*.xml"
+      testResultsFiles: "**/junit.xml"
     condition: succeededOrFailed()
 
   - task: PublishCodeCoverageResults@1
     inputs:
       codeCoverageTool: Cobertura
       summaryFileLocation: "**/coverage.xml"
-      reportDirectory: "**/htmlcov"
+      reportDirectory: "**/coverage"
     condition: succeededOrFailed()
