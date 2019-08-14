@@ -26,17 +26,6 @@ steps:
 
   - script: |
       pip install -e .
-<<<<<<< HEAD
-    displayName: "Install prerequisites"
-
-  - script: |
-      xvfb-run -a python setup.py -q test
-    condition: and(succeededOrFailed(), eq(variables['Agent.OS'], 'Linux'))
-    displayName: "Run tests in Linux"
-
-  - script: |
-=======
->>>>>>> 7ffc6d7... Run tests on Linux in Docker to avoid issues with Tkinter availability (#47)
       python setup.py -q test
     condition: ne(variables['Agent.OS'], 'Linux')
     displayName: "Run tests in Windows and macOS"
