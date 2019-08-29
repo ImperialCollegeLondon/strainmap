@@ -1,17 +1,17 @@
-from typing import Mapping, Tuple, Text, Union, Optional
 from pathlib import Path
+from typing import Mapping, Text, Tuple, Union
 
 
 def search_in_tree(
     tree: Mapping, filename: Union[Path, Text]
-) -> Optional[Tuple[Text, Text, int]]:
+) -> Tuple[Text, Text, int]:
 
     for s in tree:
         for v in tree[s]:
             if filename in tree[s][v]:
                 return s, v, tree[s][v].index(filename)
 
-    return None
+    raise ValueError(f"Could not find file in tree {filename}")
 
 
 def test_read_dicom_directory_tree(dicom_data_path):
@@ -90,3 +90,14 @@ def test_read_all_images(data_tree):
             assert v in images[s].keys()
             for i in images[s][v]:
                 assert isinstance(i, np.ndarray)
+
+
+def test_to_numpy(data_tree):
+    from strainmap.models.readers import images_to_numpy, read_all_images
+
+    data = images_to_numpy(read_all_images(data_tree))
+    assert set(data.keys()) == set(data_tree.keys())
+
+    magnitude, phase = data[list(data.keys())[0]]
+    assert magnitude.shape == (3, 3, 512, 512)
+    assert phase.shape == (3, 3, 512, 512)

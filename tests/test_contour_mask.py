@@ -115,10 +115,9 @@ def test_circle():
     from strainmap.models.contour_mask import Contour
 
     radius = 10
-    center = np.array([3, 0])
-    c = Contour.circle(center, radius=radius, points=100000)
+    c = Contour.circle((3, 0), radius=radius, points=100000)
 
-    assert c.centroid == approx(center, rel=1e-2)
+    assert c.centroid == approx((3, 0), rel=1e-2)
     assert norm(c.xy - c.centroid, axis=1) == approx(
         np.ones(c.points) * radius, rel=1e-1
     )
@@ -146,3 +145,82 @@ def test_mask():
 
     mask = contour_diff(c1, c2)
     assert not mask.any()
+
+
+def test_masked_means():
+    from numpy import zeros
+    from numpy.random import randint, random
+    from strainmap.models.contour_mask import masked_means
+    from strainmap.models.readers import ImageTimeSeries
+
+    # constructs cartesian velocities with known means
+    N = 3
+    cartvel = zeros((3, 5, 512, 512))
+    labels = randint(0, N, (512, 512))
+
+    meanvel = random((N, 3, cartvel.shape[1]))
+    for l in range(N):
+        for t in range(cartvel.shape[1]):
+            view = cartvel[:, t, :, :]
+            view[0][labels == l] = meanvel[l, 0, t]
+            view[1][labels == l] = meanvel[l, 1, t]
+            view[2][labels == l] = meanvel[l, 2, t]
+
+    actual = masked_means(cartvel, labels, axes=ImageTimeSeries.image_axes)
+    assert actual == approx(meanvel[1:, :, :])
+
+
+def test_masked_means_time_axis():
+    from numpy import zeros
+    from numpy.random import randint, random
+    from strainmap.models.contour_mask import masked_means
+    from strainmap.models.readers import ImageTimeSeries
+
+    # constructs cartesian velocities with known means
+    N = 3
+    cartvel = zeros((3, 5, 512, 512))
+    labels = randint(0, N, (5, 512, 512))
+
+    meanvel = random((N, 3, cartvel.shape[1]))
+    for l in range(N):
+        for t in range(cartvel.shape[1]):
+            view = cartvel[:, t, :, :]
+            view[0][labels[t] == l] = meanvel[l, 0, t]
+            view[1][labels[t] == l] = meanvel[l, 1, t]
+            view[2][labels[t] == l] = meanvel[l, 2, t]
+
+    actual = masked_means(cartvel, labels, axes=ImageTimeSeries.image_axes)
+    assert actual == approx(meanvel[1:, :, :])
+
+
+def test_mean_velocities():
+    from numpy import array, sum
+    from numpy.random import randint, random
+    from strainmap.models.contour_mask import mean_velocities, cylindrical_projection
+
+    N = 3
+    cartvel = random((3, 5, 512, 512))
+    labels = randint(0, N, (5, 512, 512))
+
+    origin = array((256, 256))
+
+    velocities = mean_velocities(
+        cartvel, labels, origin=origin, component_axis=0, image_axes=(2, 3)
+    )
+
+    assert velocities.shape == (len(set(labels.flat)), 3, 5)
+
+    nribbon = sum(labels > 0, axis=(1, 2))
+    bulk = sum(cartvel * (labels > 0)[None, :, :, :], axis=(2, 3)) / nribbon
+    cylvel = cylindrical_projection(
+        cartvel - bulk[:, :, None, None],
+        origin=origin,
+        component_axis=0,
+        image_axes=(2, 3),
+    )
+    global_mean = (cylvel * (labels > 0)[None, :, :, :]).sum(axis=(2, 3)) / nribbon
+    assert velocities[0, :, :] == approx(global_mean)
+
+    nmeans = (labels == 1).sum(axis=(1, 2))
+    region1_mean = (cylvel * (labels == 1)[None, :, :, :]).sum(axis=(2, 3)) / nmeans
+    assert velocities[1, :, :] == approx(region1_mean)

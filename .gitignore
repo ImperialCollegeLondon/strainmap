@@ -6,3 +6,9 @@
 /pip-wheel-metadata/
 /.eggs/
 **/.mypy_cache/
+.venv/
+.vim/
+.vscode/
+coverage.xml
+htmlcov/
+junit/
