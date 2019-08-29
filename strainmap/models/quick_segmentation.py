@@ -4,6 +4,7 @@ from .contour_mask import Contour
 
 import numpy as np
 from typing import Text, Dict, Any
+from collections import defaultdict
 
 
 def find_segmentation(
@@ -45,9 +46,12 @@ def find_segmentation(
         filter_params=filter_params_endo,
         propagator_params=propagator_params_endo,
     )
-    data.segments[dataset_name]["endocardium"] = np.array(
-        [segment.xy.T for segment in segments]
-    )
+    if isinstance(segments, list):
+        data.segments[dataset_name]["endocardium"] = np.array(
+            [segment.xy.T for segment in segments]
+        )
+    else:
+        data.segments[dataset_name]["endocardium"] = segments.xy.T
 
     segments = segmenter(
         all_data[targets["epicardium"]],
@@ -56,9 +60,12 @@ def find_segmentation(
         filter_params=filter_params_epi,
         propagator_params=propagator_params_epi,
     )
-    data.segments[dataset_name]["epicardium"] = np.array(
-        [segment.xy.T for segment in segments]
-    )
+    if isinstance(segments, list):
+        data.segments[dataset_name]["epicardium"] = np.array(
+            [segment.xy.T for segment in segments]
+        )
+    else:
+        data.segments[dataset_name]["epicardium"] = segments.xy.T
 
     return data
 
@@ -77,18 +84,22 @@ def get_data_to_segment(data, dataset_name):
 def update_segmentation(
     data: StrainMapData, dataset_name: str, segments: dict
 ) -> StrainMapData:
-    """Updates an existing segmentation with manually modified segments.
+    """Updates an existing segmentation with new segments, potentially clearing them.
 
     Args:
         data: StrainMapData object containing the data
         dataset_name: Name of the dataset whose segmentation are to modify
-        segments: Dictionary with the segmentation for the epi- and endcardium.
+        segments: Dictionary with the segmentation for the epi- and endocardium. If
+            either is None, the existing segmentation is erased.
 
     Returns:
         The StrainMapData object updated with the segmentation.
     """
-    data.segments[dataset_name]["endocardium"] = segments["endocardium"]
-    data.segments[dataset_name]["epicardium"] = segments["epicardium"]
+    if segments["endocardium"] is not None and segments["epicardium"] is not None:
+        data.segments[dataset_name]["endocardium"] = segments["endocardium"]
+        data.segments[dataset_name]["epicardium"] = segments["epicardium"]
+    else:
+        data.segments[dataset_name] = defaultdict(dict)
     return data
 
 

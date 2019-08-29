@@ -40,28 +40,28 @@ def test_get_data_to_segment(segmentation_view, strainmap_data):
     dataset = list(strainmap_data.data_files.keys())[0]
     expected_vel = strainmap_data.get_images(dataset, "PhaseZ")
 
-    actual = segmentation_view.get_data_to_segment()
+    actual = segmentation_view.get_data_to_segment(dataset)
     assert expected_vel == approx(actual["vel"])
     assert expected_vel.shape == actual["mag"].shape
 
 
 def test_switch_button_text(segmentation_view):
     expected = "Ready"
-    actual = segmentation_view.nametowidget("control.segmentFrame.initialEndo")["text"]
+    actual = segmentation_view.ini_endo_btn["text"]
     assert expected != actual
 
     segmentation_view.switch_button_text("endocardium", expected)
-    actual = segmentation_view.nametowidget("control.segmentFrame.initialEndo")["text"]
+    actual = segmentation_view.ini_endo_btn["text"]
     assert expected == actual
 
 
 def test_switch_mark_state(segmentation_view):
     expected = "\u2705"
-    actual = segmentation_view.nametowidget("control.segmentFrame.readyEndo")["text"]
+    actual = segmentation_view.endo_redy_var.get()
     assert expected != actual
 
     segmentation_view.switch_mark_state("endocardium", "ready")
-    actual = segmentation_view.nametowidget("control.segmentFrame.readyEndo")["text"]
+    actual = segmentation_view.endo_redy_var.get()
     assert expected == actual
 
 
@@ -98,19 +98,13 @@ def test_segmentation_ready(segmentation_view):
     contour = np.random.random((2, 5))
     segmentation_view.get_contour([contour], side="endocardium")
     segmentation_view.segmentation_ready()
-    assert (
-        segmentation_view.nametowidget("control.runSegmentation")["state"] != "enable"
-    )
+    assert segmentation_view.segment_btn.instate(["disabled"])
 
     segmentation_view.get_contour([contour], side="epicardium")
-    segmentation_view.segmentation_ready()
-    assert (
-        segmentation_view.nametowidget("control.runSegmentation")["state"] == "enable"
-    )
+    assert segmentation_view.segment_btn.instate(["!disabled"])
 
 
 def test_plot_segments(segmentation_view, strainmap_data):
-    from strainmap.models.contour_mask import Contour
     import numpy as np
     from copy import deepcopy
 
@@ -118,10 +112,10 @@ def test_plot_segments(segmentation_view, strainmap_data):
     dataset = list(strainmap_data.data_files.keys())[0]
 
     segmentation_view.data = deepcopy(strainmap_data)
-    segmentation_view.data.segments[dataset]["endocardium"] = [Contour(contour)]
-    segmentation_view.data.segments[dataset]["epicardium"] = [Contour(contour)]
+    segmentation_view.data.segments[dataset]["endocardium"] = [contour]
+    segmentation_view.data.segments[dataset]["epicardium"] = [contour]
 
-    segmentation_view.plot_segments()
+    segmentation_view.plot_segments(dataset)
 
     generators = segmentation_view.fig.actions_manager.ScrollFrames._scroller
 
@@ -133,22 +127,22 @@ def test_initial_contour(segmentation_view):
     import numpy as np
 
     segmentation_view.define_initial_contour("endocardium")
-    actual = segmentation_view.nametowidget("control.segmentFrame.initialEndo")["text"]
+    actual = segmentation_view.ini_endo_btn["text"]
     assert actual == "Cancel"
 
     segmentation_view.initial_contour("endocardium")
-    actual = segmentation_view.nametowidget("control.segmentFrame.initialEndo")["text"]
+    actual = segmentation_view.ini_endo_btn["text"]
     assert actual == "Define endocardium"
 
     segmentation_view.define_initial_contour("endocardium")
     contour = np.random.random((2, 5))
     segmentation_view.get_contour([contour], side="endocardium")
-    actual = segmentation_view.nametowidget("control.segmentFrame.initialEndo")["text"]
+    actual = segmentation_view.ini_endo_btn["text"]
     assert actual == "Clear endocardium"
 
     segmentation_view.clear_segments = MagicMock()
     segmentation_view.initial_contour("endocardium")
-    actual = segmentation_view.nametowidget("control.segmentFrame.initialEndo")["text"]
+    actual = segmentation_view.ini_endo_btn["text"]
     assert actual == "Define endocardium"
 
 
@@ -171,3 +165,49 @@ def test_clear_segments(segmentation_view):
     assert segmentation_view.initial_segments["epicardium"] is None
     assert segmentation_view.final_segments["endocardium"] is None
     assert segmentation_view.final_segments["epicardium"] is None
+
+
+def test_scroll(segmentation_view):
+    import numpy as np
+
+    segmentation_view.images["mag"] = np.random.random((5, 5, 2))
+    contour = np.random.random((2, 5, 2))
+
+    segmentation_view.final_segments["endocardium"] = contour
+    segmentation_view.final_segments["epicardium"] = contour
+
+    frame, img, (endo, epi) = segmentation_view.scroll(1, "mag")
+
+    assert frame == 1
+    assert img == approx(segmentation_view.images["mag"][1])
+    assert endo == approx(contour[1])
+    assert epi == approx(contour[1])
+
+
+def test_contour_edited_and_undo(segmentation_view, strainmap_data):
+    import numpy as np
+
+    contour = np.random.random((2, 5, 2))
+    dataset = list(strainmap_data.data_files.keys())[0]
+
+    segmentation_view.data = strainmap_data
+    segmentation_view.data.segments[dataset]["endocardium"] = [contour]
+    segmentation_view.data.segments[dataset]["epicardium"] = [contour]
+
+    segmentation_view.plot_segments(dataset)
+
+    contour_mod = 2 * contour
+    axes = segmentation_view.fig.axes[0]
+
+    segmentation_view.contour_edited("endocardium", axes, contour_mod)
+
+    assert len(segmentation_view.undo_stack) == 1
+    assert segmentation_view.final_segments["endocardium"][0] == approx(contour_mod)
+    assert segmentation_view.fig.axes[1].lines[0].get_data() == approx(contour_mod)
+
+    segmentation_view.undo(0)
+
+    assert len(segmentation_view.undo_stack) == 0
+    assert segmentation_view.final_segments["endocardium"][0] == approx(contour)
+    assert segmentation_view.fig.axes[0].lines[0].get_data() == approx(contour)
+    assert segmentation_view.fig.axes[1].lines[0].get_data() == approx(contour)

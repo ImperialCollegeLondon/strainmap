@@ -3,7 +3,7 @@ from tkinter import ttk
 from copy import copy
 from collections import defaultdict
 
-from typing import Optional, Dict, Tuple
+from typing import Optional, Dict
 from functools import partial
 
 import matplotlib.pyplot as plt
@@ -36,7 +36,7 @@ class SegmentationTaskView(TaskViewBase):
 
         # Control-related attributes
         self.current_frame = 0
-        self.images = Tuple[Optional[np.ndarray], Optional[np.ndarray]]
+        self.images: Dict[str, Optional[np.ndarray]] = {"mag": None, "vel": None}
         self.initial_segments: Dict[str, Optional[np.ndarray]] = {
             "endocardium": None,
             "epicardium": None,
@@ -97,7 +97,7 @@ class SegmentationTaskView(TaskViewBase):
             text="Clear existing segmentation",
             state="disabled",
             width=20,
-            command=lambda: self.update_state(self.datasets_var.get()),
+            command=self.clear_segment_variables,
         )
 
         # Automatic segmentation frame
@@ -300,7 +300,6 @@ class SegmentationTaskView(TaskViewBase):
         """Updates the state of buttons and vars when something happens in the GUI."""
         self.undo_stack = defaultdict(list)
         self.update_undo_state()
-        self.clear_segment_variables()
         if len(self.data.segments[dataset]) == 0:
             self.update_confirm_segmentation_state(False)
             self.update_initial_segmentation_state(True)
@@ -497,6 +496,8 @@ class SegmentationTaskView(TaskViewBase):
         for side in ["endocardium", "epicardium"]:
             self.switch_button_text(side, f"Define {side}")
             self.switch_mark_state(side, "not_ready")
+
+        self.update_segmentation()
 
     def clear_segments(self, side="both", initial_or_final="both"):
         """Clears the segments."""
