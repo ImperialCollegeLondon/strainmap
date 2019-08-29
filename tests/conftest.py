@@ -143,7 +143,9 @@ def action():
 
     class DummyAction(ActionBase):
         def __init__(self):
-            super().__init__({s1: lambda: None, s2: lambda: None, s3: lambda: None})
+            super().__init__(
+                {s1: lambda *args: None, s2: lambda *args: None, s3: lambda *args: None}
+            )
 
     return DummyAction
 
@@ -155,4 +157,6 @@ def figure():
     fig = plt.figure()
     fig.add_subplot()
 
-    return fig
+    yield fig
+
+    plt.close(fig)
