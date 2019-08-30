@@ -163,7 +163,7 @@ class FigureActionsManager(object):
 
     def draw(self):
         """Convenience method for re-drawing the canvas."""
-        self.canvas.draw()
+        self.canvas.draw_idle()
 
     def add_action(self, action: Type[ActionBase], **kwargs):
         """Adds an action to the Manager."""
