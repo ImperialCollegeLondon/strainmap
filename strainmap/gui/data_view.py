@@ -311,21 +311,21 @@ class DataTaskView(TaskViewBase):
         """Updates the data contained in the plot."""
         images = self.data.get_images(series, variable)
 
-        if len(images) == 0:
-            return
-
         self.fig.actions_manager.ScrollFrames.clear()
 
         ax = self.fig.axes[-1]
         ax.clear()
+        ax.get_xaxis().set_visible(False)
+        ax.get_yaxis().set_visible(False)
+
+        if len(images) == 0:
+            return
+
         ax.imshow(images[0], cmap=plt.get_cmap("binary_r"))
 
         self.fig.actions_manager.ScrollFrames.set_scroller(
             partial(self.scroll, images), ax
         )
-
-        ax.get_xaxis().set_visible(False)
-        ax.get_yaxis().set_visible(False)
 
         self.fig.canvas.draw()
 

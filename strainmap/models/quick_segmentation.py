@@ -23,49 +23,39 @@ def find_segmentation(
         The StrainMapData object updated with the segmentation.
     """
     model = "AC"
-    model_params_endo = dict(alpha=0.01, beta=10, gamma=0.002)
-    model_params_epi = dict(alpha=0.01, beta=10, gamma=0.002)
+    model_params = {
+        "endocardium": dict(alpha=0.01, beta=10, gamma=0.002),
+        "epicardium": dict(alpha=0.01, beta=10, gamma=0.002),
+    }
 
     ffilter = "gaussian"
-    filter_params_endo: dict = {}
-    filter_params_epi: dict = {}
+    filter_params: Dict[str, Dict] = {"endocardium": dict(), "epicardium": dict()}
 
     propagator = "initial"
-    propagator_params_endo: dict = {}
-    propagator_params_epi: dict = {}
+    propagator_params: Dict[str, Dict] = {"endocardium": dict(), "epicardium": dict()}
 
     segmenter = Segmenter.setup(model=model, ffilter=ffilter, propagator=propagator)
 
     all_data = get_data_to_segment(data, dataset_name)
     shape = all_data[targets["endocardium"]][0].shape
 
-    segments = segmenter(
-        all_data[targets["endocardium"]],
-        Contour(initials["endocardium"].T, shape=shape),
-        model_params=model_params_endo,
-        filter_params=filter_params_endo,
-        propagator_params=propagator_params_endo,
-    )
-    if isinstance(segments, list):
-        data.segments[dataset_name]["endocardium"] = np.array(
-            [segment.xy.T for segment in segments]
+    def segment_one_side(side):
+        segments = segmenter(
+            all_data[targets[side]],
+            Contour(initials[side].T, shape=shape),
+            model_params=model_params[side],
+            filter_params=filter_params[side],
+            propagator_params=propagator_params[side],
         )
-    else:
-        data.segments[dataset_name]["endocardium"] = segments.xy.T
+        if isinstance(segments, list):
+            data.segments[dataset_name][side] = np.array(
+                [segment.xy.T for segment in segments]
+            )
+        else:
+            data.segments[dataset_name][side] = segments.xy.T
 
-    segments = segmenter(
-        all_data[targets["epicardium"]],
-        Contour(initials["epicardium"].T, shape=shape),
-        model_params=model_params_epi,
-        filter_params=filter_params_epi,
-        propagator_params=propagator_params_epi,
-    )
-    if isinstance(segments, list):
-        data.segments[dataset_name]["epicardium"] = np.array(
-            [segment.xy.T for segment in segments]
-        )
-    else:
-        data.segments[dataset_name]["epicardium"] = segments.xy.T
+    segment_one_side("endocardium")
+    segment_one_side("epicardium")
 
     return data
 
