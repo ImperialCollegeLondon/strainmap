@@ -289,3 +289,77 @@ def test_clear_drawing(figure):
     assert len(draw.points[axes]) == 0
     assert len(draw.marks[axes]) == 0
     assert len(draw.contours[axes]) == 0
+
+
+def test_add_marker(figure):
+    from strainmap.gui.figure_actions import Markers
+    import numpy as np
+
+    data = np.random.random((2, 10))
+    axes = figure.axes[0]
+    line = axes.plot(*data, label="my_data")[0]
+
+    mark = Markers()
+    mark.add_marker(line, label="my_marker")
+
+    assert len(mark._linked_data) == 1
+    assert list(mark._linked_data.keys())[0].get_label() == "my_marker"
+    assert list(mark._linked_data.values())[0] == line
+
+
+def test_update_marker_position(figure):
+    from strainmap.gui.figure_actions import Markers
+    import numpy as np
+
+    data = np.random.random((2, 10))
+    axes = figure.axes[0]
+    line = axes.plot(*data, label="my_data")[0]
+
+    mark = Markers()
+    mark.add_marker(line, label="my_marker")
+    mark.update_marker_position("my_marker", "my_data", 0.5)
+
+    ind = np.argmin(np.abs(data[0] - 0.5))
+    expected = data[1, ind]
+    actual = list(mark._linked_data.keys())[0].get_ydata()[0]
+
+    assert expected == approx(actual)
+
+
+def test_get_closest(figure):
+    from strainmap.gui.figure_actions import Markers
+    import numpy as np
+
+    data = np.random.random((2, 10))
+    axes = figure.axes[0]
+    line = axes.plot(*data, label="my_data")[0]
+
+    mark = Markers()
+
+    ind = np.argmin(np.abs(data[0] - 0.5))
+    expected = data[0, ind], data[1, ind], ind
+    actual = mark.get_closest(line, 0.5)
+
+    assert expected == actual
+
+
+def test_drag_marker(figure):
+    from matplotlib.backend_bases import MouseEvent
+    from strainmap.gui.figure_actions import Markers
+    import numpy as np
+
+    def on_marker_moved(marker_name, data_name, x, y, idx):
+        assert mark._current_marker.get_xdata()[0] == approx(x)
+        assert mark._current_marker.get_ydata()[0] == approx(y)
+
+    data = np.random.random((2, 10))
+    axes = figure.axes[0]
+    line = axes.plot(*data, label="my_data")[0]
+
+    mark = Markers(on_marker_moved)
+    mark.add_marker(line, label="my_marker")
+    mark._current_marker = axes.lines[1]
+    mark._current_data = line
+
+    event = MouseEvent("click", figure.canvas, x=100, y=200)
+    mark.drag_marker(event, event)
