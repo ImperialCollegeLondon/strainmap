@@ -551,7 +551,7 @@ class Markers(ActionBase):
         super().__init__(signatures={drag_marker: self.drag_marker})
         self._current_marker = None
         self._current_data = None
-        self._linked_data = dict()
+        self._linked_data: Dict[Line2D, Line2D] = dict()
         self._marker_moved = (
             marker_moved if marker_moved is not None else lambda *args: None
         )
