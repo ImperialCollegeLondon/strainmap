@@ -1,6 +1,6 @@
 from collections import defaultdict
 from functools import partial
-from typing import Callable, Dict, Optional
+from typing import Callable, Dict, Optional, Tuple
 
 import matplotlib.animation as animation
 import numpy as np
@@ -164,16 +164,6 @@ class BrightnessAndContrast(ActionBase):
         event.inaxes.get_images()[-1].set_clim(clim_low, clim_high)
 
 
-def data_scroller(data, axis=0):
-    """Creates a scroller for the data that can be called when scrolling."""
-
-    def scroller(i):
-        j = i % data.shape[axis]
-        return data.take(indices=j, axis=axis), j
-
-    return scroller
-
-
 class ScrollFrames(ActionBase):
     def __init__(
         self,
@@ -198,19 +188,12 @@ class ScrollFrames(ActionBase):
         self._anim = {}
         self._anim_running = {}
         self._current_frames = defaultdict(lambda: 0)
-        self._images_generator = {}
-        self._lines_generator = {}
+        self._scroller = {}
         self._linked_axes = {}
 
-    def set_generators(self, generator, axes, artist="images"):
+    def set_scroller(self, scroller, axes):
         """Sets the generator function that will produce the new data when scrolling."""
-        if artist == "images":
-            self._images_generator[axes] = generator
-        elif artist == "lines":
-            self._lines_generator[axes] = generator
-        else:
-            msg = "'artist' keyword in 'set_generators' must be 'images' or 'lines'."
-            raise ValueError(msg)
+        self._scroller[axes] = scroller
 
     def link_axes(self, axes1, axes2):
         """Links two axes, so scrolling happens simultaneously in both."""
@@ -229,10 +212,10 @@ class ScrollFrames(ActionBase):
         """The images available in the axes, if more than one, are scrolled."""
         self._scroll_axes(None, event.step, event.inaxes)
 
-    @staticmethod
-    def show_frame_number(event, *args):
+    def show_frame_number(self, event, *args):
         """Shows the frame number on top of the axes."""
-        event.inaxes.set_title(f"Frame: 0", loc="left")
+        axes = event.inaxes
+        axes.set_title(f"Frame: {self._current_frames[axes]}", loc="left")
 
     @staticmethod
     def hide_frame_number(event, *args):
@@ -269,38 +252,32 @@ class ScrollFrames(ActionBase):
         """Internal function that decides what to scroll."""
         step = int(np.sign(step))
         self._current_frames[axes] += step
-        self.scroll_images(axes)
-        self.scroll_lines(axes)
+        self.scroll_artists(axes)
 
         if axes in self._linked_axes:
             self._current_frames[self._linked_axes[axes]] += step
-            self.scroll_images(self._linked_axes[axes])
-            self.scroll_lines(self._linked_axes[axes])
+            self.scroll_artists(self._linked_axes[axes])
 
-    def scroll_images(self, axes):
+    def scroll_artists(self, axes):
         """Actually scroll the data of a single axes."""
-        if axes not in self._images_generator or len(axes.images) != 1:
+        if axes not in self._scroller:
             return
 
-        new_data, self._current_frames[axes] = self._images_generator[axes](
+        self._current_frames[axes], img, lines = self._scroller[axes](
             self._current_frames[axes]
         )
-        axes.images[0].set_data(new_data)
-        axes.set_title(f"Frame: {self._current_frames[axes]}", loc="left")
+        if img is not None:
+            axes.images[0].set_data(img)
 
-    def scroll_lines(self, axes):
-        """Actually scroll the data of a single axes."""
-        if axes not in self._lines_generator:
-            return
-
-        new_data, self._current_frames[axes] = self._lines_generator[axes](
-            self._current_frames[axes]
-        )
-        if len(axes.lines) == 1:
-            axes.lines[0].set_data(new_data)
+        if lines is None:
+            pass
+        elif isinstance(lines, tuple):
+            for i, l in enumerate(lines):
+                if l is None:
+                    continue
+                axes.lines[i].set_data(l)
         else:
-            for i, d in enumerate(new_data):
-                axes.lines[i].set_data(d)
+            axes.lines[0].set_data(lines)
 
         axes.set_title(f"Frame: {self._current_frames[axes]}", loc="left")
 
@@ -347,7 +324,8 @@ def spline(
 
     data = np.vstack((points[-points_per_contour:], points[-points_per_contour]))
     tck, u = interpolate.splprep([data[:, 0], data[:, 1]], s=0, per=True, k=degree)[:2]
-    return np.array(interpolate.splev(np.linspace(0, 1, resolution), tck)).T
+    result = np.array(interpolate.splev(np.linspace(0, 1, resolution), tck)).T
+    return result
 
 
 class DrawContours(ActionBase):
@@ -533,3 +511,124 @@ class DrawContours(ActionBase):
             self.contours_updated(  # type: ignore
                 self.contour_data[axes], np.array(self.points[axes])
             )
+
+
+class DragContours(ActionBase):
+    def __init__(
+        self,
+        contour_fraction: float = 0.15,
+        contour_updated: Optional[Callable] = None,
+        drag_point=TriggerSignature(Location.ANY, Button.LEFT, MouseAction.PICKDRAG),
+        **kwargs,
+    ):
+        """Add the capability of dragging and deforming closed contours in a figure.
+
+        After updating the shape of a contour, the contour_updated callback is called
+        with the new contour data.
+
+        Args:
+            contour_fraction: Fraction of the contour length to be used as the width
+                of the gaussian that calculates the shifts.
+            contour_updated: Function called whenever the number of contours changes.
+                It should take the list of contours as first argument and a list of all
+                the points as a second argument. Kwargs of this call will be
+                passed to this function.
+            drag_point: TriggerSignature for this action.
+            **kwargs: Arguments passed to either draw_contour or contours_updated.
+        """
+
+        super().__init__(signatures={drag_point: self.drag_point})
+        self.contour_fraction = np.clip(contour_fraction, a_min=0, a_max=1)
+        self._current_artist = None
+        self._drag_handle = 0
+        self._contour_updated = (
+            partial(contour_updated, **kwargs)
+            if contour_updated is not None
+            else lambda *args: None
+        )
+
+    def set_contour_updated(self, contour_updated: Callable):
+        """Sets the function to be called when the contour is updated."""
+        self._contour_updated = contour_updated
+
+    def drag_point(self, event, last_event, *args):
+        """Drags a point and all the neighbouring ones of a closed contour."""
+
+        if hasattr(last_event, "artist") and isinstance(last_event.artist, Line2D):
+            self._current_artist = last_event.artist
+            xdata = self._current_artist.get_xdata()
+            ydata = self._current_artist.get_ydata()
+
+            xdif = xdata - last_event.mouseevent.xdata
+            ydif = ydata - last_event.mouseevent.ydata
+
+            self._drag_handle = (xdif ** 2 + ydif ** 2).argmin()
+
+        elif self._current_artist is None:
+            return
+
+        xdata = self._current_artist.get_xdata()
+        ydata = self._current_artist.get_ydata()
+
+        ev = last_event.mouseevent if hasattr(last_event, "mouseevent") else last_event
+
+        deltax, deltay = get_deltas(event, ev)
+        shiftx, shifty = self.calculate_shifts(xdata, ydata, deltax, deltay)
+
+        newx = xdata + shiftx
+        newy = ydata + shifty
+
+        self._current_artist.set_xdata(newx)
+        self._current_artist.set_ydata(newy)
+
+        self._contour_updated(
+            self._current_artist.get_label(),
+            self._current_artist.axes,
+            np.array([newx, newy]),
+        )
+
+        return event
+
+    def calculate_shifts(
+        self, xdata: np.ndarray, ydata: np.ndarray, deltax: float, deltay: float
+    ) -> Tuple[np.ndarray, np.ndarray]:
+        """Calculates the shifts for each contour point based on its distance to handle.
+
+        The distance of each point to the handle is calculated when going along the
+        contour in both directions and then getting the one that is smaller in each
+        case. This distance is used to calculate the displacement for each point based
+        on a gaussian curve centered at the handle and with a width defined as a
+        fraction of the total length of the contour.
+
+        To avoid the closed contour to "open" due to the lost of accuracy, the
+        difference between both ends of the arrays, supposed equal, is forced to be
+        mathematically zero.
+
+        Args:
+            xdata: Array with the x coordinates of the contour.
+            ydata: Array with the y coordinates of the contour.
+            deltax: X displacement of the handle.
+            deltay: Y displacement of the handle.
+
+        Returns:
+            A tuple with the calculated displacement of each point in the segment.
+        """
+        segment = np.array([xdata, ydata])
+
+        diff = np.linalg.norm(segment - np.roll(segment, -1, axis=1), axis=0)
+        diff[0] = 0
+
+        posdir = np.roll(
+            np.cumsum(np.roll(diff, -self._drag_handle)), self._drag_handle
+        )
+        negdir = np.roll(
+            np.cumsum(np.roll(diff, -self._drag_handle - 1)[::-1])[::-1],
+            self._drag_handle + 1,
+        )
+        distance = np.minimum(posdir, negdir)
+        distance -= distance[self._drag_handle]
+
+        sigma = posdir.max() * self.contour_fraction
+        shift = np.exp(-(distance / sigma) ** 2)
+
+        return deltax * shift, deltay * shift

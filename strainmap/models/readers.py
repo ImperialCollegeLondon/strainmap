@@ -3,17 +3,7 @@ import re
 from collections import OrderedDict
 from dataclasses import dataclass
 from pathlib import Path
-from typing import (
-    ClassVar,
-    Dict,
-    Iterable,
-    List,
-    Mapping,
-    Optional,
-    Text,
-    Tuple,
-    Union,
-)
+from typing import ClassVar, Dict, Iterable, List, Mapping, Optional, Text, Tuple, Union
 
 import pydicom
 from nibabel.nicom import csareader as csar
@@ -93,7 +83,10 @@ def read_dicom_file_tags(
 
 def read_images(origin: Mapping, series: Text, variable: Text) -> List:
     """Returns the images for a given series and variable."""
-    return [pydicom.dcmread(f).pixel_array for f in origin[series][variable]]
+    if series in origin and variable in origin[series]:
+        return [pydicom.dcmread(f).pixel_array for f in origin[series][variable]]
+    else:
+        return []
 
 
 def read_all_images(origin: Mapping) -> Mapping:

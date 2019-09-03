@@ -1,6 +1,6 @@
 *.pyc
 
-/reports/
+**/reports/
 **/.coverage
 /StrainMap.egg-info/
 /pip-wheel-metadata/

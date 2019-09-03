@@ -2,18 +2,14 @@ import tkinter as tk
 import tkinter.filedialog
 from tkinter import messagebox, ttk
 import os
+from functools import partial
 
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.figure import Figure
 
 from .base_window_and_task import TaskViewBase, register_view, trigger_event
-from .figure_actions import (
-    BrightnessAndContrast,
-    ScrollFrames,
-    ZoomAndPan,
-    data_scroller,
-)
+from .figure_actions import BrightnessAndContrast, ScrollFrames, ZoomAndPan
 from .figure_actions_manager import FigureActionsManager
 
 
@@ -307,29 +303,40 @@ class DataTaskView(TaskViewBase):
         """ Updates the visualization whenever the data selected changes. """
         series = self.datasets_var.get()
         variable = self.maps_var.get()
-        data = self.data.get_images(series, variable)
 
-        if len(data) == 0:
-            return
-
-        self.update_plot(data)
+        self.update_plot(series, variable)
         self.update_dicom_data_view(series, variable)
 
-    def update_plot(self, data):
+    def update_plot(self, series, variable):
         """Updates the data contained in the plot."""
+        images = self.data.get_images(series, variable)
+
         self.fig.actions_manager.ScrollFrames.clear()
 
         ax = self.fig.axes[-1]
         ax.clear()
-
-        ax.imshow(data[0], cmap=plt.get_cmap("binary_r"))
-
-        self.fig.actions_manager.ScrollFrames.set_generators(data_scroller(data), ax)
-
         ax.get_xaxis().set_visible(False)
         ax.get_yaxis().set_visible(False)
 
+        if len(images) == 0:
+            return
+
+        ax.imshow(images[0], cmap=plt.get_cmap("binary_r"))
+
+        self.fig.actions_manager.ScrollFrames.set_scroller(
+            partial(self.scroll, images), ax
+        )
+
         self.fig.canvas.draw()
+
+    @staticmethod
+    def scroll(images, frame):
+        """Provides the next images when scrolling."""
+        if len(images) == 0:
+            return 0, None, None
+
+        current_frame = frame % images.shape[0]
+        return current_frame, images[current_frame], None
 
     def update_dicom_data_view(self, series, variable):
         """ Updates the treeview with data from the selected options.
