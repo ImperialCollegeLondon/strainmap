@@ -45,6 +45,7 @@ class SegmentationTaskView(TaskViewBase):
             "endocardium": None,
             "epicardium": None,
         }
+        self.centroid: Optional[np.ndarray] = None
         self.endocardium_target_var = tk.StringVar(value="mag")
         self.epicardium_target_var = tk.StringVar(value="mag")
         self.datasets_var = tk.StringVar(value="")
@@ -276,7 +277,7 @@ class SegmentationTaskView(TaskViewBase):
         self.ax_vel.imshow(self.images["vel"][0], cmap=plt.get_cmap("binary_r"))
 
     def plot_segments(self, dataset):
-        """Updates the segments in the plot, if any."""
+        """Updates the final segments in the plot, if any."""
 
         if len(self.data.segments[dataset]) == 0:
             return
@@ -296,6 +297,15 @@ class SegmentationTaskView(TaskViewBase):
                 label=side,
             )
 
+        self.plot_centroid(dataset)
+
+    def plot_centroid(self, dataset):
+        """Plots the centroid of a mask."""
+        self.centroid = self.data.get_centroid(dataset, self.images["mag"][0].shape)
+        options = dict(marker="+", color="r", markersize=10)
+        self.ax_mag.plot(*self.centroid[self.current_frame], **options)
+        self.ax_vel.plot(*self.centroid[self.current_frame], **options)
+
     def update_state(self, dataset):
         """Updates the state of buttons and vars when something happens in the GUI."""
         self.undo_stack = defaultdict(list)
@@ -312,7 +322,7 @@ class SegmentationTaskView(TaskViewBase):
     def scroll(self, frame, image=None):
         """Provides the next images and lines to plot when scrolling."""
         self.current_frame = frame % self.images["mag"].shape[0]
-        img = endo = epi = None
+        img = endo = epi = centroid = None
 
         if image in ["mag", "vel"]:
             img = self.images[image][self.current_frame]
@@ -320,10 +330,12 @@ class SegmentationTaskView(TaskViewBase):
             endo = self.final_segments["endocardium"][self.current_frame]
         if self.final_segments["epicardium"] is not None:
             epi = self.final_segments["epicardium"][self.current_frame]
+        if self.centroid is not None:
+            centroid = self.centroid[self.current_frame]
 
         self.update_undo_state()
 
-        return self.current_frame, img, (endo, epi)
+        return self.current_frame, img, (endo, epi, centroid)
 
     def contour_edited(self, label, axes, data):
         """After a contour is modified, this function is executed."""

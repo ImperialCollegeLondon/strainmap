@@ -2,8 +2,10 @@ from pathlib import Path
 from typing import Mapping, Optional, Text, Union
 from collections import defaultdict
 import numpy as np
+from scipy import ndimage
 
 from .readers import read_dicom_directory_tree, read_dicom_file_tags, read_images
+from .contour_mask import contour_diff
 
 
 class StrainMapLoadError(Exception):
@@ -26,6 +28,19 @@ class StrainMapData(object):
 
     def get_bg_images(self, series, variable):
         return np.array(read_images(self.bg_files, series, variable))
+
+    def get_centroid(self, series, shape):
+        """Return an array with the position of the centroid vs time."""
+        segments = self.segments.get(series)
+
+        centroid = []
+        for i in range(segments["endocardium"].shape[0]):
+            mask = contour_diff(
+                segments["epicardium"][i].T, segments["endocardium"][i].T, shape=shape
+            )
+            centroid.append(np.array(ndimage.measurements.center_of_mass(mask)))
+
+        return np.array(centroid)
 
 
 def factory(
