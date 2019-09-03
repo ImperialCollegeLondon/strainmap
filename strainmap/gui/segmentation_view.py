@@ -8,6 +8,7 @@ from functools import partial
 
 import matplotlib.pyplot as plt
 import numpy as np
+from scipy import ndimage
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.widgets import Cursor
 from matplotlib.figure import Figure
@@ -21,6 +22,7 @@ from .figure_actions import (
     DragContours,
 )
 from .figure_actions_manager import FigureActionsManager
+from ..models.contour_mask import contour_diff
 
 
 @register_view
@@ -297,14 +299,28 @@ class SegmentationTaskView(TaskViewBase):
                 label=side,
             )
 
-        self.plot_centroid(dataset)
+        self.plot_centroid()
 
-    def plot_centroid(self, dataset):
+    def plot_centroid(self):
         """Plots the centroid of a mask."""
-        self.centroid = self.data.get_centroid(dataset, self.images["mag"][0].shape)
-        options = dict(marker="+", color="r", markersize=10)
+        self.centroid = np.array(
+            [
+                self.get_centroid(i)
+                for i in range(self.final_segments["endocardium"].shape[0])
+            ]
+        )
+        options = dict(marker="+", color="r", markersize=10, label="centroid")
         self.ax_mag.plot(*self.centroid[self.current_frame], **options)
         self.ax_vel.plot(*self.centroid[self.current_frame], **options)
+
+    def get_centroid(self, i):
+        """Return an array with the position of the centroid at a given time."""
+        mask = contour_diff(
+            self.final_segments["epicardium"][i].T,
+            self.final_segments["endocardium"][i].T,
+            shape=self.images["mag"][0].shape,
+        )
+        return np.array(ndimage.measurements.center_of_mass(mask))
 
     def update_state(self, dataset):
         """Updates the state of buttons and vars when something happens in the GUI."""
@@ -346,11 +362,14 @@ class SegmentationTaskView(TaskViewBase):
         self.update_confirm_segmentation_state()
 
         self.final_segments[label][self.current_frame] = data
+        self.centroid[self.current_frame] = self.get_centroid(self.current_frame)
 
-        for ax in set(self.fig.axes) - {axes}:
+        for ax in set(self.fig.axes):
             for l in ax.lines:
                 if l.get_label() == label:
                     l.set_data(data)
+                elif l.get_label() == "centroid":
+                    l.set_data(self.centroid[self.current_frame])
 
     def undo(self, index):
         """Undo the last manual modification in the current frame."""

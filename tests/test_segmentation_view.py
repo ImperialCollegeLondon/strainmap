@@ -108,12 +108,12 @@ def test_plot_segments(segmentation_view, strainmap_data):
     import numpy as np
     from copy import deepcopy
 
-    contour = np.random.random((2, 5))
+    contour = np.random.random((1, 2, 5))
     dataset = list(strainmap_data.data_files.keys())[0]
 
     segmentation_view.data = deepcopy(strainmap_data)
-    segmentation_view.data.segments[dataset]["endocardium"] = [contour]
-    segmentation_view.data.segments[dataset]["epicardium"] = [contour]
+    segmentation_view.data.segments[dataset]["endocardium"] = contour
+    segmentation_view.data.segments[dataset]["epicardium"] = contour
 
     segmentation_view.plot_segments(dataset)
 
@@ -176,7 +176,7 @@ def test_scroll(segmentation_view):
     segmentation_view.final_segments["endocardium"] = contour
     segmentation_view.final_segments["epicardium"] = contour
 
-    frame, img, (endo, epi) = segmentation_view.scroll(1, "mag")
+    frame, img, (endo, epi, centroid) = segmentation_view.scroll(1, "mag")
 
     assert frame == 1
     assert img == approx(segmentation_view.images["mag"][1])
@@ -187,16 +187,16 @@ def test_scroll(segmentation_view):
 def test_contour_edited_and_undo(segmentation_view, strainmap_data):
     import numpy as np
 
-    contour = np.random.random((2, 5, 2))
+    contour = np.random.random((2, 2, 5))
     dataset = list(strainmap_data.data_files.keys())[0]
 
     segmentation_view.data = strainmap_data
-    segmentation_view.data.segments[dataset]["endocardium"] = [contour]
-    segmentation_view.data.segments[dataset]["epicardium"] = [contour]
+    segmentation_view.data.segments[dataset]["endocardium"] = contour
+    segmentation_view.data.segments[dataset]["epicardium"] = contour
 
     segmentation_view.plot_segments(dataset)
 
-    contour_mod = 2 * contour
+    contour_mod = 2 * contour[0]
     axes = segmentation_view.fig.axes[0]
 
     segmentation_view.contour_edited("endocardium", axes, contour_mod)
@@ -208,6 +208,6 @@ def test_contour_edited_and_undo(segmentation_view, strainmap_data):
     segmentation_view.undo(0)
 
     assert len(segmentation_view.undo_stack) == 0
-    assert segmentation_view.final_segments["endocardium"][0] == approx(contour)
-    assert segmentation_view.fig.axes[0].lines[0].get_data() == approx(contour)
-    assert segmentation_view.fig.axes[1].lines[0].get_data() == approx(contour)
+    assert segmentation_view.final_segments["endocardium"][0] == approx(contour[0])
+    assert segmentation_view.fig.axes[0].lines[0].get_data() == approx(contour[0])
+    assert segmentation_view.fig.axes[1].lines[0].get_data() == approx(contour[0])
