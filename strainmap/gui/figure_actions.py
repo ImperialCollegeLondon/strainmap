@@ -168,23 +168,11 @@ class ScrollFrames(ActionBase):
     def __init__(
         self,
         scroll_frames=TriggerSignature(Location.ANY, Button.CENTRE, MouseAction.SCROLL),
-        show_frame_number=TriggerSignature(
-            Location.ANY, Button.NONE, MouseAction.ENTERAXES
-        ),
-        hide_frame_number=TriggerSignature(
-            Location.ANY, Button.NONE, MouseAction.LEAVEAXES
-        ),
         animate=TriggerSignature(Location.NE, Button.LEFT, MouseAction.DCLICK),
     ):
         super().__init__(
-            signatures={
-                scroll_frames: self.scroll_axes,
-                show_frame_number: self.show_frame_number,
-                hide_frame_number: self.hide_frame_number,
-                animate: self.animate,
-            }
+            signatures={scroll_frames: self.scroll_axes, animate: self.animate}
         )
-        self._img_shift = 0
         self._anim = {}
         self._anim_running = {}
         self._current_frames = defaultdict(lambda: 0)
@@ -194,6 +182,7 @@ class ScrollFrames(ActionBase):
     def set_scroller(self, scroller, axes):
         """Sets the generator function that will produce the new data when scrolling."""
         self._scroller[axes] = scroller
+        axes.set_title(f"Frame: 0", loc="left")
 
     def link_axes(self, axes1, axes2):
         """Links two axes, so scrolling happens simultaneously in both."""
@@ -202,6 +191,8 @@ class ScrollFrames(ActionBase):
 
         self._linked_axes[axes1] = axes2
         self._linked_axes[axes2] = axes1
+        axes1.set_title(f"Frame: 0", loc="left")
+        axes2.set_title(f"Frame: 0", loc="left")
 
     def unlink_axes(self, axes1, axes2):
         """Unlinks two linked axes."""
@@ -211,16 +202,6 @@ class ScrollFrames(ActionBase):
     def scroll_axes(self, event, *args):
         """The images available in the axes, if more than one, are scrolled."""
         self._scroll_axes(None, event.step, event.inaxes)
-
-    def show_frame_number(self, event, *args):
-        """Shows the frame number on top of the axes."""
-        axes = event.inaxes
-        axes.set_title(f"Frame: {self._current_frames[axes]}", loc="left")
-
-    @staticmethod
-    def hide_frame_number(event, *args):
-        """Hides the frame number on top of the axes."""
-        event.inaxes.set_title("", loc="left")
 
     def animate(self, event, *args):
         """Animate the sequence of images in the axes."""
@@ -251,11 +232,16 @@ class ScrollFrames(ActionBase):
     def _scroll_axes(self, _, step, axes):
         """Internal function that decides what to scroll."""
         step = int(np.sign(step))
-        self._current_frames[axes] += step
+        frame = self._current_frames[axes] + step
+        self.go_to_frame(frame, axes)
+
+    def go_to_frame(self, frame, axes):
+        """Scroll directly to this specific frame in the chosen axes."""
+        self._current_frames[axes] = frame
         self.scroll_artists(axes)
 
         if axes in self._linked_axes:
-            self._current_frames[self._linked_axes[axes]] += step
+            self._current_frames[self._linked_axes[axes]] = frame
             self.scroll_artists(self._linked_axes[axes])
 
     def scroll_artists(self, axes):
@@ -288,7 +274,6 @@ class ScrollFrames(ActionBase):
             del anim
         self._anim = {}
         self._anim_running = {}
-        self._img_shift = 0
 
 
 def circle(points: np.ndarray, resolution=360, **kwargs) -> Optional[np.ndarray]:
@@ -539,6 +524,7 @@ class DragContours(ActionBase):
 
         super().__init__(signatures={drag_point: self.drag_point})
         self.contour_fraction = np.clip(contour_fraction, a_min=0, a_max=1)
+        self.disabled = False
         self._current_artist = None
         self._drag_handle = 0
         self._contour_updated = (
@@ -553,6 +539,8 @@ class DragContours(ActionBase):
 
     def drag_point(self, event, last_event, *args):
         """Drags a point and all the neighbouring ones of a closed contour."""
+        if self.disabled:
+            return
 
         if hasattr(last_event, "artist") and isinstance(last_event.artist, Line2D):
             self._current_artist = last_event.artist
