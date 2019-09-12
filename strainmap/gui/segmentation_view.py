@@ -20,6 +20,7 @@ from .figure_actions import (
     ScrollFrames,
     ZoomAndPan,
     DragContours,
+    Markers,
 )
 from .figure_actions_manager import FigureActionsManager
 from ..models.contour_mask import contour_diff
@@ -47,6 +48,7 @@ class SegmentationTaskView(TaskViewBase):
             "endocardium": None,
             "epicardium": None,
         }
+        self.zero_angle: Optional[np.ndarray] = None
         self.endocardium_target_var = tk.StringVar(value="mag")
         self.epicardium_target_var = tk.StringVar(value="mag")
         self.datasets_var = tk.StringVar(value="")
@@ -71,6 +73,8 @@ class SegmentationTaskView(TaskViewBase):
         self.undo_all_btn = None
         self.next_btn = None
         self.pbar = None
+        self.septum_markers = [None, None]
+        self.zero_angle_lines = [None, None]
 
         self.create_controls()
 
@@ -252,10 +256,12 @@ class SegmentationTaskView(TaskViewBase):
             ScrollFrames,
             DrawContours,
             DragContours,
+            Markers,
         )
         self.fig.actions_manager.DrawContours.num_contours = 0
         self.fig.actions_manager.ScrollFrames.link_axes(self.ax_mag, self.ax_vel)
         self.fig.actions_manager.DragContours.set_contour_updated(self.contour_edited)
+        self.fig.actions_manager.Markers.set_marker_moved(self.septum_edited)
 
         self.ax_mag.set_title("Magnitude", loc="right")
         self.ax_vel.set_title("Velocity", loc="right")
@@ -285,6 +291,7 @@ class SegmentationTaskView(TaskViewBase):
 
         self.plot_images(dataset)
         self.plot_segments(dataset)
+        self.plot_zero_angle(dataset)
 
         if xlim is not None:
             self.ax_mag.set_xlim(*xlim)
@@ -327,14 +334,13 @@ class SegmentationTaskView(TaskViewBase):
                 color=colors[i],
             )
 
-        self.plot_centroid()
-
-    def plot_centroid(self):
+    def plot_zero_angle(self, dataset):
         """Plots the centroid of the mask defined by the current segments."""
-        options = dict(marker="+", color="r", markersize=10, label="centroid")
-        centroid = self.current_centroid
-        self.ax_mag.plot(*centroid, **options)
-        self.ax_vel.plot(*centroid, **options)
+        options = dict(marker="+", color="r", markersize=10, label="zero_angle")
+        self.zero_angle = self.data.zero_angle[dataset]
+        data = self.zero_angle[self.current_frame]
+        self.zero_angle_lines[0] = self.ax_mag.plot(*data, **options)
+        self.zero_angle_lines[1] = self.ax_vel.plot(*data, **options)
 
     @property
     def current_centroid(self):
@@ -373,6 +379,9 @@ class SegmentationTaskView(TaskViewBase):
         self.current_frame = frame
         self.find_segmentation()
 
+        self.zero_angle[self.current_frame] = self.zero_angle[self.current_frame - 1]
+        self.zero_angle[self.current_frame, 1, :] = self.current_centroid
+
         if frame + 1 == self.images["mag"].shape[0]:
             self.next_btn.config(text="Finish", command=self.finish_segmentation)
 
@@ -382,17 +391,14 @@ class SegmentationTaskView(TaskViewBase):
         """Provides the next images and lines to plot when scrolling."""
         self.current_frame = frame % self.images["mag"].shape[0]
 
-        img = endo = epi = centroid = None
+        img = endo = epi = zero_angle = None
 
         if image in ["mag", "vel"]:
             img = self.images[image][self.current_frame]
         if self.final_segments["endocardium"] is not None:
             endo = self.final_segments["endocardium"][self.current_frame]
             epi = self.final_segments["epicardium"][self.current_frame]
-            if np.isnan(endo[0, 0]).any():
-                centroid = np.full(2, np.nan)
-            else:
-                centroid = self.current_centroid
+            zero_angle = self.zero_angle[self.current_frame]
 
         self.update_undo_state()
 
@@ -401,7 +407,7 @@ class SegmentationTaskView(TaskViewBase):
             or self.next_btn["text"] == "Done!"
         )
 
-        return self.current_frame, img, (endo, epi, centroid)
+        return self.current_frame, img, (endo, epi, zero_angle)
 
     def contour_edited(self, label, axes, data):
         """After a contour is modified, this function is executed."""
@@ -412,13 +418,22 @@ class SegmentationTaskView(TaskViewBase):
         self.update_undo_state()
 
         self.final_segments[label][self.current_frame] = data
+        self.zero_angle[self.current_frame, 1, :] = self.current_centroid
+
+        for i in range(2):
+            self.zero_angle_lines[i].set_data(self.zero_angle[self.current_frame])
 
         for ax in set(self.fig.axes):
             for l in ax.lines:
                 if l.get_label() == label:
                     l.set_data(data)
-                elif l.get_label() == "centroid":
-                    l.set_data(self.current_centroid)
+
+    def septum_edited(self, marker, data, x, y, idx):
+        """Updates the mid-septum information when this is dragged."""
+        self.zero_angle[self.current_frame, 0, :] = np.array((x, y))
+        for i in range(2):
+            self.zero_angle_lines[i].set_data(self.zero_angle[self.current_frame])
+            self.septum_markers[i].set_data(np.array((x, y)))
 
     def undo(self, index):
         """Undo the last manual modification in the current frame."""

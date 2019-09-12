@@ -69,8 +69,11 @@ def initialize_data_segments(data, dataset_name, shape):
     if len(shape) == 2:
         num_frames = len(data.data_files[dataset_name]["MagZ"])
         shape = (num_frames,) + shape
+    else:
+        num_frames = shape[0]
     data.segments[dataset_name]["endocardium"] = np.full(shape, np.nan)
     data.segments[dataset_name]["epicardium"] = np.full(shape, np.nan)
+    data.zero_angle[dataset_name] = np.full((num_frames, 2, 2), np.nan)
 
     return data
 
