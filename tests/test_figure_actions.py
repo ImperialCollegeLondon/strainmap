@@ -351,16 +351,16 @@ def test_add_marker(figure):
     line = axes.plot(*data, label="my_data")[0]
 
     mark = Markers()
-    mark.add_marker(line=line, label="my_marker")
+    marker = mark.add_marker(line=line, label="my_marker")
 
     assert len(mark._linked_data) == 1
-    assert list(mark._linked_data.keys())[0].get_label() == "my_marker"
-    assert list(mark._linked_data.values())[0] == line
+    assert marker.get_label() == "my_marker"
+    assert mark._linked_data[marker] == line
 
-    mark.add_marker(axes=axes, label="no_linked")
+    marker2 = mark.add_marker(axes=axes, label="no_linked")
     assert len(mark._linked_data) == 2
-    assert list(mark._linked_data.keys())[1].get_label() == "no_linked"
-    assert list(mark._linked_data.values())[1] is None
+    assert marker2.get_label() == "no_linked"
+    assert mark._linked_data[marker2] is None
 
 
 def test_update_marker_position(figure):
@@ -372,19 +372,19 @@ def test_update_marker_position(figure):
     line = axes.plot(*data, label="my_data")[0]
 
     mark = Markers()
-    mark.add_marker(line, label="my_marker")
-    mark.update_marker_position("my_marker", 0.5, data_label="my_data")
+    marker = mark.add_marker(line, label="my_marker")
+    mark.update_marker_position(marker, 0.5)
 
     ind = np.argmin(np.abs(data[0] - 0.5))
     expected = data[1, ind]
-    actual = list(mark._linked_data.keys())[0].get_ydata()[0]
+    actual = marker.get_ydata()[0]
 
     assert expected == approx(actual)
 
-    mark.add_marker(axes=axes, label="no_linked")
-    mark.update_marker_position("no_linked", 0.5, new_y=6)
-    actualx = list(mark._linked_data.keys())[1].get_xdata()[0]
-    actualy = list(mark._linked_data.keys())[1].get_ydata()[0]
+    marker2 = mark.add_marker(axes=axes, label="no_linked")
+    mark.update_marker_position(marker2, 0.5, new_y=6)
+    actualx = marker2.get_xdata()[0]
+    actualy = marker2.get_ydata()[0]
 
     assert actualx == approx(0.5)
     assert actualy == approx(6)

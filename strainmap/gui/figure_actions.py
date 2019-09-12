@@ -1,6 +1,6 @@
 from collections import defaultdict
 from functools import partial
-from typing import Callable, Dict, Optional, Tuple
+from typing import Callable, Dict, Optional, Tuple, Union
 
 import matplotlib.animation as animation
 import numpy as np
@@ -650,7 +650,7 @@ class Markers(ActionBase):
         super().__init__(signatures={drag_marker: self.drag_marker})
         self._current_marker = None
         self._current_data = None
-        self._linked_data: Dict[Line2D, Line2D] = dict()
+        self._linked_data: Dict[Line2D, Union[Line2D, None]] = dict()
         self._marker_moved = (
             marker_moved if marker_moved is not None else lambda *args: None
         )
@@ -659,7 +659,7 @@ class Markers(ActionBase):
         """Sets the function to be called when the contour is updated."""
         self._marker_moved = marker_moved
 
-    def add_marker(self, line=None, label=None, axes=None, **kwargs):
+    def add_marker(self, line=None, axes=None, **kwargs):
         """Adds a marker to the axis of the linked data."""
         if line is not None:
             axes = line.axes
@@ -674,23 +674,23 @@ class Markers(ActionBase):
         options = dict(picker=6, marker="x", markersize=20, linestyle="None")
         options.update(kwargs)
 
-        marker = axes.plot(x[0], y[0], label=label, **options)[0]
+        marker = axes.plot(x[0], y[0], **options)[0]
         self._linked_data[marker] = line
 
         return marker
 
-    def update_marker_position(self, marker_label, new_x, data_label=None, new_y=None):
+    def update_marker_position(self, marker, new_x, new_y=None):
         """Updates the position of an existing marker."""
-        for marker, line in self._linked_data.items():
-            if marker_label is not marker.get_label():
-                continue
+        line = self._linked_data.get(marker, "Not a marker")
 
-            if line is None:
-                y = marker.get_ydata()[0]
-                marker.set_data([new_x], [new_y if new_y is not None else y])
-            elif data_label is line.get_label():
-                x, y, idx = self.get_closest(line, new_x)
-                marker.set_data([x], [y])
+        if line == "Not a marker":
+            return
+        elif line is None:
+            y = marker.get_ydata()[0]
+            marker.set_data([new_x], [new_y if new_y is not None else y])
+        else:
+            x, y, idx = self.get_closest(line, new_x)
+            marker.set_data([x], [y])
 
     def drag_marker(self, event, last_event, *args):
         """Drags a marker to a new position of the data."""
@@ -701,19 +701,16 @@ class Markers(ActionBase):
 
         ev = last_event.mouseevent if hasattr(last_event, "mouseevent") else event
         old_x = self._current_marker.get_xdata()[0]
-        marker_label = self._current_marker.get_label()
 
         if self._current_data is None:
             x, y = ev.xdata, ev.ydata
             idx = 0
-            data_label = None
         else:
             x, y, idx = self.get_closest(self._current_data, ev.xdata)
-            data_label = self._current_data.get_label()
 
         if x != old_x:
             self._current_marker.set_data([x], [y])
-            self._marker_moved(marker_label, data_label, x, y, idx)
+            self._marker_moved(self._current_marker, self._current_data, x, y, idx)
 
         return event
 
