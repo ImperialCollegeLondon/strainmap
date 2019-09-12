@@ -1,4 +1,5 @@
 from pytest import approx
+from unittest.mock import MagicMock
 
 
 def test_get_deltas(figure):
@@ -127,7 +128,7 @@ def test_reset_brightness_and_contrast(figure):
 
 def test_scroll_frames(figure):
     from matplotlib.backend_bases import MouseEvent
-    from strainmap.gui.figure_actions import ScrollFrames, data_scroller
+    from strainmap.gui.figure_actions import ScrollFrames
     import numpy as np
 
     data = np.random.random((3, 10, 10))
@@ -135,8 +136,11 @@ def test_scroll_frames(figure):
     ax = figure.axes[0]
     ax.imshow(data[0])
 
+    def scroller(frame):
+        return frame, data[frame], None
+
     scroll = ScrollFrames()
-    scroll.set_generators(data_scroller(data), axes=ax)
+    scroll.set_scroller(scroller, axes=ax)
     event = MouseEvent("click", figure.canvas, x=100, y=100, step=1)
 
     scroll.show_frame_number(event)
@@ -289,6 +293,53 @@ def test_clear_drawing(figure):
     assert len(draw.points[axes]) == 0
     assert len(draw.marks[axes]) == 0
     assert len(draw.contours[axes]) == 0
+
+
+def test_calculate_shifts():
+    from strainmap.gui.figure_actions import DragContours
+    import numpy as np
+
+    drag = DragContours()
+    x = np.array([1, 0, -1, 0])
+    y = np.array([0, 1, 0, -1])
+    dx = 1
+    drag._drag_handle = 0
+
+    shiftx, shifty = drag.calculate_shifts(xdata=x, ydata=y, deltax=dx, deltay=0)
+
+    assert shiftx[0] == 1
+    assert np.all(shifty == 0)
+
+
+def test_drag_points(figure):
+    from matplotlib.backend_bases import MouseEvent
+    from strainmap.gui.figure_actions import DragContours
+    import numpy as np
+
+    actual_via_callback = None
+
+    def update_contour(label, axes, data):
+        nonlocal actual_via_callback
+        actual_via_callback = data
+
+    drag = DragContours(contour_updated=update_contour)
+    initial = np.array([[1, 0, -1, 0], [0, 1, 0, -1]])
+    drag.calculate_shifts = MagicMock(
+        return_value=(np.array([1, 0, 0, 0]), np.array([0, 0, 0, 0]))
+    )
+    axes = figure.axes[0]
+    drag._current_artist = axes.plot(*initial)[0]
+    drag._drag_handle = 0
+
+    event = MouseEvent("click", figure.canvas, x=100, y=200)
+
+    drag.drag_point(event, event)
+
+    expected = np.array([[2, 0, -1, 0], [0, 1, 0, -1]])
+    actual = np.array(drag._current_artist.get_data())
+
+    assert expected == approx(actual)
+    assert expected == approx(actual_via_callback)
 
 
 def test_add_marker(figure):
