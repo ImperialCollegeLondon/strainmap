@@ -560,22 +560,36 @@ class Markers(ActionBase):
         """Sets the function to be called when the contour is updated."""
         self._marker_moved = marker_moved
 
-    def add_marker(self, line, label=None, **kwargs):
+    def add_marker(self, line=None, label=None, axes=None, **kwargs):
         """Adds a marker to the axis of the linked data."""
-        ax = line.axes
-        x, y = line.get_data()
+        if line is not None:
+            axes = line.axes
+            x, y = line.get_data()
+        elif axes is not None:
+            xlim = axes.get_xlim()
+            ylim = axes.get_ylim()
+            x, y = [(xlim[0] + xlim[1]) / 2], [(ylim[0] + ylim[1]) / 2]
+        else:
+            raise ValueError("At least one of 'lines' or 'axes' must be defined.")
 
         options = dict(picker=6, marker="x", markersize=20, linestyle="None")
         options.update(kwargs)
 
-        marker = ax.plot(x[0], y[0], label=label, **options)[0]
+        marker = axes.plot(x[0], y[0], label=label, **options)[0]
         self._linked_data[marker] = line
 
-    def update_marker_position(self, marker_label, data_label, new_x):
+        return marker
+
+    def update_marker_position(self, marker_label, new_x, data_label=None, new_y=None):
         """Updates the position of an existing marker."""
-        for marker in self._linked_data.keys():
-            line = self._linked_data[marker]
-            if marker_label == marker.get_label() and data_label == line.get_label():
+        for marker, line in self._linked_data.items():
+            if marker_label is not marker.get_label():
+                continue
+
+            if line is None:
+                y = marker.get_ydata()[0]
+                marker.set_data([new_x], [new_y if new_y is not None else y])
+            elif data_label is line.get_label():
                 x, y, idx = self.get_closest(line, new_x)
                 marker.set_data([x], [y])
 
@@ -586,19 +600,21 @@ class Markers(ActionBase):
             self._current_marker = last_event.artist
             self._current_data = self._linked_data[self._current_marker]
 
-        ev = last_event.mouseevent if hasattr(last_event, "mouseevent") else last_event
+        ev = last_event.mouseevent if hasattr(last_event, "mouseevent") else event
         old_x = self._current_marker.get_xdata()[0]
-        x, y, idx = self.get_closest(self._current_data, ev.xdata)
+        marker_label = self._current_marker.get_label()
+
+        if self._current_data is None:
+            x, y = ev.xdata, ev.ydata
+            idx = 0
+            data_label = None
+        else:
+            x, y, idx = self.get_closest(self._current_data, ev.xdata)
+            data_label = self._current_data.get_label()
 
         if x != old_x:
             self._current_marker.set_data([x], [y])
-            self._marker_moved(
-                self._current_marker.get_label(),
-                self._current_data.get_label(),
-                x,
-                y,
-                idx,
-            )
+            self._marker_moved(marker_label, data_label, x, y, idx)
 
         return event
 
