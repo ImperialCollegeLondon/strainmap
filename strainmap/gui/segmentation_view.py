@@ -597,9 +597,9 @@ class SegmentationTaskView(TaskViewBase):
 
         self.initialization = iter(
             (
-                self.set_septum,
                 lambda: self.set_initial_contour("endocardium"),
                 lambda: self.set_initial_contour("epicardium"),
+                self.set_septum,
                 self.initialization_complete,
                 self.next_first_frame,
             )

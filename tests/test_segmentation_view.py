@@ -85,9 +85,9 @@ def test_initialize_segmentation(segmentation_view, strainmap_data):
     assert segmentation_view.next_btn.instate(["disabled"])
 
     segmentation_view.initialize_segmentation()
-    segmentation_view.get_septum(None, [np.random.random(2)])
     segmentation_view.get_contour([contour], side="endocardium")
     segmentation_view.get_contour([contour], side="epicardium")
+    segmentation_view.get_septum(None, [np.random.random(2)])
     assert segmentation_view.next_btn.instate(["!disabled"])
     segmentation_view.next_first_frame.assert_called_once()
 
