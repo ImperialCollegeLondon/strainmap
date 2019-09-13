@@ -1,6 +1,6 @@
 from collections import defaultdict
 from functools import partial
-from typing import Callable, Dict, Optional, Tuple
+from typing import Callable, Dict, Optional, Tuple, Union
 
 import matplotlib.animation as animation
 import numpy as np
@@ -632,3 +632,90 @@ class DragContours(ActionBase):
         shift = np.exp(-(distance / sigma) ** 2)
 
         return deltax * shift, deltay * shift
+
+
+class Markers(ActionBase):
+    def __init__(
+        self,
+        marker_moved: Optional[Callable] = None,
+        drag_marker=TriggerSignature(Location.ANY, Button.LEFT, MouseAction.PICKDRAG),
+    ):
+        """Add sliding markers to read the data from a plot.
+
+        Args:
+            marker_moved: Function called whenever a marker is dragged.
+            drag_marker: TriggerSignature for this action.
+        """
+
+        super().__init__(signatures={drag_marker: self.drag_marker})
+        self._current_marker = None
+        self._current_data = None
+        self._linked_data: Dict[Line2D, Union[Line2D, None]] = dict()
+        self._marker_moved = (
+            marker_moved if marker_moved is not None else lambda *args: None
+        )
+
+    def set_marker_moved(self, marker_moved: Callable):
+        """Sets the function to be called when the contour is updated."""
+        self._marker_moved = marker_moved
+
+    def add_marker(self, line=None, axes=None, **kwargs):
+        """Adds a marker to the axis of the linked data."""
+        if line is not None:
+            axes = line.axes
+            x, y = line.get_data()
+        elif axes is not None:
+            xlim = axes.get_xlim()
+            ylim = axes.get_ylim()
+            x, y = [(xlim[0] + xlim[1]) / 2], [(ylim[0] + ylim[1]) / 2]
+        else:
+            raise ValueError("At least one of 'lines' or 'axes' must be defined.")
+
+        options = dict(picker=6, marker="x", markersize=20, linestyle="None")
+        options.update(kwargs)
+
+        marker = axes.plot(x[0], y[0], **options)[0]
+        self._linked_data[marker] = line
+
+        return marker
+
+    def update_marker_position(self, marker, new_x, new_y=None):
+        """Updates the position of an existing marker."""
+        line = self._linked_data.get(marker, "Not a marker")
+
+        if line == "Not a marker":
+            return
+        elif line is None:
+            y = marker.get_ydata()[0]
+            marker.set_data([new_x], [new_y if new_y is not None else y])
+        else:
+            x, y, idx = self.get_closest(line, new_x)
+            marker.set_data([x], [y])
+
+    def drag_marker(self, event, last_event, *args):
+        """Drags a marker to a new position of the data."""
+
+        if hasattr(last_event, "artist") and isinstance(last_event.artist, Line2D):
+            self._current_marker = last_event.artist
+            self._current_data = self._linked_data[self._current_marker]
+
+        ev = last_event.mouseevent if hasattr(last_event, "mouseevent") else event
+        old_x = self._current_marker.get_xdata()[0]
+
+        if self._current_data is None:
+            x, y = ev.xdata, ev.ydata
+            idx = 0
+        else:
+            x, y, idx = self.get_closest(self._current_data, ev.xdata)
+
+        if x != old_x:
+            self._current_marker.set_data([x], [y])
+            self._marker_moved(self._current_marker, self._current_data, x, y, idx)
+
+        return event
+
+    @staticmethod
+    def get_closest(line, mx):
+        x, y = line.get_data()
+        mini = np.argmin(np.abs(x - mx))
+        return x[mini], y[mini], mini
