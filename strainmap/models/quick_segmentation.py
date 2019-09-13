@@ -3,6 +3,7 @@ from .strainmap_data_model import StrainMapData
 from .contour_mask import Contour
 
 import numpy as np
+from copy import copy
 from typing import Text, Dict, Any, Union, List
 
 
@@ -79,7 +80,11 @@ def initialize_data_segments(data, dataset_name, shape):
 
 
 def update_segmentation(
-    data: StrainMapData, dataset_name: str, segments: dict, frame: Union[int, slice]
+    data: StrainMapData,
+    dataset_name: str,
+    segments: dict,
+    zero_angle: np.ndarray,
+    frame: Union[int, slice],
 ) -> StrainMapData:
     """Updates an existing segmentation with new segments, potentially clearing them.
 
@@ -94,12 +99,16 @@ def update_segmentation(
         The StrainMapData object updated with the segmentation.
     """
     if segments["endocardium"] is not None and segments["epicardium"] is not None:
-        data.segments[dataset_name]["endocardium"][frame] = segments["endocardium"][
-            frame
-        ]
-        data.segments[dataset_name]["epicardium"][frame] = segments["epicardium"][frame]
+        data.segments[dataset_name]["endocardium"][frame] = copy(
+            segments["endocardium"][frame]
+        )
+        data.segments[dataset_name]["epicardium"][frame] = copy(
+            segments["epicardium"][frame]
+        )
+        data.zero_angle[dataset_name][frame] = copy(zero_angle[frame])
     else:
         data.segments.pop(dataset_name)
+        data.zero_angle.pop(dataset_name)
     return data
 
 

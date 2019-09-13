@@ -93,7 +93,7 @@ class StrainMap(object):
         data = quick_segmentation.find_segmentation(**kwargs)
         if data.segments and unlock:
             self.unlock(Requisites.SEGMENTED)
-        elif not data.segments:
+        elif len(data.segments) == 0:
             self.lock(Requisites.SEGMENTED)
         self.update_views(data)
 
@@ -104,6 +104,6 @@ class StrainMap(object):
         data = quick_segmentation.update_segmentation(**kwargs)
         if data.segments and unlock:
             self.unlock(Requisites.SEGMENTED)
-        elif not data.segments:
+        elif len(data.segments) == 0:
             self.lock(Requisites.SEGMENTED)
         self.update_views(data)

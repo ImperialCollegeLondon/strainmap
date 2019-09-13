@@ -69,7 +69,7 @@ def test_enter_and_leave_initial_edit_mode(segmentation_view):
     assert segmentation_view.cursors["mag"] is None
     segmentation_view.enter_initial_edit_mode()
     assert segmentation_view.cursors["mag"] is not None
-    segmentation_view.leave_initial_edit_mode()
+    segmentation_view.initialization_complete()
     assert segmentation_view.cursors["mag"] is None
 
 
@@ -77,7 +77,7 @@ def test_define_initial_contour(segmentation_view, strainmap_data):
     from copy import deepcopy
 
     segmentation_view.data = deepcopy(strainmap_data)
-    segmentation_view.define_initial_contour("endocardium")
+    segmentation_view.set_initial_contour("endocardium")
 
     assert "get_contour" in str(
         segmentation_view.fig.actions_manager.DrawContours.contours_updated
@@ -131,7 +131,7 @@ def test_initial_contour(segmentation_view, strainmap_data):
     from copy import deepcopy
 
     segmentation_view.data = deepcopy(strainmap_data)
-    segmentation_view.define_initial_contour("endocardium")
+    segmentation_view.set_initial_contour("endocardium")
     actual = segmentation_view.ini_endo_btn["text"]
     assert actual == "Cancel"
 
@@ -139,7 +139,7 @@ def test_initial_contour(segmentation_view, strainmap_data):
     actual = segmentation_view.ini_endo_btn["text"]
     assert actual == "Define endocardium"
 
-    segmentation_view.define_initial_contour("endocardium")
+    segmentation_view.set_initial_contour("endocardium")
     contour = np.random.random((2, 5))
     segmentation_view.get_contour([contour], side="endocardium")
     actual = segmentation_view.ini_endo_btn["text"]

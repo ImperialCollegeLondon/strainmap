@@ -313,6 +313,11 @@ def spline(
     return result
 
 
+def single_point(points: np.ndarray) -> Optional[np.ndarray]:
+    """Returns a single point to be plotted 'as as'."""
+    return points[-1][np.newaxis].T
+
+
 class DrawContours(ActionBase):
     def __init__(
         self,
@@ -526,6 +531,7 @@ class DragContours(ActionBase):
         self.contour_fraction = np.clip(contour_fraction, a_min=0, a_max=1)
         self.disabled = False
         self._current_artist = None
+        self._ignore_drag = []
         self._drag_handle = 0
         self._contour_updated = (
             partial(contour_updated, **kwargs)
@@ -537,22 +543,29 @@ class DragContours(ActionBase):
         """Sets the function to be called when the contour is updated."""
         self._contour_updated = contour_updated
 
+    def ignore_dragging(self, artist):
+        """Dragging will be ignored for this pickable artist."""
+        self._ignore_drag.append(artist)
+
     def drag_point(self, event, last_event, *args):
         """Drags a point and all the neighbouring ones of a closed contour."""
         if self.disabled:
             return
 
-        if hasattr(last_event, "artist") and isinstance(last_event.artist, Line2D):
-            self._current_artist = last_event.artist
-            xdata = self._current_artist.get_xdata()
-            ydata = self._current_artist.get_ydata()
+        if hasattr(last_event, "artist"):
+            if last_event.artist in self._ignore_drag:
+                self._current_artist = None
+            elif isinstance(last_event.artist, Line2D):
+                self._current_artist = last_event.artist
+                xdata = self._current_artist.get_xdata()
+                ydata = self._current_artist.get_ydata()
 
-            xdif = xdata - last_event.mouseevent.xdata
-            ydif = ydata - last_event.mouseevent.ydata
+                xdif = xdata - last_event.mouseevent.xdata
+                ydif = ydata - last_event.mouseevent.ydata
 
-            self._drag_handle = (xdif ** 2 + ydif ** 2).argmin()
+                self._drag_handle = (xdif ** 2 + ydif ** 2).argmin()
 
-        elif self._current_artist is None:
+        if self._current_artist is None:
             return
 
         xdata = self._current_artist.get_xdata()
@@ -626,7 +639,7 @@ class Markers(ActionBase):
     def __init__(
         self,
         marker_moved: Optional[Callable] = None,
-        drag_marker=TriggerSignature(Location.ANY, Button.LEFT, MouseAction.PICKDRAG),
+        drag_marker=TriggerSignature(Location.ANY, Button.RIGHT, MouseAction.PICKDRAG),
     ):
         """Add sliding markers to read the data from a plot.
 
@@ -636,6 +649,7 @@ class Markers(ActionBase):
         """
 
         super().__init__(signatures={drag_marker: self.drag_marker})
+        self.disabled = False
         self._current_marker = None
         self._current_data = None
         self._linked_data: Dict[Line2D, Union[Line2D, None]] = dict()
@@ -652,17 +666,18 @@ class Markers(ActionBase):
         if line is not None:
             axes = line.axes
             x, y = line.get_data()
+            x, y = x[0], y[0]
         elif axes is not None:
             xlim = axes.get_xlim()
             ylim = axes.get_ylim()
-            x, y = [(xlim[0] + xlim[1]) / 2], [(ylim[0] + ylim[1]) / 2]
+            x, y = (xlim[0] + xlim[1]) / 2, (ylim[0] + ylim[1]) / 2
         else:
             raise ValueError("At least one of 'lines' or 'axes' must be defined.")
 
         options = dict(picker=6, marker="x", markersize=20, linestyle="None")
         options.update(kwargs)
 
-        marker = axes.plot(x[0], y[0], **options)[0]
+        marker = axes.plot(x, y, **options)[0]
         self._linked_data[marker] = line
 
         return marker
@@ -682,13 +697,22 @@ class Markers(ActionBase):
 
     def drag_marker(self, event, last_event, *args):
         """Drags a marker to a new position of the data."""
+        if self.disabled:
+            return
 
-        if hasattr(last_event, "artist") and isinstance(last_event.artist, Line2D):
-            self._current_marker = last_event.artist
-            self._current_data = self._linked_data[self._current_marker]
+        if hasattr(last_event, "artist"):
+            if last_event.artist in self._linked_data:
+                self._current_marker = last_event.artist
+                self._current_data = self._linked_data[self._current_marker]
+            else:
+                self._current_marker = None
+                self._current_data = None
+
+        if self._current_marker is None:
+            return
 
         ev = last_event.mouseevent if hasattr(last_event, "mouseevent") else event
-        old_x = self._current_marker.get_xdata()[0]
+        old_x = self._current_marker.get_xdata()
 
         if self._current_data is None:
             x, y = ev.xdata, ev.ydata
