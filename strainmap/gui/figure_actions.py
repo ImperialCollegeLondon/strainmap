@@ -1,6 +1,6 @@
 from collections import defaultdict
 from functools import partial
-from typing import Callable, Dict, Optional, Tuple, Union
+from typing import Callable, Dict, Optional, Tuple, Union, List
 
 import matplotlib.animation as animation
 import numpy as np
@@ -531,7 +531,7 @@ class DragContours(ActionBase):
         self.contour_fraction = np.clip(contour_fraction, a_min=0, a_max=1)
         self.disabled = False
         self._current_artist = None
-        self._ignore_drag = []
+        self._ignore_drag: List[Line2D] = []
         self._drag_handle = 0
         self._contour_updated = (
             partial(contour_updated, **kwargs)
