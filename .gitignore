@@ -8,3 +8,4 @@
 /pip-wheel-metadata/
 /.eggs/
 **/.mypy_cache/
+**/reports
