@@ -27,7 +27,7 @@ def plot_velocities(
     Returns:
         An array of subplot axes.
     """
-    from ..models.contour_mask import mean_velocities
+    from strainmap.models.velocities import mean_velocities
 
     assert velocities.ndim == len(image_axes) + 1 + 1
 

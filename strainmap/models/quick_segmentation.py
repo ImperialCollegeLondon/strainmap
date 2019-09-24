@@ -58,7 +58,10 @@ def find_segmentation(
 
     if frame is None:
         frame = slice(None)
-
+    elif isinstance(frame, int):
+        frame = slice(frame, frame + 1)
+    print(frame)
+    print(data.segments[dataset_name]["endocardium"].shape)
     data.segments[dataset_name]["endocardium"][frame] = results["endocardium"]
     data.segments[dataset_name]["epicardium"][frame] = results["epicardium"]
 
@@ -173,7 +176,7 @@ def simple_segmentation(
     )
 
     return (
-        np.array([c.xy.T for c in segmentation])
+        np.array([c.xy.T for c in segmentation]).transpose((0, 2, 1))
         if isinstance(segmentation, list)
         else segmentation.xy.T
     )
