@@ -163,7 +163,7 @@ class FigureActionsManager(object):
 
     def draw(self):
         """Convenience method for re-drawing the canvas."""
-        self.canvas.draw()
+        self.canvas.draw_idle()
 
     def add_action(self, action: Type[ActionBase], **kwargs):
         """Adds an action to the Manager."""
@@ -236,7 +236,6 @@ class FigureActionsManager(object):
         elif len(self._current_action) == 1:
             self._last_event = self._current_action[0](event, self._last_event)
         else:
-            print(self._current_action)
             for ac in self._current_action:
                 ac(event, self._last_event)
 

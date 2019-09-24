@@ -91,3 +91,9 @@ class StrainMap(object):
         if data.segments:
             self.unlock(Requisites.SEGMENTED)
         self.update_views(data)
+
+    @bind_event
+    def update_segmentation(self, **kwargs):
+        """Runs an automated segmentation routine."""
+        data = quick_segmentation.update_segmentation(**kwargs)
+        self.update_views(data)

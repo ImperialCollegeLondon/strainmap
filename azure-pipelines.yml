@@ -1,34 +1,43 @@
+strategy:
+  matrix:
+    linux:
+      imageName: ubuntu-16.04
+    windows:
+      imageName: windows-2019
+      pythonVersion: 3.7
+    umac:
+      imageName: macos-10.13
+      pythonVersion: 3.7
+
 pool:
-  vmImage: "ubuntu-16.04"
+  vmImage: $(imageName)
 
 steps:
+  - script: |
+      docker build -t strainmap-test .
+      docker run --rm -v $(pwd)/reports:/usr/src/app/reports strainmap-test
+    condition: eq(variables['Agent.OS'], 'Linux')
+    displayName: "Run tests in Linux"
+
   - task: UsePythonVersion@0
     inputs:
-      versionSpec: 3.7
-      architecture: "x64"
-
-  - script: |
-      sudo apt update
-      sudo apt install python3-tk xvfb
-    displayName: "Install system dependencies"
+      versionSpec: $(pythonVersion)
+    condition: ne(variables['Agent.OS'], 'Linux')
 
   - script: |
       pip install -e .
-    displayName: "Install prerequisites"
-
-  - script: |
-      xvfb-run -a python setup.py -q test
-    condition: succeededOrFailed()
-    displayName: "Run tests"
+      python setup.py -q test
+    condition: ne(variables['Agent.OS'], 'Linux')
+    displayName: "Run tests in Windows and macOS"
 
   - task: PublishTestResults@2
     inputs:
-      testResultsFiles: "**/test-*.xml"
+      testResultsFiles: "**/junit.xml"
     condition: succeededOrFailed()
 
   - task: PublishCodeCoverageResults@1
     inputs:
       codeCoverageTool: Cobertura
       summaryFileLocation: "**/coverage.xml"
-      reportDirectory: "**/htmlcov"
+      reportDirectory: "**/coverage"
     condition: succeededOrFailed()
