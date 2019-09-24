@@ -16,6 +16,7 @@ class StrainMapData(object):
         self.data_files = data_files
         self.bg_files = bg_files if bg_files else {}
         self.segments: dict = defaultdict(dict)
+        self.zero_angle: dict = {}
         self.velocities: dict = defaultdict(dict)
 
     def read_dicom_file_tags(self, series, variable, idx):

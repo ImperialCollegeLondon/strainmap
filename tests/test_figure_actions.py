@@ -143,7 +143,6 @@ def test_scroll_frames(figure):
     scroll.set_scroller(scroller, axes=ax)
     event = MouseEvent("click", figure.canvas, x=100, y=100, step=1)
 
-    scroll.show_frame_number(event)
     assert event.inaxes.images[0].get_array().data == approx(data[0])
 
     scroll.scroll_axes(event)

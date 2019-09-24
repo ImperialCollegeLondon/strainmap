@@ -61,6 +61,6 @@ segment = simple_segmentation(
 # Plot the results
 plt.imshow(image)
 plt.plot(*init.T, "r", label="Initial")
-plt.plot(*segment.T, "y", label="Segmented")
+plt.plot(*segment, "y", label="Segmented")
 plt.legend()
 plt.show()
