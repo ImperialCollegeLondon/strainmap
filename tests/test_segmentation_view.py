@@ -173,14 +173,20 @@ def test_contour_edited_and_undo(segmentation_view, strainmap_data):
 
     assert len(segmentation_view.undo_stack) == 1
     assert segmentation_view.final_segments["endocardium"][0] == approx(contour_mod)
-    assert segmentation_view.fig.axes[1].lines[0].get_data() == approx(contour_mod)
+
+    for ax in segmentation_view.fig.axes:
+        for line in ax.lines:
+            if line.get_label() == "endocardium":
+                assert line.get_data() == approx(contour_mod)
 
     segmentation_view.undo(0)
 
     assert len(segmentation_view.undo_stack) == 0
     assert segmentation_view.final_segments["endocardium"][0] == approx(contour[0])
-    assert segmentation_view.fig.axes[0].lines[0].get_data() == approx(contour[0])
-    assert segmentation_view.fig.axes[1].lines[0].get_data() == approx(contour[0])
+    for ax in segmentation_view.fig.axes:
+        for line in ax.lines:
+            if line.get_label() == "endocardium":
+                assert line.get_data() == approx(contour[0])
 
 
 def test_next_frames(segmentation_view, strainmap_data):

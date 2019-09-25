@@ -70,7 +70,6 @@ class SegmentationTaskView(TaskViewBase):
         self.cursors: Dict[str, Optional[Cursor]] = {"mag": None, "vel": None}
         self.datasets_box = None
         self.clear_btn = None
-        self.initialize_btn = None
         self.undo_last_btn = None
         self.undo_all_btn = None
         self.next_btn = None
@@ -125,13 +124,6 @@ class SegmentationTaskView(TaskViewBase):
         )
         septum_redy_lbl = ttk.Label(
             master=segment_frame, textvariable=self.septum_redy_var, width=18
-        )
-
-        self.initialize_btn = ttk.Button(
-            master=segment_frame,
-            text="Initialize segmentation",
-            width=18,
-            command=self.initialize_segmentation,
         )
 
         for i, text in enumerate(["mag", "vel"]):
@@ -217,7 +209,6 @@ class SegmentationTaskView(TaskViewBase):
         endo_redy_lbl.grid(row=0, column=0, sticky=tk.NSEW)
         epi_redy_lbl.grid(row=1, column=0, sticky=tk.NSEW)
         septum_redy_lbl.grid(row=0, column=1, sticky=tk.NSEW)
-        # self.initialize_btn.grid(row=1, column=1, sticky=tk.NSEW)
         manual_frame.grid(row=0, column=3, sticky=tk.NSEW, padx=5, pady=5)
         drag_lbl.grid(row=0, sticky=tk.NSEW, padx=5, pady=5)
         width_lbl.grid(row=0, column=1, sticky=tk.E, padx=5, pady=5)
@@ -388,10 +379,8 @@ class SegmentationTaskView(TaskViewBase):
         self.update_undo_state()
         if len(self.data.segments[dataset]) == 0:
             self.clear_segment_variables(button_pressed=False)
-            self.initialize_btn.state(["!disabled"])
             self.clear_btn.state(["disabled"])
         else:
-            self.initialize_btn.state(["disabled"])
             self.clear_btn.state(["!disabled"])
 
     def switch_mark_state(self, side, state):
@@ -481,7 +470,7 @@ class SegmentationTaskView(TaskViewBase):
         for i in range(2):
             self.zero_angle_lines[i].set_data(self.zero_angle[self.current_frame])
 
-        for ax in set(self.fig.axes):
+        for ax in set(self.fig.axes) - {axes}:
             for l in ax.lines:
                 if l.get_label() == label:
                     l.set_data(data)
@@ -621,7 +610,6 @@ class SegmentationTaskView(TaskViewBase):
             self.fig.actions_manager.DrawContours.clear_drawing_(ax)
 
         self.fig.actions_manager.DrawContours.num_contours = 0
-        self.initialize_btn.state(["disabled"])
         self.next_btn.state(["!disabled"])
 
         next(self.initialization)()
