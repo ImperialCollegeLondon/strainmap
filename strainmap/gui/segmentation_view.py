@@ -461,14 +461,6 @@ class SegmentationTaskView(TaskViewBase):
 
         self.update_undo_state()
 
-        enable_drag = (
-            self.current_frame < self.working_frame_var.get()
-            or self.next_btn["text"] == "Done!"
-        )
-
-        self.fig.actions_manager.Markers.disabled = enable_drag
-        self.fig.actions_manager.DragContours.disabled = enable_drag
-
         return self.current_frame, img, (endo, epi, zero_angle, marker)
 
     def contour_edited(self, label, axes, data):
@@ -547,8 +539,8 @@ class SegmentationTaskView(TaskViewBase):
     def set_initial_contour(self, side):
         """Enables the definition of the initial segment for the side."""
         self.fig.suptitle(
-            "Left click twice to define the center and the edge of the "
-            f"initial segment for the {side.upper()}."
+            "Left click once to define the center and then once to define the edge of "
+            f"the initial segment for the {side.upper()}."
         )
         get_contour = partial(self.get_contour, side=side)
         self.fig.actions_manager.DrawContours.contours_updated = get_contour
@@ -645,6 +637,8 @@ class SegmentationTaskView(TaskViewBase):
         self.next_btn.state(["disabled"])
         self.next_btn.config(text="Next \u25B6", command=self.next_first_frame)
         self.fig.actions_manager.DragContours.disabled = False
+        self.fig.actions_manager.Markers.disabled = False
+
         if button_pressed:
             self.update_segmentation()
 
@@ -673,7 +667,7 @@ class SegmentationTaskView(TaskViewBase):
             dataset_name=self.datasets_var.get(),
             segments=self.final_segments,
             zero_angle=self.zero_angle,
-            frame=self.working_frame_var.get(),
+            frame=slice(0, self.working_frame_var.get() + 1),
             unlock=unlock,
         )
 
