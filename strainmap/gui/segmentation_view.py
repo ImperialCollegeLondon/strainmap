@@ -551,6 +551,7 @@ class SegmentationTaskView(TaskViewBase):
         """Plots the just defined contour in both axes and leaves the edit mode."""
         self.initial_segments[side] = contour[-1]
         self.switch_mark_state(side, "ready")
+        self.clear_btn.state(["!disabled"])
 
         for ax in self.fig.axes:
             self.fig.actions_manager.DrawContours.clear_drawing_(ax)
