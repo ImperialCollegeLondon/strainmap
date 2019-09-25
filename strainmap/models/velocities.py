@@ -184,3 +184,185 @@ def mean_velocities(
         np.concatenate([global_means, local_means], axis=0),
         component_axis - sum(i < component_axis for i in image_axes),
     )
+
+
+markers_options = {
+    "PS": dict(low=1, high=15, maximum=True),
+    "PD": dict(low=15, high=30, maximum=False),
+    "PAS": dict(low=31, high=41, maximum=False),
+    "PC1": dict(low=1, high=5, maximum=False),
+    "PC2": dict(low=6, high=12, maximum=True),
+}
+
+
+def marker(comp, low=1, high=49, maximum=True):
+    """Finds the index and value of the marker position within the given range."""
+    low = min(low, len(comp) - 1)
+    high = min(high, len(comp) - 1)
+
+    idx = (
+        np.argmax(comp[low : high + 1]) if maximum else np.argmin(comp[low : high + 1])
+    ) + low
+    return [idx, comp[idx]]
+
+
+def marker_es(comp, pd):
+    """Finds the default position of the ES marker."""
+    idx = round(len(comp) / 3)
+    low = min(max(1, idx - 5), len(comp) - 1)
+    high = min(idx + 5, len(comp) - 1)
+
+    idx = np.argmin(comp[low : high + 1]) + low
+
+    if idx == pd[0] or comp[idx] < -2:
+        idx = np.argmin(abs(comp[low : high + 1])) + low
+
+    return [idx, comp[idx]]
+
+
+def marker_pc3(comp, es):
+    """Finds the default position of the PC3 marker."""
+    low = es[0]
+    high = min(low + 10, len(comp) - 1)
+
+    pos = np.max(comp[low : high + 1])
+    neg = np.min(comp[low : high + 1])
+
+    idx = (
+        np.argmax(comp[low : high + 1])
+        if pos > abs(neg)
+        else np.argmin(comp[low : high + 1])
+    ) + low
+
+    value = comp[idx]
+    if abs(value) < 0.5:
+        idx = np.nan
+        value = np.nan
+
+    return [idx, value]
+
+
+def normalised_times(markers: Tuple, frames: int) -> Tuple:
+    """Calculates the normalised values for the marker times.
+
+    The timings of the peaks (PS, PD and PAS) within the cardiac cycle are heart rate
+    dependent. To reduce variability due to changes in heart rate, we normalise the
+    cardiac cycle to a fixed length of 1000ms (ie a heart rate of 60bpm). As the heart
+    rate changes, the length of systole remains relatively fixed while the length of
+    diastole changes substantially – so we do this in two stages.
+
+    Our normalised curves  have a systolic length of 350 ms and a diastolic length of
+    650ms.
+    """
+    es = markers[1]["ES"][0]
+
+    for i in range(3):
+        for k, x in markers[i].items():
+            if len(x) == 3:
+                del markers[i][k][-1]
+            if x[0] <= es:
+                markers[i][k].append(smaller_than_es(x[0], es))
+            else:
+                markers[i][k].append(larger_than_es(x[0], es, frames))
+
+    return markers
+
+
+def smaller_than_es(x, es, syst=350):
+    """Normalization for times smaller than ES."""
+    return x / es * syst
+
+
+def larger_than_es(x, es, frames, syst=350, dias=650):
+    """Normalization for times larger than ES."""
+    return syst + (x - es) / (frames - es) * dias
+
+
+def _markers_positions(velocity: np.ndarray, es: Optional[Tuple] = None) -> Tuple:
+    """Find the position of the markers for the chosen dataset and velocity.
+
+    The default positions for the markers are:
+
+    Longitudinal and radial:
+        PS = maximum in frames 1 - 15
+        PD = minimum in frames 15 - 30
+        PAS = minimum in frames 31 - 45
+
+    Circumferential:
+        PC1 = minimum in frames 1 – 5
+        PC2 = maximum in frames 6 – 12
+        PC3 = largest peak (negative OR positive) between ES and ES+10. However if the
+            magnitude of the detected peak is <0.5cm/s, then don’t display a PC3 marker
+            or PC3 values.
+
+    The default position for the ES marker in the global radial plot is the position of
+    the first small negative peak about 1/3 of the way through the cardiac cycle. If
+    for any reason that peak doesn’t exist, then we would pick up PD by mistake.
+    We can avoid this by saying that if the peak detected is <-2cm/s, use the x axis
+    cross-over point as the default marker position instead.
+
+    For the regional plots, the default ES position is the position of the global ES.
+    """
+    markers: Tuple[dict, dict, dict] = (
+        {"PS": [], "PD": [], "PAS": []},
+        {"PS": [], "PD": [], "PAS": []},
+        {"PC1": [], "PC2": []},
+    )
+
+    for i in range(3):
+        for k in markers[i].keys():
+            markers[i][k] = marker(velocity[i], **markers_options[k])
+
+    markers[1]["ES"] = marker_es(velocity[1], markers[1]["PD"]) if es is None else es
+    markers[2]["PC3"] = marker_pc3(velocity[2], markers[1]["ES"])
+
+    return normalised_times(markers, len(velocity[0]))
+
+
+def markers_positions(
+    data: StrainMapData, dataset: str, vel_label: str, global_vel: str = None
+):
+    """Find the position of the markers for the chosen dataset and velocity."""
+    velocity = data.velocities[dataset][vel_label]
+    es = data.markers[dataset][global_vel][1]["ES"] if global_vel is not None else None
+    data.markers[dataset][vel_label] = _markers_positions(velocity, es)
+    return data
+
+
+def update_marker(
+    data: StrainMapData,
+    dataset: str,
+    vel_label: str,
+    component_idx: int,
+    marker_labl: str,
+    marker: int,
+):
+    """Updates the position of an existing marker in the data object.
+
+    If the marker modified is "ES", then all markers are updated. Otherwise just the
+    chosen one is updated."""
+    value = data.velocities[dataset][vel_label][component_idx][marker]
+    frames = len(data.velocities[dataset][vel_label][component_idx])
+
+    if marker_labl == "ES":
+        data.markers[dataset][vel_label][1]["ES"][0] = marker
+        data.markers[dataset][vel_label][1]["ES"][1] = value
+        data.markers[dataset][vel_label] = normalised_times(
+            data.markers[dataset][vel_label], frames
+        )
+
+    else:
+        es = data.markers[dataset][vel_label][1]["ES"][0]
+
+        if marker <= es:
+            normalised = smaller_than_es(marker, es)
+        else:
+            normalised = larger_than_es(marker, es, frames)
+
+        data.markers[dataset][vel_label][component_idx][marker_labl] = [
+            marker,
+            value,
+            normalised,
+        ]
+
+    return data
