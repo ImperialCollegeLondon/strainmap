@@ -26,7 +26,7 @@ def scale_phase(data: StrainMapData, dataset_name: Text, phantom: bool = False):
     )[0]
     phase = images.phase / 4096
 
-    if len(data.bg_files) > 0 and phantom:
+    if phantom:
         phantom = (
             list(
                 images_to_numpy(
@@ -43,7 +43,7 @@ def scale_phase(data: StrainMapData, dataset_name: Text, phantom: bool = False):
 
 def global_masks_and_origin(outer, inner, img_shape):
     """Finds the global masks and origin versus time frame."""
-    masks = [contour_diff(outer[i], inner[i], img_shape) for i in range(len(outer))]
+    masks = [contour_diff(outer[i].T, inner[i].T, img_shape) for i in range(len(outer))]
     origin = list(map(ndimage.measurements.center_of_mass, masks))
 
     return np.array(masks), np.array(origin)
@@ -102,6 +102,7 @@ def calculate_velocities(
     phantom: bool = False,
 ):
     """Calculates the velocity of the chosen dataset and regions."""
+    phantom = len(data.bg_files) > 0 and phantom
     phase = scale_phase(data, dataset_name, phantom)
     masks, origin = global_masks_and_origin(
         outer=data.segments[dataset_name]["epicardium"],
@@ -110,10 +111,10 @@ def calculate_velocities(
     )
     cylindrical = transform_to_cylindrical(phase, masks, origin)
     sensitivity = velocity_sensitivity(data.data_files[dataset_name]["PhaseZ"][0]) * 2
-
+    bg = {True: "Phantom", False: "Average"}[phantom]
     if global_velocity:
         s = np.tile(sensitivity, (cylindrical.shape[1], 1)).T
-        data.velocities[dataset_name]["global"] = (
+        data.velocities[dataset_name][f"global - {bg}"] = (
             masked_means(cylindrical, masks, axes=(2, 3)) * s
         )[0]
 
@@ -123,7 +124,7 @@ def calculate_velocities(
         labels = angular_segments(
             nsegments=ang, origin=origin, theta0=theta0, shape=cylindrical.shape[2:]
         ).transpose((2, 0, 1))
-        data.velocities[dataset_name][f"angular x{ang}"] = (
+        data.velocities[dataset_name][f"angular x{ang} - {bg}"] = (
             masked_means(cylindrical, labels * masks, axes=(2, 3)) * s
         )
 
@@ -131,7 +132,7 @@ def calculate_velocities(
         s = np.tile(sensitivity, (cylindrical.shape[1], rad, 1)).transpose((1, 2, 0))
         epi = data.segments[dataset_name]["epicardium"]
         endo = data.segments[dataset_name]["endocardium"]
-        data.velocities[dataset_name][f"radial x{rad}"] = (
+        data.velocities[dataset_name][f"radial x{rad} - {bg}"] = (
             velocities_radial_segments(cylindrical, epi, endo, origin, rad) * s
         )
 

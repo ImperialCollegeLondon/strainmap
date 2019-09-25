@@ -24,7 +24,13 @@ from .figure_actions import (
     circle,
     single_point,
 )
-from .figure_actions_manager import FigureActionsManager
+from .figure_actions_manager import (
+    FigureActionsManager,
+    TriggerSignature,
+    Button,
+    MouseAction,
+    Location,
+)
 from ..models.contour_mask import contour_diff
 
 
@@ -263,6 +269,9 @@ class SegmentationTaskView(TaskViewBase):
             DrawContours,
             DragContours,
             Markers,
+            drag_marker=TriggerSignature(
+                Location.ANY, Button.RIGHT, MouseAction.PICKDRAG
+            ),
         )
         self.fig.actions_manager.DrawContours.num_contours = 0
         self.fig.actions_manager.ScrollFrames.link_axes(self.ax_mag, self.ax_vel)

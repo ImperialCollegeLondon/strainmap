@@ -13,6 +13,7 @@ from .gui.base_window_and_task import (
 )
 from .models.strainmap_data_model import factory
 from .models import quick_segmentation
+from .models.velocities import calculate_velocities
 
 
 class StrainMap(object):
@@ -107,3 +108,10 @@ class StrainMap(object):
         elif len(data.segments) == 0:
             self.lock(Requisites.SEGMENTED)
         self.update_views(data)
+
+    @bind_event
+    def calculate_velocities(self, **kwargs):
+        """Runs an automated segmentation routine."""
+        if kwargs:
+            data = calculate_velocities(**kwargs)
+            self.update_views(data)

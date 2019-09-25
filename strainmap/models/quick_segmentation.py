@@ -175,7 +175,7 @@ def simple_segmentation(
     )
 
     return (
-        np.array([c.xy.T for c in segmentation]).transpose((0, 2, 1))
+        np.array([c.xy for c in segmentation]).transpose((0, 2, 1))
         if isinstance(segmentation, list)
         else segmentation.xy.T
     )

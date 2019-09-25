@@ -639,7 +639,7 @@ class Markers(ActionBase):
     def __init__(
         self,
         marker_moved: Optional[Callable] = None,
-        drag_marker=TriggerSignature(Location.ANY, Button.RIGHT, MouseAction.PICKDRAG),
+        drag_marker=TriggerSignature(Location.ANY, Button.LEFT, MouseAction.PICKDRAG),
     ):
         """Add sliding markers to read the data from a plot.
 
