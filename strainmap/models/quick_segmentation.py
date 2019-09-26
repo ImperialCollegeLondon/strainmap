@@ -60,8 +60,7 @@ def find_segmentation(
         frame = slice(None)
     elif isinstance(frame, int):
         frame = slice(frame, frame + 1)
-    print(frame)
-    print(data.segments[dataset_name]["endocardium"].shape)
+
     data.segments[dataset_name]["endocardium"][frame] = results["endocardium"]
     data.segments[dataset_name]["epicardium"][frame] = results["epicardium"]
 
