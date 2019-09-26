@@ -62,6 +62,7 @@ class SegmentationTaskView(TaskViewBase):
         self.undo_stack = defaultdict(list)
         self.working_frame_var = tk.IntVar(value=0)
         self.initialization = None
+        self.quick_segment_var = tk.BooleanVar(value=False)
 
         # Visualization-related attributes
         self.fig = None
@@ -124,6 +125,12 @@ class SegmentationTaskView(TaskViewBase):
         )
         septum_redy_lbl = ttk.Label(
             master=segment_frame, textvariable=self.septum_redy_var, width=18
+        )
+
+        quick_checkbox = ttk.Checkbutton(
+            master=segment_frame,
+            text="Quick segmentation",
+            variable=self.quick_segment_var,
         )
 
         for i, text in enumerate(["mag", "vel"]):
@@ -209,6 +216,7 @@ class SegmentationTaskView(TaskViewBase):
         endo_redy_lbl.grid(row=0, column=0, sticky=tk.NSEW)
         epi_redy_lbl.grid(row=1, column=0, sticky=tk.NSEW)
         septum_redy_lbl.grid(row=0, column=1, sticky=tk.NSEW)
+        quick_checkbox.grid(row=1, column=1, sticky=tk.NSEW)
         manual_frame.grid(row=0, column=3, sticky=tk.NSEW, padx=5, pady=5)
         drag_lbl.grid(row=0, sticky=tk.NSEW, padx=5, pady=5)
         width_lbl.grid(row=0, column=1, sticky=tk.E, padx=5, pady=5)
@@ -432,6 +440,14 @@ class SegmentationTaskView(TaskViewBase):
         self.zero_angle[self.current_frame] = np.array((self.septum, self.centroid)).T
         self.go_to_frame()
 
+    def next_quick_segmentation(self):
+        """Triggers a quick segmentation of the whole dataset."""
+        self.next_btn.config(text="Next \u25B6", command=self.finish_segmentation)
+        self.find_segmentation(slice(None), self.initial_segments)
+        self.zero_angle[:] = np.array((self.septum, self.centroid)).T
+        self.working_frame_var.set(self.num_frames - 1)
+        self.go_to_frame()
+
     def finish_segmentation(self):
         """Finish the segmentation, updating values and state of buttons."""
         self.update_segmentation(unlock=True)
@@ -617,7 +633,10 @@ class SegmentationTaskView(TaskViewBase):
         self.fig.actions_manager.DrawContours.num_contours = 0
         self.next_btn.state(["!disabled"])
 
-        next(self.initialization)()
+        if self.quick_segment_var.get():
+            self.next_quick_segmentation()
+        else:
+            next(self.initialization)()
 
     def clear_segment_variables(self, button_pressed=True):
         """Clears all segmentation when a dataset with no segmentation is loaded."""
