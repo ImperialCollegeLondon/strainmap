@@ -60,14 +60,15 @@ class SegmentationTaskView(TaskViewBase):
         self.endocardium_target_var = tk.StringVar(value="mag")
         self.epicardium_target_var = tk.StringVar(value="mag")
         self.datasets_var = tk.StringVar(value="")
-        self.endo_redy_var = tk.StringVar(value="\u274C Endocardium")
-        self.epi_redy_var = tk.StringVar(value="\u274C Epicardium")
-        self.septum_redy_var = tk.StringVar(value="\u274C Septum mid-point")
+        self.endo_redy_var = tk.StringVar(value="1 - Endocardium")
+        self.epi_redy_var = tk.StringVar(value="2 - Epicardium")
+        self.septum_redy_var = tk.StringVar(value="3 - Septum mid-point")
         self.drag_width_scale = tk.IntVar(value=10)
         self.drag_width_label = tk.StringVar(value="10%")
         self.undo_stack = defaultdict(list)
         self.working_frame_var = tk.IntVar(value=0)
         self.initialization = None
+        self.quick_segment_var = tk.BooleanVar(value=False)
 
         # Visualization-related attributes
         self.fig = None
@@ -76,7 +77,6 @@ class SegmentationTaskView(TaskViewBase):
         self.cursors: Dict[str, Optional[Cursor]] = {"mag": None, "vel": None}
         self.datasets_box = None
         self.clear_btn = None
-        self.initialize_btn = None
         self.undo_last_btn = None
         self.undo_all_btn = None
         self.next_btn = None
@@ -90,6 +90,7 @@ class SegmentationTaskView(TaskViewBase):
         """ Creates all the widgets of the view. """
         # Top frames
         control = ttk.Frame(master=self)
+        control.columnconfigure(49, weight=1)
         visualise_frame = ttk.Frame(master=self)
         visualise_frame.columnconfigure(0, weight=1)
         visualise_frame.rowconfigure(1, weight=1)
@@ -109,15 +110,15 @@ class SegmentationTaskView(TaskViewBase):
         self.datasets_box.bind("<<ComboboxSelected>>", self.dataset_changed)
 
         self.clear_btn = ttk.Button(
-            master=dataset_frame,
-            text="Clear existing segmentation",
+            master=control,
+            text="Clear segmentation",
             state="disabled",
             width=20,
             command=self.clear_segment_variables,
         )
 
         # Automatic segmentation frame
-        segment_frame = ttk.Labelframe(control, text="Initial segmentation:")
+        segment_frame = ttk.Labelframe(control, text="Automatic segmentation:")
         segment_frame.columnconfigure(0, weight=1)
         segment_frame.rowconfigure(0, weight=1)
         segment_frame.rowconfigure(1, weight=1)
@@ -132,14 +133,12 @@ class SegmentationTaskView(TaskViewBase):
             master=segment_frame, textvariable=self.septum_redy_var, width=18
         )
 
-        self.initialize_btn = ttk.Button(
+        quick_checkbox = ttk.Checkbutton(
             master=segment_frame,
-            text="Initialize segmentation",
-            width=18,
-            command=self.initialize_segmentation,
+            text="Quick segmentation",
+            variable=self.quick_segment_var,
         )
 
-        # TODO Is this choice really necessary? Ask Jenny!
         for i, text in enumerate(["mag", "vel"]):
             ttk.Radiobutton(
                 master=segment_frame,
@@ -218,12 +217,12 @@ class SegmentationTaskView(TaskViewBase):
         visualise_frame.grid(sticky=tk.NSEW, padx=10)
         dataset_frame.grid(row=0, column=0, sticky=tk.NSEW, padx=5, pady=5)
         self.datasets_box.grid(row=0, column=0, sticky=tk.NSEW)
-        self.clear_btn.grid(row=1, column=0, sticky=tk.NSEW)
+        self.clear_btn.grid(row=0, column=50, sticky=(tk.N, tk.E, tk.S))
         segment_frame.grid(row=0, column=1, sticky=tk.NSEW, padx=5, pady=5)
         endo_redy_lbl.grid(row=0, column=0, sticky=tk.NSEW)
         epi_redy_lbl.grid(row=1, column=0, sticky=tk.NSEW)
         septum_redy_lbl.grid(row=0, column=1, sticky=tk.NSEW)
-        self.initialize_btn.grid(row=1, column=1, sticky=tk.NSEW)
+        quick_checkbox.grid(row=1, column=1, sticky=tk.NSEW)
         manual_frame.grid(row=0, column=3, sticky=tk.NSEW, padx=5, pady=5)
         drag_lbl.grid(row=0, sticky=tk.NSEW, padx=5, pady=5)
         width_lbl.grid(row=0, column=1, sticky=tk.E, padx=5, pady=5)
@@ -293,6 +292,8 @@ class SegmentationTaskView(TaskViewBase):
         dataset = self.datasets_var.get()
         self.update_state(dataset)
         self.fig.actions_manager.ScrollFrames.clear()
+        for ax in self.fig.axes:
+            self.fig.actions_manager.DrawContours.clear_drawing_(ax)
 
         self.ax_mag.lines.clear()
         self.ax_vel.lines.clear()
@@ -321,7 +322,11 @@ class SegmentationTaskView(TaskViewBase):
     def plot_segments(self, dataset):
         """Plot or updates the segments in the figure, if they already exist."""
         if len(self.data.segments[dataset]) == 0:
+            self.initialize_segmentation()
             return
+
+        for side in ("endocardium", "epicardium", "septum mid-point"):
+            self.switch_mark_state(side, "ready")
 
         colors = ("tab:blue", "tab:orange")
         for i, side in enumerate(["endocardium", "epicardium"]):
@@ -393,23 +398,21 @@ class SegmentationTaskView(TaskViewBase):
         self.update_undo_state()
         if len(self.data.segments[dataset]) == 0:
             self.clear_segment_variables(button_pressed=False)
-            self.initialize_btn.state(["!disabled"])
             self.clear_btn.state(["disabled"])
         else:
-            self.initialize_btn.state(["disabled"])
             self.clear_btn.state(["!disabled"])
 
     def switch_mark_state(self, side, state):
         """Switch the text displayed in the initial segmentation buttons."""
+        variable, order = {
+            "endocardium": (self.endo_redy_var, 1),
+            "epicardium": (self.epi_redy_var, 2),
+            "septum mid-point": (self.septum_redy_var, 3),
+        }[side]
         mark = {
             "ready": f"\u2705 {side.capitalize()}",
-            "not_ready": f"\u274C {side.capitalize()}",
+            "not_ready": f"{order} - {side.capitalize()}",
         }[state]
-        variable = {
-            "endocardium": self.endo_redy_var,
-            "epicardium": self.epi_redy_var,
-            "septum mid-point": self.septum_redy_var,
-        }[side]
         variable.set(mark)
 
     def go_to_frame(self, *args):
@@ -446,11 +449,20 @@ class SegmentationTaskView(TaskViewBase):
         self.zero_angle[self.current_frame] = np.array((self.septum, self.centroid)).T
         self.go_to_frame()
 
+    def next_quick_segmentation(self):
+        """Triggers a quick segmentation of the whole dataset."""
+        self.next_btn.config(text="Next \u25B6", command=self.finish_segmentation)
+        self.find_segmentation(slice(None), self.initial_segments)
+        self.zero_angle[:] = np.array((self.septum, self.centroid)).T
+        self.working_frame_var.set(self.num_frames - 1)
+        self.go_to_frame()
+
     def finish_segmentation(self):
         """Finish the segmentation, updating values and state of buttons."""
         self.update_segmentation(unlock=True)
         self.next_btn.config(text="Done!")
         self.next_btn.state(["disabled"])
+        self.datasets_box.state(["!disabled"])
         self.fig.actions_manager.DragContours.disabled = True
         self.fig.actions_manager.Markers.disabled = True
 
@@ -470,14 +482,6 @@ class SegmentationTaskView(TaskViewBase):
 
         self.update_undo_state()
 
-        enable_drag = (
-            self.current_frame < self.working_frame_var.get()
-            or self.next_btn["text"] == "Done!"
-        )
-
-        self.fig.actions_manager.Markers.disabled = enable_drag
-        self.fig.actions_manager.DragContours.disabled = enable_drag
-
         return self.current_frame, img, (endo, epi, zero_angle, marker)
 
     def contour_edited(self, label, axes, data):
@@ -494,7 +498,7 @@ class SegmentationTaskView(TaskViewBase):
         for i in range(2):
             self.zero_angle_lines[i].set_data(self.zero_angle[self.current_frame])
 
-        for ax in set(self.fig.axes):
+        for ax in set(self.fig.axes) - {axes}:
             for l in ax.lines:
                 if l.get_label() == label:
                     l.set_data(data)
@@ -556,8 +560,8 @@ class SegmentationTaskView(TaskViewBase):
     def set_initial_contour(self, side):
         """Enables the definition of the initial segment for the side."""
         self.fig.suptitle(
-            "Left click twice to define the center and the edge of the "
-            f"initial segment for the {side.upper()}."
+            "Left click once to define the center and then once to define the edge of "
+            f"the initial segment for the {side.upper()}."
         )
         get_contour = partial(self.get_contour, side=side)
         self.fig.actions_manager.DrawContours.contours_updated = get_contour
@@ -575,6 +579,8 @@ class SegmentationTaskView(TaskViewBase):
         """Plots the just defined contour in both axes and leaves the edit mode."""
         self.initial_segments[side] = contour[-1]
         self.switch_mark_state(side, "ready")
+        self.clear_btn.state(["!disabled"])
+        self.datasets_box.state(["disabled"])
 
         for ax in self.fig.axes:
             self.fig.actions_manager.DrawContours.clear_drawing_(ax)
@@ -634,10 +640,12 @@ class SegmentationTaskView(TaskViewBase):
             self.fig.actions_manager.DrawContours.clear_drawing_(ax)
 
         self.fig.actions_manager.DrawContours.num_contours = 0
-        self.initialize_btn.state(["disabled"])
         self.next_btn.state(["!disabled"])
 
-        next(self.initialization)()
+        if self.quick_segment_var.get():
+            self.next_quick_segmentation()
+        else:
+            next(self.initialization)()
 
     def clear_segment_variables(self, button_pressed=True):
         """Clears all segmentation when a dataset with no segmentation is loaded."""
@@ -652,8 +660,11 @@ class SegmentationTaskView(TaskViewBase):
         self.working_frame_var.set(0)
         self.current_frame = 0
         self.next_btn.state(["disabled"])
+        self.datasets_box.state(["!disabled"])
         self.next_btn.config(text="Next \u25B6", command=self.next_first_frame)
         self.fig.actions_manager.DragContours.disabled = False
+        self.fig.actions_manager.Markers.disabled = False
+
         if button_pressed:
             self.update_segmentation()
 
@@ -682,7 +693,7 @@ class SegmentationTaskView(TaskViewBase):
             dataset_name=self.datasets_var.get(),
             segments=self.final_segments,
             zero_angle=self.zero_angle,
-            frame=self.working_frame_var.get(),
+            frame=slice(0, self.working_frame_var.get() + 1),
             unlock=unlock,
         )
 

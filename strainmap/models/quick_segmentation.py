@@ -109,8 +109,8 @@ def update_segmentation(
         )
         data.zero_angle[dataset_name][frame] = copy(zero_angle[frame])
     else:
-        data.segments.pop(dataset_name)
-        data.zero_angle.pop(dataset_name)
+        data.segments.pop(dataset_name, None)
+        data.zero_angle.pop(dataset_name, None)
     return data
 
 

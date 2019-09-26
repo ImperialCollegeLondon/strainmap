@@ -87,10 +87,9 @@ class StrainMap(object):
             self.update_views(None)
 
     @bind_event
-    def find_segmentation(self, **kwargs):
+    def find_segmentation(self, unlock=True, **kwargs):
         """Runs an automated segmentation routine."""
         reload(quick_segmentation)
-        unlock = kwargs.pop("unlock")
         data = quick_segmentation.find_segmentation(**kwargs)
         if data.segments and unlock:
             self.unlock(Requisites.SEGMENTED)
@@ -99,9 +98,8 @@ class StrainMap(object):
         self.update_views(data)
 
     @bind_event
-    def update_segmentation(self, **kwargs):
+    def update_segmentation(self, unlock=True, **kwargs):
         """Runs an automated segmentation routine."""
-        unlock = kwargs.pop("unlock")
         data = quick_segmentation.update_segmentation(**kwargs)
         if data.segments and unlock:
             self.unlock(Requisites.SEGMENTED)

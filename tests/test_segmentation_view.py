@@ -1,6 +1,6 @@
 from pytest import approx
 
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch, PropertyMock
 
 
 def test_update_and_clear_widgets(segmentation_view, strainmap_data):
@@ -92,6 +92,38 @@ def test_initialize_segmentation(segmentation_view, strainmap_data):
     segmentation_view.next_first_frame.assert_called_once()
 
 
+@patch(
+    "strainmap.gui.segmentation_view.SegmentationTaskView.septum",
+    new_callable=PropertyMock,
+)
+@patch(
+    "strainmap.gui.segmentation_view.SegmentationTaskView.centroid",
+    new_callable=PropertyMock,
+)
+def test_quick_segmentation(septum, centroid, segmentation_view, strainmap_data):
+    import numpy as np
+    from copy import deepcopy
+
+    segmentation_view.data = deepcopy(strainmap_data)
+    segmentation_view.next_first_frame = MagicMock()
+    segmentation_view.find_segmentation = MagicMock()
+    segmentation_view.go_to_frame = MagicMock()
+    centroid.return_value = 0
+    septum.return_value = 0
+    segmentation_view.zero_angle = np.zeros(2)
+
+    segmentation_view.quick_segment_var.set(True)
+    contour = np.random.random((2, 5))
+
+    segmentation_view.initialize_segmentation()
+    segmentation_view.get_contour([contour], side="endocardium")
+    segmentation_view.get_contour([contour], side="epicardium")
+    segmentation_view.get_septum(None, [np.random.random(2)])
+    assert segmentation_view.next_btn.instate(["!disabled"])
+    assert segmentation_view.working_frame_var.get() == 2
+    segmentation_view.next_first_frame.assert_not_called()
+
+
 def test_plot_segments(segmentation_view, strainmap_data):
     import numpy as np
     from copy import deepcopy
@@ -173,14 +205,20 @@ def test_contour_edited_and_undo(segmentation_view, strainmap_data):
 
     assert len(segmentation_view.undo_stack) == 1
     assert segmentation_view.final_segments["endocardium"][0] == approx(contour_mod)
-    assert segmentation_view.fig.axes[1].lines[0].get_data() == approx(contour_mod)
+
+    for ax in segmentation_view.fig.axes:
+        for line in ax.lines:
+            if line.get_label() == "endocardium":
+                assert line.get_data() == approx(contour_mod)
 
     segmentation_view.undo(0)
 
     assert len(segmentation_view.undo_stack) == 0
     assert segmentation_view.final_segments["endocardium"][0] == approx(contour[0])
-    assert segmentation_view.fig.axes[0].lines[0].get_data() == approx(contour[0])
-    assert segmentation_view.fig.axes[1].lines[0].get_data() == approx(contour[0])
+    for ax in segmentation_view.fig.axes:
+        for line in ax.lines:
+            if line.get_label() == "endocardium":
+                assert line.get_data() == approx(contour[0])
 
 
 def test_next_frames(segmentation_view, strainmap_data):
