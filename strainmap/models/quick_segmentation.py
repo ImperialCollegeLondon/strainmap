@@ -74,6 +74,10 @@ def initialize_data_segments(data, dataset_name, shape):
         shape = (num_frames,) + shape
     else:
         num_frames = shape[0]
+
+    if shape[-1] == 2:
+        shape = (shape[0], shape[2], shape[1])
+
     data.segments[dataset_name]["endocardium"] = np.full(shape, np.nan)
     data.segments[dataset_name]["epicardium"] = np.full(shape, np.nan)
     data.zero_angle[dataset_name] = np.full((num_frames, 2, 2), np.nan)
@@ -175,7 +179,7 @@ def simple_segmentation(
     )
 
     return (
-        np.array([c.xy for c in segmentation]).transpose((0, 2, 1))
+        np.array([c.xy for c in segmentation]).transpose([0, 2, 1])
         if isinstance(segmentation, list)
         else segmentation.xy.T
     )

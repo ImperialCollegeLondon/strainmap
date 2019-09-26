@@ -88,8 +88,8 @@ def velocities_radial_segments(
 
     for i in range(cylindrical.shape[1]):
         labels = radial_segments(
-            outer=Contour(outer[i], shape=cylindrical.shape[2:]),
-            inner=Contour(inner[i], shape=cylindrical.shape[2:]),
+            outer=Contour(outer[i].T, shape=cylindrical.shape[2:]),
+            inner=Contour(inner[i].T, shape=cylindrical.shape[2:]),
             nr=segments,
             shape=cylindrical.shape[2:],
             center=origin[i],

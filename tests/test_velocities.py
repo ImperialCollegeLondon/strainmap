@@ -36,7 +36,7 @@ def test_global_masks_and_origin():
     c1 = Contour.circle(centre, 6, shape=shape)
     c2 = Contour.circle(centre, 4, shape=shape)
 
-    mask, origin = global_masks_and_origin([c1.xy], [c2.xy], shape)
+    mask, origin = global_masks_and_origin([c1.xy.T], [c2.xy.T], shape)
 
     assert len(mask) == 1
     assert mask[0].shape == shape
@@ -88,12 +88,12 @@ def test_calculate_velocities(segmented_data):
     ).velocities
 
     assert dataset_name in velocities
-    assert "global" in velocities[dataset_name]
-    assert velocities[dataset_name]["global"].shape == (3, 3)
-    assert "angular x6" in velocities[dataset_name]
-    assert velocities[dataset_name]["angular x6"].shape == (6, 3, 3)
-    assert "radial x4" in velocities[dataset_name]
-    assert velocities[dataset_name]["radial x4"].shape == (4, 3, 3)
+    assert "global - Average" in velocities[dataset_name]
+    assert velocities[dataset_name]["global - Average"].shape == (3, 3)
+    assert "angular x6 - Average" in velocities[dataset_name]
+    assert velocities[dataset_name]["angular x6 - Average"].shape == (6, 3, 3)
+    assert "radial x4 - Average" in velocities[dataset_name]
+    assert velocities[dataset_name]["radial x4 - Average"].shape == (4, 3, 3)
 
 
 def test_mean_velocities():

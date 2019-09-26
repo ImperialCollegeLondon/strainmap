@@ -218,7 +218,7 @@ class GlobalVelocity(object):
         gs = self.fig.add_gridspec(2, 9, height_ratios=[4, 1])
 
         self.actions_manager = FigureActionsManager(self.fig, Markers)
-        self.actions_manager.Markers.set_marker_moved(
+        self.actions_manager.Markers.set_marker_moved(  # type: ignore
             partial(self.on_marker_moved, on_marker_moved)
         )
 
