@@ -275,6 +275,8 @@ class SegmentationTaskView(TaskViewBase):
         dataset = self.datasets_var.get()
         self.update_state(dataset)
         self.fig.actions_manager.ScrollFrames.clear()
+        for ax in self.fig.axes:
+            self.fig.actions_manager.DrawContours.clear_drawing_(ax)
 
         self.ax_mag.lines.clear()
         self.ax_vel.lines.clear()
@@ -435,6 +437,7 @@ class SegmentationTaskView(TaskViewBase):
         self.update_segmentation(unlock=True)
         self.next_btn.config(text="Done!")
         self.next_btn.state(["disabled"])
+        self.datasets_box.state(["!disabled"])
         self.fig.actions_manager.DragContours.disabled = True
         self.fig.actions_manager.Markers.disabled = True
 
@@ -552,6 +555,7 @@ class SegmentationTaskView(TaskViewBase):
         self.initial_segments[side] = contour[-1]
         self.switch_mark_state(side, "ready")
         self.clear_btn.state(["!disabled"])
+        self.datasets_box.state(["disabled"])
 
         for ax in self.fig.axes:
             self.fig.actions_manager.DrawContours.clear_drawing_(ax)
@@ -628,6 +632,7 @@ class SegmentationTaskView(TaskViewBase):
         self.working_frame_var.set(0)
         self.current_frame = 0
         self.next_btn.state(["disabled"])
+        self.datasets_box.state(["!disabled"])
         self.next_btn.config(text="Next \u25B6", command=self.next_first_frame)
         self.fig.actions_manager.DragContours.disabled = False
         self.fig.actions_manager.Markers.disabled = False
