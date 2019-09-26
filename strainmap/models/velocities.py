@@ -11,34 +11,40 @@ from .contour_mask import contour_diff, angular_segments, radial_segments, Conto
 
 
 def find_theta0(zero_angle: np.ndarray):
-    """Finds theta0 out of the COM and septum mid-point for all timeframes."""
+    """Finds theta0 out of the COM and septum mid-point for all timeframes.
+
+    zero_angle: array with dimensions [num_timeframes, 2, 2].
+
+    For any timeframe,  it contains the center of mass of the mask and the position
+    of the septum mid-point. Out of these two points, the angle that is the origin of
+    angular coordinates is calculated.
+    """
     shifted = zero_angle[:, :, 0] - zero_angle[:, :, 1]
     theta0 = np.mod(np.arctan2(shifted[:, 1], shifted[:, 0]), 2 * np.pi)
     return theta0
 
 
-def scale_phase(data: StrainMapData, dataset_name: Text, phantom: bool = False):
+def scale_phase(
+    data: StrainMapData, dataset_name: Text, phantom: bool = False, scale=1 / 4096
+):
     """Prepare the phases, scaling them and substracting the phantom, if needed."""
-    images = list(
-        images_to_numpy(
-            read_all_images({dataset_name: data.data_files[dataset_name]})
-        ).values()
-    )[0]
-    phase = images.phase / 4096
+    images = images_to_numpy(
+        read_all_images({dataset_name: data.data_files[dataset_name]})
+    )[dataset_name]
+    phase = images.phase * scale
 
-    if phantom:
-        phantom = (
-            list(
-                images_to_numpy(
-                    read_all_images({dataset_name: data.bg_files[dataset_name]})
-                ).values()
-            )[0].phase
-            / 4096
+    if len(data.bg_files) > 0 and phantom:
+        phantom_phase = (
+            images_to_numpy(
+                read_all_images({dataset_name: data.bg_files[dataset_name]})
+            )[dataset_name].phase
+            * scale
         )
-    else:
-        phantom = np.full_like(phase, 0.5)
 
-    return phase - phantom
+    else:
+        phantom_phase = 0.5
+
+    return phase - phantom_phase
 
 
 def global_masks_and_origin(outer, inner, img_shape):
