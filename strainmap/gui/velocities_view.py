@@ -33,6 +33,7 @@ class VelocitiesTaskView(TaskViewBase):
         self.vplot = None
         self.regional_fig = None
         self.color_maps = None
+        self.param_tables = []
 
         self.create_controls()
 
@@ -44,6 +45,10 @@ class VelocitiesTaskView(TaskViewBase):
         self.visualise_frame = ttk.Frame(master=self)
         self.visualise_frame.columnconfigure(0, weight=1)
         self.visualise_frame.rowconfigure(0, weight=1)
+        info = ttk.Frame(master=self)
+        info.columnconfigure(0, weight=1)
+        info.columnconfigure(1, weight=1)
+        info.columnconfigure(2, weight=1)
 
         # Dataset frame
         dataset_frame = ttk.Labelframe(control, text="Datasets:")
@@ -64,18 +69,35 @@ class VelocitiesTaskView(TaskViewBase):
         self.velocities_frame.columnconfigure(0, weight=1)
         self.velocities_frame.columnconfigure(1, weight=1)
 
-        # Background frame
-        background_frame = ttk.Labelframe(control, text="Background correction:")
-        background_frame.columnconfigure(0, weight=1)
-        background_frame.rowconfigure(0, weight=1)
-        background_frame.rowconfigure(1, weight=1)
+        # Information frame
+        marker_lbl = ["PS", "PD", "PAS"] * 2 + ["PC1", "PC2", "PC3"]
+        for i in range(3):
+            self.param_tables.append(ttk.Treeview(info, height=3))
+            self.param_tables[-1]["columns"] = marker_lbl[3 * i : 3 * i + 3]
+            self.param_tables[-1].heading("#0", text="")
+            self.param_tables[-1].column("#0", minwidth=0, width=100, stretch=tk.YES)
+
+            for j in range(3):
+                self.param_tables[-1].heading(
+                    marker_lbl[3 * i + j], text=marker_lbl[3 * i + j]
+                )
+                self.param_tables[-1].column(
+                    marker_lbl[3 * i + j],
+                    minwidth=0,
+                    width=80,
+                    stretch=tk.YES,
+                    anchor=tk.E,
+                )
 
         # Grid all the widgets
         control.grid(sticky=tk.NSEW, padx=10, pady=10)
         self.visualise_frame.grid(sticky=tk.NSEW, padx=10, pady=10)
+        info.grid(sticky=tk.NSEW, padx=10, pady=10)
         dataset_frame.grid(row=0, column=0, sticky=tk.NSEW, padx=5, pady=5)
         self.datasets_box.grid(row=0, column=0, sticky=tk.NSEW)
         self.velocities_frame.grid(row=0, column=1, sticky=tk.NSEW, padx=5)
+        for i in range(3):
+            self.param_tables[i].grid(row=0, column=i, sticky=tk.NSEW, padx=5)
 
     def markers_updated(self, marker_name, data_name, x, y, idx):
         """To be executed when the position of the markers is updated."""
@@ -96,10 +118,10 @@ class VelocitiesTaskView(TaskViewBase):
         vel = self.velocities_var.get()
         dataset = self.datasets_var.get()
 
-        if "global" in vel:
-            self.populate_global_figure(dataset, vel)
+        self.populate_figure(dataset, vel)
+        self.populate_tables(dataset, vel)
 
-    def populate_global_figure(self, dataset, vel_label):
+    def populate_figure(self, dataset, vel_label):
         """Populates with data a global figure."""
         vels = self.data.velocities[dataset][vel_label]
         markers = self.data.markers[dataset][vel_label]
@@ -108,6 +130,35 @@ class VelocitiesTaskView(TaskViewBase):
         self.vplot = VelocityPlot(
             vels, markers, self.visualise_frame, self.markers_updated
         )
+
+    def populate_tables(self, dataset, vel_label):
+        """Populates the information tables with the marker parameters."""
+        for t in self.param_tables:
+            old_list = t.get_children()
+            if len(old_list) > 0:
+                t.delete(*old_list)
+
+        markers = self.data.markers[dataset][vel_label][0]
+        for i, t in enumerate(self.param_tables):
+            rows = self.arrange_by_row(i, markers)
+            for k, text in enumerate(("Frame", "Velocity (cm/s)", "Norm. Time (s)")):
+                t.insert("", tk.END, text=text, values=rows[k])
+
+    @staticmethod
+    def arrange_by_row(i, markers, precision=2):
+        """Arrange the markers information by row.
+
+        Markers are arranged "by column", meaning each marker, eg. "PS", has a tuple
+        with (frame, vel, normalised time). However, the treeview needs the information
+        by row (frame_PS, frame_PD, frame_PAS), (vel_PS, vel_PD, ...). This function
+        makes that transpose operation and formats the velocity values to 2 decimals."""
+
+        marker_lbl = [["PS", "PD", "PAS"], ["PS", "PD", "PAS"], ["PC1", "PC2", "PC3"]]
+        data = markers[i]
+        labels = marker_lbl[i]
+        rows = [[data[labels[j]][k] for j in range(3)] for k in range(3)]
+        rows[1] = [round(rows[1][j], precision) for j in range(3)]
+        return rows
 
     def initial_marker_positions(self, markers, i, data_label):
         """Finds the initial positions for the markers."""

@@ -89,7 +89,7 @@ def test_calculate_velocities(segmented_data):
 
     assert dataset_name in velocities
     assert "global - Average" in velocities[dataset_name]
-    assert velocities[dataset_name]["global - Average"].shape == (3, 3)
+    assert velocities[dataset_name]["global - Average"].shape == (1, 3, 3)
     assert "angular x6 - Average" in velocities[dataset_name]
     assert velocities[dataset_name]["angular x6 - Average"].shape == (6, 3, 3)
     assert "radial x4 - Average" in velocities[dataset_name]
