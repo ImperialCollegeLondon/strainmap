@@ -661,7 +661,7 @@ class Markers(ActionBase):
         """Sets the function to be called when the contour is updated."""
         self._marker_moved = marker_moved
 
-    def add_marker(self, line=None, axes=None, **kwargs):
+    def add_marker(self, line=None, axes=None, xy=None, **kwargs):
         """Adds a marker to the axis of the linked data."""
         if line is not None:
             axes = line.axes
@@ -676,6 +676,9 @@ class Markers(ActionBase):
 
         options = dict(picker=6, marker="x", markersize=20, linestyle="None")
         options.update(kwargs)
+
+        if xy is not None:
+            x, y = xy[0], xy[1]
 
         marker = axes.plot(x, y, **options)[0]
         self._linked_data[marker] = line

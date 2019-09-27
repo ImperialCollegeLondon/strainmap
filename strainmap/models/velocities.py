@@ -105,7 +105,7 @@ def calculate_velocities(
     global_velocity: bool = True,
     angular_regions: Sequence[int] = (),
     radial_regions: Sequence[int] = (),
-    phantom: bool = False,
+    phantom: bool = True,
 ):
     """Calculates the velocity of the chosen dataset and regions."""
     phantom = len(data.bg_files) > 0 and phantom
@@ -118,11 +118,13 @@ def calculate_velocities(
     cylindrical = transform_to_cylindrical(phase, masks, origin)
     sensitivity = velocity_sensitivity(data.data_files[dataset_name]["PhaseZ"][0]) * 2
     bg = {True: "Phantom", False: "Average"}[phantom]
+    vel_labels = []
     if global_velocity:
         s = np.tile(sensitivity, (cylindrical.shape[1], 1)).T
         data.velocities[dataset_name][f"global - {bg}"] = (
             masked_means(cylindrical, masks, axes=(2, 3)) * s
-        )[0]
+        )
+        vel_labels.append(f"global - {bg}")
 
     for ang in angular_regions:
         s = np.tile(sensitivity, (cylindrical.shape[1], ang, 1)).transpose((1, 2, 0))
@@ -133,6 +135,7 @@ def calculate_velocities(
         data.velocities[dataset_name][f"angular x{ang} - {bg}"] = (
             masked_means(cylindrical, labels * masks, axes=(2, 3)) * s
         )
+        vel_labels.append(f"angular x{ang} - {bg}")
 
     for rad in radial_regions:
         s = np.tile(sensitivity, (cylindrical.shape[1], rad, 1)).transpose((1, 2, 0))
@@ -141,8 +144,9 @@ def calculate_velocities(
         data.velocities[dataset_name][f"radial x{rad} - {bg}"] = (
             velocities_radial_segments(cylindrical, epi, endo, origin, rad) * s
         )
+        vel_labels.append(f"radial x{rad} - {bg}")
 
-    return data
+    return initialise_markers(data, dataset_name, vel_labels)
 
 
 def mean_velocities(
@@ -331,8 +335,17 @@ def markers_positions(
 ):
     """Find the position of the markers for the chosen dataset and velocity."""
     velocity = data.velocities[dataset][vel_label]
-    es = data.markers[dataset][global_vel][1]["ES"] if global_vel is not None else None
-    data.markers[dataset][vel_label] = _markers_positions(velocity, es)
+    es = (
+        data.markers[dataset][global_vel][0][1]["ES"]
+        if global_vel is not None
+        else None
+    )
+    if len(velocity.shape) == 3:
+        data.markers[dataset][vel_label] = []
+        for i in range(velocity.shape[0]):
+            data.markers[dataset][vel_label].append(_markers_positions(velocity[i], es))
+    else:
+        data.markers[dataset][vel_label] = _markers_positions(velocity, es)
     return data
 
 
@@ -371,5 +384,21 @@ def update_marker(
             value,
             normalised,
         ]
+
+    return data
+
+
+def initialise_markers(data: StrainMapData, dataset: str, vel_labels: list):
+    """Initialises the markers for all the available velocities."""
+    gvel = [key for key in vel_labels if "global" in key]
+    rvel = [key for key in vel_labels if "global" not in key]
+
+    for vel_label in gvel:
+        data = markers_positions(data, dataset, vel_label)
+
+    for vel_label in rvel:
+        bg = vel_label.split("-")[-1]
+        global_vel = f"global -{bg}"
+        data = markers_positions(data, dataset, vel_label, global_vel)
 
     return data

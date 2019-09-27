@@ -21,16 +21,16 @@ class VelocitiesTaskView(TaskViewBase):
     def __init__(self, root):
 
         super().__init__(root, button_text="Velocities", button_image="speed.gif")
-        self.rowconfigure(0, weight=1)
-        self.columnconfigure(1, weight=1)
+        self.rowconfigure(1, weight=1)
+        self.columnconfigure(0, weight=1)
 
         self.visualise_frame = None
         self.datasets_box = None
         self.datasets_var = tk.StringVar(value="")
         self.velocities_frame = None
         self.velocities_var = tk.StringVar(value="")
-        self.phantom_var = tk.BooleanVar(value=False)
-        self.gfig = None
+        self.phantom_var = tk.BooleanVar(value=True)
+        self.vplot = None
         self.regional_fig = None
         self.color_maps = None
 
@@ -39,8 +39,8 @@ class VelocitiesTaskView(TaskViewBase):
     def create_controls(self):
         """ Creates all the widgets of the view. """
         # Top frames
-        control = ttk.Frame(master=self, width=300)
-        control.columnconfigure(0, weight=1)
+        control = ttk.Frame(master=self)
+        control.columnconfigure(49, weight=1)
         self.visualise_frame = ttk.Frame(master=self)
         self.visualise_frame.columnconfigure(0, weight=1)
         self.visualise_frame.rowconfigure(0, weight=1)
@@ -64,33 +64,18 @@ class VelocitiesTaskView(TaskViewBase):
         self.velocities_frame.columnconfigure(0, weight=1)
         self.velocities_frame.columnconfigure(1, weight=1)
 
-        add_velocity = ttk.Button(
-            master=self.velocities_frame, text="Add", command=self.add_velocity
-        )
-        remove_velocity = ttk.Button(
-            master=self.velocities_frame, text="Remove", command=self.remove_velocity
-        )
-
         # Background frame
         background_frame = ttk.Labelframe(control, text="Background correction:")
         background_frame.columnconfigure(0, weight=1)
         background_frame.rowconfigure(0, weight=1)
         background_frame.rowconfigure(1, weight=1)
 
-        for i, method in enumerate(("Average", "Phantom")):
-            ttk.Radiobutton(
-                background_frame, text=method, variable=self.phantom_var, value=i
-            ).grid(row=i, column=0, sticky=(tk.S, tk.W))
-
         # Grid all the widgets
-        control.grid(row=0, column=0, sticky=tk.NSEW, padx=10, pady=10)
-        self.visualise_frame.grid(row=0, column=1, sticky=tk.NSEW, padx=10, pady=10)
+        control.grid(sticky=tk.NSEW, padx=10, pady=10)
+        self.visualise_frame.grid(sticky=tk.NSEW, padx=10, pady=10)
         dataset_frame.grid(row=0, column=0, sticky=tk.NSEW, padx=5, pady=5)
         self.datasets_box.grid(row=0, column=0, sticky=tk.NSEW)
-        self.velocities_frame.grid(row=1, column=0, sticky=tk.NSEW, padx=5, pady=5)
-        add_velocity.grid(row=99, column=0, sticky=tk.NSEW)
-        remove_velocity.grid(row=99, column=1, sticky=tk.NSEW)
-        background_frame.grid(row=2, column=0, sticky=tk.NSEW, padx=5, pady=5)
+        self.velocities_frame.grid(row=0, column=1, sticky=tk.NSEW, padx=5)
 
     def markers_updated(self, marker_name, data_name, x, y, idx):
         """To be executed when the position of the markers is updated."""
@@ -116,19 +101,18 @@ class VelocitiesTaskView(TaskViewBase):
 
     def populate_global_figure(self, dataset, vel_label):
         """Populates with data a global figure."""
-        self.gfig = GlobalVelocity(self.visualise_frame, self.markers_updated)
-
         vels = self.data.velocities[dataset][vel_label]
-        #        masks = None
-        back = self.data.get_images(dataset, "MagZ")
+        markers = self.data.markers[dataset][vel_label]
+        # back = self.data.get_images(dataset, "MagZ")
 
-        for i, label in enumerate((self.gfig.long, self.gfig.rad, self.gfig.circ)):
-            self.gfig.update_line(label, (np.arange(len(vels[i])), vels[i]))
-            self.gfig.update_bg(label, 0, back[0] / back[0].max())
-            self.initial_marker_positions()
+        self.vplot = VelocityPlot(
+            vels, markers, self.visualise_frame, self.markers_updated
+        )
 
-    def initial_marker_positions(self):
+    def initial_marker_positions(self, markers, i, data_label):
         """Finds the initial positions for the markers."""
+        for marker_label, (x, _, _) in markers[i].items():
+            self.vplot.update_marker_position(marker_label, data_label, x)
 
     def update_velocities_list(self, dataset):
         """Updates the list of radio buttons with the currently available velocities."""
@@ -138,13 +122,14 @@ class VelocitiesTaskView(TaskViewBase):
             v.grid_remove()
 
         for i, v in enumerate(velocities):
+            col, row = divmod(i, 3)
             ttk.Radiobutton(
                 self.velocities_frame,
                 text=v,
                 value=v,
                 variable=self.velocities_var,
                 command=self.switch_velocity,
-            ).grid(row=i, column=0, columnspan=2, sticky=tk.NSEW)
+            ).grid(row=row, column=col, sticky=tk.NSEW)
 
         if self.velocities_var.get() not in velocities and len(velocities) > 0:
             self.velocities_var.set(list(velocities.keys())[0])
@@ -152,15 +137,28 @@ class VelocitiesTaskView(TaskViewBase):
     @trigger_event(name="calculate_velocities")
     def initialise_velocities(self, dataset):
         """Calculate pre-defined velocities if there are none for the chosen dataset."""
-        if len(self.data.velocities.get(dataset, {})) > 0:
-            return {}
-
         return dict(
             data=self.data,
             dataset_name=dataset,
             global_velocity=True,
             angular_regions=[6, 24],
             phantom=self.phantom_var.get(),
+        )
+
+    @trigger_event
+    def markers_positions(self, dataset, vel_label):
+        """Calculate pre-defined velocities if there are none for the chosen dataset."""
+        if "global" not in vel_label:
+            bg = vel_label.split("-")[-1]
+            global_vel = f"global -{bg}"
+        else:
+            global_vel = None
+
+        return dict(
+            data=self.data,
+            dataset_name=dataset,
+            vel_label=vel_label,
+            global_vel=global_vel,
         )
 
     def update_widgets(self):
@@ -184,7 +182,7 @@ class VelocitiesTaskView(TaskViewBase):
         pass
 
 
-class GlobalVelocity(object):
+class VelocityPlot(object):
 
     long = "_long"
     rad = "_rad"
@@ -192,6 +190,8 @@ class GlobalVelocity(object):
 
     def __init__(
         self,
+        velocities: np.ndarray,
+        markers: tuple,
         master=None,
         on_marker_moved: Optional[Callable] = None,
         figure_options: Optional[dict] = None,
@@ -224,9 +224,9 @@ class GlobalVelocity(object):
 
         self.axes = self.add_velocity_subplots(gs)
         self.maps = self.add_maps_subplots(gs)
-        self.vel_lines = self.add_velocity_lines()
+        self.vel_lines = self.add_velocity_lines(velocities)
         self.bg, self.vel_masks, self.cbar = self.add_bg_and_velocity_masks()
-        self.add_markers()
+        self.add_markers(markers)
 
         self.draw()
 
@@ -242,22 +242,24 @@ class GlobalVelocity(object):
 
         ax_long.set_title("Longitudinal")
         ax_long.set_ylabel("Velocity (cm/s)")
-        ax_long.set_xlabel("Time (ms)")
+        ax_long.set_xlabel("Frame")
         ax_rad.set_title("Radial")
-        ax_rad.set_xlabel("Time (ms)")
+        ax_rad.set_xlabel("Frame")
         ax_circ.set_title("Circumferential")
-        ax_circ.set_xlabel("Time (ms)")
+        ax_circ.set_xlabel("Frame")
 
         return {"_long": ax_long, "_rad": ax_rad, "_circ": ax_circ}
 
-    def add_velocity_lines(self):
-        """Add lines to the velocity plots as placeholders"""
-        vel_lines = {}
-        vel_lines["_long"] = self.axes["_long"].plot([0], [0], "k", label="_long")[0]
-        vel_lines["_rad"] = self.axes["_rad"].plot([0], [0], "k", label="_rad")[0]
-        vel_lines["_circ"] = self.axes["_circ"].plot([0], [0], "k", label="_circ")[0]
+    def add_velocity_lines(self, vels):
+        """Add lines to the velocity plots.
 
-        return vel_lines
+        vels - 3D array with the velocities with shape [regions, components (3), frames]
+        """
+        x = np.arange(vels.shape[-1])
+        return {
+            label: self.axes[label].plot(x, vels[0, i], "k", label=label)[0]
+            for i, label in enumerate(("_long", "_rad", "_circ"))
+        }
 
     def add_maps_subplots(self, gs):
         """Adds the maps subplots."""
@@ -328,22 +330,33 @@ class GlobalVelocity(object):
 
         return bg, masks, cbar
 
-    def add_markers(self):
-        """Adds markers to the plots."""
+    def add_markers(self, markers):
+        """Adds markers to the plots, assuming region 1 (the only one for global vel.).
+
+        - markers - Contains all the marker information for all regions and components.
+            Their shape is [regions, component (3), marker_id (3 or 4), marker_data (3)]
+        """
         add_marker = self.actions_manager.Markers.add_marker
 
-        add_marker(self.vel_lines["_long"], "PS", color="red", marker="1")
-        add_marker(self.vel_lines["_long"], "PD", color="green", marker="2")
-        add_marker(self.vel_lines["_long"], "PAS", color="blue", marker="3")
+        vel_lbl = ["_long"] * 3 + ["_rad"] * 3 + ["_circ"] * 3
+        vel_idx = [0] * 3 + [1] * 3 + [2] * 3
+        colors = ["red", "green", "blue"] * 2 + ["orange", "darkblue", "purple"]
+        marker_lbl = ["PS", "PD", "PAS"] * 2 + ["PC1", "PC2", "PC3"]
+        marker_shape = ["1", "2", "3"] * 3
 
-        add_marker(self.vel_lines["_rad"], "PS", color="red", marker="1")
-        add_marker(self.vel_lines["_rad"], "PD", color="green", marker="2")
-        add_marker(self.vel_lines["_rad"], "PAS", color="blue", marker="3")
-        add_marker(self.vel_lines["_rad"], "ES", color="black", marker="+")
+        keys = zip(vel_lbl, vel_idx, colors, marker_lbl, marker_shape)
+        for vel, idx, c, m, shape in keys:
+            add_marker(
+                self.vel_lines[vel], m, xy=markers[0][idx][m][:2], color=c, marker=shape
+            )
 
-        add_marker(self.vel_lines["_circ"], "PC1", color="orange", marker="1")
-        add_marker(self.vel_lines["_circ"], "PC2", color="darkblue", marker="2")
-        add_marker(self.vel_lines["_circ"], "PC3", color="purple", marker="3")
+        add_marker(
+            self.vel_lines["_rad"],
+            "ES",
+            xy=markers[0][1]["ES"][:2],
+            color="black",
+            marker="+",
+        )
 
         self.axes["_long"].legend(frameon=False, markerscale=0.5)
         self.axes["_rad"].legend(frameon=False, markerscale=0.5)
