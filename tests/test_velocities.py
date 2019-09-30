@@ -137,11 +137,11 @@ def test_marker():
     vel = np.sin(np.linspace(0, 2 * np.pi, 50))
 
     idx = np.argmin(abs(vel - np.sin(np.pi / 2)))
-    expected = [idx, vel[idx]]
+    expected = (idx, vel[idx], 0)
     assert marker(vel, low=1, high=20, maximum=True) == expected
 
     idx = np.argmin(abs(vel - np.sin(3 * np.pi / 2)))
-    expected = [idx, vel[idx]]
+    expected = (idx, vel[idx], 0)
     assert marker(vel, low=30, high=45, maximum=False) == expected
 
 
@@ -152,9 +152,9 @@ def test_marker_es():
     vel = 10 * np.sin(np.linspace(0, 4 * np.pi, 50))
 
     pd_idx = np.argmin(abs(vel[1:25] - 10 * np.sin(3 * np.pi / 2)))
-    pd = (pd_idx, vel[pd_idx])
+    pd = (pd_idx, vel[pd_idx], 0)
     idx = np.argmin(abs(vel[1:25] - 10 * np.sin(np.pi))) + 1
-    expected = [idx, vel[idx]]
+    expected = (idx, vel[idx], 0)
     assert marker_es(vel, pd) == expected
 
 
@@ -165,31 +165,25 @@ def test_marker_pc3():
     vel = 10 * np.sin(np.linspace(0, 4 * np.pi, 50))
 
     es_idx = np.argmin(abs(vel[1:25] - 10 * np.sin(np.pi))) + 1
-    es = (es_idx, vel[es_idx])
+    es = (es_idx, vel[es_idx], 0)
     idx = np.argmin(abs(vel[1:25] - 10 * np.sin(3 * np.pi / 2))) + 1
-    expected = [idx, vel[idx]]
+    expected = (idx, vel[idx], 0)
     assert marker_pc3(vel, es) == expected
-    assert marker_pc3(vel / 100, es) == [np.nan, np.nan]
+    assert marker_pc3(vel / 100, es) == (np.nan, np.nan, 0)
 
 
 def test_normalised_times(markers):
     from strainmap.models.velocities import normalised_times
 
     actual = normalised_times(markers, 50)
-
-    for i in range(3):
-        for k in markers[i].keys():
-            assert actual[i][k][-1] == markers[i][k][-1]
+    assert actual[:, :, 2] == approx(markers[:, :, 2])
 
 
 def test_markers_positions_internal(markers, velocity):
     from strainmap.models.velocities import _markers_positions
 
     actual = _markers_positions(velocity)
-
-    for i in range(3):
-        for k in markers[i].keys():
-            assert actual[i][k][0] == markers[i][k][0]
+    assert actual[:, :, 0] == approx(markers[:, :, 0])
 
 
 def test_markers_positions(strainmap_data, markers, velocity):
@@ -199,26 +193,24 @@ def test_markers_positions(strainmap_data, markers, velocity):
     strainmap_data.velocities[dataset]["global"] = velocity
 
     data = markers_positions(strainmap_data, dataset, "global")
-
-    for i in range(3):
-        for k in markers[i].keys():
-            assert data.markers[dataset]["global"][i][k][0] == markers[i][k][0]
+    assert data.markers[dataset]["global"][:, :, 0] == approx(markers[:, :, 0])
 
 
 def test_update_marker(strainmap_data, markers, velocity):
     from strainmap.models.velocities import update_marker
+    import numpy as np
     from copy import deepcopy
 
     dataset = list(strainmap_data.data_files.keys())[0]
     strainmap_data.velocities[dataset]["global"] = velocity
     strainmap_data.markers[dataset]["global"] = deepcopy(markers)
 
-    data = update_marker(strainmap_data, dataset, "global", 0, "PS", 2)
-    assert data.markers[dataset]["global"][0]["PS"][0] == 2
-    assert data.markers[dataset]["global"][0]["PS"][2] != markers[0]["PS"][2]
-    assert data.markers[dataset]["global"][0]["PD"][2] == markers[0]["PD"][2]
+    data = update_marker(strainmap_data, dataset, "global", 0, 0, 2)
+    assert data.markers[dataset]["global"][0, 0, 0] == 2
+    assert data.markers[dataset]["global"][0, 0, 2] != markers[0, 0, 2]
+    assert np.all(data.markers[dataset]["global"][0, 1:, 2] == markers[0, 1:, 2])
 
-    data = update_marker(strainmap_data, dataset, "global", 1, "ES", 15)
-    assert data.markers[dataset]["global"][1]["ES"][0] == 15
-    assert data.markers[dataset]["global"][1]["ES"][2] == 350
-    assert data.markers[dataset]["global"][0]["PD"][2] != markers[0]["PD"][2]
+    data = update_marker(strainmap_data, dataset, "global", 1, 3, 15)
+    assert data.markers[dataset]["global"][1, 3, 0] == 15
+    assert data.markers[dataset]["global"][1, 3, 2] == 350
+    assert np.all(data.markers[dataset]["global"][0, :3, 2] != markers[0, :3, 2])

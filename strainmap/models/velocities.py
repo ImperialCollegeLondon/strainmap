@@ -216,27 +216,27 @@ def marker(comp, low=1, high=49, maximum=True):
     idx = (
         np.argmax(comp[low : high + 1]) if maximum else np.argmin(comp[low : high + 1])
     ) + low
-    return [idx, comp[idx]]
+    return idx, comp[idx], 0
 
 
 def marker_es(comp, pd):
     """Finds the default position of the ES marker."""
     idx = round(len(comp) / 3)
-    low = min(max(1, idx - 5), len(comp) - 1)
-    high = min(idx + 5, len(comp) - 1)
+    low = int(min(max(1, idx - 5), len(comp) - 1))
+    high = int(min(idx + 5, len(comp) - 1))
 
     idx = np.argmin(comp[low : high + 1]) + low
 
     if idx == pd[0] or comp[idx] < -2:
         idx = np.argmin(abs(comp[low : high + 1])) + low
 
-    return [idx, comp[idx]]
+    return idx, comp[idx], 0
 
 
 def marker_pc3(comp, es):
     """Finds the default position of the PC3 marker."""
-    low = es[0]
-    high = min(low + 10, len(comp) - 1)
+    low = int(es[0])
+    high = int(min(low + 10, len(comp) - 1))
 
     pos = np.max(comp[low : high + 1])
     neg = np.min(comp[low : high + 1])
@@ -252,10 +252,10 @@ def marker_pc3(comp, es):
         idx = np.nan
         value = np.nan
 
-    return [idx, value]
+    return idx, value, 0
 
 
-def normalised_times(markers: Tuple, frames: int) -> Tuple:
+def normalised_times(markers: np.ndarray, frames: int) -> np.ndarray:
     """Calculates the normalised values for the marker times.
 
     The timings of the peaks (PS, PD and PAS) within the cardiac cycle are heart rate
@@ -267,16 +267,12 @@ def normalised_times(markers: Tuple, frames: int) -> Tuple:
     Our normalised curves  have a systolic length of 350 ms and a diastolic length of
     650ms.
     """
-    es = markers[1]["ES"][0]
-
-    for i in range(3):
-        for k, x in markers[i].items():
-            if len(x) == 3:
-                del markers[i][k][-1]
-            if x[0] <= es:
-                markers[i][k].append(smaller_than_es(x[0], es))
-            else:
-                markers[i][k].append(larger_than_es(x[0], es, frames))
+    es = markers[1, 3, 0]
+    markers[:, :, 2] = np.where(
+        markers[:, :, 0] <= es,
+        smaller_than_es(markers[:, :, 0], es),
+        larger_than_es(markers[:, :, 0], es, frames),
+    )
 
     return markers
 
@@ -291,7 +287,7 @@ def larger_than_es(x, es, frames, syst=350, dias=650):
     return syst + (x - es) / (frames - es) * dias
 
 
-def _markers_positions(velocity: np.ndarray, es: Optional[Tuple] = None) -> Tuple:
+def _markers_positions(velocity: np.ndarray, es: Optional[Tuple] = None) -> np.ndarray:
     """Find the position of the markers for the chosen dataset and velocity.
 
     The default positions for the markers are:
@@ -315,19 +311,21 @@ def _markers_positions(velocity: np.ndarray, es: Optional[Tuple] = None) -> Tupl
     cross-over point as the default marker position instead.
 
     For the regional plots, the default ES position is the position of the global ES.
+
+    Returns:
+        Array with dimensions [component, 4, 3], where axes 1 represents the marker name
+        (see above) and axes 2 represents the marker information (index, value,
+        normalised time). Only component 1 has a 4th marker.
     """
-    markers: Tuple[dict, dict, dict] = (
-        {"PS": [], "PD": [], "PAS": []},
-        {"PS": [], "PD": [], "PAS": []},
-        {"PC1": [], "PC2": []},
-    )
+    markers_lbl = (("PS", "PD", "PAS"), ("PS", "PD", "PAS"), ("PC1", "PC2"))
+    markers = np.zeros((3, 4, 3), dtype=float)
 
     for i in range(3):
-        for k in markers[i].keys():
-            markers[i][k] = marker(velocity[i], **markers_options[k])
+        for j, key in enumerate(markers_lbl[i]):
+            markers[i, j] = marker(velocity[i], **markers_options[key])
 
-    markers[1]["ES"] = marker_es(velocity[1], markers[1]["PD"]) if es is None else es
-    markers[2]["PC3"] = marker_pc3(velocity[2], markers[1]["ES"])
+    markers[1, 3] = marker_es(velocity[1], markers[1, 1]) if es is None else es
+    markers[2, 2] = marker_pc3(velocity[2], markers[1, 3])
 
     return normalised_times(markers, len(velocity[0]))
 
@@ -356,35 +354,31 @@ def update_marker(
     dataset: str,
     vel_label: str,
     component_idx: int,
-    marker_labl: str,
-    marker: int,
+    marker_idx: int,
+    position: int,
 ):
     """Updates the position of an existing marker in the data object.
 
-    If the marker modified is "ES", then all markers are updated. Otherwise just the
-    chosen one is updated."""
-    value = data.velocities[dataset][vel_label][component_idx][marker]
+    If the marker modified is "ES" (marker_idx = 3), then all markers are updated.
+    Otherwise just the chosen one is updated."""
+    value = data.velocities[dataset][vel_label][component_idx, position]
     frames = len(data.velocities[dataset][vel_label][component_idx])
 
-    if marker_labl == "ES":
-        data.markers[dataset][vel_label][1]["ES"][0] = marker
-        data.markers[dataset][vel_label][1]["ES"][1] = value
+    if marker_idx == 3:
+        data.markers[dataset][vel_label][1, 3, 0] = position
+        data.markers[dataset][vel_label][1, 3, 1] = value
         data.markers[dataset][vel_label] = normalised_times(
             data.markers[dataset][vel_label], frames
         )
 
     else:
-        es = data.markers[dataset][vel_label][1]["ES"][0]
-
-        if marker <= es:
-            normalised = smaller_than_es(marker, es)
-        else:
-            normalised = larger_than_es(marker, es, frames)
-
-        data.markers[dataset][vel_label][component_idx][marker_labl] = [
-            marker,
+        es = data.markers[dataset][vel_label][1, 3, 0]
+        data.markers[dataset][vel_label][component_idx, marker_idx, :] = [
+            position,
             value,
-            normalised,
+            smaller_than_es(position, es)
+            if position <= es
+            else larger_than_es(position, es, frames),
         ]
 
     return data
