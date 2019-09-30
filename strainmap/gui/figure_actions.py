@@ -1,6 +1,6 @@
 from collections import defaultdict
 from functools import partial
-from typing import Callable, Dict, Optional, Tuple, Union
+from typing import Callable, Dict, Optional, Tuple, Union, List
 
 import matplotlib.animation as animation
 import numpy as np
@@ -168,23 +168,11 @@ class ScrollFrames(ActionBase):
     def __init__(
         self,
         scroll_frames=TriggerSignature(Location.ANY, Button.CENTRE, MouseAction.SCROLL),
-        show_frame_number=TriggerSignature(
-            Location.ANY, Button.NONE, MouseAction.ENTERAXES
-        ),
-        hide_frame_number=TriggerSignature(
-            Location.ANY, Button.NONE, MouseAction.LEAVEAXES
-        ),
         animate=TriggerSignature(Location.NE, Button.LEFT, MouseAction.DCLICK),
     ):
         super().__init__(
-            signatures={
-                scroll_frames: self.scroll_axes,
-                show_frame_number: self.show_frame_number,
-                hide_frame_number: self.hide_frame_number,
-                animate: self.animate,
-            }
+            signatures={scroll_frames: self.scroll_axes, animate: self.animate}
         )
-        self._img_shift = 0
         self._anim = {}
         self._anim_running = {}
         self._current_frames = defaultdict(lambda: 0)
@@ -194,6 +182,7 @@ class ScrollFrames(ActionBase):
     def set_scroller(self, scroller, axes):
         """Sets the generator function that will produce the new data when scrolling."""
         self._scroller[axes] = scroller
+        axes.set_title(f"Frame: 0", loc="left")
 
     def link_axes(self, axes1, axes2):
         """Links two axes, so scrolling happens simultaneously in both."""
@@ -202,6 +191,8 @@ class ScrollFrames(ActionBase):
 
         self._linked_axes[axes1] = axes2
         self._linked_axes[axes2] = axes1
+        axes1.set_title(f"Frame: 0", loc="left")
+        axes2.set_title(f"Frame: 0", loc="left")
 
     def unlink_axes(self, axes1, axes2):
         """Unlinks two linked axes."""
@@ -211,16 +202,6 @@ class ScrollFrames(ActionBase):
     def scroll_axes(self, event, *args):
         """The images available in the axes, if more than one, are scrolled."""
         self._scroll_axes(None, event.step, event.inaxes)
-
-    def show_frame_number(self, event, *args):
-        """Shows the frame number on top of the axes."""
-        axes = event.inaxes
-        axes.set_title(f"Frame: {self._current_frames[axes]}", loc="left")
-
-    @staticmethod
-    def hide_frame_number(event, *args):
-        """Hides the frame number on top of the axes."""
-        event.inaxes.set_title("", loc="left")
 
     def animate(self, event, *args):
         """Animate the sequence of images in the axes."""
@@ -251,11 +232,16 @@ class ScrollFrames(ActionBase):
     def _scroll_axes(self, _, step, axes):
         """Internal function that decides what to scroll."""
         step = int(np.sign(step))
-        self._current_frames[axes] += step
+        frame = self._current_frames[axes] + step
+        self.go_to_frame(frame, axes)
+
+    def go_to_frame(self, frame, axes):
+        """Scroll directly to this specific frame in the chosen axes."""
+        self._current_frames[axes] = frame
         self.scroll_artists(axes)
 
         if axes in self._linked_axes:
-            self._current_frames[self._linked_axes[axes]] += step
+            self._current_frames[self._linked_axes[axes]] = frame
             self.scroll_artists(self._linked_axes[axes])
 
     def scroll_artists(self, axes):
@@ -288,7 +274,6 @@ class ScrollFrames(ActionBase):
             del anim
         self._anim = {}
         self._anim_running = {}
-        self._img_shift = 0
 
 
 def circle(points: np.ndarray, resolution=360, **kwargs) -> Optional[np.ndarray]:
@@ -326,6 +311,11 @@ def spline(
     tck, u = interpolate.splprep([data[:, 0], data[:, 1]], s=0, per=True, k=degree)[:2]
     result = np.array(interpolate.splev(np.linspace(0, 1, resolution), tck)).T
     return result
+
+
+def single_point(points: np.ndarray) -> Optional[np.ndarray]:
+    """Returns a single point to be plotted 'as as'."""
+    return points[-1][np.newaxis].T
 
 
 class DrawContours(ActionBase):
@@ -539,7 +529,9 @@ class DragContours(ActionBase):
 
         super().__init__(signatures={drag_point: self.drag_point})
         self.contour_fraction = np.clip(contour_fraction, a_min=0, a_max=1)
+        self.disabled = False
         self._current_artist = None
+        self._ignore_drag: List[Line2D] = []
         self._drag_handle = 0
         self._contour_updated = (
             partial(contour_updated, **kwargs)
@@ -551,20 +543,29 @@ class DragContours(ActionBase):
         """Sets the function to be called when the contour is updated."""
         self._contour_updated = contour_updated
 
+    def ignore_dragging(self, artist):
+        """Dragging will be ignored for this pickable artist."""
+        self._ignore_drag.append(artist)
+
     def drag_point(self, event, last_event, *args):
         """Drags a point and all the neighbouring ones of a closed contour."""
+        if self.disabled:
+            return
 
-        if hasattr(last_event, "artist") and isinstance(last_event.artist, Line2D):
-            self._current_artist = last_event.artist
-            xdata = self._current_artist.get_xdata()
-            ydata = self._current_artist.get_ydata()
+        if hasattr(last_event, "artist"):
+            if last_event.artist in self._ignore_drag:
+                self._current_artist = None
+            elif isinstance(last_event.artist, Line2D):
+                self._current_artist = last_event.artist
+                xdata = self._current_artist.get_xdata()
+                ydata = self._current_artist.get_ydata()
 
-            xdif = xdata - last_event.mouseevent.xdata
-            ydif = ydata - last_event.mouseevent.ydata
+                xdif = xdata - last_event.mouseevent.xdata
+                ydif = ydata - last_event.mouseevent.ydata
 
-            self._drag_handle = (xdif ** 2 + ydif ** 2).argmin()
+                self._drag_handle = (xdif ** 2 + ydif ** 2).argmin()
 
-        elif self._current_artist is None:
+        if self._current_artist is None:
             return
 
         xdata = self._current_artist.get_xdata()
@@ -638,7 +639,7 @@ class Markers(ActionBase):
     def __init__(
         self,
         marker_moved: Optional[Callable] = None,
-        drag_marker=TriggerSignature(Location.ANY, Button.LEFT, MouseAction.PICKDRAG),
+        drag_marker=TriggerSignature(Location.ANY, Button.RIGHT, MouseAction.PICKDRAG),
     ):
         """Add sliding markers to read the data from a plot.
 
@@ -648,6 +649,7 @@ class Markers(ActionBase):
         """
 
         super().__init__(signatures={drag_marker: self.drag_marker})
+        self.disabled = False
         self._current_marker = None
         self._current_data = None
         self._linked_data: Dict[Line2D, Union[Line2D, None]] = dict()
@@ -664,17 +666,18 @@ class Markers(ActionBase):
         if line is not None:
             axes = line.axes
             x, y = line.get_data()
+            x, y = x[0], y[0]
         elif axes is not None:
             xlim = axes.get_xlim()
             ylim = axes.get_ylim()
-            x, y = [(xlim[0] + xlim[1]) / 2], [(ylim[0] + ylim[1]) / 2]
+            x, y = (xlim[0] + xlim[1]) / 2, (ylim[0] + ylim[1]) / 2
         else:
             raise ValueError("At least one of 'lines' or 'axes' must be defined.")
 
         options = dict(picker=6, marker="x", markersize=20, linestyle="None")
         options.update(kwargs)
 
-        marker = axes.plot(x[0], y[0], **options)[0]
+        marker = axes.plot(x, y, **options)[0]
         self._linked_data[marker] = line
 
         return marker
@@ -694,13 +697,22 @@ class Markers(ActionBase):
 
     def drag_marker(self, event, last_event, *args):
         """Drags a marker to a new position of the data."""
+        if self.disabled:
+            return
 
-        if hasattr(last_event, "artist") and isinstance(last_event.artist, Line2D):
-            self._current_marker = last_event.artist
-            self._current_data = self._linked_data[self._current_marker]
+        if hasattr(last_event, "artist"):
+            if last_event.artist in self._linked_data:
+                self._current_marker = last_event.artist
+                self._current_data = self._linked_data[self._current_marker]
+            else:
+                self._current_marker = None
+                self._current_data = None
+
+        if self._current_marker is None:
+            return
 
         ev = last_event.mouseevent if hasattr(last_event, "mouseevent") else event
-        old_x = self._current_marker.get_xdata()[0]
+        old_x = self._current_marker.get_xdata()
 
         if self._current_data is None:
             x, y = ev.xdata, ev.ydata

@@ -74,6 +74,8 @@ class StrainMap(object):
             data = factory(**kwargs)
             if data.data_files:
                 self.unlock(Requisites.DATALOADED)
+            if data.segments:
+                self.unlock(Requisites.SEGMENTED)
             self.update_views(data)
 
     @bind_event
@@ -84,16 +86,22 @@ class StrainMap(object):
             self.update_views(None)
 
     @bind_event
-    def find_segmentation(self, **kwargs):
+    def find_segmentation(self, unlock=True, **kwargs):
         """Runs an automated segmentation routine."""
         reload(quick_segmentation)
         data = quick_segmentation.find_segmentation(**kwargs)
-        if data.segments:
+        if data.segments and unlock:
             self.unlock(Requisites.SEGMENTED)
+        elif len(data.segments) == 0:
+            self.lock(Requisites.SEGMENTED)
         self.update_views(data)
 
     @bind_event
-    def update_segmentation(self, **kwargs):
+    def update_segmentation(self, unlock=True, **kwargs):
         """Runs an automated segmentation routine."""
         data = quick_segmentation.update_segmentation(**kwargs)
+        if data.segments and unlock:
+            self.unlock(Requisites.SEGMENTED)
+        elif len(data.segments) == 0:
+            self.lock(Requisites.SEGMENTED)
         self.update_views(data)
