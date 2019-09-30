@@ -13,7 +13,9 @@ from .contour_mask import contour_diff, angular_segments, radial_segments, Conto
 def find_theta0(zero_angle: np.ndarray):
     """Finds theta0 out of the COM and septum mid-point for all timeframes.
 
-zero_angle: array with dimensions [num_timeframes, 2, 2], where the second axis discriminates between the center of mass (index 0) and the septum (index 1), and the last axis are the cartesian coordinates x and y.
+    zero_angle: array with dimensions [num_timeframes, 2, 2], where the last axis
+    discriminates between the center of mass (index 0) and the septum (index 1), and
+    the second axis are the cartesian coordinates x and y.
 
     For any timeframe,  it contains the center of mass of the mask and the position
     of the septum mid-point. Out of these two points, the angle that is the origin of
