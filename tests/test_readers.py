@@ -1,5 +1,6 @@
 from pathlib import Path
 from typing import Mapping, Text, Tuple, Union
+from pytest import approx
 
 
 def search_in_tree(
@@ -101,3 +102,14 @@ def test_to_numpy(data_tree):
     magnitude, phase = data[list(data.keys())[0]]
     assert magnitude.shape == (3, 3, 512, 512)
     assert phase.shape == (3, 3, 512, 512)
+
+
+def test_velocity_sensitivity(data_tree):
+    from strainmap.models.readers import velocity_sensitivity
+    import numpy as np
+
+    filename = list(data_tree.values())[0]["PhaseZ"][0]
+    expected = np.array((20, 20, 30))
+    actual = velocity_sensitivity(filename)
+
+    assert expected == approx(actual)

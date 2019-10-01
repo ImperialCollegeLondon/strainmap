@@ -7,7 +7,7 @@ from typing import ClassVar, Dict, Iterable, List, Mapping, Optional, Text, Tupl
 
 import pydicom
 from nibabel.nicom import csareader as csar
-from numpy import ndarray
+import numpy as np
 
 VAR_OFFSET = {"MagZ": 0, "PhaseZ": 1, "MagX": 2, "PhaseX": 3, "MagY": 4, "PhaseY": 5}
 
@@ -51,6 +51,19 @@ def parallel_spirals(dicom_data):
         return True if "ParallelSpirals" in tSequenceFileName[1] else False
     except TypeError:
         return False
+
+
+def velocity_sensitivity(filename):
+    """Obtains the in-plane and out of plane velocity sensitivity (scale)."""
+    dicom_data = pydicom.dcmread(filename)
+    csa = csar.get_csa_header(dicom_data, "series")
+
+    ascii_header = csa["tags"]["MrPhoenixProtocol"]["items"][0]
+    z = float(re.search(r"asElm\[0\].nVelocity\t = \t(.*)", ascii_header)[1])
+    x = float(re.search(r"asElm\[1\].nVelocity\t = \t(.*)", ascii_header)[1])
+    y = float(re.search(r"asElm\[2\].nVelocity\t = \t(.*)", ascii_header)[1])
+
+    return np.array((x, y, z))
 
 
 def read_dicom_file_tags(
@@ -107,8 +120,8 @@ class ImageTimeSeries:
     Each arrays has the format (vector component, time, horizontal, vertical).
     """
 
-    magnitude: ndarray
-    phase: ndarray
+    magnitude: np.ndarray
+    phase: np.ndarray
 
     component_axis: ClassVar[int] = 0
     """Axis with x, y, z components."""
@@ -139,7 +152,7 @@ class ImageTimeSeries:
 def images_to_numpy(data: Mapping) -> Mapping[Text, ImageTimeSeries]:
     """Aggregates dicom images into numpy arrays."""
 
-    def to_numpy(pattern: Text, data: Mapping) -> ndarray:
+    def to_numpy(pattern: Text, data: Mapping) -> np.ndarray:
         from numpy import stack, argsort
 
         result = stack(

@@ -2,7 +2,7 @@ from unittest.mock import MagicMock
 
 from pytest import mark
 
-from conftest import patch_dialogs
+from .conftest import patch_dialogs
 
 
 @patch_dialogs

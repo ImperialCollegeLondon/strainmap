@@ -7,8 +7,6 @@ import numpy as np
 from scipy import interpolate, ndimage
 from skimage.draw import polygon_perimeter
 
-from .readers import ImageTimeSeries
-
 
 class Contour(object):
     """Creates a contour object.
@@ -149,8 +147,8 @@ def contour_diff(
 
 def angular_segments(
     nsegments: int = 6,
-    origin: Optional[Sequence[int]] = None,
-    theta0: float = 0,
+    origin: Optional[np.ndarray] = None,
+    theta0: Union[float, np.ndarray] = 0,
     clockwise: bool = True,
     shape: Tuple[int, int] = (512, 512),
 ) -> np.ndarray:
@@ -175,31 +173,38 @@ def angular_segments(
         >>> from strainmap.models.contour_mask import angular_segments
         >>> segments = angular_segments(nsegments=4, shape=(10, 10))
         >>> print(segments)
-        [[2 2 2 2 2 2 3 3 3 3]
-         [2 2 2 2 2 2 3 3 3 3]
-         [2 2 2 2 2 2 3 3 3 3]
-         [2 2 2 2 2 2 3 3 3 3]
-         [2 2 2 2 2 2 3 3 3 3]
-         [1 1 1 1 1 0 0 0 0 0]
-         [1 1 1 1 1 0 0 0 0 0]
-         [1 1 1 1 1 0 0 0 0 0]
-         [1 1 1 1 1 0 0 0 0 0]
-         [1 1 1 1 1 0 0 0 0 0]]
+        [[3 3 3 3 3 3 4 4 4 4]
+         [3 3 3 3 3 3 4 4 4 4]
+         [3 3 3 3 3 3 4 4 4 4]
+         [3 3 3 3 3 3 4 4 4 4]
+         [3 3 3 3 3 3 4 4 4 4]
+         [2 2 2 2 2 1 1 1 1 1]
+         [2 2 2 2 2 1 1 1 1 1]
+         [2 2 2 2 2 1 1 1 1 1]
+         [2 2 2 2 2 1 1 1 1 1]
+         [2 2 2 2 2 1 1 1 1 1]]
     """
     if origin is None:
         origin = np.array(shape) / 2
-    x = np.arange(0, shape[0], dtype=int)[None, :] - origin[0]
-    y = np.arange(0, shape[1], dtype=int)[:, None] - origin[1]
+    elif isinstance(origin, tuple):
+        origin = np.array(origin)
+
+    if origin.size == 2:
+        x = np.arange(0, shape[0], dtype=int)[None, :] - origin[0]
+        y = np.arange(0, shape[1], dtype=int)[:, None] - origin[1]
+    else:
+        x = np.arange(0, shape[0], dtype=int)[None, :, None] - origin[:, 0]
+        y = np.arange(0, shape[1], dtype=int)[:, None, None] - origin[:, 1]
 
     theta = np.mod(np.arctan2(y, x) + theta0, 2 * np.pi)
     if not clockwise:
         theta = -theta
 
-    result = np.zeros(theta.shape, dtype=int)
+    result = np.ones(theta.shape, dtype=int)
 
     steps = np.linspace(0, 2 * np.pi, nsegments + 1)
-    for n in range(1, nsegments):
-        result[theta > steps[n]] = n
+    for n in range(0, nsegments):
+        result[theta > steps[n]] = n + 1
 
     return result
 
@@ -522,54 +527,6 @@ def masked_means(
 
     indices = set(labels.flat) - {0}
     return np.concatenate(list(_mean(data, blabels != l) for l in indices))
-
-
-def mean_velocities(
-    velocities: np.ndarray,
-    labels: np.ndarray,
-    component_axis: int = ImageTimeSeries.component_axis,
-    image_axes: Tuple[int, int] = ImageTimeSeries.image_axes,
-    time_axis: Optional[int] = ImageTimeSeries.time_axis,
-    origin: Optional[np.ndarray] = None,
-    **kwargs,
-) -> np.ndarray:
-    """Global and masked mean velocities in cylindrical basis.
-
-    Args:
-        velocities: phases in a cartesian basis
-        labels: regions for which to compute the mean
-        component_axis: axis of the (x, y, z) components
-        image_axes: axes corresponding to the image
-        time_axis: axis corresponding to time
-        figure: the figure on which to plot
-        origin: origin of the cylindrical basis
-
-    Returns:
-        a numpy array where the first axis indicates the label, and the second axis
-        indicates the component (from `component_axis`). Subsequent axes are the extra
-        axes from `velocities` (other than component and image axes). Label 0 is the
-        global mean.
-    """
-    assert velocities.ndim >= len(image_axes) + (1 if time_axis is None else 2)
-    if origin is None:
-        origin = ndimage.measurements.center_of_mass(labels > 0)
-
-    bulk_velocity = masked_means(velocities, labels > 0, axes=image_axes).reshape(
-        tuple(1 if i in image_axes else v for i, v in enumerate(velocities.shape))
-    )
-    cylindrical = cylindrical_projection(
-        velocities - bulk_velocity,
-        origin,
-        component_axis=component_axis,
-        image_axes=image_axes,
-    )
-    local_means = masked_means(cylindrical, labels, axes=image_axes)
-    global_means = masked_means(cylindrical, labels > 0, axes=image_axes)
-
-    return np.rollaxis(
-        np.concatenate([global_means, local_means], axis=0),
-        component_axis - sum(i < component_axis for i in image_axes),
-    )
 
 
 if __name__ == "__main__":

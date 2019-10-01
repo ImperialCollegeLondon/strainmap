@@ -39,12 +39,37 @@ def data_tree(dicom_data_path):
     return read_dicom_directory_tree(dicom_data_path)
 
 
-@fixture(scope="session")
+@fixture
 def strainmap_data(dicom_data_path):
     """Returns a loaded StrainMapData object."""
     from strainmap.models.strainmap_data_model import factory
 
     return factory(data_files=dicom_data_path)
+
+
+@fixture
+def segmented_data(strainmap_data):
+    """Returns a StrainMapData object with segmented data."""
+    from strainmap.models.contour_mask import Contour
+    from strainmap.models.quick_segmentation import find_segmentation
+
+    dataset = list(strainmap_data.data_files.keys())[0]
+    image = strainmap_data.get_images(dataset, "MagX")
+
+    # Create the initial contour
+    init_epi = Contour.circle(center=(310, 280), radius=60, shape=image.shape).xy
+    init_endo = Contour.circle(center=(310, 280), radius=40, shape=image.shape).xy
+
+    # Launch the segmentation process
+    data = find_segmentation(
+        data=strainmap_data,
+        dataset_name=dataset,
+        images={"endocardium": image, "epicardium": image},
+        frame=None,
+        initials={"epicardium": init_epi, "endocardium": init_endo},
+    )
+
+    return data
 
 
 @fixture(scope="session")
