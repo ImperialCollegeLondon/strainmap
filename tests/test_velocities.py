@@ -13,7 +13,7 @@ def test_find_theta0():
     vector[:, 0, 0] = np.cos(expected)
 
     actual = find_theta0(vector)
-    assert actual == approx(expected)
+    assert actual == approx(-expected)
 
 
 def test_scale_phase(strainmap_data):
@@ -49,8 +49,8 @@ def test_transform_to_cylindrical():
     from strainmap.models.contour_mask import cylindrical_projection
     import numpy as np
 
-    cartvel = np.random.random((3, 5, 48, 48))
-    masks = np.random.randint(0, 2, (5, 48, 48))
+    cartvel = np.random.random((3, 5, 48, 58))
+    masks = np.random.randint(0, 2, (5, 48, 58))
     origin = np.array([48] * 10).reshape((5, 2))
 
     velocities = transform_to_cylindrical(cartvel, masks, origin)
@@ -84,7 +84,7 @@ def test_calculate_velocities(segmented_data):
         dataset_name,
         global_velocity=True,
         angular_regions=[6],
-        radial_regions=[4],
+        # radial_regions=[],
     ).velocities
 
     assert dataset_name in velocities
@@ -92,8 +92,8 @@ def test_calculate_velocities(segmented_data):
     assert velocities[dataset_name]["global - Average"].shape == (1, 3, 3)
     assert "angular x6 - Average" in velocities[dataset_name]
     assert velocities[dataset_name]["angular x6 - Average"].shape == (6, 3, 3)
-    assert "radial x4 - Average" in velocities[dataset_name]
-    assert velocities[dataset_name]["radial x4 - Average"].shape == (4, 3, 3)
+    # assert "radial x4 - Average" in velocities[dataset_name]
+    # assert velocities[dataset_name]["radial x4 - Average"].shape == (0, 3, 3)
 
 
 def test_mean_velocities():
@@ -190,10 +190,10 @@ def test_markers_positions(strainmap_data, markers, velocity):
     from strainmap.models.velocities import markers_positions
 
     dataset = list(strainmap_data.data_files.keys())[0]
-    strainmap_data.velocities[dataset]["global"] = velocity
+    strainmap_data.velocities[dataset]["global"] = velocity[None]
 
     data = markers_positions(strainmap_data, dataset, "global")
-    assert data.markers[dataset]["global"][:, :, 0] == approx(markers[:, :, 0])
+    assert data.markers[dataset]["global"][0][:, :, 0] == approx(markers[:, :, 0])
 
 
 def test_update_marker(strainmap_data, markers, velocity):
@@ -202,15 +202,15 @@ def test_update_marker(strainmap_data, markers, velocity):
     from copy import deepcopy
 
     dataset = list(strainmap_data.data_files.keys())[0]
-    strainmap_data.velocities[dataset]["global"] = velocity
-    strainmap_data.markers[dataset]["global"] = deepcopy(markers)
+    strainmap_data.velocities[dataset]["global"] = [velocity]
+    strainmap_data.markers[dataset]["global"] = [deepcopy(markers)]
 
-    data = update_marker(strainmap_data, dataset, "global", 0, 0, 2)
-    assert data.markers[dataset]["global"][0, 0, 0] == 2
-    assert data.markers[dataset]["global"][0, 0, 2] != markers[0, 0, 2]
-    assert np.all(data.markers[dataset]["global"][0, 1:, 2] == markers[0, 1:, 2])
+    data = update_marker(strainmap_data, dataset, "global", 0, 0, 0, 2)
+    assert data.markers[dataset]["global"][0][0, 0, 0] == 2
+    assert data.markers[dataset]["global"][0][0, 0, 2] != markers[0, 0, 2]
+    assert np.all(data.markers[dataset]["global"][0][0, 1:, 2] == markers[0, 1:, 2])
 
-    data = update_marker(strainmap_data, dataset, "global", 1, 3, 15)
-    assert data.markers[dataset]["global"][1, 3, 0] == 15
-    assert data.markers[dataset]["global"][1, 3, 2] == 350
-    assert np.all(data.markers[dataset]["global"][0, :3, 2] != markers[0, :3, 2])
+    data = update_marker(strainmap_data, dataset, "global", 0, 1, 3, 15)
+    assert data.markers[dataset]["global"][0][1, 3, 0] == 15
+    assert data.markers[dataset]["global"][0][1, 3, 2] == 350
+    assert np.all(data.markers[dataset]["global"][0][0, :3, 2] != markers[0, :3, 2])

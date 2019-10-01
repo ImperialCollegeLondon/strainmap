@@ -13,7 +13,7 @@ from .gui.base_window_and_task import (
 )
 from .models.strainmap_data_model import factory
 from .models import quick_segmentation
-from .models.velocities import calculate_velocities, markers_positions
+from .models.velocities import calculate_velocities, update_marker
 
 
 class StrainMap(object):
@@ -115,8 +115,8 @@ class StrainMap(object):
             self.update_views(data)
 
     @bind_event
-    def markers_positions(self, **kwargs):
-        """Finds the initial markers positions for a given velocity."""
+    def update_marker(self, **kwargs):
+        """Updates the markers information after moving one of them."""
         if kwargs:
-            data = markers_positions(**kwargs)
+            data = update_marker(**kwargs)
             self.update_views(data)

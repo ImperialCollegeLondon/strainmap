@@ -22,7 +22,7 @@ def find_theta0(zero_angle: np.ndarray):
     angular coordinates is calculated.
     """
     shifted = zero_angle[:, :, 0] - zero_angle[:, :, 1]
-    theta0 = np.mod(np.arctan2(shifted[:, 1], shifted[:, 0]), 2 * np.pi)
+    theta0 = -np.mod(np.arctan2(shifted[:, 1], shifted[:, 0]), 2 * np.pi)
     return theta0
 
 
@@ -51,7 +51,9 @@ def scale_phase(
 
 def global_masks_and_origin(outer, inner, img_shape):
     """Finds the global masks and origin versus time frame."""
-    masks = [contour_diff(outer[i].T, inner[i].T, img_shape) for i in range(len(outer))]
+    masks = [
+        contour_diff(outer[i].T, inner[i].T, img_shape).T for i in range(len(outer))
+    ]
     origin = list(map(ndimage.measurements.center_of_mass, masks))
 
     return np.array(masks), np.array(origin)
@@ -120,12 +122,14 @@ def calculate_velocities(
     cylindrical = transform_to_cylindrical(phase, masks, origin)
     sensitivity = velocity_sensitivity(data.data_files[dataset_name]["PhaseZ"][0]) * 2
     bg = {True: "Phantom", False: "Average"}[phantom]
+    data.masks[dataset_name][f"cylindrical - {bg}"] = cylindrical
     vel_labels = []
     if global_velocity:
         s = np.tile(sensitivity, (cylindrical.shape[1], 1)).T
         data.velocities[dataset_name][f"global - {bg}"] = (
             masked_means(cylindrical, masks, axes=(2, 3)) * s
         )
+        data.masks[dataset_name][f"global - {bg}"] = masks[None]
         vel_labels.append(f"global - {bg}")
 
     for ang in angular_regions:
@@ -137,6 +141,7 @@ def calculate_velocities(
         data.velocities[dataset_name][f"angular x{ang} - {bg}"] = (
             masked_means(cylindrical, labels * masks, axes=(2, 3)) * s
         )
+        data.masks[dataset_name][f"angular x{ang} - {bg}"] = labels * masks
         vel_labels.append(f"angular x{ang} - {bg}")
 
     for rad in radial_regions:
@@ -335,25 +340,18 @@ def markers_positions(
 ):
     """Find the position of the markers for the chosen dataset and velocity."""
     velocity = data.velocities[dataset][vel_label]
-    es = (
-        data.markers[dataset][global_vel][0][1]["ES"]
-        if global_vel is not None
-        else None
-    )
-    if len(velocity.shape) == 3:
-        data.markers[dataset][vel_label] = []
-        for i in range(velocity.shape[0]):
-            data.markers[dataset][vel_label].append(_markers_positions(velocity[i], es))
-    else:
-        data.markers[dataset][vel_label] = _markers_positions(velocity, es)
+    es = data.markers[dataset][global_vel][0][1, 3] if global_vel is not None else None
+    data.markers[dataset][vel_label] = []
+    for i in range(velocity.shape[0]):
+        data.markers[dataset][vel_label].append(_markers_positions(velocity[i], es))
+
     return data
 
 
-def update_marker(
-    data: StrainMapData,
-    dataset: str,
-    vel_label: str,
-    component_idx: int,
+def _update_marker(
+    velocities: np.ndarray,
+    markers: np.ndarray,
+    component: int,
     marker_idx: int,
     position: int,
 ):
@@ -361,25 +359,47 @@ def update_marker(
 
     If the marker modified is "ES" (marker_idx = 3), then all markers are updated.
     Otherwise just the chosen one is updated."""
-    value = data.velocities[dataset][vel_label][component_idx, position]
-    frames = len(data.velocities[dataset][vel_label][component_idx])
+    value = velocities[component, position]
+    frames = len(velocities[component])
 
     if marker_idx == 3:
-        data.markers[dataset][vel_label][1, 3, 0] = position
-        data.markers[dataset][vel_label][1, 3, 1] = value
-        data.markers[dataset][vel_label] = normalised_times(
-            data.markers[dataset][vel_label], frames
-        )
+        markers[1, 3, 0] = position
+        markers[1, 3, 1] = value
+        markers = normalised_times(markers, frames)
 
     else:
-        es = data.markers[dataset][vel_label][1, 3, 0]
-        data.markers[dataset][vel_label][component_idx, marker_idx, :] = [
+        es = markers[1, 3, 0]
+        markers[component, marker_idx, :] = [
             position,
             value,
             smaller_than_es(position, es)
             if position <= es
             else larger_than_es(position, es, frames),
         ]
+
+    return markers
+
+
+def update_marker(
+    data: StrainMapData,
+    dataset: str,
+    vel_label: str,
+    region: int,
+    component: int,
+    marker_idx: int,
+    position: int,
+):
+    """Updates the position of an existing marker in the data object.
+
+    If the marker modified is "ES" (marker_idx = 3), then all markers are updated.
+    Otherwise just the chosen one is updated."""
+    data.markers[dataset][vel_label][region] = _update_marker(
+        data.velocities[dataset][vel_label][region],
+        data.markers[dataset][vel_label][region],
+        component,
+        marker_idx,
+        position,
+    )
 
     return data
 

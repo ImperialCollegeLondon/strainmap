@@ -193,8 +193,8 @@ def angular_segments(
         x = np.arange(0, shape[0], dtype=int)[None, :] - origin[0]
         y = np.arange(0, shape[1], dtype=int)[:, None] - origin[1]
     else:
-        x = np.arange(0, shape[0], dtype=int)[None, :, None] - origin[:, 0]
-        y = np.arange(0, shape[1], dtype=int)[:, None, None] - origin[:, 1]
+        x = np.arange(0, shape[0], dtype=int)[:, None, None] - origin[:, 0]
+        y = np.arange(0, shape[1], dtype=int)[None, :, None] - origin[:, 1]
 
     theta = np.mod(np.arctan2(y, x) + theta0, 2 * np.pi)
     if not clockwise:

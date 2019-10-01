@@ -1,7 +1,5 @@
 import tkinter as tk
 from tkinter import ttk
-from typing import Optional, Callable
-from functools import partial
 
 import numpy as np
 from matplotlib import pyplot as plt
@@ -10,7 +8,7 @@ from matplotlib.figure import Figure
 
 from .base_window_and_task import Requisites, TaskViewBase, register_view, trigger_event
 from .figure_actions_manager import FigureActionsManager
-from .figure_actions import Markers
+from .figure_actions import Markers, ScrollFrames
 
 
 @register_view
@@ -30,10 +28,21 @@ class VelocitiesTaskView(TaskViewBase):
         self.velocities_frame = None
         self.velocities_var = tk.StringVar(value="")
         self.phantom_var = tk.BooleanVar(value=True)
-        self.vplot = None
+        self.plot = None
         self.regional_fig = None
-        self.color_maps = None
         self.param_tables = []
+        self.current_region = 0
+        self.images = None
+
+        # Figure-related variables
+        self.fig = None
+        self.axes = None
+        self.maps = None
+        self.vel_lines = None
+        self.bg_images = None
+        self.vel_masks = None
+        self.cbar = None
+        self.marker_moved_info = ()
 
         self.create_controls()
 
@@ -99,12 +108,13 @@ class VelocitiesTaskView(TaskViewBase):
         for i in range(3):
             self.param_tables[i].grid(row=0, column=i, sticky=tk.NSEW, padx=5)
 
-    def markers_updated(self, marker_name, data_name, x, y, idx):
-        """To be executed when the position of the markers is updated."""
+        # Bind the scrolling to change the regions in the plots
+        self.bind_all("<MouseWheel>", self.scroll)
 
     def dataset_changed(self, *args):
         """Updates the view when the selected dataset is changed."""
         current = self.datasets_var.get()
+        self.images = self.data.get_images(current, "MagZ")
         self.update_velocities_list(current)
 
     def add_velocity(self):
@@ -113,57 +123,78 @@ class VelocitiesTaskView(TaskViewBase):
     def remove_velocity(self):
         """Opens a dialog to remove the selected velocity to the list of velocities."""
 
-    def switch_velocity(self):
+    def switch_velocity(self, region=0):
         """Switch the plot to show the chosen velocity."""
-        vel = self.velocities_var.get()
-        dataset = self.datasets_var.get()
+        self.current_region = region
+        self.markers_figure(
+            self.velocities, self.velocity_maps, self.images, self.markers
+        )
+        self.populate_tables()
 
-        self.populate_figure(dataset, vel)
-        self.populate_tables(dataset, vel)
+    def marker_moved(self):
+        """Updates plot and table after a marker has been moved."""
+        self.populate_tables()
+        if self.marker_moved_info[1] == 3:
+            self.update_maps(self.velocity_maps, self.images, self.markers)
+        else:
+            axes, idx = self.marker_moved_info
+            component = {"_long": 0, "_rad": 1, "_circ": 2}[axes]
+            frame = int(self.markers[component, idx, 0])
+            self.update_mask(axes, idx, self.velocity_maps[component, frame])
+            self.update_bg(axes, idx, self.images[frame])
+            self.draw()
 
-    def populate_figure(self, dataset, vel_label):
-        """Populates with data a global figure."""
-        vels = self.data.velocities[dataset][vel_label]
-        markers = self.data.markers[dataset][vel_label]
-        # back = self.data.get_images(dataset, "MagZ")
+        self.marker_moved_info = ()
 
-        self.vplot = VelocityPlot(
-            vels, markers, self.visualise_frame, self.markers_updated
+    def scroll(self, *args):
+        """Changes the region being plotted when scrolling with the mouse."""
+        current_region = (self.current_region + 1) % len(
+            self.data.velocities[self.datasets_var.get()][self.velocities_var.get()]
+        )
+        if self.current_region != self.current_region:
+            self.switch_velocity(region=current_region)
+
+    @property
+    def velocities(self) -> np.ndarray:
+        """Velocities of the current region."""
+        return self.data.velocities[self.datasets_var.get()][self.velocities_var.get()][
+            self.current_region
+        ]
+
+    @property
+    def markers(self) -> np.ndarray:
+        """Markers of the current region."""
+        return self.data.markers[self.datasets_var.get()][self.velocities_var.get()][
+            self.current_region
+        ]
+
+    @property
+    def masks(self) -> np.ndarray:
+        """Masks for the current region"""
+        return (
+            self.data.masks[self.datasets_var.get()][self.velocities_var.get()]
+            != self.current_region + 1
         )
 
-    def populate_tables(self, dataset, vel_label):
+    @property
+    def velocity_maps(self):
+        """Calculate velocity maps out of the masks and cylindrical velocities."""
+        cyl_label = f"cylindrical -{self.velocities_var.get().split('-')[-1]}"
+        cylindrical = self.data.masks[self.datasets_var.get()][cyl_label]
+        bmask = np.broadcast_to(self.masks, cylindrical.shape)
+        return np.ma.masked_where(bmask, cylindrical)
+
+    def populate_tables(self):
         """Populates the information tables with the marker parameters."""
         for t in self.param_tables:
             old_list = t.get_children()
             if len(old_list) > 0:
                 t.delete(*old_list)
 
-        markers = self.data.markers[dataset][vel_label][0]
         for i, t in enumerate(self.param_tables):
-            rows = self.arrange_by_row(i, markers)
             for k, text in enumerate(("Frame", "Velocity (cm/s)", "Norm. Time (s)")):
-                t.insert("", tk.END, text=text, values=rows[k])
-
-    @staticmethod
-    def arrange_by_row(i, markers, precision=2):
-        """Arrange the markers information by row.
-
-        Markers are arranged "by column", meaning each marker, eg. "PS", has a tuple
-        with (frame, vel, normalised time). However, the treeview needs the information
-        by row (frame_PS, frame_PD, frame_PAS), (vel_PS, vel_PD, ...). This function
-        makes that transpose operation and formats the velocity values to 2 decimals."""
-
-        marker_lbl = [["PS", "PD", "PAS"], ["PS", "PD", "PAS"], ["PC1", "PC2", "PC3"]]
-        data = markers[i]
-        labels = marker_lbl[i]
-        rows = [[data[labels[j]][k] for j in range(3)] for k in range(3)]
-        rows[1] = [round(rows[1][j], precision) for j in range(3)]
-        return rows
-
-    def initial_marker_positions(self, markers, i, data_label):
-        """Finds the initial positions for the markers."""
-        for marker_label, (x, _, _) in markers[i].items():
-            self.vplot.update_marker_position(marker_label, data_label, x)
+                val = np.around(self.markers[i, :3, k], decimals=(0, 2, 2)[k]).tolist()
+                t.insert("", tk.END, text=text, values=val)
 
     def update_velocities_list(self, dataset):
         """Updates the list of radio buttons with the currently available velocities."""
@@ -196,22 +227,6 @@ class VelocitiesTaskView(TaskViewBase):
             phantom=self.phantom_var.get(),
         )
 
-    @trigger_event
-    def markers_positions(self, dataset, vel_label):
-        """Calculate pre-defined velocities if there are none for the chosen dataset."""
-        if "global" not in vel_label:
-            bg = vel_label.split("-")[-1]
-            global_vel = f"global -{bg}"
-        else:
-            global_vel = None
-
-        return dict(
-            data=self.data,
-            dataset_name=dataset,
-            vel_label=vel_label,
-            global_vel=global_vel,
-        )
-
     def update_widgets(self):
         """ Updates widgets after an update in the data variable. """
         # Include only datasets with a segmentation
@@ -221,10 +236,14 @@ class VelocitiesTaskView(TaskViewBase):
         if current not in values:
             current = values[0]
         self.datasets_var.set(current)
+        self.images = self.data.get_images(current, "MagZ")
 
         if len(self.data.velocities.get(current, {})) > 0:
             self.update_velocities_list(current)
-            self.switch_velocity()
+            if self.marker_moved_info:
+                self.marker_moved()
+            else:
+                self.switch_velocity()
         else:
             self.initialise_velocities(current)
 
@@ -232,51 +251,29 @@ class VelocitiesTaskView(TaskViewBase):
         """ Clear widgets after removing the data. """
         pass
 
-
-class VelocityPlot(object):
-
-    long = "_long"
-    rad = "_rad"
-    circ = "_circ"
-
-    def __init__(
+    def markers_figure(
         self,
         velocities: np.ndarray,
-        markers: tuple,
-        master=None,
-        on_marker_moved: Optional[Callable] = None,
-        figure_options: Optional[dict] = None,
-        grid_options: Optional[dict] = None,
+        vel_masks: np.ndarray,
+        images: np.ndarray,
+        markers: np.ndarray,
     ):
+        self.fig = Figure(constrained_layout=True)
+        canvas = FigureCanvasTkAgg(self.fig, master=self.visualise_frame)
+        canvas.get_tk_widget().grid(row=0, column=0, sticky=tk.NSEW)
 
-        figure_options = figure_options if figure_options is not None else {}
-        grid_options = grid_options if grid_options is not None else {}
-
-        fig_options = dict(constrained_layout=True)
-        fig_options.update(figure_options)
-
-        if master is not None:
-            self.fig = Figure(**fig_options)
-            _grid_options = dict(row=0, column=0, sticky=tk.NSEW)
-            _grid_options.update(grid_options)
-            canvas = FigureCanvasTkAgg(self.fig, master=master)
-            canvas.get_tk_widget().grid(**_grid_options)
-            master.rowconfigure(_grid_options["row"], weight=1)
-            master.columnconfigure(_grid_options["column"], weight=1)
-        else:
-            self.fig = plt.figure(**fig_options)
-
-        gs = self.fig.add_gridspec(2, 9, height_ratios=[4, 1])
-
-        self.actions_manager = FigureActionsManager(self.fig, Markers)
-        self.actions_manager.Markers.set_marker_moved(  # type: ignore
-            partial(self.on_marker_moved, on_marker_moved)
+        self.fig.actions_manager = FigureActionsManager(self.fig, Markers, ScrollFrames)
+        self.fig.actions_manager.Markers.set_marker_moved(  # type: ignore
+            self.update_marker
         )
 
+        gs = self.fig.add_gridspec(2, 9, height_ratios=[4, 1])
         self.axes = self.add_velocity_subplots(gs)
         self.maps = self.add_maps_subplots(gs)
         self.vel_lines = self.add_velocity_lines(velocities)
-        self.bg, self.vel_masks, self.cbar = self.add_bg_and_velocity_masks()
+        self.bg_images, self.vel_masks, self.cbar = self.images_and_velocity_masks(
+            images, vel_masks, markers
+        )
         self.add_markers(markers)
 
         self.draw()
@@ -286,7 +283,7 @@ class VelocityPlot(object):
         self.fig.canvas.draw()
 
     def add_velocity_subplots(self, gs):
-        """Adds the velocity subplots, including ploting placeholders."""
+        """Adds the velocity subplots."""
         ax_long = self.fig.add_subplot(gs[0, :3])
         ax_rad = self.fig.add_subplot(gs[0, 3:6])
         ax_circ = self.fig.add_subplot(gs[0, 6:])
@@ -304,11 +301,11 @@ class VelocityPlot(object):
     def add_velocity_lines(self, vels):
         """Add lines to the velocity plots.
 
-        vels - 3D array with the velocities with shape [regions, components (3), frames]
+        vels - 2D array with the velocities with shape [components (3), frames]
         """
         x = np.arange(vels.shape[-1])
         return {
-            label: self.axes[label].plot(x, vels[0, i], "k", label=label)[0]
+            label: self.axes[label].plot(x, vels[i], "k", label=label)[0]
             for i, label in enumerate(("_long", "_rad", "_circ"))
         }
 
@@ -342,44 +339,50 @@ class VelocityPlot(object):
 
         return maps
 
-    def add_bg_and_velocity_masks(self):
-        """Add bg and masks to the map subplots as placeholders"""
+    def images_and_velocity_masks(self, mag, vel_masks, markers):
+        """Add bg and masks to the map subplots."""
         bg = {"_long": [], "_rad": [], "_circ": []}
         masks = {"_long": [], "_rad": [], "_circ": []}
         cbar = {"_long": None, "_rad": None, "_circ": None}
 
-        img = np.random.random((512, 512))
-
-        for i in range(0, 3):
-            bg["_long"].append(self.maps[i].imshow(img, cmap=plt.get_cmap("binary_r")))
-            masks["_long"].append(
-                self.maps[i].imshow(img * np.nan, cmap=plt.get_cmap("seismic"))
+        xlim, ylim = self.find_limits(vel_masks[0, 0])
+        for i in range(9):
+            axes = ("_long", "_rad", "_circ")[i // 3]
+            frame = int(markers[i // 3, i % 3, 0])
+            bg[axes].append(
+                self.maps[i].imshow(mag[frame], cmap=plt.get_cmap("binary_r"))
             )
-
-        for i in range(3, 6):
-            bg["_rad"].append(self.maps[i].imshow(img, cmap=plt.get_cmap("binary_r")))
-            masks["_rad"].append(
-                self.maps[i].imshow(img * np.nan, cmap=plt.get_cmap("seismic"))
+            masks[axes].append(
+                self.maps[i].imshow(
+                    vel_masks[i // 3, frame], cmap=plt.get_cmap("seismic")
+                )
             )
+            self.maps[i].set_xlim(*xlim)
+            self.maps[i].set_ylim(*ylim)
 
-        for i in range(6, 9):
-            bg["_circ"].append(self.maps[i].imshow(img, cmap=plt.get_cmap("binary_r")))
-            masks["_circ"].append(
-                self.maps[i].imshow(img * np.nan, cmap=plt.get_cmap("seismic"))
-            )
-
-        lims = [np.min(img), np.max(img)]
         cbar["_long"] = self.fig.colorbar(
-            masks["_long"][0], ticks=lims, ax=self.maps[:3], orientation="horizontal"
+            masks["_long"][0], ax=self.maps[:3], orientation="horizontal"
         )
         cbar["_rad"] = self.fig.colorbar(
-            masks["_rad"][0], ticks=lims, ax=self.maps[3:6], orientation="horizontal"
+            masks["_rad"][0], ax=self.maps[3:6], orientation="horizontal"
         )
         cbar["_circ"] = self.fig.colorbar(
-            masks["_circ"][0], ticks=lims, ax=self.maps[6:9], orientation="horizontal"
+            masks["_circ"][0], ax=self.maps[6:9], orientation="horizontal"
         )
 
         return bg, masks, cbar
+
+    @staticmethod
+    def find_limits(mask, margin=30):
+        """Find the appropiate limits of a masked array in order to plot it nicely."""
+        yaxes, xaxes = mask.nonzero()
+
+        xmin = max(xaxes.min() - margin, 0)
+        ymin = max(yaxes.min() - margin, 0)
+        xmax = min(xaxes.max() + margin, mask.shape[0])
+        ymax = min(yaxes.max() + margin, mask.shape[1])
+
+        return (xmin, xmax), (ymax, ymin)
 
     def add_markers(self, markers):
         """Adds markers to the plots, assuming region 1 (the only one for global vel.).
@@ -387,24 +390,25 @@ class VelocityPlot(object):
         - markers - Contains all the marker information for all regions and components.
             Their shape is [regions, component (3), marker_id (3 or 4), marker_data (3)]
         """
-        add_marker = self.actions_manager.Markers.add_marker
+        add_marker = self.fig.actions_manager.Markers.add_marker
 
         vel_lbl = ["_long"] * 3 + ["_rad"] * 3 + ["_circ"] * 3
-        vel_idx = [0] * 3 + [1] * 3 + [2] * 3
         colors = ["red", "green", "blue"] * 2 + ["orange", "darkblue", "purple"]
         marker_lbl = ["PS", "PD", "PAS"] * 2 + ["PC1", "PC2", "PC3"]
-        marker_shape = ["1", "2", "3"] * 3
 
-        keys = zip(vel_lbl, vel_idx, colors, marker_lbl, marker_shape)
-        for vel, idx, c, m, shape in keys:
+        for i in range(9):
             add_marker(
-                self.vel_lines[vel], m, xy=markers[0][idx][m][:2], color=c, marker=shape
+                self.vel_lines[vel_lbl[i]],
+                xy=markers[i // 3, i % 3, :2],
+                label=marker_lbl[i],
+                color=colors[i],
+                marker=str(i % 3 + 1),
             )
 
         add_marker(
             self.vel_lines["_rad"],
-            "ES",
-            xy=markers[0][1]["ES"][:2],
+            xy=markers[1, 3, :2],
+            label="ES",
             color="black",
             marker="+",
         )
@@ -419,29 +423,59 @@ class VelocityPlot(object):
             marker_label, data_label, new_x
         )
 
-    def update_line(self, vel_label, data):
+    def update_line(self, vel_label, data, draw=False):
         """Updates the data of the chosen line."""
-        self.update_data(self.vel_lines[vel_label], vel_label, data)
+        self.update_data(self.vel_lines[vel_label], vel_label, data, draw)
 
-    def update_bg(self, vel_label, idx, data):
+    def update_bg(self, vel_label, idx, data, draw=False):
         """Updates the data of the chosen bg."""
-        self.update_data(self.bg[vel_label][idx], vel_label, data)
+        self.update_data(self.bg_images[vel_label][idx], vel_label, data, draw)
 
-    def update_mask(self, vel_label, idx, data):
+    def update_mask(self, vel_label, idx, data, draw=False):
         """Updates the data of the chosen bg."""
-        self.update_data(self.vel_masks[vel_label][idx], vel_label, data)
+        self.update_data(self.vel_masks[vel_label][idx], vel_label, data, draw)
 
-    def update_data(self, subplot, vel_label, data):
+    def update_data(self, subplot, vel_label, data, draw=False):
         """Common data updating method."""
         subplot.set_data(data)
         self.axes[vel_label].relim()
         self.axes[vel_label].autoscale_view()
+
+        if draw:
+            self.draw()
+
+    def update_maps(
+        self, vel_masks: np.ndarray, images: np.ndarray, markers: np.ndarray
+    ):
+        """Updates the maps (masks and background data)."""
+        for i in range(9):
+            axes = ("_long", "_rad", "_circ")[i // 3]
+            frame = int(markers[i // 3, i % 3, 0])
+            self.update_mask(axes, i % 3, vel_masks[i // 3, frame])
+            self.update_bg(axes, i % 3, images[frame])
+
         self.draw()
 
-    def on_marker_moved(self, callback, marker_name, data_name, x, y, idx):
+    @trigger_event
+    def update_marker(self, marker, data, x, y, position):
         """When a marker moves, mask data should be updated."""
-        marker_labels = {"PS": 0, "PD": 1, "PAS": 2, "PC1": 0, "PC2": 1, "PC3": 2}
-        data = callback(marker_name, data_name, x, y, idx)
-        if marker_labels.get(marker_name) is not None:
-            self.update_mask(data_name, marker_labels[marker_name], data)
-            self.draw()
+        marker_idx = {
+            "PS": 0,
+            "PD": 1,
+            "PAS": 2,
+            "PC1": 0,
+            "PC2": 1,
+            "PC3": 2,
+            "ES": 3,
+        }.get(marker.get_label())
+        component = {"_long": 0, "_rad": 1, "_circ": 2}.get(data.get_label())
+        self.marker_moved_info = (data.get_label(), marker_idx)
+        return dict(
+            data=self.data,
+            dataset=self.datasets_var.get(),
+            vel_label=self.velocities_var.get(),
+            region=self.current_region,
+            component=component,
+            marker_idx=marker_idx,
+            position=position,
+        )

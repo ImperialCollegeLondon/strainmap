@@ -18,6 +18,7 @@ class StrainMapData(object):
         self.segments: dict = defaultdict(dict)
         self.zero_angle: dict = {}
         self.velocities: dict = defaultdict(dict)
+        self.masks: dict = defaultdict(dict)
         self.markers: dict = defaultdict(dict)
 
     def read_dicom_file_tags(self, series, variable, idx):
