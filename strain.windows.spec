@@ -4,7 +4,7 @@ block_cipher = None
 
 
 a = Analysis(['strainmap\\__main__.py'],
-             pathex=['C:\\Users\\mdavezac\\Documents\\StrainMap'],
+             pathex=[],
              binaries=[],
              datas=[("strainmap", "strainmap")],
              hiddenimports=[],

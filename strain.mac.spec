@@ -4,7 +4,7 @@ block_cipher = None
 
 
 a = Analysis(['strainmap/__main__.py'],
-             pathex=['/Users/mdavezac/workspaces/tpm/src/tpm'],
+             pathex=[],
              binaries=[],
              datas=[('strainmap', 'strainmap')],
              hiddenimports=[],
