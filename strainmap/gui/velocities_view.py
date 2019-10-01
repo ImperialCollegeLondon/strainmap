@@ -8,7 +8,7 @@ from matplotlib.figure import Figure
 
 from .base_window_and_task import Requisites, TaskViewBase, register_view, trigger_event
 from .figure_actions_manager import FigureActionsManager
-from .figure_actions import Markers, ScrollFrames
+from .figure_actions import Markers, SimpleScroller
 
 
 @register_view
@@ -42,6 +42,8 @@ class VelocitiesTaskView(TaskViewBase):
         self.bg_images = None
         self.vel_masks = None
         self.cbar = None
+        self.limits = None
+        self.marker_artists = None
         self.marker_moved_info = ()
 
         self.create_controls()
@@ -108,9 +110,6 @@ class VelocitiesTaskView(TaskViewBase):
         for i in range(3):
             self.param_tables[i].grid(row=0, column=i, sticky=tk.NSEW, padx=5)
 
-        # Bind the scrolling to change the regions in the plots
-        self.bind_all("<MouseWheel>", self.scroll)
-
     def dataset_changed(self, *args):
         """Updates the view when the selected dataset is changed."""
         current = self.datasets_var.get()
@@ -123,12 +122,18 @@ class VelocitiesTaskView(TaskViewBase):
     def remove_velocity(self):
         """Opens a dialog to remove the selected velocity to the list of velocities."""
 
-    def switch_velocity(self, region=0):
+    def switch_velocity(self):
         """Switch the plot to show the chosen velocity."""
-        self.current_region = region
-        self.markers_figure(
-            self.velocities, self.velocity_maps, self.images, self.markers
-        )
+        if self.fig is None:
+            self.current_region = 0
+            self.markers_figure(
+                self.velocities, self.velocity_maps, self.images, self.markers
+            )
+        else:
+            self.current_region -= 1
+            self.scroll()
+            self.draw()
+
         self.populate_tables()
 
     def marker_moved(self):
@@ -137,22 +142,31 @@ class VelocitiesTaskView(TaskViewBase):
         if self.marker_moved_info[1] == 3:
             self.update_maps(self.velocity_maps, self.images, self.markers)
         else:
-            axes, idx = self.marker_moved_info
-            component = {"_long": 0, "_rad": 1, "_circ": 2}[axes]
-            frame = int(self.markers[component, idx, 0])
-            self.update_mask(axes, idx, self.velocity_maps[component, frame])
-            self.update_bg(axes, idx, self.images[frame])
-            self.draw()
+            self.update_one_map(
+                self.velocity_maps, self.images, self.markers, *self.marker_moved_info
+            )
 
         self.marker_moved_info = ()
 
     def scroll(self, *args):
         """Changes the region being plotted when scrolling with the mouse."""
-        current_region = (self.current_region + 1) % len(
+        current_region = (self.current_region + 1) % self.regions
+
+        if self.current_region != current_region:
+            self.current_region = current_region
+            self.update_velocities(self.velocities, draw=False)
+            self.update_maps(self.velocity_maps, self.images, self.markers, draw=False)
+            self.update_markers(self.markers, draw=False)
+            self.populate_tables()
+
+        return self.current_region, None, None
+
+    @property
+    def regions(self) -> int:
+        """Number of regions for the selected velocity."""
+        return len(
             self.data.velocities[self.datasets_var.get()][self.velocities_var.get()]
         )
-        if self.current_region != self.current_region:
-            self.switch_velocity(region=current_region)
 
     @property
     def velocities(self) -> np.ndarray:
@@ -262,9 +276,14 @@ class VelocitiesTaskView(TaskViewBase):
         canvas = FigureCanvasTkAgg(self.fig, master=self.visualise_frame)
         canvas.get_tk_widget().grid(row=0, column=0, sticky=tk.NSEW)
 
-        self.fig.actions_manager = FigureActionsManager(self.fig, Markers, ScrollFrames)
+        self.fig.actions_manager = FigureActionsManager(
+            self.fig, Markers, SimpleScroller
+        )
         self.fig.actions_manager.Markers.set_marker_moved(  # type: ignore
             self.update_marker
+        )
+        self.fig.actions_manager.SimpleScroller.set_scroller(  # type: ignore
+            self.scroll
         )
 
         gs = self.fig.add_gridspec(2, 9, height_ratios=[4, 1])
@@ -274,13 +293,13 @@ class VelocitiesTaskView(TaskViewBase):
         self.bg_images, self.vel_masks, self.cbar = self.images_and_velocity_masks(
             images, vel_masks, markers
         )
-        self.add_markers(markers)
+        self.marker_artists = self.add_markers(markers)
 
         self.draw()
 
     def draw(self):
         """Convenience method for re-drawing the figure."""
-        self.fig.canvas.draw()
+        self.fig.canvas.draw_idle()
 
     def add_velocity_subplots(self, gs):
         """Adds the velocity subplots."""
@@ -345,7 +364,9 @@ class VelocitiesTaskView(TaskViewBase):
         masks = {"_long": [], "_rad": [], "_circ": []}
         cbar = {"_long": None, "_rad": None, "_circ": None}
 
-        xlim, ylim = self.find_limits(vel_masks[0, 0])
+        if "global" in self.velocities_var.get():
+            self.limits = self.find_limits(vel_masks[0, 0])
+
         for i in range(9):
             axes = ("_long", "_rad", "_circ")[i // 3]
             frame = int(markers[i // 3, i % 3, 0])
@@ -357,8 +378,8 @@ class VelocitiesTaskView(TaskViewBase):
                     vel_masks[i // 3, frame], cmap=plt.get_cmap("seismic")
                 )
             )
-            self.maps[i].set_xlim(*xlim)
-            self.maps[i].set_ylim(*ylim)
+            self.maps[i].set_xlim(*self.limits[0])
+            self.maps[i].set_ylim(*self.limits[1])
 
         cbar["_long"] = self.fig.colorbar(
             masks["_long"][0], ax=self.maps[:3], orientation="horizontal"
@@ -385,7 +406,7 @@ class VelocitiesTaskView(TaskViewBase):
         return (xmin, xmax), (ymax, ymin)
 
     def add_markers(self, markers):
-        """Adds markers to the plots, assuming region 1 (the only one for global vel.).
+        """Adds markers to the plots.).
 
         - markers - Contains all the marker information for all regions and components.
             Their shape is [regions, component (3), marker_id (3 or 4), marker_data (3)]
@@ -396,26 +417,33 @@ class VelocitiesTaskView(TaskViewBase):
         colors = ["red", "green", "blue"] * 2 + ["orange", "darkblue", "purple"]
         marker_lbl = ["PS", "PD", "PAS"] * 2 + ["PC1", "PC2", "PC3"]
 
+        markers_artists = []
         for i in range(9):
-            add_marker(
-                self.vel_lines[vel_lbl[i]],
-                xy=markers[i // 3, i % 3, :2],
-                label=marker_lbl[i],
-                color=colors[i],
-                marker=str(i % 3 + 1),
+            markers_artists.append(
+                add_marker(
+                    self.vel_lines[vel_lbl[i]],
+                    xy=markers[i // 3, i % 3, :2],
+                    label=marker_lbl[i],
+                    color=colors[i],
+                    marker=str(i % 3 + 1),
+                )
             )
 
-        add_marker(
-            self.vel_lines["_rad"],
-            xy=markers[1, 3, :2],
-            label="ES",
-            color="black",
-            marker="+",
+        markers_artists.append(
+            add_marker(
+                self.vel_lines["_rad"],
+                xy=markers[1, 3, :2],
+                label="ES",
+                color="black",
+                marker="+",
+            )
         )
 
         self.axes["_long"].legend(frameon=False, markerscale=0.5)
         self.axes["_rad"].legend(frameon=False, markerscale=0.5)
         self.axes["_circ"].legend(frameon=False, markerscale=0.5)
+
+        return markers_artists
 
     def update_marker_position(self, marker_label, data_label, new_x):
         """Convenience method to update the marker position."""
@@ -445,7 +473,7 @@ class VelocitiesTaskView(TaskViewBase):
             self.draw()
 
     def update_maps(
-        self, vel_masks: np.ndarray, images: np.ndarray, markers: np.ndarray
+        self, vel_masks: np.ndarray, images: np.ndarray, markers: np.ndarray, draw=True
     ):
         """Updates the maps (masks and background data)."""
         for i in range(9):
@@ -454,7 +482,42 @@ class VelocitiesTaskView(TaskViewBase):
             self.update_mask(axes, i % 3, vel_masks[i // 3, frame])
             self.update_bg(axes, i % 3, images[frame])
 
+        if draw:
+            self.draw()
+
+    def update_one_map(
+        self,
+        vel_masks: np.ndarray,
+        images: np.ndarray,
+        markers: np.ndarray,
+        axes: str,
+        idx: int,
+    ):
+        """Updates the maps correspoinding to a single marker."""
+        component = {"_long": 0, "_rad": 1, "_circ": 2}[axes]
+        frame = int(markers[component, idx, 0])
+        self.update_mask(axes, idx, vel_masks[component, frame])
+        self.update_bg(axes, idx, images[frame])
         self.draw()
+
+    def update_velocities(self, vels, draw=True):
+        """Updates all velocities."""
+        x = np.arange(vels.shape[-1])
+
+        for i, label in enumerate(("_long", "_rad", "_circ")):
+            self.update_line(label, (x, vels[i]))
+
+        if draw:
+            self.draw()
+
+    def update_markers(self, markers, draw=True):
+        """Updates the position of all markers in a figure."""
+        update_position = self.fig.actions_manager.Markers.update_marker_position
+        for i in range(9):
+            update_position(self.marker_artists[i], int(markers[i // 3, i % 3, 0]))
+
+        if draw:
+            self.draw()
 
     @trigger_event
     def update_marker(self, marker, data, x, y, position):

@@ -734,3 +734,22 @@ class Markers(ActionBase):
         x, y = line.get_data()
         mini = np.argmin(np.abs(x - mx))
         return x[mini], y[mini], mini
+
+
+class SimpleScroller(ActionBase):
+    """Simpler scroller that links the scroll functionality to an external function."""
+
+    def __init__(
+        self, scroll=TriggerSignature(Location.ANY, Button.CENTRE, MouseAction.SCROLL)
+    ):
+        super().__init__(signatures={scroll: self.scroller})
+        self._scroller = None
+        self.disabled = False
+
+    def set_scroller(self, scroller, *args, **kwargs):
+        """The function to be called when scrolling."""
+        self._scroller = partial(scroller, *args, **kwargs)
+
+    def scroller(self, *args):
+        if not self.disabled:
+            self._scroller()

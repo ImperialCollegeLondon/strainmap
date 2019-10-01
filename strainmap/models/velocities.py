@@ -6,7 +6,12 @@ from strainmap.models.contour_mask import masked_means, cylindrical_projection
 from strainmap.models.readers import ImageTimeSeries
 
 from .strainmap_data_model import StrainMapData
-from .readers import read_all_images, images_to_numpy, velocity_sensitivity
+from .readers import (
+    read_all_images,
+    images_to_numpy,
+    velocity_sensitivity,
+    image_orientation,
+)
 from .contour_mask import contour_diff, angular_segments, radial_segments, Contour
 
 
@@ -27,7 +32,11 @@ def find_theta0(zero_angle: np.ndarray):
 
 
 def scale_phase(
-    data: StrainMapData, dataset_name: Text, phantom: bool = False, scale=1 / 4096
+    data: StrainMapData,
+    dataset_name: Text,
+    phantom: bool = False,
+    swap=False,
+    scale=1 / 4096,
 ):
     """Prepare the phases, scaling them and substracting the phantom, if needed."""
     images = images_to_numpy(
@@ -46,7 +55,12 @@ def scale_phase(
     else:
         phantom_phase = 0.5
 
-    return phase - phantom_phase
+    phase = phase - phantom_phase
+
+    if swap:
+        phase[0], phase[1] = phase[1], phase[0]
+
+    return phase
 
 
 def global_masks_and_origin(outer, inner, img_shape):
@@ -113,7 +127,8 @@ def calculate_velocities(
 ):
     """Calculates the velocity of the chosen dataset and regions."""
     phantom = len(data.bg_files) > 0 and phantom
-    phase = scale_phase(data, dataset_name, phantom)
+    swap, signs = image_orientation(data.data_files[dataset_name]["PhaseZ"][0])
+    phase = scale_phase(data, dataset_name, phantom, swap)
     masks, origin = global_masks_and_origin(
         outer=data.segments[dataset_name]["epicardium"],
         inner=data.segments[dataset_name]["endocardium"],
@@ -127,7 +142,7 @@ def calculate_velocities(
     if global_velocity:
         s = np.tile(sensitivity, (cylindrical.shape[1], 1)).T
         data.velocities[dataset_name][f"global - {bg}"] = (
-            masked_means(cylindrical, masks, axes=(2, 3)) * s
+            masked_means(cylindrical, masks, axes=(2, 3)) * s * signs[None, :, None]
         )
         data.masks[dataset_name][f"global - {bg}"] = masks[None]
         vel_labels.append(f"global - {bg}")
@@ -139,7 +154,9 @@ def calculate_velocities(
             nsegments=ang, origin=origin, theta0=theta0, shape=cylindrical.shape[2:]
         ).transpose((2, 0, 1))
         data.velocities[dataset_name][f"angular x{ang} - {bg}"] = (
-            masked_means(cylindrical, labels * masks, axes=(2, 3)) * s
+            masked_means(cylindrical, labels * masks, axes=(2, 3))
+            * s
+            * signs[None, :, None]
         )
         data.masks[dataset_name][f"angular x{ang} - {bg}"] = labels * masks
         vel_labels.append(f"angular x{ang} - {bg}")
@@ -149,7 +166,9 @@ def calculate_velocities(
         epi = data.segments[dataset_name]["epicardium"]
         endo = data.segments[dataset_name]["endocardium"]
         data.velocities[dataset_name][f"radial x{rad} - {bg}"] = (
-            velocities_radial_segments(cylindrical, epi, endo, origin, rad) * s
+            velocities_radial_segments(cylindrical, epi, endo, origin, rad)
+            * s
+            * signs[None, :, None]
         )
         vel_labels.append(f"radial x{rad} - {bg}")
 
