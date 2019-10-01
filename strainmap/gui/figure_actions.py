@@ -714,7 +714,7 @@ class Markers(ActionBase):
         if self._current_marker is None:
             return
 
-        ev = last_event.mouseevent if hasattr(last_event, "mouseevent") else event
+        ev = last_event.mouseevent if hasattr(last_event, "mouseevent") else last_event
         old_x = self._current_marker.get_xdata()
 
         if self._current_data is None:

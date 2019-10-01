@@ -268,9 +268,11 @@ class SegmentationTaskView(TaskViewBase):
             DrawContours,
             DragContours,
             Markers,
-            drag_marker=TriggerSignature(
-                Location.ANY, Button.RIGHT, MouseAction.PICKDRAG
-            ),
+            options_Markers={
+                "drag_marker": TriggerSignature(
+                    Location.ANY, Button.RIGHT, MouseAction.PICKDRAG
+                )
+            },
         )
         self.fig.actions_manager.DrawContours.num_contours = 0
         self.fig.actions_manager.ScrollFrames.link_axes(self.ax_mag, self.ax_vel)
