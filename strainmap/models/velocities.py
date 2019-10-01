@@ -311,7 +311,9 @@ def larger_than_es(x, es, frames, syst=350, dias=650):
     return syst + (x - es) / (frames - es) * dias
 
 
-def _markers_positions(velocity: np.ndarray, es: Optional[Tuple] = None) -> np.ndarray:
+def _markers_positions(
+    velocity: np.ndarray, es: Optional[np.ndarray] = None
+) -> np.ndarray:
     """Find the position of the markers for the chosen dataset and velocity.
 
     The default positions for the markers are:
@@ -348,7 +350,11 @@ def _markers_positions(velocity: np.ndarray, es: Optional[Tuple] = None) -> np.n
         for j, key in enumerate(markers_lbl[i]):
             markers[i, j] = marker(velocity[i], **markers_options[key])
 
-    markers[1, 3] = marker_es(velocity[1], markers[1, 1]) if es is None else es
+    markers[1, 3] = (
+        marker_es(velocity[1], markers[1, 1])
+        if es is None
+        else (int(es[0]), velocity[1, int(es[0])], 0)
+    )
     markers[2, 2] = marker_pc3(velocity[2], markers[1, 3])
 
     return normalised_times(markers, len(velocity[0]))

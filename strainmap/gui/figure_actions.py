@@ -750,6 +750,6 @@ class SimpleScroller(ActionBase):
         """The function to be called when scrolling."""
         self._scroller = partial(scroller, *args, **kwargs)
 
-    def scroller(self, *args):
+    def scroller(self, event, *args):
         if not self.disabled:
-            self._scroller()
+            self._scroller(int(np.sign(event.step)))

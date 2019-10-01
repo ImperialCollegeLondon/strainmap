@@ -81,23 +81,17 @@ class VelocitiesTaskView(TaskViewBase):
         self.velocities_frame.columnconfigure(1, weight=1)
 
         # Information frame
-        marker_lbl = ["PS", "PD", "PAS"] * 2 + ["PC1", "PC2", "PC3"]
+        marker_lbl = (("PS", "PD", "PAS"), ("PS", "PD", "PAS"), ("PC1", "PC2", "PC3"))
         for i in range(3):
             self.param_tables.append(ttk.Treeview(info, height=3))
-            self.param_tables[-1]["columns"] = marker_lbl[3 * i : 3 * i + 3]
+            self.param_tables[-1]["columns"] = marker_lbl[i]
             self.param_tables[-1].heading("#0", text="")
             self.param_tables[-1].column("#0", minwidth=0, width=100, stretch=tk.YES)
 
             for j in range(3):
-                self.param_tables[-1].heading(
-                    marker_lbl[3 * i + j], text=marker_lbl[3 * i + j]
-                )
+                self.param_tables[-1].heading(marker_lbl[i][j], text=marker_lbl[i][j])
                 self.param_tables[-1].column(
-                    marker_lbl[3 * i + j],
-                    minwidth=0,
-                    width=80,
-                    stretch=tk.YES,
-                    anchor=tk.E,
+                    marker_lbl[i][j], minwidth=0, width=80, stretch=tk.YES, anchor=tk.E
                 )
 
         # Grid all the widgets
@@ -115,6 +109,7 @@ class VelocitiesTaskView(TaskViewBase):
         current = self.datasets_var.get()
         self.images = self.data.get_images(current, "MagZ")
         self.update_velocities_list(current)
+        self.switch_velocity()
 
     def add_velocity(self):
         """Opens a dialog to add a new velocity to the list of velocities."""
@@ -130,7 +125,7 @@ class VelocitiesTaskView(TaskViewBase):
                 self.velocities, self.velocity_maps, self.images, self.markers
             )
         else:
-            self.current_region -= 1
+            self.current_region = -1
             self.scroll()
             self.draw()
 
@@ -148,16 +143,18 @@ class VelocitiesTaskView(TaskViewBase):
 
         self.marker_moved_info = ()
 
-    def scroll(self, *args):
+    def scroll(self, step=1, *args):
         """Changes the region being plotted when scrolling with the mouse."""
-        current_region = (self.current_region + 1) % self.regions
+        current_region = (self.current_region + step) % self.regions
 
         if self.current_region != current_region:
+            self.fig.actions_manager.SimpleScroller.disabled = True
             self.current_region = current_region
             self.update_velocities(self.velocities, draw=False)
             self.update_maps(self.velocity_maps, self.images, self.markers, draw=False)
             self.update_markers(self.markers, draw=False)
             self.populate_tables()
+            self.fig.actions_manager.SimpleScroller.disabled = False
 
         return self.current_region, None, None
 
@@ -515,6 +512,8 @@ class VelocitiesTaskView(TaskViewBase):
         update_position = self.fig.actions_manager.Markers.update_marker_position
         for i in range(9):
             update_position(self.marker_artists[i], int(markers[i // 3, i % 3, 0]))
+
+        update_position(self.marker_artists[-1], int(markers[1, 3, 0]))
 
         if draw:
             self.draw()
