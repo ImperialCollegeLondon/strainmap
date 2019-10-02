@@ -134,42 +134,39 @@ def calculate_velocities(
         inner=data.segments[dataset_name]["endocardium"],
         img_shape=phase.shape[2:],
     )
-    cylindrical = transform_to_cylindrical(phase, masks, origin)
     sensitivity = velocity_sensitivity(data.data_files[dataset_name]["PhaseZ"][0]) * 2
+    cylindrical = (
+        transform_to_cylindrical(phase, masks, origin)
+        * (sensitivity * signs)[:, None, None, None]
+    )
     bg = {True: "Phantom", False: "Average"}[phantom]
     data.masks[dataset_name][f"cylindrical - {bg}"] = cylindrical
+
     vel_labels = []
     if global_velocity:
-        s = np.tile(sensitivity, (cylindrical.shape[1], 1)).T
-        data.velocities[dataset_name][f"global - {bg}"] = (
-            masked_means(cylindrical, masks, axes=(2, 3)) * s * signs[None, :, None]
+        data.velocities[dataset_name][f"global - {bg}"] = masked_means(
+            cylindrical, masks, axes=(2, 3)
         )
         data.masks[dataset_name][f"global - {bg}"] = masks[None]
         vel_labels.append(f"global - {bg}")
 
     for ang in angular_regions:
-        s = np.tile(sensitivity, (cylindrical.shape[1], ang, 1)).transpose((1, 2, 0))
         theta0 = find_theta0(data.zero_angle[dataset_name])
         labels = angular_segments(
             nsegments=ang, origin=origin, theta0=theta0, shape=cylindrical.shape[2:]
         ).transpose((2, 0, 1))
-        data.velocities[dataset_name][f"angular x{ang} - {bg}"] = (
-            masked_means(cylindrical, labels * masks, axes=(2, 3))
-            * s
-            * signs[None, :, None]
+        data.velocities[dataset_name][f"angular x{ang} - {bg}"] = masked_means(
+            cylindrical, labels * masks, axes=(2, 3)
         )
         data.masks[dataset_name][f"angular x{ang} - {bg}"] = labels * masks
         vel_labels.append(f"angular x{ang} - {bg}")
 
     for rad in radial_regions:
-        s = np.tile(sensitivity, (cylindrical.shape[1], rad, 1)).transpose((1, 2, 0))
         epi = data.segments[dataset_name]["epicardium"]
         endo = data.segments[dataset_name]["endocardium"]
-        data.velocities[dataset_name][f"radial x{rad} - {bg}"] = (
-            velocities_radial_segments(cylindrical, epi, endo, origin, rad)
-            * s
-            * signs[None, :, None]
-        )
+        data.velocities[dataset_name][
+            f"radial x{rad} - {bg}"
+        ] = velocities_radial_segments(cylindrical, epi, endo, origin, rad)
         vel_labels.append(f"radial x{rad} - {bg}")
 
     return initialise_markers(data, dataset_name, vel_labels)
