@@ -83,20 +83,22 @@ class VelocitiesTaskView(TaskViewBase):
         # Information frame
         marker_lbl = (("PS", "PD", "PAS"), ("PS", "PD", "PAS"), ("PC1", "PC2", "PC3"))
         for i in range(3):
-            self.param_tables.append(ttk.Treeview(info, height=3))
+            self.param_tables.append(ttk.Treeview(info, height=14))
+            self.param_tables[-1].tag_configure("current", background="#f8d568")
+            self.param_tables[-1].tag_configure("others", background="#FFFFFF")
             self.param_tables[-1]["columns"] = marker_lbl[i]
-            self.param_tables[-1].heading("#0", text="")
-            self.param_tables[-1].column("#0", minwidth=0, width=100, stretch=tk.YES)
+            self.param_tables[-1].heading("#0", text="Region")
+            self.param_tables[-1].column("#0", width=100, stretch=tk.YES)
 
             for j in range(3):
                 self.param_tables[-1].heading(marker_lbl[i][j], text=marker_lbl[i][j])
                 self.param_tables[-1].column(
-                    marker_lbl[i][j], minwidth=0, width=80, stretch=tk.YES, anchor=tk.E
+                    marker_lbl[i][j], width=80, stretch=tk.YES, anchor=tk.E
                 )
 
         # Grid all the widgets
-        control.grid(sticky=tk.NSEW, padx=10, pady=10)
-        self.visualise_frame.grid(sticky=tk.NSEW, padx=10, pady=10)
+        control.grid(sticky=tk.NSEW, padx=10, pady=5)
+        self.visualise_frame.grid(sticky=tk.NSEW, padx=10, pady=5)
         info.grid(sticky=tk.NSEW, padx=10, pady=10)
         dataset_frame.grid(row=0, column=0, sticky=tk.NSEW, padx=5, pady=5)
         self.datasets_box.grid(row=0, column=0, sticky=tk.NSEW)
@@ -122,7 +124,10 @@ class VelocitiesTaskView(TaskViewBase):
         if self.fig is None:
             self.current_region = 0
             self.markers_figure(
-                self.velocities, self.velocity_maps, self.images, self.markers
+                self.velocities,
+                self.velocity_maps,
+                self.images,
+                self.markers[self.current_region],
             )
         else:
             self.current_region = -1
@@ -135,10 +140,15 @@ class VelocitiesTaskView(TaskViewBase):
         """Updates plot and table after a marker has been moved."""
         self.populate_tables()
         if self.marker_moved_info[1] == 3:
-            self.update_maps(self.velocity_maps, self.images, self.markers)
+            self.update_maps(
+                self.velocity_maps, self.images, self.markers[self.current_region]
+            )
         else:
             self.update_one_map(
-                self.velocity_maps, self.images, self.markers, *self.marker_moved_info
+                self.velocity_maps,
+                self.images,
+                self.markers[self.current_region],
+                *self.marker_moved_info,
             )
 
         self.marker_moved_info = ()
@@ -151,8 +161,13 @@ class VelocitiesTaskView(TaskViewBase):
             self.fig.actions_manager.SimpleScroller.disabled = True
             self.current_region = current_region
             self.update_velocities(self.velocities, draw=False)
-            self.update_maps(self.velocity_maps, self.images, self.markers, draw=False)
-            self.update_markers(self.markers, draw=False)
+            self.update_maps(
+                self.velocity_maps,
+                self.images,
+                self.markers[self.current_region],
+                draw=False,
+            )
+            self.update_markers(self.markers[self.current_region], draw=False)
             self.populate_tables()
             self.fig.actions_manager.SimpleScroller.disabled = False
 
@@ -175,9 +190,7 @@ class VelocitiesTaskView(TaskViewBase):
     @property
     def markers(self) -> np.ndarray:
         """Markers of the current region."""
-        return self.data.markers[self.datasets_var.get()][self.velocities_var.get()][
-            self.current_region
-        ]
+        return self.data.markers[self.datasets_var.get()][self.velocities_var.get()]
 
     @property
     def masks(self) -> np.ndarray:
@@ -195,6 +208,14 @@ class VelocitiesTaskView(TaskViewBase):
         bmask = np.broadcast_to(self.masks, cylindrical.shape)
         return np.ma.masked_where(bmask, cylindrical)
 
+    @staticmethod
+    def region_labels(regions):
+        """Provides the region labels, if any."""
+        if regions == 6:
+            return "AS", "A", "AL", "IL", "I", "IS"
+        else:
+            return list(range(1, regions + 1))
+
     def populate_tables(self):
         """Populates the information tables with the marker parameters."""
         for t in self.param_tables:
@@ -202,10 +223,16 @@ class VelocitiesTaskView(TaskViewBase):
             if len(old_list) > 0:
                 t.delete(*old_list)
 
+        labels = self.region_labels(len(self.markers))
         for i, t in enumerate(self.param_tables):
-            for k, text in enumerate(("Frame", "Velocity (cm/s)", "Norm. Time (s)")):
-                val = np.around(self.markers[i, :3, k], decimals=(0, 2, 2)[k]).tolist()
-                t.insert("", tk.END, text=text, values=val)
+            vel = t.insert("", tk.END, text="Velocity (cm/s)", open=True)
+            time = t.insert("", tk.END, text="Norm. Time (s)", open=True)
+            for j, marker in enumerate(self.markers):
+                tag = "current" if j == self.current_region else "others"
+                val = np.around(marker[i, :3, 1], decimals=2).tolist()
+                t.insert(vel, tk.END, text=labels[j], values=val, tags=(tag,))
+                val = np.around(marker[i, :3, 2], decimals=2).tolist()
+                t.insert(time, tk.END, text=labels[j], values=val, tags=(tag,))
 
     def update_velocities_list(self, dataset):
         """Updates the list of radio buttons with the currently available velocities."""
@@ -283,7 +310,7 @@ class VelocitiesTaskView(TaskViewBase):
             self.scroll
         )
 
-        gs = self.fig.add_gridspec(2, 9, height_ratios=[4, 1])
+        gs = self.fig.add_gridspec(2, 9, height_ratios=[6, 2])
         self.axes = self.add_velocity_subplots(gs)
         self.maps = self.add_maps_subplots(gs)
         self.vel_lines = self.add_velocity_lines(velocities)
@@ -346,12 +373,12 @@ class VelocitiesTaskView(TaskViewBase):
         for i, color in enumerate(["red", "green", "blue"] * 2):
             for side in ["left", "right", "bottom", "top"]:
                 maps[i].spines[side].set_color(color)
-                maps[i].spines[side].set_linewidth(2)
+                maps[i].spines[side].set_linewidth(3)
 
         for i, color in enumerate(["orange", "darkblue", "purple"]):
             for side in ["left", "right", "bottom", "top"]:
                 maps[i + 6].spines[side].set_color(color)
-                maps[i + 6].spines[side].set_linewidth(2)
+                maps[i + 6].spines[side].set_linewidth(3)
 
         return maps
 
@@ -359,11 +386,11 @@ class VelocitiesTaskView(TaskViewBase):
         """Add bg and masks to the map subplots."""
         bg = {"_long": [], "_rad": [], "_circ": []}
         masks = {"_long": [], "_rad": [], "_circ": []}
-        cbar = {"_long": None, "_rad": None, "_circ": None}
 
         if "global" in self.velocities_var.get():
             self.limits = self.find_limits(vel_masks[0, 0])
 
+        vmin, vmax = vel_masks.min(), vel_masks.max()
         for i in range(9):
             axes = ("_long", "_rad", "_circ")[i // 3]
             frame = int(markers[i // 3, i % 3, 0])
@@ -372,21 +399,16 @@ class VelocitiesTaskView(TaskViewBase):
             )
             masks[axes].append(
                 self.maps[i].imshow(
-                    vel_masks[i // 3, frame], cmap=plt.get_cmap("seismic")
+                    vel_masks[i // 3, frame],
+                    cmap=plt.get_cmap("seismic"),
+                    vmin=vmin,
+                    vmax=vmax,
                 )
             )
             self.maps[i].set_xlim(*self.limits[0])
             self.maps[i].set_ylim(*self.limits[1])
 
-        cbar["_long"] = self.fig.colorbar(
-            masks["_long"][0], ax=self.maps[:3], orientation="horizontal"
-        )
-        cbar["_rad"] = self.fig.colorbar(
-            masks["_rad"][0], ax=self.maps[3:6], orientation="horizontal"
-        )
-        cbar["_circ"] = self.fig.colorbar(
-            masks["_circ"][0], ax=self.maps[6:9], orientation="horizontal"
-        )
+        cbar = self.fig.colorbar(masks["_long"][0], ax=self.maps[0], pad=-1.4)
 
         return bg, masks, cbar
 
@@ -423,6 +445,7 @@ class VelocitiesTaskView(TaskViewBase):
                     label=marker_lbl[i],
                     color=colors[i],
                     marker=str(i % 3 + 1),
+                    markeredgewidth=2,
                 )
             )
 
