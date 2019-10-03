@@ -126,8 +126,8 @@ class Segmenter(object):
     ) -> Segmenter:
         if propagator is not None:
             return cls(  # type: ignore
-                SEGMENTERS.get(model),
-                REGISTERED_FILTERS.get(ffilter),
+                SEGMENTERS.get(model),  # type: ignore
+                REGISTERED_FILTERS.get(ffilter),  # type: ignore
                 REGISTERED_PROPAGATORS.get(propagator),
             )
         else:
@@ -136,10 +136,7 @@ class Segmenter(object):
             )
 
     def __init__(
-        self,
-        model: Optional[Callable],
-        ffilter: Optional[Callable],
-        propagator: Optional[Callable] = None,
+        self, model: Callable, ffilter: Callable, propagator: Optional[Callable] = None
     ):
         self._model = model
         self._filter = ffilter
