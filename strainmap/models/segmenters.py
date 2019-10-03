@@ -15,7 +15,7 @@ SEGMENTERS: Dict[Text, Callable[..., Any]] = {}
 def register_segmenter(
     segmenter: Optional[Callable] = None, name: Optional[Text] = None
 ) -> Callable:
-    """ Register a segmenter, so it is available across StrainMap. """
+    """Register a segmenter, so it is available across StrainMap."""
 
     if segmenter is None:
         return lambda x: register_segmenter(x, name=name)
@@ -90,7 +90,7 @@ def morphological_chan_vese_model(
 
 
 class Segmenter(object):
-    """Class to create a segmenter that includes a model, a filter and a propagation.
+    """Segmenter that includes a model, a filter and a propagation.
 
     - The model is the name of the segmentation algorithm that will search for the
     edges of an image starting with an initial contour. Possible values for the model
@@ -124,16 +124,11 @@ class Segmenter(object):
         ffilter: Text = "gaussian",
         propagator: Text = "initial",
     ) -> Segmenter:
-        if propagator is not None:
-            return cls(  # type: ignore
-                SEGMENTERS.get(model),  # type: ignore
-                REGISTERED_FILTERS.get(ffilter),  # type: ignore
-                REGISTERED_PROPAGATORS.get(propagator),
-            )
-        else:
-            return cls(  # type: ignore
-                SEGMENTERS.get(model), REGISTERED_FILTERS.get(ffilter)
-            )
+        return cls(
+            SEGMENTERS[model],
+            REGISTERED_FILTERS[ffilter],
+            propagator=REGISTERED_PROPAGATORS.get(propagator, None),
+        )
 
     def __init__(
         self, model: Callable, ffilter: Callable, propagator: Optional[Callable] = None
@@ -170,7 +165,8 @@ class Segmenter(object):
         fparams: Dict,
         pparams: Dict,
     ) -> Union[Contour, List[Contour]]:
-        """ Segments a single image or array of images at once (3d segmentation)."""
+        """Segments a single image or array of images at once (3d
+        segmentation)."""
 
         fimg = self._filter(image, **fparams)
         snake = self._model(fimg, initial, **mparams)
@@ -185,7 +181,7 @@ class Segmenter(object):
         fparams: Dict,
         pparams: Dict,
     ) -> Union[Contour, List[Contour]]:
-        """Segments an array of images propagating the snake from one to the next."""
+        """Multi-image Segments via straight-forward snake propagation."""
         from copy import copy
 
         fimg = self._filter(image, **fparams)
@@ -197,7 +193,8 @@ class Segmenter(object):
         for i, image in enumerate(fimg):
             snake = self._model(image, next_init, **mparams)
             snakes.append(snake)
-            next_init = self._propagator(  # type: ignore
+            assert self._propagator is not None
+            next_init = self._propagator(
                 initial=initial, previous=snake, step=i, **pparams
             )
 
