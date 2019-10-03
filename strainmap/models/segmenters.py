@@ -136,7 +136,10 @@ class Segmenter(object):
             )
 
     def __init__(
-        self, model: Callable, ffilter: Callable, propagator: Optional[Callable] = None
+        self,
+        model: Optional[Callable],
+        ffilter: Optional[Callable],
+        propagator: Optional[Callable] = None,
     ):
         self._model = model
         self._filter = ffilter
