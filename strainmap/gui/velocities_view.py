@@ -456,6 +456,7 @@ class VelocitiesTaskView(TaskViewBase):
                 label="ES",
                 color="black",
                 marker="+",
+                markeredgewidth=2,
             )
         )
 
@@ -487,7 +488,7 @@ class VelocitiesTaskView(TaskViewBase):
         """Common data updating method."""
         subplot.set_data(data)
         self.axes[vel_label].relim()
-        self.axes[vel_label].autoscale_view()
+        self.axes[vel_label].autoscale()
 
         if draw:
             self.draw()

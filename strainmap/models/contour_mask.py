@@ -190,15 +190,15 @@ def angular_segments(
         origin = np.array(origin)
 
     if origin.size == 2:
-        x = np.arange(0, shape[0], dtype=int)[None, :] - origin[0]
-        y = np.arange(0, shape[1], dtype=int)[:, None] - origin[1]
+        x = np.arange(0, shape[0], dtype=int)[None, :] - origin[1]
+        y = np.arange(0, shape[1], dtype=int)[:, None] - origin[0]
     else:
-        x = np.arange(0, shape[0], dtype=int)[:, None, None] - origin[:, 0]
-        y = np.arange(0, shape[1], dtype=int)[None, :, None] - origin[:, 1]
+        x = np.arange(0, shape[0], dtype=int)[None, :, None] - origin[:, 1]
+        y = np.arange(0, shape[1], dtype=int)[:, None, None] - origin[:, 0]
 
-    theta = np.mod(np.arctan2(y, x) + theta0, 2 * np.pi)
+    theta = np.mod(np.arctan2(y, x) - theta0, 2 * np.pi)
     if not clockwise:
-        theta = -theta
+        theta = 2 * np.pi - theta
 
     result = np.ones(theta.shape, dtype=int)
 

@@ -6,14 +6,14 @@ def test_find_theta0():
     import numpy as np
 
     N = 5
-    expected = np.random.uniform(0, 2 * np.pi, N)
+    expected = np.random.uniform(-np.pi, np.pi, N)
 
     vector = np.zeros((N, 2, 2))
     vector[:, 1, 0] = np.sin(expected)
     vector[:, 0, 0] = np.cos(expected)
 
     actual = find_theta0(vector)
-    assert actual == approx(-expected)
+    assert actual == approx(expected)
 
 
 def test_scale_phase(strainmap_data):
@@ -84,16 +84,16 @@ def test_calculate_velocities(segmented_data):
         dataset_name,
         global_velocity=True,
         angular_regions=[6],
-        # radial_regions=[],
+        # radial_regions=[4],
     ).velocities
 
     assert dataset_name in velocities
     assert "global - Average" in velocities[dataset_name]
     assert velocities[dataset_name]["global - Average"].shape == (1, 3, 3)
     assert "angular x6 - Average" in velocities[dataset_name]
-    assert velocities[dataset_name]["angular x6 - Average"].shape == (6, 3, 3)
+    assert velocities[dataset_name]["angular x6 - Average"].shape == (1, 3, 3)
     # assert "radial x4 - Average" in velocities[dataset_name]
-    # assert velocities[dataset_name]["radial x4 - Average"].shape == (0, 3, 3)
+    # assert velocities[dataset_name]["radial x4 - Average"].shape == (1, 3, 3)
 
 
 def test_mean_velocities():

@@ -27,7 +27,7 @@ def find_theta0(zero_angle: np.ndarray):
     angular coordinates is calculated.
     """
     shifted = zero_angle[:, :, 0] - zero_angle[:, :, 1]
-    theta0 = -np.mod(np.arctan2(shifted[:, 1], shifted[:, 0]), 2 * np.pi)
+    theta0 = np.arctan2(shifted[:, 1], shifted[:, 0])
     return theta0
 
 
