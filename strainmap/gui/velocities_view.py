@@ -1,5 +1,6 @@
 import tkinter as tk
 from tkinter import ttk
+import tkinter.filedialog
 
 import numpy as np
 from matplotlib import pyplot as plt
@@ -96,6 +97,8 @@ class VelocitiesTaskView(TaskViewBase):
                     marker_lbl[i][j], width=80, stretch=tk.YES, anchor=tk.E
                 )
 
+        export_btn = ttk.Button(control, text="Export to Excel", command=self.export)
+
         # Grid all the widgets
         control.grid(sticky=tk.NSEW, padx=10, pady=5)
         self.visualise_frame.grid(sticky=tk.NSEW, padx=10, pady=5)
@@ -105,6 +108,7 @@ class VelocitiesTaskView(TaskViewBase):
         self.velocities_frame.grid(row=0, column=1, sticky=tk.NSEW, padx=5)
         for i in range(3):
             self.param_tables[i].grid(row=0, column=i, sticky=tk.NSEW, padx=5)
+        export_btn.grid(row=0, column=99, sticky=tk.NSEW)
 
     def dataset_changed(self, *args):
         """Updates the view when the selected dataset is changed."""
@@ -263,6 +267,23 @@ class VelocitiesTaskView(TaskViewBase):
             global_velocity=True,
             angular_regions=[6, 24],
             phantom=self.phantom_var.get(),
+        )
+
+    @trigger_event(name="export_velocity")
+    def export(self, *args):
+        """Exports the current velocity data to an XLSX file."""
+
+        filename = tk.filedialog.asksaveasfilename(
+            defaultextension="xlsx", filetypes=[("Excel files", "*.xlsx")]
+        )
+        if filename is None:
+            return dict()
+
+        return dict(
+            filename=filename,
+            data=self.data,
+            dataset=self.datasets_var.get(),
+            vel_label=self.velocities_var.get(),
         )
 
     def update_widgets(self):

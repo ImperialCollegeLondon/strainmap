@@ -17,6 +17,7 @@ setup(
         "numpy",
         "scipy",
         "nibabel",
+        "xlsxwriter",
     ],
     tests_require=tests_require,
     extras_require={"dev": tests_require},

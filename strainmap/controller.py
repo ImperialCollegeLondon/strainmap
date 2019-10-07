@@ -14,6 +14,7 @@ from .gui.base_window_and_task import (
 from .models.strainmap_data_model import factory
 from .models import quick_segmentation
 from .models.velocities import calculate_velocities, update_marker
+from .models.writers import velocity_to_xlsx
 
 
 class StrainMap(object):
@@ -120,3 +121,9 @@ class StrainMap(object):
         if kwargs:
             data = update_marker(**kwargs)
             self.update_views(data)
+
+    @bind_event
+    def export_velocity(self, **kwargs):
+        """Exports velocity data to a XLSX file."""
+        if kwargs:
+            velocity_to_xlsx(**kwargs)

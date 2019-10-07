@@ -139,7 +139,7 @@ def calculate_velocities(
         transform_to_cylindrical(phase, masks, origin)
         * (sensitivity * signs)[:, None, None, None]
     )
-    bg = {True: "Phantom", False: "Average"}[phantom]
+    bg = {True: "Phantom", False: "Estimated"}[phantom]
     data.masks[dataset_name][f"cylindrical - {bg}"] = cylindrical
 
     vel_labels = []
