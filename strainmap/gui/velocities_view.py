@@ -82,19 +82,17 @@ class VelocitiesTaskView(TaskViewBase):
 
         # Information frame
         marker_lbl = (("PS", "PD", "PAS"), ("PS", "PD", "PAS"), ("PC1", "PC2", "PC3"))
-        for i in range(3):
+        for labels in marker_lbl:
             self.param_tables.append(ttk.Treeview(info, height=14))
             self.param_tables[-1].tag_configure("current", background="#f8d568")
             self.param_tables[-1].tag_configure("others", background="#FFFFFF")
-            self.param_tables[-1]["columns"] = marker_lbl[i]
+            self.param_tables[-1]["columns"] = labels
             self.param_tables[-1].heading("#0", text="Region")
             self.param_tables[-1].column("#0", width=100, stretch=tk.YES)
 
-            for j in range(3):
-                self.param_tables[-1].heading(marker_lbl[i][j], text=marker_lbl[i][j])
-                self.param_tables[-1].column(
-                    marker_lbl[i][j], width=80, stretch=tk.YES, anchor=tk.E
-                )
+            for l in labels:
+                self.param_tables[-1].heading(l, text=l)
+                self.param_tables[-1].column(l, width=80, stretch=tk.YES, anchor=tk.E)
 
         # Grid all the widgets
         control.grid(sticky=tk.NSEW, padx=10, pady=5)
@@ -103,8 +101,8 @@ class VelocitiesTaskView(TaskViewBase):
         dataset_frame.grid(row=0, column=0, sticky=tk.NSEW, padx=5, pady=5)
         self.datasets_box.grid(row=0, column=0, sticky=tk.NSEW)
         self.velocities_frame.grid(row=0, column=1, sticky=tk.NSEW, padx=5)
-        for i in range(3):
-            self.param_tables[i].grid(row=0, column=i, sticky=tk.NSEW, padx=5)
+        for i, table in enumerate(self.param_tables):
+            table.grid(row=0, column=i, sticky=tk.NSEW, padx=5)
 
     def dataset_changed(self, *args):
         """Updates the view when the selected dataset is changed."""
