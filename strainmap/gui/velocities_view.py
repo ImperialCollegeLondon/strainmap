@@ -15,6 +15,7 @@ from .figure_actions import Markers, SimpleScroller
 class VelocitiesTaskView(TaskViewBase):
 
     requisites = Requisites.SEGMENTED
+    axes_lbl = ("_long", "_rad", "_circ")
 
     def __init__(self, root):
 
@@ -353,7 +354,7 @@ class VelocitiesTaskView(TaskViewBase):
         x = np.arange(vels.shape[-1])
         return {
             label: self.axes[label].plot(x, vels[i], "k", label=label)[0]
-            for i, label in enumerate(("_long", "_rad", "_circ"))
+            for i, label in enumerate(self.axes_lbl)
         }
 
     def add_maps_subplots(self, gs):
@@ -372,15 +373,15 @@ class VelocitiesTaskView(TaskViewBase):
 
     def images_and_velocity_masks(self, mag, vel_masks, markers):
         """Add bg and masks to the map subplots."""
-        bg = {"_long": [], "_rad": [], "_circ": []}
-        masks = {"_long": [], "_rad": [], "_circ": []}
+        bg = {l: [] for l in self.axes_lbl}
+        masks = {l: [] for l in self.axes_lbl}
 
         if "global" in self.velocities_var.get():
             self.limits = self.find_limits(vel_masks[0, 0])
 
         vmin, vmax = vel_masks.min(), vel_masks.max()
         for i in range(9):
-            axes = ("_long", "_rad", "_circ")[i // 3]
+            axes = self.axes_lbl[i // 3]
             frame = int(markers[i // 3, i % 3, 0])
             bg[axes].append(
                 self.maps[i].imshow(mag[frame], cmap=plt.get_cmap("binary_r"))
@@ -486,7 +487,7 @@ class VelocitiesTaskView(TaskViewBase):
     ):
         """Updates the maps (masks and background data)."""
         for i in range(9):
-            axes = ("_long", "_rad", "_circ")[i // 3]
+            axes = self.axes_lbl[i // 3]
             frame = int(markers[i // 3, i % 3, 0])
             self.update_mask(axes, i % 3, vel_masks[i // 3, frame])
             self.update_bg(axes, i % 3, images[frame])
@@ -503,7 +504,7 @@ class VelocitiesTaskView(TaskViewBase):
         idx: int,
     ):
         """Updates the maps correspoinding to a single marker."""
-        component = {"_long": 0, "_rad": 1, "_circ": 2}[axes]
+        component = self.axes_lbl.index(axes)
         frame = int(markers[component, idx, 0])
         self.update_mask(axes, idx, vel_masks[component, frame])
         self.update_bg(axes, idx, images[frame])
@@ -513,7 +514,7 @@ class VelocitiesTaskView(TaskViewBase):
         """Updates all velocities."""
         x = np.arange(vels.shape[-1])
 
-        for i, label in enumerate(("_long", "_rad", "_circ")):
+        for i, label in enumerate(self.axes_lbl):
             self.update_line(label, (x, vels[i]))
 
         if draw:
@@ -542,7 +543,7 @@ class VelocitiesTaskView(TaskViewBase):
             "PC3": 2,
             "ES": 3,
         }.get(marker.get_label())
-        component = {"_long": 0, "_rad": 1, "_circ": 2}.get(data.get_label())
+        component = self.axes_lbl.index(data.get_label())
         self.marker_moved_info = (data.get_label(), marker_idx)
         return dict(
             data=self.data,
