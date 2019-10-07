@@ -64,6 +64,9 @@ stages:
       - job: MacOS
         pool: {vmImage: macos-10.13}
         steps:
+          - task: UsePythonVersion@0
+            inputs:
+              versionSpec: 3.7
           - script: pip install -e .[dev]
           - script: |
               pyinstaller strain.mac.spec
@@ -76,6 +79,9 @@ stages:
       - job: Windows
         pool: {vmImage: windows-2019}
         steps:
+          - task: UsePythonVersion@0
+            inputs:
+              versionSpec: 3.7
           - script: pip install -e .[dev]
           - script: pyinstaller strain.windows.spec
           - task: PublishBuildArtifacts@1
