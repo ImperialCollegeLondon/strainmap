@@ -83,6 +83,7 @@ class StrainMap(object):
         """Clears the StrainMapData object from the widgets."""
         if kwargs.get("clear", False):
             self.lock(Requisites.DATALOADED)
+            self.lock(Requisites.SEGMENTED)
             self.update_views(None)
 
     @bind_event

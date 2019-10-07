@@ -50,7 +50,7 @@ def test_clear_data(control_with_mock_window):
 
     control_with_mock_window.clear_data(clear=True)
 
-    assert control_with_mock_window.lock.call_count == 1
+    assert control_with_mock_window.lock.call_count == 2
     assert control_with_mock_window.data is None
 
     control_with_mock_window.window.reset_mock()
