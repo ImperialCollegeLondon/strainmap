@@ -71,13 +71,12 @@ class StrainMap(object):
     @bind_event
     def load_data(self, **kwargs):
         """Creates a StrainMapData object."""
-        if kwargs:
-            data = factory(**kwargs)
-            if data.data_files:
-                self.unlock(Requisites.DATALOADED)
-            if data.segments:
-                self.unlock(Requisites.SEGMENTED)
-            self.update_views(data)
+        data = factory(**kwargs)
+        if data.data_files:
+            self.unlock(Requisites.DATALOADED)
+        if data.segments:
+            self.unlock(Requisites.SEGMENTED)
+        self.update_views(data)
 
     @bind_event
     def clear_data(self, **kwargs):
@@ -110,13 +109,11 @@ class StrainMap(object):
     @bind_event
     def calculate_velocities(self, **kwargs):
         """Calculates the velocities based on a given segmentation."""
-        if kwargs:
-            data = calculate_velocities(**kwargs)
-            self.update_views(data)
+        data = calculate_velocities(**kwargs)
+        self.update_views(data)
 
     @bind_event
     def update_marker(self, **kwargs):
         """Updates the markers information after moving one of them."""
-        if kwargs:
-            data = update_marker(**kwargs)
-            self.update_views(data)
+        data = update_marker(**kwargs)
+        self.update_views(data)

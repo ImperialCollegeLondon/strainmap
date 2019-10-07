@@ -204,9 +204,8 @@ def trigger_event(fun: Optional[Callable] = None, name: Optional[Text] = None):
     @wraps(fun)
     def wrapper(*args, **kwargs):
         params = fun(*args, **kwargs)
-        params = params if params else {}
-        EVENTS[name](**params)
-        return
+        if params:
+            EVENTS[name](**params)
 
     REGISTERED_TRIGGERS.append(name)
 
