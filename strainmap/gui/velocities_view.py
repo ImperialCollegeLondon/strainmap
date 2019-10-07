@@ -109,9 +109,15 @@ class VelocitiesTaskView(TaskViewBase):
     def dataset_changed(self, *args):
         """Updates the view when the selected dataset is changed."""
         current = self.datasets_var.get()
-        self.images = self.data.get_images(current, "MagZ")
-        self.update_velocities_list(current)
-        self.switch_velocity()
+        if self.data.velocities[current]:
+            self.images = self.data.get_images(current, "MagZ")
+            self.update_velocities_list(current)
+            if self.marker_moved_info:
+                self.marker_moved()
+            else:
+                self.switch_velocity()
+        else:
+            self.initialise_velocities(current)
 
     def add_velocity(self):
         """Opens a dialog to add a new velocity to the list of velocities."""
@@ -236,9 +242,9 @@ class VelocitiesTaskView(TaskViewBase):
 
     def update_velocities_list(self, dataset):
         """Updates the list of radio buttons with the currently available velocities."""
-        velocities = self.data.velocities.get(dataset, {})
+        velocities = self.data.velocities[dataset]
 
-        for v in self.velocities_frame.winfo_children()[2:]:
+        for v in self.velocities_frame.winfo_children():
             v.grid_remove()
 
         for i, v in enumerate(velocities):
@@ -276,7 +282,7 @@ class VelocitiesTaskView(TaskViewBase):
         self.datasets_var.set(current)
         self.images = self.data.get_images(current, "MagZ")
 
-        if len(self.data.velocities.get(current, {})) > 0:
+        if self.data.velocities[current]:
             self.update_velocities_list(current)
             if self.marker_moved_info:
                 self.marker_moved()

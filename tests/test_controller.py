@@ -27,8 +27,9 @@ def test_update_views(control_with_mock_window):
 
     view = control_with_mock_window.registered_views[0]
     control_with_mock_window.window.views = [MagicMock(view)]
-    control_with_mock_window.update_views("Dummy")
-    assert control_with_mock_window.data == "Dummy"
+    control_with_mock_window.data = "Dummy"
+    assert control_with_mock_window.window.views[0].data != "Dummy"
+    control_with_mock_window.update_views()
     assert control_with_mock_window.window.views[0].data == "Dummy"
 
 
