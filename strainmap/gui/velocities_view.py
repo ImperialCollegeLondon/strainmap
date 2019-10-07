@@ -355,30 +355,14 @@ class VelocitiesTaskView(TaskViewBase):
     def add_maps_subplots(self, gs):
         """Adds the maps subplots."""
         maps = []
-        for i in range(0, 3):
+        colours = ["red", "green", "blue"] * 2 + ["orange", "darkblue", "purple"]
+        for i, color in enumerate(colours):
             maps.append(self.fig.add_subplot(gs[1, i]))
             maps[-1].get_xaxis().set_visible(False)
             maps[-1].get_yaxis().set_visible(False)
-
-        for i in range(3, 6):
-            maps.append(self.fig.add_subplot(gs[1, i]))
-            maps[-1].get_xaxis().set_visible(False)
-            maps[-1].get_yaxis().set_visible(False)
-
-        for i in range(6, 9):
-            maps.append(self.fig.add_subplot(gs[1, i]))
-            maps[-1].get_xaxis().set_visible(False)
-            maps[-1].get_yaxis().set_visible(False)
-
-        for i, color in enumerate(["red", "green", "blue"] * 2):
             for side in ["left", "right", "bottom", "top"]:
-                maps[i].spines[side].set_color(color)
-                maps[i].spines[side].set_linewidth(3)
-
-        for i, color in enumerate(["orange", "darkblue", "purple"]):
-            for side in ["left", "right", "bottom", "top"]:
-                maps[i + 6].spines[side].set_color(color)
-                maps[i + 6].spines[side].set_linewidth(3)
+                maps[-1].spines[side].set_color(color)
+                maps[-1].spines[side].set_linewidth(3)
 
         return maps
 
