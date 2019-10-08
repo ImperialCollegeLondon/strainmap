@@ -58,7 +58,7 @@ def scale_phase(
     phase = phase - phantom_phase
 
     if swap:
-        phase[0], phase[1] = phase[1], phase[0]
+        phase[0], phase[1] = phase[1], phase[0].copy()
 
     return phase
 

@@ -27,8 +27,9 @@ def test_update_views(control_with_mock_window):
 
     view = control_with_mock_window.registered_views[0]
     control_with_mock_window.window.views = [MagicMock(view)]
-    control_with_mock_window.update_views("Dummy")
-    assert control_with_mock_window.data == "Dummy"
+    control_with_mock_window.data = "Dummy"
+    assert control_with_mock_window.window.views[0].data != "Dummy"
+    control_with_mock_window.update_views()
     assert control_with_mock_window.window.views[0].data == "Dummy"
 
 
@@ -50,7 +51,7 @@ def test_clear_data(control_with_mock_window):
 
     control_with_mock_window.clear_data(clear=True)
 
-    assert control_with_mock_window.lock.call_count == 1
+    assert control_with_mock_window.lock.call_count == 2
     assert control_with_mock_window.data is None
 
     control_with_mock_window.window.reset_mock()

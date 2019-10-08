@@ -16,6 +16,8 @@ from .figure_actions import Markers, SimpleScroller
 class VelocitiesTaskView(TaskViewBase):
 
     requisites = Requisites.SEGMENTED
+    axes_lbl = ("_long", "_rad", "_circ")
+    marker_idx = {"PS": 0, "PD": 1, "PAS": 2, "PC1": 0, "PC2": 1, "PC3": 2, "ES": 3}
 
     def __init__(self, root):
 
@@ -83,19 +85,17 @@ class VelocitiesTaskView(TaskViewBase):
 
         # Information frame
         marker_lbl = (("PS", "PD", "PAS"), ("PS", "PD", "PAS"), ("PC1", "PC2", "PC3"))
-        for i in range(3):
+        for labels in marker_lbl:
             self.param_tables.append(ttk.Treeview(info, height=14))
             self.param_tables[-1].tag_configure("current", background="#f8d568")
             self.param_tables[-1].tag_configure("others", background="#FFFFFF")
-            self.param_tables[-1]["columns"] = marker_lbl[i]
+            self.param_tables[-1]["columns"] = labels
             self.param_tables[-1].heading("#0", text="Region")
             self.param_tables[-1].column("#0", width=100, stretch=tk.YES)
 
-            for j in range(3):
-                self.param_tables[-1].heading(marker_lbl[i][j], text=marker_lbl[i][j])
-                self.param_tables[-1].column(
-                    marker_lbl[i][j], width=80, stretch=tk.YES, anchor=tk.E
-                )
+            for l in labels:
+                self.param_tables[-1].heading(l, text=l)
+                self.param_tables[-1].column(l, width=80, stretch=tk.YES, anchor=tk.E)
 
         export_btn = ttk.Button(control, text="Export to Excel", command=self.export)
 
@@ -106,16 +106,22 @@ class VelocitiesTaskView(TaskViewBase):
         dataset_frame.grid(row=0, column=0, sticky=tk.NSEW, padx=5, pady=5)
         self.datasets_box.grid(row=0, column=0, sticky=tk.NSEW)
         self.velocities_frame.grid(row=0, column=1, sticky=tk.NSEW, padx=5)
-        for i in range(3):
-            self.param_tables[i].grid(row=0, column=i, sticky=tk.NSEW, padx=5)
+        for i, table in enumerate(self.param_tables):
+            table.grid(row=0, column=i, sticky=tk.NSEW, padx=5)
         export_btn.grid(row=0, column=99, sticky=tk.NSEW)
 
     def dataset_changed(self, *args):
         """Updates the view when the selected dataset is changed."""
         current = self.datasets_var.get()
-        self.images = self.data.get_images(current, "MagZ")
-        self.update_velocities_list(current)
-        self.switch_velocity()
+        if self.data.velocities[current]:
+            self.images = self.data.get_images(current, "MagZ")
+            self.update_velocities_list(current)
+            if self.marker_moved_info:
+                self.marker_moved()
+            else:
+                self.switch_velocity()
+        else:
+            self.initialise_velocities(current)
 
     def add_velocity(self):
         """Opens a dialog to add a new velocity to the list of velocities."""
@@ -143,7 +149,7 @@ class VelocitiesTaskView(TaskViewBase):
     def marker_moved(self):
         """Updates plot and table after a marker has been moved."""
         self.populate_tables()
-        if self.marker_moved_info[1] == 3:
+        if self.marker_moved_info[1] == "ES":
             self.update_maps(
                 self.velocity_maps, self.images, self.markers[self.current_region]
             )
@@ -240,9 +246,9 @@ class VelocitiesTaskView(TaskViewBase):
 
     def update_velocities_list(self, dataset):
         """Updates the list of radio buttons with the currently available velocities."""
-        velocities = self.data.velocities.get(dataset, {})
+        velocities = self.data.velocities[dataset]
 
-        for v in self.velocities_frame.winfo_children()[2:]:
+        for v in self.velocities_frame.winfo_children():
             v.grid_remove()
 
         for i, v in enumerate(velocities):
@@ -297,7 +303,7 @@ class VelocitiesTaskView(TaskViewBase):
         self.datasets_var.set(current)
         self.images = self.data.get_images(current, "MagZ")
 
-        if len(self.data.velocities.get(current, {})) > 0:
+        if self.data.velocities[current]:
             self.update_velocities_list(current)
             if self.marker_moved_info:
                 self.marker_moved()
@@ -370,50 +376,34 @@ class VelocitiesTaskView(TaskViewBase):
         x = np.arange(vels.shape[-1])
         return {
             label: self.axes[label].plot(x, vels[i], "k", label=label)[0]
-            for i, label in enumerate(("_long", "_rad", "_circ"))
+            for i, label in enumerate(self.axes_lbl)
         }
 
     def add_maps_subplots(self, gs):
         """Adds the maps subplots."""
         maps = []
-        for i in range(0, 3):
+        colours = ["red", "green", "blue"] * 2 + ["orange", "darkblue", "purple"]
+        for i, color in enumerate(colours):
             maps.append(self.fig.add_subplot(gs[1, i]))
             maps[-1].get_xaxis().set_visible(False)
             maps[-1].get_yaxis().set_visible(False)
-
-        for i in range(3, 6):
-            maps.append(self.fig.add_subplot(gs[1, i]))
-            maps[-1].get_xaxis().set_visible(False)
-            maps[-1].get_yaxis().set_visible(False)
-
-        for i in range(6, 9):
-            maps.append(self.fig.add_subplot(gs[1, i]))
-            maps[-1].get_xaxis().set_visible(False)
-            maps[-1].get_yaxis().set_visible(False)
-
-        for i, color in enumerate(["red", "green", "blue"] * 2):
             for side in ["left", "right", "bottom", "top"]:
-                maps[i].spines[side].set_color(color)
-                maps[i].spines[side].set_linewidth(3)
-
-        for i, color in enumerate(["orange", "darkblue", "purple"]):
-            for side in ["left", "right", "bottom", "top"]:
-                maps[i + 6].spines[side].set_color(color)
-                maps[i + 6].spines[side].set_linewidth(3)
+                maps[-1].spines[side].set_color(color)
+                maps[-1].spines[side].set_linewidth(3)
 
         return maps
 
     def images_and_velocity_masks(self, mag, vel_masks, markers):
         """Add bg and masks to the map subplots."""
-        bg = {"_long": [], "_rad": [], "_circ": []}
-        masks = {"_long": [], "_rad": [], "_circ": []}
+        bg = {l: [] for l in self.axes_lbl}
+        masks = {l: [] for l in self.axes_lbl}
 
         if "global" in self.velocities_var.get():
             self.limits = self.find_limits(vel_masks[0, 0])
 
         vmin, vmax = vel_masks.min(), vel_masks.max()
         for i in range(9):
-            axes = ("_long", "_rad", "_circ")[i // 3]
+            axes = self.axes_lbl[i // 3]
             frame = int(markers[i // 3, i % 3, 0])
             bg[axes].append(
                 self.maps[i].imshow(mag[frame], cmap=plt.get_cmap("binary_r"))
@@ -458,10 +448,10 @@ class VelocitiesTaskView(TaskViewBase):
         marker_lbl = ["PS", "PD", "PAS"] * 2 + ["PC1", "PC2", "PC3"]
 
         markers_artists = []
-        for i in range(9):
+        for i, label in enumerate(vel_lbl):
             markers_artists.append(
                 add_marker(
-                    self.vel_lines[vel_lbl[i]],
+                    self.vel_lines[label],
                     xy=markers[i // 3, i % 3, :2],
                     label=marker_lbl[i],
                     color=colors[i],
@@ -519,7 +509,7 @@ class VelocitiesTaskView(TaskViewBase):
     ):
         """Updates the maps (masks and background data)."""
         for i in range(9):
-            axes = ("_long", "_rad", "_circ")[i // 3]
+            axes = self.axes_lbl[i // 3]
             frame = int(markers[i // 3, i % 3, 0])
             self.update_mask(axes, i % 3, vel_masks[i // 3, frame])
             self.update_bg(axes, i % 3, images[frame])
@@ -533,10 +523,11 @@ class VelocitiesTaskView(TaskViewBase):
         images: np.ndarray,
         markers: np.ndarray,
         axes: str,
-        idx: int,
+        marker_lbl: str,
     ):
         """Updates the maps correspoinding to a single marker."""
-        component = {"_long": 0, "_rad": 1, "_circ": 2}[axes]
+        component = self.axes_lbl.index(axes)
+        idx = self.marker_idx[marker_lbl]
         frame = int(markers[component, idx, 0])
         self.update_mask(axes, idx, vel_masks[component, frame])
         self.update_bg(axes, idx, images[frame])
@@ -546,7 +537,7 @@ class VelocitiesTaskView(TaskViewBase):
         """Updates all velocities."""
         x = np.arange(vels.shape[-1])
 
-        for i, label in enumerate(("_long", "_rad", "_circ")):
+        for i, label in enumerate(self.axes_lbl):
             self.update_line(label, (x, vels[i]))
 
         if draw:
@@ -555,8 +546,9 @@ class VelocitiesTaskView(TaskViewBase):
     def update_markers(self, markers, draw=True):
         """Updates the position of all markers in a figure."""
         update_position = self.fig.actions_manager.Markers.update_marker_position
-        for i in range(9):
-            update_position(self.marker_artists[i], int(markers[i // 3, i % 3, 0]))
+
+        for i, artist in enumerate(self.marker_artists[:-1]):
+            update_position(artist, int(markers[i // 3, i % 3, 0]))
 
         update_position(self.marker_artists[-1], int(markers[1, 3, 0]))
 
@@ -566,23 +558,13 @@ class VelocitiesTaskView(TaskViewBase):
     @trigger_event
     def update_marker(self, marker, data, x, y, position):
         """When a marker moves, mask data should be updated."""
-        marker_idx = {
-            "PS": 0,
-            "PD": 1,
-            "PAS": 2,
-            "PC1": 0,
-            "PC2": 1,
-            "PC3": 2,
-            "ES": 3,
-        }.get(marker.get_label())
-        component = {"_long": 0, "_rad": 1, "_circ": 2}.get(data.get_label())
-        self.marker_moved_info = (data.get_label(), marker_idx)
+        self.marker_moved_info = (data.get_label(), marker.get_label())
         return dict(
             data=self.data,
             dataset=self.datasets_var.get(),
             vel_label=self.velocities_var.get(),
             region=self.current_region,
-            component=component,
-            marker_idx=marker_idx,
+            component=self.axes_lbl.index(data.get_label()),
+            marker_idx=self.marker_idx[marker.get_label()],
             position=position,
         )
