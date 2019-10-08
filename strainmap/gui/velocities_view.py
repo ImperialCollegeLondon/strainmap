@@ -16,6 +16,7 @@ class VelocitiesTaskView(TaskViewBase):
 
     requisites = Requisites.SEGMENTED
     axes_lbl = ("_long", "_rad", "_circ")
+    marker_idx = {"PS": 0, "PD": 1, "PAS": 2, "PC1": 0, "PC2": 1, "PC3": 2, "ES": 3}
 
     def __init__(self, root):
 
@@ -144,7 +145,7 @@ class VelocitiesTaskView(TaskViewBase):
     def marker_moved(self):
         """Updates plot and table after a marker has been moved."""
         self.populate_tables()
-        if self.marker_moved_info[1] == 3:
+        if self.marker_moved_info[1] == "ES":
             self.update_maps(
                 self.velocity_maps, self.images, self.markers[self.current_region]
             )
@@ -426,10 +427,10 @@ class VelocitiesTaskView(TaskViewBase):
         marker_lbl = ["PS", "PD", "PAS"] * 2 + ["PC1", "PC2", "PC3"]
 
         markers_artists = []
-        for i in range(9):
+        for i, label in enumerate(vel_lbl):
             markers_artists.append(
                 add_marker(
-                    self.vel_lines[vel_lbl[i]],
+                    self.vel_lines[label],
                     xy=markers[i // 3, i % 3, :2],
                     label=marker_lbl[i],
                     color=colors[i],
@@ -501,10 +502,11 @@ class VelocitiesTaskView(TaskViewBase):
         images: np.ndarray,
         markers: np.ndarray,
         axes: str,
-        idx: int,
+        marker_lbl: str,
     ):
         """Updates the maps correspoinding to a single marker."""
         component = self.axes_lbl.index(axes)
+        idx = self.marker_idx[marker_lbl]
         frame = int(markers[component, idx, 0])
         self.update_mask(axes, idx, vel_masks[component, frame])
         self.update_bg(axes, idx, images[frame])
@@ -523,8 +525,9 @@ class VelocitiesTaskView(TaskViewBase):
     def update_markers(self, markers, draw=True):
         """Updates the position of all markers in a figure."""
         update_position = self.fig.actions_manager.Markers.update_marker_position
-        for i in range(9):
-            update_position(self.marker_artists[i], int(markers[i // 3, i % 3, 0]))
+
+        for i, artist in enumerate(self.marker_artists[:-1]):
+            update_position(artist, int(markers[i // 3, i % 3, 0]))
 
         update_position(self.marker_artists[-1], int(markers[1, 3, 0]))
 
@@ -534,23 +537,13 @@ class VelocitiesTaskView(TaskViewBase):
     @trigger_event
     def update_marker(self, marker, data, x, y, position):
         """When a marker moves, mask data should be updated."""
-        marker_idx = {
-            "PS": 0,
-            "PD": 1,
-            "PAS": 2,
-            "PC1": 0,
-            "PC2": 1,
-            "PC3": 2,
-            "ES": 3,
-        }.get(marker.get_label())
-        component = self.axes_lbl.index(data.get_label())
-        self.marker_moved_info = (data.get_label(), marker_idx)
+        self.marker_moved_info = (data.get_label(), marker.get_label())
         return dict(
             data=self.data,
             dataset=self.datasets_var.get(),
             vel_label=self.velocities_var.get(),
             region=self.current_region,
-            component=component,
-            marker_idx=marker_idx,
+            component=self.axes_lbl.index(data.get_label()),
+            marker_idx=self.marker_idx[marker.get_label()],
             position=position,
         )
