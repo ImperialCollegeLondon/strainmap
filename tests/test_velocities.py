@@ -186,14 +186,11 @@ def test_markers_positions_internal(markers, velocity):
     assert actual[:, :, 0] == approx(markers[:, :, 0])
 
 
-def test_markers_positions(strainmap_data, markers, velocity):
+def test_markers_positions(markers, velocity):
     from strainmap.models.velocities import markers_positions
 
-    dataset = list(strainmap_data.data_files.keys())[0]
-    strainmap_data.velocities[dataset]["global"] = velocity[None]
-
-    data = markers_positions(strainmap_data, dataset, "global")
-    assert data.markers[dataset]["global"][0][:, :, 0] == approx(markers[:, :, 0])
+    actual = markers_positions(velocity[None])
+    assert actual[0][:, :, 0] == approx(markers[:, :, 0])
 
 
 def test_update_marker(strainmap_data, markers, velocity):

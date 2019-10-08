@@ -357,17 +357,13 @@ def _markers_positions(
     return normalised_times(markers, len(velocity[0]))
 
 
-def markers_positions(
-    data: StrainMapData, dataset: str, vel_label: str, global_vel: str = None
-):
+def markers_positions(velocity: np.ndarray, es: Optional[np.ndarray] = None):
     """Find the position of the markers for the chosen dataset and velocity."""
-    velocity = data.velocities[dataset][vel_label]
-    es = data.markers[dataset][global_vel][0][1, 3] if global_vel is not None else None
-    data.markers[dataset][vel_label] = []
+    markers = []
     for i in range(velocity.shape[0]):
-        data.markers[dataset][vel_label].append(_markers_positions(velocity[i], es))
+        markers.append(_markers_positions(velocity[i], es))
 
-    return data
+    return markers
 
 
 def _update_marker(
@@ -432,11 +428,16 @@ def initialise_markers(data: StrainMapData, dataset: str, vel_labels: list):
     rvel = [key for key in vel_labels if "global" not in key]
 
     for vel_label in gvel:
-        data = markers_positions(data, dataset, vel_label)
+        data.markers[dataset][vel_label] = markers_positions(
+            data.velocities[dataset][vel_label]
+        )
 
     for vel_label in rvel:
         bg = vel_label.split("-")[-1]
         global_vel = f"global -{bg}"
-        data = markers_positions(data, dataset, vel_label, global_vel)
+        data.markers[dataset][vel_label] = markers_positions(
+            data.velocities[dataset][vel_label],
+            data.markers[dataset][global_vel][0][1, 3],
+        )
 
     return data
