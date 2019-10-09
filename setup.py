@@ -17,6 +17,7 @@ setup(
         "numpy",
         "scipy",
         "nibabel",
+        "openpyxl",
         "h5py",
     ],
     tests_require=tests_require,
