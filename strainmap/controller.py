@@ -131,5 +131,4 @@ class StrainMap(object):
     @bind_event
     def export_velocity(self, **kwargs):
         """Exports velocity data to a XLSX file."""
-        if kwargs:
-            velocity_to_xlsx(**kwargs)
+        velocity_to_xlsx(**kwargs)
