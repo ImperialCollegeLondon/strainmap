@@ -13,6 +13,7 @@ from .gui.base_window_and_task import (
 )
 from .models.strainmap_data_model import factory
 from .models import quick_segmentation
+from .models.velocities import calculate_velocities, update_marker
 
 
 class StrainMap(object):
@@ -50,11 +51,10 @@ class StrainMap(object):
             if not Requisites.check(self.achieved, view.requisites):
                 self.window.remove(view)
 
-    def update_views(self, data):
+    def update_views(self):
         """ Updates the data attribute of the views and the widgets depending on it. """
-        self.data = data
         for view in self.window.views:
-            view.data = data
+            view.data = self.data
 
     def pair_events(self):
         """ Pair the registered triggers with the registered binds.
@@ -70,38 +70,59 @@ class StrainMap(object):
     @bind_event
     def load_data(self, **kwargs):
         """Creates a StrainMapData object."""
-        if kwargs:
-            data = factory(**kwargs)
-            if data.data_files:
-                self.unlock(Requisites.DATALOADED)
-            if data.segments:
-                self.unlock(Requisites.SEGMENTED)
-            self.update_views(data)
+        self.data = factory(**kwargs)
+
+        if self.data.data_files:
+            self.unlock(Requisites.DATALOADED)
+        else:
+            self.lock(Requisites.DATALOADED)
+
+        if any(len(i) != 0 for i in self.data.segments.values()):
+            self.unlock(Requisites.SEGMENTED)
+        else:
+            self.lock(Requisites.SEGMENTED)
+        self.update_views()
 
     @bind_event
     def clear_data(self, **kwargs):
         """Clears the StrainMapData object from the widgets."""
         if kwargs.get("clear", False):
+            self.data = None
             self.lock(Requisites.DATALOADED)
-            self.update_views(None)
+            self.lock(Requisites.SEGMENTED)
+            self.update_views()
 
     @bind_event
     def find_segmentation(self, unlock=True, **kwargs):
         """Runs an automated segmentation routine."""
         reload(quick_segmentation)
-        data = quick_segmentation.find_segmentation(**kwargs)
-        if data.segments and unlock:
+        self.data = quick_segmentation.find_segmentation(**kwargs)
+        there_are_segments = any(len(i) != 0 for i in self.data.segments.values())
+        if there_are_segments and unlock:
             self.unlock(Requisites.SEGMENTED)
-        elif len(data.segments) == 0:
+        elif not there_are_segments:
             self.lock(Requisites.SEGMENTED)
-        self.update_views(data)
+        self.update_views()
 
     @bind_event
     def update_segmentation(self, unlock=True, **kwargs):
         """Runs an automated segmentation routine."""
-        data = quick_segmentation.update_segmentation(**kwargs)
-        if data.segments and unlock:
+        self.data = quick_segmentation.update_segmentation(**kwargs)
+        there_are_segments = any(len(i) != 0 for i in self.data.segments.values())
+        if there_are_segments and unlock:
             self.unlock(Requisites.SEGMENTED)
-        elif len(data.segments) == 0:
+        elif not there_are_segments:
             self.lock(Requisites.SEGMENTED)
-        self.update_views(data)
+        self.update_views()
+
+    @bind_event
+    def calculate_velocities(self, **kwargs):
+        """Calculates the velocities based on a given segmentation."""
+        self.data = calculate_velocities(**kwargs)
+        self.update_views()
+
+    @bind_event
+    def update_marker(self, **kwargs):
+        """Updates the markers information after moving one of them."""
+        self.data = update_marker(**kwargs)
+        self.update_views()

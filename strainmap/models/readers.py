@@ -66,6 +66,14 @@ def velocity_sensitivity(filename):
     return np.array((x, y, z))
 
 
+def image_orientation(filename):
+    """Indicates if X and Y Phases should be swapped and the velocity sign factors."""
+    ds = pydicom.dcmread(filename)
+    swap = ds.InPlanePhaseEncodingDirection == "ROW"
+    signs = np.array([1, -1, 1]) * (-1) ** swap
+    return swap, signs
+
+
 def read_dicom_file_tags(
     origin: Union[Mapping, Path, Text],
     series: Optional[Text] = None,

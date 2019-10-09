@@ -639,7 +639,7 @@ class Markers(ActionBase):
     def __init__(
         self,
         marker_moved: Optional[Callable] = None,
-        drag_marker=TriggerSignature(Location.ANY, Button.RIGHT, MouseAction.PICKDRAG),
+        drag_marker=TriggerSignature(Location.ANY, Button.LEFT, MouseAction.PICKDRAG),
     ):
         """Add sliding markers to read the data from a plot.
 
@@ -661,7 +661,7 @@ class Markers(ActionBase):
         """Sets the function to be called when the contour is updated."""
         self._marker_moved = marker_moved
 
-    def add_marker(self, line=None, axes=None, **kwargs):
+    def add_marker(self, line=None, axes=None, xy=None, **kwargs):
         """Adds a marker to the axis of the linked data."""
         if line is not None:
             axes = line.axes
@@ -676,6 +676,9 @@ class Markers(ActionBase):
 
         options = dict(picker=6, marker="x", markersize=20, linestyle="None")
         options.update(kwargs)
+
+        if xy is not None:
+            x, y = xy[0], xy[1]
 
         marker = axes.plot(x, y, **options)[0]
         self._linked_data[marker] = line
@@ -711,7 +714,7 @@ class Markers(ActionBase):
         if self._current_marker is None:
             return
 
-        ev = last_event.mouseevent if hasattr(last_event, "mouseevent") else event
+        ev = last_event.mouseevent if hasattr(last_event, "mouseevent") else last_event
         old_x = self._current_marker.get_xdata()
 
         if self._current_data is None:
@@ -731,3 +734,22 @@ class Markers(ActionBase):
         x, y = line.get_data()
         mini = np.argmin(np.abs(x - mx))
         return x[mini], y[mini], mini
+
+
+class SimpleScroller(ActionBase):
+    """Simpler scroller that links the scroll functionality to an external function."""
+
+    def __init__(
+        self, scroll=TriggerSignature(Location.ANY, Button.CENTRE, MouseAction.SCROLL)
+    ):
+        super().__init__(signatures={scroll: self.scroller})
+        self._scroller = None
+        self.disabled = False
+
+    def set_scroller(self, scroller, *args, **kwargs):
+        """The function to be called when scrolling."""
+        self._scroller = partial(scroller, *args, **kwargs)
+
+    def scroller(self, event, *args):
+        if not self.disabled:
+            self._scroller(int(np.sign(event.step)))

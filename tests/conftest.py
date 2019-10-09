@@ -185,3 +185,44 @@ def figure():
     yield fig
 
     plt.close(fig)
+
+
+@fixture
+def markers():
+    import numpy as np
+
+    return np.array(
+        [
+            [
+                [5, 5.0, 145.83333333333334],
+                [20, -10.0, 486.8421052631579],
+                [38, -5.0, 794.7368421052631],
+                [0, 0, 0],
+            ],
+            [
+                [5, 2.0000000000000124, 145.83333333333334],
+                [20, -10.0, 486.8421052631579],
+                [38, -5.0, 794.7368421052631],
+                [12, 3.116736209871314e-07, 350.0],
+            ],
+            [
+                [3, -1.9990386376492923, 87.5],
+                [8, 1.9990386376492724, 233.33333333333331],
+                [18, -2.9999999999999867, 452.63157894736844],
+                [0, 0, 0],
+            ],
+        ]
+    )
+
+
+@fixture
+def velocity(markers):
+    import numpy as np
+
+    velocities = np.zeros((3, 50))
+    idx = np.arange(0, 50)
+    for i in range(3):
+        for centre, amplitude, _ in markers[i]:
+            velocities[i] += amplitude * np.exp(-(idx - centre) ** 2 / 3)
+
+    return velocities
