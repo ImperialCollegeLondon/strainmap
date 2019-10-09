@@ -5,12 +5,13 @@ import numpy as np
 def velocity_to_xlsx(filename, data, dataset, vel_label):
     """Exports the chosen velocity to an Excel file.
 
-    It includes 3 sheets:
+    It includes 2 or more sheets:
 
     - Sheet 1 includes some metadata, like patient information, dataset, background
-    subtraction method, etc.
-    - Sheet 2 has the table with the markers information.
-    - Sheet 3 has the 3 components of the velocity for each of the regions.
+    subtraction method, etc. and the table with the markers information.
+    - From sheet 2, includes all the velocities calculated with the same background
+        subtraciton method, one per sheet, with the 3 components of the velocity for
+        each of the regions.
     """
     wb = xlsx.Workbook()
     background = vel_label.split(" - ")[-1]
@@ -30,7 +31,7 @@ def velocity_to_xlsx(filename, data, dataset, vel_label):
 
 
 def add_metadata(data, dataset, background, ws):
-    """Prepares the metadata of interests to be exported."""
+    """Prepares the metadata of interest to be exported."""
     patient_data = data.read_dicom_file_tags(dataset, "MagZ", 0)
     metadata = {
         "Patient Name": str(patient_data.get("PatientName", "")),
@@ -104,7 +105,7 @@ def add_velocity(velocity, ws):
         ws.append([velocity[r, i, f] for i in range(len(labels)) for r in range(reg)])
 
     row = 1
-    for i in range(len(header)):
+    for i in range(len(headers)):
         ws.insert_cols((i + 1) * (reg + 1))
         if reg > 1:
             ws.merge_cells(
