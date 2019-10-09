@@ -93,13 +93,12 @@ def add_velocity(velocity, ws):
     """Adds the velocities to the sheet."""
     reg = velocity.shape[0]
     frames = velocity.shape[-1]
-    header = ("Longitudinal", "Radial", "Circumferential")
+    headers = ("Longitudinal", "Radial", "Circumferential")
+    for i, header in enumerate(headers):
+        ws.cell(column=i * reg + 1, row=1, value=header)
+
     labels = ("z_Reg{}", "r_Reg{}", "theta_Reg{}")
-
-    for i in range(len(header)):
-        ws.cell(column=i * reg + 1, row=1, value=header[i])
-
-    ws.append([labels[i].format(r + 1) for i in range(len(labels)) for r in range(reg)])
+    ws.append([label.format(r + 1) for label in labels for r in range(reg)])
 
     for f in range(frames):
         ws.append([velocity[r, i, f] for i in range(len(labels)) for r in range(reg)])
