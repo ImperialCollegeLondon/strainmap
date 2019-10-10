@@ -77,7 +77,7 @@ def test_transform_to_cylindrical():
 def test_calculate_velocities(segmented_data):
     from strainmap.models.velocities import calculate_velocities
 
-    dataset_name = list(segmented_data.data_files.keys())[0]
+    dataset_name = list(segmented_data.segments.keys())[0]
 
     velocities = calculate_velocities(
         segmented_data,
@@ -91,7 +91,7 @@ def test_calculate_velocities(segmented_data):
     assert "global - Estimated" in velocities[dataset_name]
     assert velocities[dataset_name]["global - Estimated"].shape == (1, 3, 3)
     assert "angular x6 - Estimated" in velocities[dataset_name]
-    assert velocities[dataset_name]["angular x6 - Estimated"].shape == (1, 3, 3)
+    assert velocities[dataset_name]["angular x6 - Estimated"].shape == (6, 3, 3)
     # assert "radial x4 - Estimated" in velocities[dataset_name]
     # assert velocities[dataset_name]["radial x4 - Estimated"].shape == (1, 3, 3)
 

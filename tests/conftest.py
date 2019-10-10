@@ -52,6 +52,7 @@ def segmented_data(strainmap_data):
     """Returns a StrainMapData object with segmented data."""
     from strainmap.models.contour_mask import Contour
     from strainmap.models.quick_segmentation import find_segmentation
+    import numpy as np
 
     dataset = list(strainmap_data.data_files.keys())[0]
     image = strainmap_data.get_images(dataset, "MagX")
@@ -68,6 +69,8 @@ def segmented_data(strainmap_data):
         frame=None,
         initials={"epicardium": init_epi, "endocardium": init_endo},
     )
+
+    data.zero_angle[dataset] = np.tile([[260, 230], [310, 280]], (3, 2, 2))
 
     return data
 

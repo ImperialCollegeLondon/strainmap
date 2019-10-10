@@ -21,6 +21,24 @@ class StrainMapData(object):
         self.masks: dict = defaultdict(dict)
         self.markers: dict = defaultdict(dict)
 
+    def metadata(self, dataset=None):
+        """Retrieve the metadata from the DICOM files"""
+        if dataset is None:
+            output = dict()
+            dataset = list(self.data_files.keys())[0]
+        else:
+            output = {"Dataset": dataset}
+
+        patient_data = self.read_dicom_file_tags(dataset, "MagZ", 0)
+        output.update(
+            {
+                "Patient Name": str(patient_data.get("PatientName", "")),
+                "Patient DOB": str(patient_data.get("PatientBirthDate", "")),
+                "Date of Scan": str(patient_data.get("StudyDate", "")),
+            }
+        )
+        return output
+
     def read_dicom_file_tags(self, series, variable, idx):
         return read_dicom_file_tags(self.data_files, series, variable, idx)
 

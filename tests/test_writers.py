@@ -11,7 +11,7 @@ def test_add_metadata(strainmap_data):
     ws = wb.create_sheet("Parameters")
     assert "Parameters" in wb.sheetnames
 
-    add_metadata(strainmap_data, dataset, "Phantom", ws)
+    add_metadata(strainmap_data.metadata(dataset), "Phantom", ws)
     assert ws.max_row == 5
     assert ws["C5"].value == "Phantom"
 
@@ -45,3 +45,49 @@ def test_add_velocity(velocity):
     assert ws["A52"].value == approx(np.around(velocity[0, -1], 3))
     assert ws["C52"].value == approx(np.around(velocity[1, -1], 3))
     assert ws["E52"].value == approx(np.around(velocity[2, -1], 3))
+
+
+def test_metadata_to_hdf5(strainmap_data, tmpdir):
+    from strainmap.models.writers import metadata_to_hdf5
+    import h5py
+
+    filename = tmpdir / "strain_map_file.h5"
+    f = h5py.File(filename, "a")
+
+    metadata_to_hdf5(f, strainmap_data.metadata())
+
+    assert "Patient Name" in f.attrs
+    assert "Patient DOB" in f.attrs
+    assert "Date of Scan" in f.attrs
+
+
+def test_write_data_structure(segmented_data, tmpdir):
+    from strainmap.models.writers import write_data_structure
+    import h5py
+
+    dataset_name = list(segmented_data.segments.keys())[0]
+    filename = tmpdir / "strain_map_file.h5"
+    f = h5py.File(filename, "a")
+
+    write_data_structure(f, "segments", segmented_data.segments)
+
+    assert "segments" in f
+    assert dataset_name in f["segments"]
+    assert "endocardium" in f["segments"][dataset_name]
+    assert "epicardium" in f["segments"][dataset_name]
+    assert segmented_data.segments[dataset_name]["endocardium"] == approx(
+        f["segments"][dataset_name]["endocardium"][:]
+    )
+
+
+def test_to_hdf5(segmented_data, tmpdir):
+    from strainmap.models.velocities import calculate_velocities
+    from strainmap.models.writers import to_hdf5
+
+    dataset_name = list(segmented_data.segments.keys())[0]
+    calculate_velocities(
+        segmented_data, dataset_name, global_velocity=True, angular_regions=[6]
+    )
+
+    filename = tmpdir / "strain_map_file.h5"
+    to_hdf5(segmented_data, filename)

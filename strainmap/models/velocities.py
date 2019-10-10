@@ -147,7 +147,7 @@ def calculate_velocities(
         data.velocities[dataset_name][f"global - {bg}"] = masked_means(
             cylindrical, masks, axes=(2, 3)
         )
-        data.masks[dataset_name][f"global - {bg}"] = masks[None]
+        data.masks[dataset_name][f"global - {bg}"] = masks
         vel_labels.append(f"global - {bg}")
 
     for ang in angular_regions:
@@ -363,7 +363,7 @@ def markers_positions(velocity: np.ndarray, es: Optional[np.ndarray] = None):
     for i in range(velocity.shape[0]):
         markers.append(_markers_positions(velocity[i], es))
 
-    return markers
+    return np.array(markers)
 
 
 def _update_marker(

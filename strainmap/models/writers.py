@@ -1,4 +1,5 @@
 import openpyxl as xlsx
+import h5py
 import numpy as np
 
 
@@ -19,7 +20,7 @@ def velocity_to_xlsx(filename, data, dataset, vel_label):
 
     params_ws = wb.active
     params_ws.title = "Parameters"
-    add_metadata(data, dataset, background, params_ws)
+    add_metadata(data.metadata(dataset), background, params_ws)
 
     for l in labels:
         title = l.split(" - ")[0]
@@ -30,20 +31,13 @@ def velocity_to_xlsx(filename, data, dataset, vel_label):
     wb.close()
 
 
-def add_metadata(data, dataset, background, ws):
+def add_metadata(metadata, background, ws):
     """Prepares the metadata of interest to be exported."""
-    patient_data = data.read_dicom_file_tags(dataset, "MagZ", 0)
-    metadata = {
-        "Patient Name": str(patient_data.get("PatientName", "")),
-        "Patient DOB": str(patient_data.get("PatientBirthDate", "")),
-        "Date of Scan": str(patient_data.get("StudyDate", "")),
-        "Dataset": dataset,
-        "Background Correction": background,
-    }
-
     ws.column_dimensions["A"].width = 15
     for i, key in enumerate(metadata):
         ws.append((key, "", metadata[key]))
+
+    ws.append(("Background Correction", "", background))
 
 
 def add_markers(markers, ws, title=None):
@@ -112,3 +106,31 @@ def add_velocity(velocity, ws):
                 start_row=1, start_column=row, end_row=1, end_column=row + reg - 1
             )
             row = row + reg + 1
+
+
+def to_hdf5(data, filename):
+    """Writes the contents of the StrainMap data object to a HDF5 file."""
+    f = h5py.File(filename, "w")
+
+    metadata_to_hdf5(f, data.metadata())
+    write_data_structure(f, "segments", data.segments)
+    write_data_structure(f, "zero_angle", data.zero_angle)
+    write_data_structure(f, "velocities", data.velocities)
+    write_data_structure(f, "masks", data.masks)
+    write_data_structure(f, "markers", data.markers)
+
+
+def metadata_to_hdf5(g, metadata):
+    """"""
+    for key, value in metadata.items():
+        g.attrs[key] = value
+
+
+def write_data_structure(g, name, structure):
+    """Recursively populates the hdf5 file with a nested dictionary."""
+    group = g.create_group(name)
+    for n, struct in structure.items():
+        if isinstance(struct, dict):
+            write_data_structure(group, n, struct)
+        else:
+            group.create_dataset(n, data=struct)
