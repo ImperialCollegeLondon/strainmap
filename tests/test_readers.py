@@ -1,6 +1,7 @@
 from pathlib import Path
 from typing import Mapping, Text, Tuple, Union
 from pytest import approx
+import numpy as np
 
 
 def search_in_tree(
@@ -113,3 +114,96 @@ def test_velocity_sensitivity(data_tree):
     actual = velocity_sensitivity(filename)
 
     assert expected == approx(actual)
+
+
+def test_read_data_structure(tmpdir, segmented_data):
+    from strainmap.models.readers import read_data_structure
+    from strainmap.models.writers import write_data_structure
+    from collections import defaultdict
+    import h5py
+
+    filename = tmpdir / "strain_map_file.h5"
+    f = h5py.File(filename, "a")
+
+    dataset_name = list(segmented_data.segments.keys())[0]
+    write_data_structure(f, "segments", segmented_data.segments)
+
+    d = defaultdict(dict)
+    read_data_structure(d, f["segments"])
+
+    assert all([key in d for key in f["segments"]])
+    assert all([value.keys() == d[key].keys() for key, value in f["segments"].items()])
+    assert d[dataset_name]["endocardium"] == approx(
+        f["segments"][dataset_name]["endocardium"][...]
+    )
+
+
+def test_from_relative_paths(tmpdir):
+    from strainmap.models.readers import from_relative_paths
+
+    master = "/home/data/my_file.h5"
+    expected = ["/home", "/home/data/cars", "/home/data/cars/Tesla"]
+    paths = [b"..", b"cars", b"cars/Tesla"]
+    actual = from_relative_paths(master, paths)
+
+    assert actual == expected
+
+
+def test_paths_from_hdf5(strainmap_data, tmpdir):
+    from strainmap.models.writers import paths_to_hdf5
+    from strainmap.models.readers import paths_from_hdf5
+    from collections import defaultdict
+
+    import h5py
+
+    dataset_name = list(strainmap_data.data_files.keys())[0]
+    filename = tmpdir / "strain_map_file.h5"
+
+    abs_paths = strainmap_data.data_files[dataset_name]["MagX"]
+
+    f = h5py.File(filename, "a")
+    d = defaultdict(dict)
+    paths_to_hdf5(f, filename, "data_files", strainmap_data.data_files)
+    paths_from_hdf5(d, filename, f["data_files"])
+
+    assert dataset_name in d
+    assert all(
+        [key in d[dataset_name] for key in strainmap_data.data_files[dataset_name]]
+    )
+    assert d[dataset_name]["MagX"] == abs_paths
+
+
+def compare_dicts(one, two):
+    """Recursive comparison of two (nested) dictionaries with lists and numpy arrays."""
+    if one.keys() != two.keys():
+        return False
+
+    equal = True
+    for key, value in one.items():
+        if isinstance(value, dict) and isinstance(two[key], dict):
+            equal = compare_dicts(value, two[key]) and equal
+        elif not isinstance(value, dict) and not isinstance(two[key], dict):
+            equal = (np.array(value) == np.array(two[key])).all() and equal
+        else:
+            return False
+
+        if not equal:
+            return False
+
+    return True
+
+
+def test_read_h5_file(tmpdir, segmented_data):
+    from strainmap.models.readers import read_h5_file
+    from strainmap.models.writers import write_hdf5_file
+
+    filename = tmpdir / "strain_map_file.h5"
+
+    write_hdf5_file(segmented_data, filename)
+    new_data = read_h5_file(filename)
+
+    for s in new_data.__dict__.keys():
+        if s == "strainmap_file":
+            continue
+        else:
+            assert compare_dicts(getattr(new_data, s), getattr(segmented_data, s))

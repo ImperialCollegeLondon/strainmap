@@ -1,6 +1,9 @@
 import openpyxl as xlsx
 import h5py
 import numpy as np
+from typing import List, Union
+import os
+from pathlib import Path
 
 
 def velocity_to_xlsx(filename, data, dataset, vel_label):
@@ -108,16 +111,19 @@ def add_velocity(velocity, ws):
             row = row + reg + 1
 
 
-def to_hdf5(data, filename):
+def write_hdf5_file(data, filename: Union[h5py.File, str]):
     """Writes the contents of the StrainMap data object to a HDF5 file."""
-    f = h5py.File(filename, "w")
+    f = filename if isinstance(filename, h5py.File) else h5py.File(filename, "a")
 
     metadata_to_hdf5(f, data.metadata())
-    write_data_structure(f, "segments", data.segments)
-    write_data_structure(f, "zero_angle", data.zero_angle)
-    write_data_structure(f, "velocities", data.velocities)
-    write_data_structure(f, "masks", data.masks)
-    write_data_structure(f, "markers", data.markers)
+
+    for s in data.__dict__.keys():
+        if s == "strainmap_file":
+            continue
+        elif "files" in s:
+            paths_to_hdf5(f, filename, s, getattr(data, s))
+        else:
+            write_data_structure(f, s, getattr(data, s))
 
 
 def metadata_to_hdf5(g, metadata):
@@ -127,10 +133,40 @@ def metadata_to_hdf5(g, metadata):
 
 
 def write_data_structure(g, name, structure):
-    """Recursively populates the hdf5 file with a nested dictionary."""
-    group = g.create_group(name)
+    """Recursively populates the hdf5 file with a nested dictionary.
+
+    If any dataset already exist, it gets updated with the new values, otherwise it
+    is created.
+    """
+    group = g[name] if name in g else g.create_group(name)
+
     for n, struct in structure.items():
         if isinstance(struct, dict):
             write_data_structure(group, n, struct)
+        elif n in group:
+            group[n][...] = struct
         else:
             group.create_dataset(n, data=struct)
+
+
+def to_relative_paths(master: str, paths: List[str]) -> list:
+    """Finds the relative paths of "paths" with respect to "master"."""
+    root = Path(master).parent
+    return [os.path.relpath(p, root).encode("ascii", "ignore") for p in paths]
+
+
+def paths_to_hdf5(
+    g: Union[h5py.File, h5py.Group], master: str, name: str, structure: dict
+) -> None:
+    """Saves a dictionary with paths as values after calculating the relative path."""
+    group = g[name] if name in g else g.create_group(name)
+
+    for n, struct in structure.items():
+        if isinstance(struct, dict):
+            paths_to_hdf5(group, master, n, struct)
+        elif n in group:
+            paths = to_relative_paths(master, struct)
+            group[n][...] = paths
+        else:
+            paths = to_relative_paths(master, struct)
+            group.create_dataset(n, data=paths)

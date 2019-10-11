@@ -70,7 +70,6 @@ def test_write_data_structure(segmented_data, tmpdir):
     f = h5py.File(filename, "a")
 
     write_data_structure(f, "segments", segmented_data.segments)
-
     assert "segments" in f
     assert dataset_name in f["segments"]
     assert "endocardium" in f["segments"][dataset_name]
@@ -79,10 +78,16 @@ def test_write_data_structure(segmented_data, tmpdir):
         f["segments"][dataset_name]["endocardium"][:]
     )
 
+    segmented_data.segments[dataset_name]["endocardium"] *= 2
+    write_data_structure(f, "segments", segmented_data.segments)
+    assert segmented_data.segments[dataset_name]["endocardium"] == approx(
+        f["segments"][dataset_name]["endocardium"][:]
+    )
 
-def test_to_hdf5(segmented_data, tmpdir):
+
+def test_write_hdf5_file(segmented_data, tmpdir):
     from strainmap.models.velocities import calculate_velocities
-    from strainmap.models.writers import to_hdf5
+    from strainmap.models.writers import write_hdf5_file
 
     dataset_name = list(segmented_data.segments.keys())[0]
     calculate_velocities(
@@ -90,4 +95,42 @@ def test_to_hdf5(segmented_data, tmpdir):
     )
 
     filename = tmpdir / "strain_map_file.h5"
-    to_hdf5(segmented_data, filename)
+    write_hdf5_file(segmented_data, filename)
+
+
+def test_to_relative_paths():
+    from strainmap.models.writers import to_relative_paths
+
+    master = "/home/data/my_file.h5"
+    paths = ["/home", "/home/data/cars", "/home/data/cars/Tesla"]
+    expected = [b"..", b"cars", b"cars/Tesla"]
+    actual = to_relative_paths(master, paths)
+
+    assert actual == expected
+
+
+def test_paths_to_hdf5(strainmap_data, tmpdir):
+    from strainmap.models.writers import paths_to_hdf5, to_relative_paths
+    import h5py
+
+    dataset_name = list(strainmap_data.data_files.keys())[0]
+    filename = tmpdir / "strain_map_file.h5"
+
+    abs_paths = strainmap_data.data_files[dataset_name]["MagX"]
+    rel_paths = to_relative_paths(filename, abs_paths)
+
+    f = h5py.File(filename, "a")
+    paths_to_hdf5(f, filename, "data_files", strainmap_data.data_files)
+
+    assert "data_files" in f
+    assert dataset_name in f["data_files"]
+    assert "MagX" in f["data_files"][dataset_name]
+    assert rel_paths == f["data_files"][dataset_name]["MagX"][...].tolist()
+
+    strainmap_data.data_files[dataset_name]["MagX"][0] = "my new path"
+    abs_paths = strainmap_data.data_files[dataset_name]["MagX"]
+    rel_paths = to_relative_paths(filename, abs_paths)
+    paths_to_hdf5(f, filename, "data_files", strainmap_data.data_files)
+
+    assert b"my new path" in rel_paths[0]
+    assert rel_paths == f["data_files"][dataset_name]["MagX"][...].tolist()
