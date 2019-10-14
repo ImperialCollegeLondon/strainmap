@@ -381,13 +381,32 @@ class DataTaskView(TaskViewBase):
 
     def update_widgets(self):
         """ Updates widgets after an update in the data variable. """
+        values = list(self.data.data_files.keys())
+        if len(values) > 0 and len(self.data.data_files[values[0]]["MagZ"]) == 0:
+            messagebox.showwarning(
+                "DICOM data not found!",
+                message="Data paths found in the StrainMap data file do not exist."
+                "Choose an alternative folder for the data DICOM files.",
+            )
+            self.load_data()
+            return
+
+        values = list(self.data.bg_files.keys())
+        if len(values) > 0 and len(self.data.bg_files[values[0]]["MagZ"]) == 0:
+            messagebox.showwarning(
+                "PHANTOM data not found!",
+                message="Phantom data paths found in the file do not exist either!"
+                "Choose an alternative folder for the Phantom data.",
+            )
+            self.load_phantom()
+            return
+
         self.nametowidget("control.chooseOutputFile")["state"] = "enable"
         self.create_data_selector()
         self.create_data_viewer()
         self.update_visualization()
 
-        values = list(self.data.bg_files.keys())
-        if self.phantom_check.get() and len(values) > 0:
+        if len(values) > 0:
             self.phantoms_box["values"] = values
             self.phantoms_box.current(0)
             self.phantoms_box.grid(column=0, sticky=tk.NSEW, padx=5, pady=5)

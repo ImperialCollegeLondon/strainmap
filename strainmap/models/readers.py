@@ -1,5 +1,6 @@
 import glob
 import re
+import os
 from collections import OrderedDict
 from dataclasses import dataclass
 from pathlib import Path
@@ -243,4 +244,5 @@ def paths_from_hdf5(g, master, structure):
         if isinstance(struct, h5py.Group):
             paths_from_hdf5(g[n], master, struct)
         else:
-            g[n] = from_relative_paths(master, struct[...])
+            filenames = from_relative_paths(master, struct[...])
+            g[n] = filenames if all(map(os.path.isfile, filenames)) else []
