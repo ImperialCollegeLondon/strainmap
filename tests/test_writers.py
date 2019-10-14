@@ -1,5 +1,4 @@
-from pytest import approx, mark
-import sys
+from pytest import approx
 
 
 def test_add_metadata(strainmap_data):
@@ -86,10 +85,6 @@ def test_write_data_structure(segmented_data, tmpdir):
     )
 
 
-@mark.skipif(
-    sys.platform.startswith("win"),
-    reason="Relative paths across units fail under Windows.",
-)
 def test_write_hdf5_file(segmented_data, tmpdir):
     from strainmap.models.velocities import calculate_velocities
     from strainmap.models.writers import write_hdf5_file
@@ -116,14 +111,13 @@ def test_to_relative_paths():
     ]
     expected = [b"..", b".", b"cars", str(Path("cars/Tesla")).encode("ascii", "ignore")]
     actual = to_relative_paths(master, paths)
-
     assert actual == expected
 
+    paths[0] = ""
+    actual = to_relative_paths(master, paths)
+    assert actual == []
 
-@mark.skipif(
-    sys.platform.startswith("win"),
-    reason="Relative paths across units fail under Windows.",
-)
+
 def test_paths_to_hdf5(strainmap_data, tmpdir):
     from strainmap.models.writers import paths_to_hdf5, to_relative_paths
     import h5py
@@ -147,5 +141,6 @@ def test_paths_to_hdf5(strainmap_data, tmpdir):
     rel_paths = to_relative_paths(filename, abs_paths)
     paths_to_hdf5(f, filename, "data_files", strainmap_data.data_files)
 
-    assert b"my new path" in rel_paths[0]
+    if str(filename)[0] != abs_paths[0][0]:
+        assert b"my new path" in rel_paths[0]
     assert rel_paths == f["data_files"][dataset_name]["MagX"][...].tolist()

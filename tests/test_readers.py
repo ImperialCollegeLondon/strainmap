@@ -1,8 +1,7 @@
 from pathlib import Path
 from typing import Mapping, Text, Tuple, Union
-from pytest import approx, mark
+from pytest import approx
 import numpy as np
-import sys
 
 
 def search_in_tree(
@@ -152,14 +151,9 @@ def test_from_relative_paths(tmpdir):
     ]
     paths = [b"..", b".", b"cars", b"cars/Tesla"]
     actual = from_relative_paths(master, paths)
-
     assert actual == expected
 
 
-@mark.skipif(
-    sys.platform.startswith("win"),
-    reason="Relative paths across units fail under Windows.",
-)
 def test_paths_from_hdf5(strainmap_data, tmpdir):
     from strainmap.models.writers import paths_to_hdf5
     from strainmap.models.readers import paths_from_hdf5
@@ -181,7 +175,10 @@ def test_paths_from_hdf5(strainmap_data, tmpdir):
     assert all(
         [key in d[dataset_name] for key in strainmap_data.data_files[dataset_name]]
     )
-    assert d[dataset_name]["MagX"] == abs_paths
+    if str(filename)[0] != abs_paths[0][0]:
+        assert d[dataset_name]["MagX"] == []
+    else:
+        assert d[dataset_name]["MagX"] == abs_paths
 
 
 def compare_dicts(one, two):
@@ -204,15 +201,13 @@ def compare_dicts(one, two):
     return True
 
 
-@mark.skipif(
-    sys.platform.startswith("win"),
-    reason="Relative paths across units fail under Windows.",
-)
 def test_read_h5_file(tmpdir, segmented_data):
     from strainmap.models.readers import read_h5_file
     from strainmap.models.writers import write_hdf5_file
 
     filename = tmpdir / "strain_map_file.h5"
+    dataset_name = list(segmented_data.data_files.keys())[0]
+    abs_paths = segmented_data.data_files[dataset_name]["MagX"]
 
     write_hdf5_file(segmented_data, filename)
     new_data = read_h5_file(filename)
@@ -220,5 +215,7 @@ def test_read_h5_file(tmpdir, segmented_data):
     for s in new_data.__dict__.keys():
         if s == "strainmap_file":
             continue
+        elif s == "data_files" and str(filename)[0] != abs_paths[0][0]:
+            assert not compare_dicts(getattr(new_data, s), getattr(segmented_data, s))
         else:
             assert compare_dicts(getattr(new_data, s), getattr(segmented_data, s))

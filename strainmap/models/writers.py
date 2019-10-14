@@ -152,7 +152,12 @@ def write_data_structure(g, name, structure):
 def to_relative_paths(master: str, paths: List[str]) -> list:
     """Finds the relative paths of "paths" with respect to "master"."""
     root = Path(master).parent
-    return [os.path.relpath(p, root).encode("ascii", "ignore") for p in paths]
+    try:
+        filenames = [os.path.relpath(p, root).encode("ascii", "ignore") for p in paths]
+    except ValueError:
+        filenames = []
+
+    return filenames
 
 
 def paths_to_hdf5(
