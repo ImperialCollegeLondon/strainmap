@@ -142,8 +142,8 @@ def test_from_relative_paths(tmpdir):
     from strainmap.models.readers import from_relative_paths
 
     master = "/home/data/my_file.h5"
-    expected = ["/home", "/home/data/cars", "/home/data/cars/Tesla"]
-    paths = [b"..", b"cars", b"cars/Tesla"]
+    expected = ["/home", "/home/data", "/home/data/cars", "/home/data/cars/Tesla"]
+    paths = [b"..", b".", b"cars", b"cars/Tesla"]
     actual = from_relative_paths(master, paths)
 
     assert actual == expected

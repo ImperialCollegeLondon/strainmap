@@ -102,8 +102,8 @@ def test_to_relative_paths():
     from strainmap.models.writers import to_relative_paths
 
     master = "/home/data/my_file.h5"
-    paths = ["/home", "/home/data/cars", "/home/data/cars/Tesla"]
-    expected = [b"..", b"cars", b"cars/Tesla"]
+    paths = ["/home", "/home/data", "/home/data/cars", "/home/data/cars/Tesla"]
+    expected = [b"..", b".", b"cars", b"cars/Tesla"]
     actual = to_relative_paths(master, paths)
 
     assert actual == expected
