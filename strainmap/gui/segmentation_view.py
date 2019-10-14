@@ -292,7 +292,7 @@ class SegmentationTaskView(TaskViewBase):
     def dataset_changed(self, *args):
         """Updates the GUI when a new dataset is chosen."""
         dataset = self.datasets_var.get()
-        self.update_state(dataset)
+
         self.fig.actions_manager.ScrollFrames.clear()
         for ax in self.fig.axes:
             self.fig.actions_manager.DrawContours.clear_drawing_(ax)
@@ -307,6 +307,7 @@ class SegmentationTaskView(TaskViewBase):
         self.plot_zero_angle(dataset)
         self.plot_markers()
 
+        self.update_state(dataset)
         self.fig.canvas.draw_idle()
 
     def plot_images(self, dataset):
@@ -349,7 +350,7 @@ class SegmentationTaskView(TaskViewBase):
             )
 
     def plot_zero_angle(self, dataset):
-        """Plots the centroid of the mask defined by the current segments."""
+        """Plots the centroid - septum mid-point line."""
         self.zero_angle = self.data.zero_angle.get(dataset)
 
         if self.zero_angle is None:
@@ -361,10 +362,22 @@ class SegmentationTaskView(TaskViewBase):
         self.zero_angle_lines[1] = self.ax_vel.plot(*data, **options)[0]
 
     def plot_markers(self):
-        """Adds the existing mid-septum markers, if already created."""
+        """Adds the existing mid-septum markers, if already created, or creat new."""
         if self.septum_markers[0] is not None:
             self.ax_mag.lines.append(self.septum_markers[0])
             self.ax_vel.lines.append(self.septum_markers[1])
+        elif self.zero_angle is not None:
+            markers = self.fig.actions_manager.Markers
+            drag = self.fig.actions_manager.DragContours
+            self.switch_mark_state("septum mid-point", "ready")
+
+            options = dict(marker="o", markersize=8, color="r")
+
+            data = self.zero_angle[self.current_frame, :, 0]
+            for i, ax in enumerate((self.ax_mag, self.ax_vel)):
+                self.septum_markers[i] = markers.add_marker(axes=ax, **options)
+                markers.update_marker_position(self.septum_markers[i], *data)
+                drag.ignore_dragging(self.septum_markers[i])
 
     def plot_initial_segments(self):
         """Plots the initial segments."""
@@ -401,8 +414,17 @@ class SegmentationTaskView(TaskViewBase):
         if len(self.data.segments[dataset]) == 0:
             self.clear_segment_variables(button_pressed=False)
             self.clear_btn.state(["disabled"])
-        else:
+        elif not np.isnan(self.data.zero_angle[dataset][:, 0, 0]).any():
+            self.current_frame = self.num_frames - 1
+            self.working_frame_var.set(self.current_frame)
             self.clear_btn.state(["!disabled"])
+            self.next_btn.config(text="Done!")
+            self.next_btn.state(["disabled"])
+            self.datasets_box.state(["!disabled"])
+            self.fig.actions_manager.DragContours.disabled = True
+            self.fig.actions_manager.Markers.disabled = True
+        else:
+            self.clear_btn.state(["disabled"])
 
     def switch_mark_state(self, side, state):
         """Switch the text displayed in the initial segmentation buttons."""
@@ -653,6 +675,7 @@ class SegmentationTaskView(TaskViewBase):
         """Clears all segmentation when a dataset with no segmentation is loaded."""
         self.initial_segments = {"endocardium": None, "epicardium": None}
         self.final_segments = {"endocardium": None, "epicardium": None}
+        self.zero_angle = None
         self.septum_markers = [None, None]
 
         for side in ("endocardium", "epicardium", "septum mid-point"):
