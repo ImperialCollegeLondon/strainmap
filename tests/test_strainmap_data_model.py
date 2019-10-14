@@ -1,3 +1,7 @@
+from pytest import mark
+import sys
+
+
 def test_factory_with_new_data(dicom_data_path, dicom_bg_data_path, tmpdir):
     from strainmap.models.strainmap_data_model import factory, StrainMapData
     import h5py
@@ -24,6 +28,10 @@ def test_factory_with_new_data(dicom_data_path, dicom_bg_data_path, tmpdir):
     assert len(data.bg_files) == 0
 
 
+@mark.skipif(
+    sys.platform.startswith("win"),
+    reason="Relative paths across units fail under Windows.",
+)
 def test_save(tmpdir, segmented_data):
     from strainmap.models.strainmap_data_model import factory
 

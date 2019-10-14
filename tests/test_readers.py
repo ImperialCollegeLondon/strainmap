@@ -1,7 +1,8 @@
 from pathlib import Path
 from typing import Mapping, Text, Tuple, Union
-from pytest import approx
+from pytest import approx, mark
 import numpy as np
+import sys
 
 
 def search_in_tree(
@@ -155,6 +156,10 @@ def test_from_relative_paths(tmpdir):
     assert actual == expected
 
 
+@mark.skipif(
+    sys.platform.startswith("win"),
+    reason="Relative paths across units fail under Windows.",
+)
 def test_paths_from_hdf5(strainmap_data, tmpdir):
     from strainmap.models.writers import paths_to_hdf5
     from strainmap.models.readers import paths_from_hdf5
@@ -199,6 +204,10 @@ def compare_dicts(one, two):
     return True
 
 
+@mark.skipif(
+    sys.platform.startswith("win"),
+    reason="Relative paths across units fail under Windows.",
+)
 def test_read_h5_file(tmpdir, segmented_data):
     from strainmap.models.readers import read_h5_file
     from strainmap.models.writers import write_hdf5_file

@@ -1,4 +1,5 @@
-from pytest import approx
+from pytest import approx, mark
+import sys
 
 
 def test_add_metadata(strainmap_data):
@@ -85,6 +86,10 @@ def test_write_data_structure(segmented_data, tmpdir):
     )
 
 
+@mark.skipif(
+    sys.platform.startswith("win"),
+    reason="Relative paths across units fail under Windows.",
+)
 def test_write_hdf5_file(segmented_data, tmpdir):
     from strainmap.models.velocities import calculate_velocities
     from strainmap.models.writers import write_hdf5_file
@@ -109,12 +114,16 @@ def test_to_relative_paths():
         str(Path("home/data/cars").resolve()),
         str(Path("home/data/cars/Tesla").resolve()),
     ]
-    expected = [b"..", b".", b"cars", b"cars/Tesla"]
+    expected = [b"..", b".", b"cars", str(Path("cars/Tesla")).encode("ascii", "ignore")]
     actual = to_relative_paths(master, paths)
 
     assert actual == expected
 
 
+@mark.skipif(
+    sys.platform.startswith("win"),
+    reason="Relative paths across units fail under Windows.",
+)
 def test_paths_to_hdf5(strainmap_data, tmpdir):
     from strainmap.models.writers import paths_to_hdf5, to_relative_paths
     import h5py
