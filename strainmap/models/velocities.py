@@ -169,7 +169,15 @@ def calculate_velocities(
         ] = velocities_radial_segments(cylindrical, epi, endo, origin, rad)
         vel_labels.append(f"radial x{rad} - {bg}")
 
-    return initialise_markers(data, dataset_name, vel_labels)
+    data = initialise_markers(data, dataset_name, vel_labels)
+
+    data.save(
+        *[["velocities", dataset_name, vel] for vel in vel_labels],
+        *[["masks", dataset_name, vel] for vel in vel_labels],
+        *[["markers", dataset_name, vel] for vel in vel_labels],
+    )
+
+    return data
 
 
 def mean_velocities(

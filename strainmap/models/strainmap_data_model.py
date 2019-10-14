@@ -3,6 +3,7 @@ from typing import Mapping, Optional, Text, Union
 from collections import defaultdict
 import numpy as np
 import h5py
+from functools import reduce
 
 from .readers import (
     read_dicom_directory_tree,
@@ -10,7 +11,7 @@ from .readers import (
     read_images,
     read_strainmap_file,
 )
-from .writers import write_data_structure, write_hdf5_file
+from .writers import write_hdf5_file
 
 
 class StrainMapLoadError(Exception):
@@ -61,16 +62,29 @@ class StrainMapData(object):
     def get_bg_images(self, series, variable):
         return np.array(read_images(self.bg_files, series, variable))
 
-    def save(self, structure: Union[list, str, None] = None):
+    def save_all(self):
         """Saves the data to the hdf5 file, if present."""
         if self.strainmap_file is None:
             return
-        elif structure is None:
-            write_hdf5_file(self, self.strainmap_file)
-        else:
-            structure = [structure] if isinstance(structure, str) else structure
-            for s in structure:
-                write_data_structure(self.strainmap_file, s, getattr(self, s))
+
+        write_hdf5_file(self, self.strainmap_file)
+
+    def save(self, *args):
+        """Saves specific datasets to the hdf5 file.
+
+        Each dataset to be saved must be defined as a list of keys, where key[0] must be
+        one of the StrainMapData attributes (segments, velocities, etc.)
+        """
+        if self.strainmap_file is None:
+            return
+
+        for keys in args:
+            s = "/".join(keys)
+            keys[0] = getattr(self, keys[0])
+            if s in self.strainmap_file:
+                self.strainmap_file[s][...] = reduce(lambda x, y: x[y], keys)
+            else:
+                self.strainmap_file[s] = reduce(lambda x, y: x[y], keys)
 
 
 def factory(
@@ -108,7 +122,8 @@ def factory(
     if isinstance(data, StrainMapData):
         data.data_files = df if df is not None else data.data_files
         data.bg_files = bg if bg is not None else data.bg_files
-        data.save()
+        data.strainmap_file = sm_file
+        data.save_all()
     elif df:
         data = StrainMapData(data_files=df, bg_files=bg, strainmap_file=sm_file)
         data.save()

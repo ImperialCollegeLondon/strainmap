@@ -121,7 +121,7 @@ def write_hdf5_file(data, filename: Union[h5py.File, str]):
         if s == "strainmap_file":
             continue
         elif "files" in s:
-            paths_to_hdf5(f, filename, s, getattr(data, s))
+            paths_to_hdf5(f, f.filename, s, getattr(data, s))
         else:
             write_data_structure(f, s, getattr(data, s))
 
