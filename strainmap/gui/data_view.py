@@ -257,6 +257,39 @@ class DataTaskView(TaskViewBase):
 
         return result
 
+    @trigger_event(name="load_data")
+    def open_existing_file(self):
+        """ Opens an existing StrainMap file."""
+        path = tk.filedialog.askopenfilename(
+            title="Select existing StrainMap file (HDF5 format)",
+            initialdir=self.current_dir,
+            filetypes=(("StrainMap files", "*.h5"),),
+        )
+
+        output = {}
+        if path != "":
+            output = dict(strainmap_file=path)
+            self.output_file.set(path)
+
+        return output
+
+    @trigger_event(name="load_data")
+    def select_output_file(self):
+        """ Selects an output file in which to store the current data."""
+        path = tk.filedialog.asksaveasfilename(
+            title="Introduce new StrainMap filename.",
+            initialdir=self.current_dir,
+            filetypes=(("StrainMap files", "*.h5"),),
+            defaultextension="h5",
+        )
+
+        output = {}
+        if path != "":
+            output = dict(data=self.data, strainmap_file=path)
+            self.output_file.set(path)
+
+        return output
+
     @trigger_event
     def clear_data(self):
         """ Clears all data from memory."""
@@ -266,16 +299,6 @@ class DataTaskView(TaskViewBase):
             icon="warning",
         )
         return {"clear": clear}
-
-    def open_existing_file(self):
-        """ Opens an existing StrainMap file."""
-        messagebox.showinfo(message="This functionality is not implemented, yet.")
-        self.output_file.set("")
-
-    def select_output_file(self):
-        """ Selects an output file in which to store the analysis."""
-        messagebox.showinfo(message="This functionality is not implemented, yet.")
-        self.output_file.set("")
 
     def get_data_information(self):
         """ Gets some information related to the available datasets, frames, etc. """

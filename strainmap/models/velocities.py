@@ -175,6 +175,7 @@ def calculate_velocities(
         *[["velocities", dataset_name, vel] for vel in vel_labels],
         *[["masks", dataset_name, vel] for vel in vel_labels],
         *[["markers", dataset_name, vel] for vel in vel_labels],
+        ["masks", dataset_name, f"cylindrical - {bg}"],
     )
 
     return data

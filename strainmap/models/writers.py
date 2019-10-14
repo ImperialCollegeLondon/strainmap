@@ -138,7 +138,7 @@ def write_data_structure(g, name, structure):
     If any dataset already exist, it gets updated with the new values, otherwise it
     is created.
     """
-    group = g[name] if name in g else g.create_group(name)
+    group = g[name] if name in g else g.create_group(name, track_order=True)
 
     for n, struct in structure.items():
         if isinstance(struct, dict):
@@ -146,7 +146,7 @@ def write_data_structure(g, name, structure):
         elif n in group:
             group[n][...] = struct
         else:
-            group.create_dataset(n, data=struct)
+            group.create_dataset(n, data=struct, track_order=True)
 
 
 def to_relative_paths(master: str, paths: List[str]) -> list:
@@ -159,7 +159,7 @@ def paths_to_hdf5(
     g: Union[h5py.File, h5py.Group], master: str, name: str, structure: dict
 ) -> None:
     """Saves a dictionary with paths as values after calculating the relative path."""
-    group = g[name] if name in g else g.create_group(name)
+    group = g[name] if name in g else g.create_group(name, track_order=True)
 
     for n, struct in structure.items():
         if isinstance(struct, dict):
@@ -169,4 +169,4 @@ def paths_to_hdf5(
             group[n][...] = paths
         else:
             paths = to_relative_paths(master, struct)
-            group.create_dataset(n, data=paths)
+            group.create_dataset(n, data=paths, track_order=True)

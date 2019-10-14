@@ -84,7 +84,9 @@ class StrainMapData(object):
             if s in self.strainmap_file:
                 self.strainmap_file[s][...] = reduce(lambda x, y: x[y], keys)
             else:
-                self.strainmap_file[s] = reduce(lambda x, y: x[y], keys)
+                self.strainmap_file.create_dataset(
+                    s, data=reduce(lambda x, y: x[y], keys), track_order=True
+                )
 
 
 def factory(
