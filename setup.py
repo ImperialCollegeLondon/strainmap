@@ -18,6 +18,7 @@ setup(
         "numpy",
         "scipy",
         "nibabel",
+        "openpyxl",
     ],
     package_data={"strainmap.gui": ["icons/*.gif", "icons/CREDITS.md"]},
     packages=find_packages("."),

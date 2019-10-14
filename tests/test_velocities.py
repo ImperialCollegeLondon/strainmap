@@ -88,12 +88,12 @@ def test_calculate_velocities(segmented_data):
     ).velocities
 
     assert dataset_name in velocities
-    assert "global - Average" in velocities[dataset_name]
-    assert velocities[dataset_name]["global - Average"].shape == (1, 3, 3)
-    assert "angular x6 - Average" in velocities[dataset_name]
-    assert velocities[dataset_name]["angular x6 - Average"].shape == (1, 3, 3)
-    # assert "radial x4 - Average" in velocities[dataset_name]
-    # assert velocities[dataset_name]["radial x4 - Average"].shape == (1, 3, 3)
+    assert "global - Estimated" in velocities[dataset_name]
+    assert velocities[dataset_name]["global - Estimated"].shape == (1, 3, 3)
+    assert "angular x6 - Estimated" in velocities[dataset_name]
+    assert velocities[dataset_name]["angular x6 - Estimated"].shape == (1, 3, 3)
+    # assert "radial x4 - Estimated" in velocities[dataset_name]
+    # assert velocities[dataset_name]["radial x4 - Estimated"].shape == (1, 3, 3)
 
 
 def test_mean_velocities():
