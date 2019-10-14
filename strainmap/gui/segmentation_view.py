@@ -292,6 +292,8 @@ class SegmentationTaskView(TaskViewBase):
     def dataset_changed(self, *args):
         """Updates the GUI when a new dataset is chosen."""
         dataset = self.datasets_var.get()
+        self.images = self.get_data_to_segment(dataset)
+        self.update_state(dataset)
 
         self.fig.actions_manager.ScrollFrames.clear()
         for ax in self.fig.axes:
@@ -302,17 +304,15 @@ class SegmentationTaskView(TaskViewBase):
         self.ax_mag.images.clear()
         self.ax_vel.images.clear()
 
-        self.plot_images(dataset)
+        self.plot_images()
         self.plot_segments(dataset)
         self.plot_zero_angle(dataset)
         self.plot_markers()
 
-        self.update_state(dataset)
         self.fig.canvas.draw_idle()
 
-    def plot_images(self, dataset):
+    def plot_images(self):
         """Plot or updates the images in the figure, if they already exist."""
-        self.images = self.get_data_to_segment(dataset)
         self.pbar.config(maximum=self.images["mag"].shape[0] - 1)
 
         self.ax_mag.imshow(
