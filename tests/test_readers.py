@@ -140,9 +140,15 @@ def test_read_data_structure(tmpdir, segmented_data):
 
 def test_from_relative_paths(tmpdir):
     from strainmap.models.readers import from_relative_paths
+    from pathlib import Path
 
-    master = "/home/data/my_file.h5"
-    expected = ["/home", "/home/data", "/home/data/cars", "/home/data/cars/Tesla"]
+    master = Path("home/data/my_file.h5").resolve()
+    expected = [
+        str(Path("home").resolve()),
+        str(Path("home/data").resolve()),
+        str(Path("home/data/cars").resolve()),
+        str(Path("home/data/cars/Tesla").resolve()),
+    ]
     paths = [b"..", b".", b"cars", b"cars/Tesla"]
     actual = from_relative_paths(master, paths)
 

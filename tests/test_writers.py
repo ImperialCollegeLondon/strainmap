@@ -100,9 +100,15 @@ def test_write_hdf5_file(segmented_data, tmpdir):
 
 def test_to_relative_paths():
     from strainmap.models.writers import to_relative_paths
+    from pathlib import Path
 
-    master = "/home/data/my_file.h5"
-    paths = ["/home", "/home/data", "/home/data/cars", "/home/data/cars/Tesla"]
+    master = Path("home/data/my_file.h5").resolve()
+    paths = [
+        str(Path("home").resolve()),
+        str(Path("home/data").resolve()),
+        str(Path("home/data/cars").resolve()),
+        str(Path("home/data/cars/Tesla").resolve()),
+    ]
     expected = [b"..", b".", b"cars", b"cars/Tesla"]
     actual = to_relative_paths(master, paths)
 
