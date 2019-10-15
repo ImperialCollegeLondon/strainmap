@@ -191,7 +191,11 @@ def compare_dicts(one, two):
         if isinstance(value, dict) and isinstance(two[key], dict):
             equal = compare_dicts(value, two[key]) and equal
         elif not isinstance(value, dict) and not isinstance(two[key], dict):
-            equal = (np.array(value) == np.array(two[key])).all() and equal
+            if (
+                len(value) != len(two[key])
+                or not (np.array(value) == np.array(two[key])).all()
+            ):
+                return False
         else:
             return False
 
