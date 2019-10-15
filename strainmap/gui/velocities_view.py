@@ -118,22 +118,22 @@ class VelocitiesTaskView(TaskViewBase):
         # Sign reversal frame
         reversal_frame = ttk.Labelframe(control, text="Reverse sign:")
         reversal_frame.rowconfigure(0, weight=1)
+        z = ttk.Checkbutton(
+            reversal_frame,
+            text="Z",
+            variable=self.reverse_vel_var[2],
+            command=self.reversal_checked,
+        )
         x = ttk.Checkbutton(
             reversal_frame,
-            text="x",
+            text="X",
             variable=self.reverse_vel_var[0],
             command=self.reversal_checked,
         )
         y = ttk.Checkbutton(
             reversal_frame,
-            text="y",
+            text="Y",
             variable=self.reverse_vel_var[1],
-            command=self.reversal_checked,
-        )
-        z = ttk.Checkbutton(
-            reversal_frame,
-            text="z",
-            variable=self.reverse_vel_var[2],
             command=self.reversal_checked,
         )
         self.update_vel_btn = ttk.Button(
@@ -156,9 +156,9 @@ class VelocitiesTaskView(TaskViewBase):
         for i, table in enumerate(self.param_tables):
             table.grid(row=0, column=i, sticky=tk.NSEW, padx=5)
         reversal_frame.grid(row=0, column=98, rowspan=2, sticky=tk.NSEW, padx=5)
-        x.grid(row=0, column=0, sticky=tk.NSEW, padx=5)
-        y.grid(row=0, column=1, sticky=tk.NSEW, padx=5)
-        z.grid(row=0, column=2, sticky=tk.NSEW, padx=5)
+        z.grid(row=0, column=0, sticky=tk.NSEW, padx=5)
+        x.grid(row=0, column=1, sticky=tk.NSEW, padx=5)
+        y.grid(row=0, column=2, sticky=tk.NSEW, padx=5)
         self.update_vel_btn.grid(row=1, column=0, columnspan=3, sticky=tk.NSEW, padx=5)
         export_btn.grid(row=0, column=99, sticky=tk.NSEW, padx=5)
 
@@ -174,7 +174,7 @@ class VelocitiesTaskView(TaskViewBase):
                 self.switch_velocity()
         else:
             self.populate_bg_box(current)
-            self.initialise_velocities(current)
+            self.calculate_velocities(current)
 
     def bg_changed(self, *args):
         """When the background is changed, new velocities need to be calculated."""
@@ -182,12 +182,17 @@ class VelocitiesTaskView(TaskViewBase):
         dataset = self.datasets_var.get()
         existing_vels = self.data.velocities[dataset].keys()
         if not any([bg in vel_label for vel_label in existing_vels]):
-            self.initialise_velocities(dataset)
+            self.calculate_velocities(dataset)
 
     def recalculate_velocities(self):
         """Recalculate velocities after a sign reversal."""
         self.reverse_status = tuple(var.get() for var in self.reverse_vel_var)
         self.update_vel_btn.state(["disabled"])
+        dataset = self.datasets_var.get()
+        existing_vels = self.data.velocities[dataset].keys()
+        existing_bg = {vel_label.split(" - ")[-1] for vel_label in existing_vels}
+        for bg in existing_bg:
+            self.calculate_velocities(dataset, bg=bg)
 
     def reversal_checked(self):
         """Enables/disables de update velocities button if amy sign reversal changes."""
@@ -335,15 +340,16 @@ class VelocitiesTaskView(TaskViewBase):
 
         self.bg_var.set(self.velocities_var.get().split(" - ")[-1])
 
-    @trigger_event(name="calculate_velocities")
-    def initialise_velocities(self, dataset):
-        """Calculate pre-defined velocities if there are none for the chosen dataset."""
+    @trigger_event
+    def calculate_velocities(self, dataset, bg=None):
+        """Calculate pre-defined velocities for the chosen dataset."""
         return dict(
             data=self.data,
             dataset_name=dataset,
             global_velocity=True,
             angular_regions=[6, 24],
-            bg=self.bg_var.get(),
+            bg=self.bg_var.get() if bg is None else bg,
+            sign_reversal=self.reverse_status,
         )
 
     @trigger_event(name="export_velocity")
@@ -395,7 +401,7 @@ class VelocitiesTaskView(TaskViewBase):
             else:
                 self.switch_velocity()
         else:
-            self.initialise_velocities(current)
+            self.calculate_velocities(current)
 
     def clear_widgets(self):
         """ Clear widgets after removing the data. """

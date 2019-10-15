@@ -448,11 +448,11 @@ def cylindrical_projection(
         ... )
         >>> proj3d.shape
         (10, 10, 3)
-        >>> np.allclose(proj3d[:, :, 0], 1)
+        >>> np.allclose(proj3d[:, :, 1], 1)
         True
-        >>> np.allclose(proj3d[:, :, 1], 0)
+        >>> np.allclose(proj3d[:, :, 2], 0)
         True
-        >>> np.allclose(proj3d[:, :, 2], z)
+        >>> np.allclose(proj3d[:, :, 0], z)
         True
     """
     origin = np.array(origin)
@@ -476,7 +476,7 @@ def cylindrical_projection(
             image_axes=image_axes,
         )
         return np.concatenate(
-            (result, np.take(field, (2,), axis=component_axis)), axis=component_axis
+            (np.take(field, (2,), axis=component_axis), result), axis=component_axis
         )
 
     x = np.arange(0, field.shape[image_axes[0]], dtype=int)[None, :] - origin[0]

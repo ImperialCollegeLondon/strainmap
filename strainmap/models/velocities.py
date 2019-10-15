@@ -36,6 +36,7 @@ def scale_phase(
     dataset_name: Text,
     bg: str = "Estimated",
     swap=False,
+    sign_reversal=(False, False, False),
     scale=1 / 4096,
 ):
     """Prepare the phases, scaling them and substracting the phantom, if needed."""
@@ -56,6 +57,10 @@ def scale_phase(
 
     if swap:
         phase[0], phase[1] = phase[1], phase[0].copy()
+
+    phase[0] *= (-1) ** sign_reversal[0]
+    phase[1] *= (-1) ** sign_reversal[1]
+    phase[2] *= (-1) ** sign_reversal[2]
 
     return phase
 
@@ -121,11 +126,12 @@ def calculate_velocities(
     angular_regions: Sequence[int] = (),
     radial_regions: Sequence[int] = (),
     bg: str = "Estimated",
+    sign_reversal: Tuple[bool, bool, bool] = (False, False, False),
 ):
     """Calculates the velocity of the chosen dataset and regions."""
     bg = bg if bg in data.bg_files else "Estimated"
     swap, signs = image_orientation(data.data_files[dataset_name]["PhaseZ"][0])
-    phase = scale_phase(data, dataset_name, bg, swap)
+    phase = scale_phase(data, dataset_name, bg, swap, sign_reversal)
     masks, origin = global_masks_and_origin(
         outer=data.segments[dataset_name]["epicardium"],
         inner=data.segments[dataset_name]["endocardium"],

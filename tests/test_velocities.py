@@ -56,7 +56,7 @@ def test_transform_to_cylindrical():
     velocities = transform_to_cylindrical(cartvel, masks, origin)
 
     assert velocities.shape == cartvel.shape
-    assert velocities[2] == approx(cartvel[2])
+    assert velocities[0] == approx(cartvel[2])
 
     num = np.sum(masks[None, :, :, :], axis=(2, 3))
     bulk = np.sum(cartvel * masks[None, :, :, :], axis=(2, 3)) / num
