@@ -132,6 +132,7 @@ def velocities_angular_segments(
             nsegments=ang, origin=origin, theta0=theta0, shape=cylindrical.shape[2:]
         ).transpose((2, 0, 1))
         velocities[label] = masked_means(cylindrical, region_labels * mask, axes=(2, 3))
+        velocities[label] = substract_estimated_bg(velocities[label], bg=bg)
         masks[label] = region_labels * mask
 
     return velocities, masks
@@ -169,6 +170,7 @@ def velocities_radial_segments(
                 cylindrical[:, i, :, :], masks[label][-1], axes=(1, 2)
             )
 
+        velocities[label] = substract_estimated_bg(velocities[label], bg=bg)
         masks[label] = np.array(masks[label])
 
     return velocities, masks
