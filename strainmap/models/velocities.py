@@ -34,7 +34,7 @@ def find_theta0(zero_angle: np.ndarray):
 def scale_phase(
     data: StrainMapData,
     dataset_name: Text,
-    phantom: bool = False,
+    bg: str = "Estimated",
     swap=False,
     scale=1 / 4096,
 ):
@@ -44,12 +44,9 @@ def scale_phase(
     )[dataset_name]
     phase = images.phase * scale
 
-    if len(data.bg_files) > 0 and phantom:
+    if bg != "Estimated":
         phantom_phase = (
-            images_to_numpy(
-                read_all_images({dataset_name: data.bg_files[dataset_name]})
-            )[dataset_name].phase
-            * scale
+            images_to_numpy(read_all_images({bg: data.bg_files[bg]}))[bg].phase * scale
         )
 
     else:
@@ -123,12 +120,12 @@ def calculate_velocities(
     global_velocity: bool = True,
     angular_regions: Sequence[int] = (),
     radial_regions: Sequence[int] = (),
-    phantom: bool = True,
+    bg: str = "Estimated",
 ):
     """Calculates the velocity of the chosen dataset and regions."""
-    phantom = len(data.bg_files) > 0 and phantom
+    bg = bg if bg in data.bg_files else "Estimated"
     swap, signs = image_orientation(data.data_files[dataset_name]["PhaseZ"][0])
-    phase = scale_phase(data, dataset_name, phantom, swap)
+    phase = scale_phase(data, dataset_name, bg, swap)
     masks, origin = global_masks_and_origin(
         outer=data.segments[dataset_name]["epicardium"],
         inner=data.segments[dataset_name]["endocardium"],
@@ -139,7 +136,6 @@ def calculate_velocities(
         transform_to_cylindrical(phase, masks, origin)
         * (sensitivity * signs)[:, None, None, None]
     )
-    bg = {True: "Phantom", False: "Estimated"}[phantom]
     data.masks[dataset_name][f"cylindrical - {bg}"] = cylindrical
 
     vel_labels = []

@@ -30,7 +30,8 @@ class VelocitiesTaskView(TaskViewBase):
         self.datasets_var = tk.StringVar(value="")
         self.velocities_frame = None
         self.velocities_var = tk.StringVar(value="")
-        self.phantom_var = tk.BooleanVar(value=True)
+        self.bg_box = None
+        self.bg_var = tk.StringVar(value="Estimated")
         self.plot = None
         self.regional_fig = None
         self.param_tables = []
@@ -75,8 +76,6 @@ class VelocitiesTaskView(TaskViewBase):
         dataset_frame = ttk.Labelframe(control, text="Datasets:")
         dataset_frame.columnconfigure(0, weight=1)
         dataset_frame.rowconfigure(0, weight=1)
-        dataset_frame.rowconfigure(1, weight=1)
-
         self.datasets_box = ttk.Combobox(
             master=dataset_frame,
             textvariable=self.datasets_var,
@@ -85,10 +84,22 @@ class VelocitiesTaskView(TaskViewBase):
         )
         self.datasets_box.bind("<<ComboboxSelected>>", self.dataset_changed)
 
+        # Background frame
+        bg_frame = ttk.Labelframe(control, text="Background:")
+        bg_frame.columnconfigure(0, weight=1)
+        bg_frame.rowconfigure(0, weight=1)
+        self.bg_box = ttk.Combobox(
+            master=bg_frame,
+            textvariable=self.bg_var,
+            values=["Estimated"],
+            state="readonly",
+        )
+        self.bg_box.bind("<<ComboboxSelected>>", self.bg_changed)
+
         # Velocities frame
         self.velocities_frame = ttk.Labelframe(control, text="Velocities:")
-        self.velocities_frame.columnconfigure(0, weight=1)
-        self.velocities_frame.columnconfigure(1, weight=1)
+        for i in range(3):
+            self.velocities_frame.rowconfigure(i, weight=1)
 
         # Information frame
         marker_lbl = (("PS", "PD", "PAS"), ("PS", "PD", "PAS"), ("PC1", "PC2", "PC3"))
@@ -125,9 +136,8 @@ class VelocitiesTaskView(TaskViewBase):
             variable=self.reverse_vel_var[2],
             command=self.reversal_checked,
         )
-
         self.update_vel_btn = ttk.Button(
-            control,
+            reversal_frame,
             text="Update velocities",
             command=self.recalculate_velocities,
             state="disabled",
@@ -140,20 +150,22 @@ class VelocitiesTaskView(TaskViewBase):
         info.grid(sticky=tk.NSEW, padx=10, pady=10)
         dataset_frame.grid(row=0, column=0, sticky=tk.NSEW, padx=5)
         self.datasets_box.grid(row=0, column=0, sticky=tk.NSEW)
+        bg_frame.grid(row=1, column=0, sticky=tk.NSEW, padx=5)
+        self.bg_box.grid(row=0, column=0, sticky=tk.NSEW)
         self.velocities_frame.grid(row=0, column=3, rowspan=3, sticky=tk.NSEW, padx=5)
         for i, table in enumerate(self.param_tables):
             table.grid(row=0, column=i, sticky=tk.NSEW, padx=5)
-        reversal_frame.grid(row=0, column=98, sticky=tk.NSEW, padx=5)
+        reversal_frame.grid(row=0, column=98, rowspan=2, sticky=tk.NSEW, padx=5)
         x.grid(row=0, column=0, sticky=tk.NSEW, padx=5)
         y.grid(row=0, column=1, sticky=tk.NSEW, padx=5)
         z.grid(row=0, column=2, sticky=tk.NSEW, padx=5)
-        self.update_vel_btn.grid(row=1, column=98, sticky=tk.NSEW, padx=5)
+        self.update_vel_btn.grid(row=1, column=0, columnspan=3, sticky=tk.NSEW, padx=5)
         export_btn.grid(row=0, column=99, sticky=tk.NSEW, padx=5)
 
     def dataset_changed(self, *args):
         """Updates the view when the selected dataset is changed."""
         current = self.datasets_var.get()
-        if self.data.velocities[current]:
+        if self.data.velocities.get(current):
             self.images = self.data.get_images(current, "MagZ")
             self.update_velocities_list(current)
             if self.marker_moved_info:
@@ -161,10 +173,21 @@ class VelocitiesTaskView(TaskViewBase):
             else:
                 self.switch_velocity()
         else:
+            self.populate_bg_box(current)
             self.initialise_velocities(current)
 
+    def bg_changed(self, *args):
+        """When the background is changed, new velocities need to be calculated."""
+        bg = self.bg_var.get()
+        dataset = self.datasets_var.get()
+        existing_vels = self.data.velocities[dataset].keys()
+        if not any([bg in vel_label for vel_label in existing_vels]):
+            self.initialise_velocities(dataset)
+
     def recalculate_velocities(self):
-        """Updates or create velocities after changing bg method or signed reversal."""
+        """Recalculate velocities after a sign reversal."""
+        self.reverse_status = tuple(var.get() for var in self.reverse_vel_var)
+        self.update_vel_btn.state(["disabled"])
 
     def reversal_checked(self):
         """Enables/disables de update velocities button if amy sign reversal changes."""
@@ -189,6 +212,7 @@ class VelocitiesTaskView(TaskViewBase):
             self.scroll()
             self.draw()
 
+        self.bg_var.set(self.velocities_var.get().split(" - ")[-1])
         self.populate_tables()
 
     def marker_moved(self):
@@ -309,6 +333,8 @@ class VelocitiesTaskView(TaskViewBase):
         if self.velocities_var.get() not in velocities and len(velocities) > 0:
             self.velocities_var.set(list(velocities.keys())[0])
 
+        self.bg_var.set(self.velocities_var.get().split(" - ")[-1])
+
     @trigger_event(name="calculate_velocities")
     def initialise_velocities(self, dataset):
         """Calculate pre-defined velocities if there are none for the chosen dataset."""
@@ -317,7 +343,7 @@ class VelocitiesTaskView(TaskViewBase):
             dataset_name=dataset,
             global_velocity=True,
             angular_regions=[6, 24],
-            phantom=self.phantom_var.get(),
+            bg=self.bg_var.get(),
         )
 
     @trigger_event(name="export_velocity")
@@ -337,18 +363,32 @@ class VelocitiesTaskView(TaskViewBase):
             vel_label=self.velocities_var.get(),
         )
 
-    def update_widgets(self):
-        """ Updates widgets after an update in the data variable. """
-        # Include only datasets with a segmentation
+    def populate_dataset_box(self):
+        """Populate the dataset box with available segmentations."""
         values = list(self.data.segments.keys())
         current = self.datasets_var.get()
         self.datasets_box.config(values=values)
         if current not in values:
             current = values[0]
-        self.datasets_var.set(current)
+            self.datasets_var.set(current)
+        return current
+
+    def populate_bg_box(self, dataset):
+        """Populates the background box and try to match the bg choice by name."""
+        values = ["Estimated"] + list(self.data.bg_files.keys())
+        self.bg_box.config(values=values)
+        if dataset in values:
+            self.bg_var.set(dataset)
+        else:
+            self.bg_var.set(values[0])
+
+    def update_widgets(self):
+        """ Updates widgets after an update in the data variable. """
+        current = self.populate_dataset_box()
+        self.populate_bg_box(current)
         self.images = self.data.get_images(current, "MagZ")
 
-        if self.data.velocities[current]:
+        if self.data.velocities.get(current):
             self.update_velocities_list(current)
             if self.marker_moved_info:
                 self.marker_moved()
