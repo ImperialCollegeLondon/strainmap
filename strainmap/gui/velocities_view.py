@@ -36,6 +36,13 @@ class VelocitiesTaskView(TaskViewBase):
         self.param_tables = []
         self.current_region = 0
         self.images = None
+        self.update_vel_btn = None
+        self.reverse_vel_var = (
+            tk.BooleanVar(value=False),
+            tk.BooleanVar(value=False),
+            tk.BooleanVar(value=False),
+        )
+        self.reverse_status = (False, False, False)
 
         # Figure-related variables
         self.fig = None
@@ -97,18 +104,51 @@ class VelocitiesTaskView(TaskViewBase):
                 self.param_tables[-1].heading(l, text=l)
                 self.param_tables[-1].column(l, width=80, stretch=tk.YES, anchor=tk.E)
 
+        # Sign reversal frame
+        reversal_frame = ttk.Labelframe(control, text="Reverse sign:")
+        reversal_frame.rowconfigure(0, weight=1)
+        x = ttk.Checkbutton(
+            reversal_frame,
+            text="x",
+            variable=self.reverse_vel_var[0],
+            command=self.reversal_checked,
+        )
+        y = ttk.Checkbutton(
+            reversal_frame,
+            text="y",
+            variable=self.reverse_vel_var[1],
+            command=self.reversal_checked,
+        )
+        z = ttk.Checkbutton(
+            reversal_frame,
+            text="z",
+            variable=self.reverse_vel_var[2],
+            command=self.reversal_checked,
+        )
+
+        self.update_vel_btn = ttk.Button(
+            control,
+            text="Update velocities",
+            command=self.recalculate_velocities,
+            state="disabled",
+        )
         export_btn = ttk.Button(control, text="Export to Excel", command=self.export)
 
         # Grid all the widgets
-        control.grid(sticky=tk.NSEW, padx=10, pady=5)
+        control.grid(sticky=tk.NSEW, padx=10, pady=10)
         self.visualise_frame.grid(sticky=tk.NSEW, padx=10, pady=5)
         info.grid(sticky=tk.NSEW, padx=10, pady=10)
-        dataset_frame.grid(row=0, column=0, sticky=tk.NSEW, padx=5, pady=5)
+        dataset_frame.grid(row=0, column=0, sticky=tk.NSEW, padx=5)
         self.datasets_box.grid(row=0, column=0, sticky=tk.NSEW)
-        self.velocities_frame.grid(row=0, column=1, sticky=tk.NSEW, padx=5)
+        self.velocities_frame.grid(row=0, column=3, rowspan=3, sticky=tk.NSEW, padx=5)
         for i, table in enumerate(self.param_tables):
             table.grid(row=0, column=i, sticky=tk.NSEW, padx=5)
-        export_btn.grid(row=0, column=99, sticky=tk.NSEW)
+        reversal_frame.grid(row=0, column=98, sticky=tk.NSEW, padx=5)
+        x.grid(row=0, column=0, sticky=tk.NSEW, padx=5)
+        y.grid(row=0, column=1, sticky=tk.NSEW, padx=5)
+        z.grid(row=0, column=2, sticky=tk.NSEW, padx=5)
+        self.update_vel_btn.grid(row=1, column=98, sticky=tk.NSEW, padx=5)
+        export_btn.grid(row=0, column=99, sticky=tk.NSEW, padx=5)
 
     def dataset_changed(self, *args):
         """Updates the view when the selected dataset is changed."""
@@ -123,11 +163,16 @@ class VelocitiesTaskView(TaskViewBase):
         else:
             self.initialise_velocities(current)
 
-    def add_velocity(self):
-        """Opens a dialog to add a new velocity to the list of velocities."""
+    def recalculate_velocities(self):
+        """Updates or create velocities after changing bg method or signed reversal."""
 
-    def remove_velocity(self):
-        """Opens a dialog to remove the selected velocity to the list of velocities."""
+    def reversal_checked(self):
+        """Enables/disables de update velocities button if amy sign reversal changes."""
+        status = tuple(var.get() for var in self.reverse_vel_var)
+        if status != self.reverse_status:
+            self.update_vel_btn.state(["!disabled"])
+        else:
+            self.update_vel_btn.state(["disabled"])
 
     def switch_velocity(self):
         """Switch the plot to show the chosen velocity."""
