@@ -1,6 +1,7 @@
-from setuptools import setup
+from setuptools import setup, find_packages
 
 tests_require = ["pytest", "pytest-cov", "pytest-flake8", "pytest-mypy", "pytest-mock"]
+pyinstaller = ["pyinstaller"]
 
 setup(
     name="StrainMap",
@@ -20,6 +21,8 @@ setup(
         "openpyxl",
         "h5py",
     ],
+    package_data={"strainmap.gui": ["icons/*.gif", "icons/CREDITS.md"]},
+    packages=find_packages("."),
     tests_require=tests_require,
-    extras_require={"dev": tests_require},
+    extras_require={"dev": tests_require + pyinstaller},
 )

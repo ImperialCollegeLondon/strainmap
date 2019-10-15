@@ -1,43 +1,89 @@
-strategy:
-  matrix:
-    linux:
-      imageName: ubuntu-16.04
-    windows:
-      imageName: windows-2019
-      pythonVersion: 3.7
-    umac:
-      imageName: macos-10.13
-      pythonVersion: 3.7
+stages:
+  - stage: testing
+    jobs:
+      - job: Linux
+        pool: {vmImage: ubuntu-16.04}
+        steps:
+          - script: |
+              docker build -t strainmap-test .
+              docker run --rm -v $(pwd)/reports:/usr/src/app/reports strainmap-test
+            displayName: "Run tests in Linux"
+          - task: PublishTestResults@2 
+            inputs:
+              testResultsFiles: "**/junit.xml"
+            condition: succeededOrFailed()
+          - task: PublishCodeCoverageResults@1
+            inputs:
+              codeCoverageTool: Cobertura
+              summaryFileLocation: "**/coverage.xml"
+              reportDirectory: "**/coverage"
+            condition: succeededOrFailed()
 
-pool:
-  vmImage: $(imageName)
+      - job: MacOS
+        pool: {vmImage: macos-10.13}
+        steps:
+          - task: UsePythonVersion@0
+            inputs:
+              versionSpec: 3.7
+          - script: |
+              pip install -e .
+              python setup.py -q test
+          - task: PublishTestResults@2 
+            inputs:
+              testResultsFiles: "**/junit.xml"
+            condition: succeededOrFailed()
+          - task: PublishCodeCoverageResults@1
+            inputs:
+              codeCoverageTool: Cobertura
+              summaryFileLocation: "**/coverage.xml"
+              reportDirectory: "**/coverage"
+            condition: succeededOrFailed()
 
-steps:
-  - script: |
-      docker build -t strainmap-test .
-      docker run --rm -v $(pwd)/reports:/usr/src/app/reports strainmap-test
-    condition: eq(variables['Agent.OS'], 'Linux')
-    displayName: "Run tests in Linux"
+      - job: Windows
+        pool: {vmImage: windows-2019}
+        steps:
+          - task: UsePythonVersion@0
+            inputs:
+              versionSpec: 3.7
+          - script: |
+              pip install -e .
+              python setup.py -q test
+          - task: PublishTestResults@2 
+            inputs:
+              testResultsFiles: "**/junit.xml"
+            condition: succeededOrFailed()
+          - task: PublishCodeCoverageResults@1
+            inputs:
+              codeCoverageTool: Cobertura
+              summaryFileLocation: "**/coverage.xml"
+              reportDirectory: "**/coverage"
+            condition: succeededOrFailed()
 
-  - task: UsePythonVersion@0
-    inputs:
-      versionSpec: $(pythonVersion)
-    condition: ne(variables['Agent.OS'], 'Linux')
+  - stage: buildStandAloneApp
+    jobs:
+      - job: MacOS
+        pool: {vmImage: macos-10.13}
+        steps:
+          - task: UsePythonVersion@0
+            inputs:
+              versionSpec: 3.7
+          - script: pip install -e .[dev]
+          - script: |
+              pyinstaller strain.mac.spec
+              cd dist
+              hdiutil create ./StrainMap.dmg -srcfolder strain.app -ov
+          - task: PublishBuildArtifacts@1
+            inputs:
+              pathToPublish: "dist/StrainMap.dmg"
 
-  - script: |
-      pip install -e .
-      python setup.py -q test
-    condition: ne(variables['Agent.OS'], 'Linux')
-    displayName: "Run tests in Windows and macOS"
-
-  - task: PublishTestResults@2
-    inputs:
-      testResultsFiles: "**/junit.xml"
-    condition: succeededOrFailed()
-
-  - task: PublishCodeCoverageResults@1
-    inputs:
-      codeCoverageTool: Cobertura
-      summaryFileLocation: "**/coverage.xml"
-      reportDirectory: "**/coverage"
-    condition: succeededOrFailed()
+      - job: Windows
+        pool: {vmImage: windows-2019}
+        steps:
+          - task: UsePythonVersion@0
+            inputs:
+              versionSpec: 3.7
+          - script: pip install -e .[dev]
+          - script: pyinstaller strain.windows.spec
+          - task: PublishBuildArtifacts@1
+            inputs:
+              pathToPublish: "dist/strain.exe"
