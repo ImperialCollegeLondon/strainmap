@@ -1,4 +1,4 @@
-from typing import Text, Tuple, Optional, Sequence
+from typing import Text, Tuple, Optional, Sequence, Dict, Union, List
 import numpy as np
 from scipy import ndimage
 
@@ -45,7 +45,7 @@ def scale_phase(
     )[dataset_name]
     phase = images.phase * scale
 
-    if bg != "Estimated":
+    if bg in data.bg_files:
         phantom_phase = (
             images_to_numpy(read_all_images({bg: data.bg_files[bg]}))[bg].phase * scale
         )
@@ -96,27 +96,82 @@ def transform_to_cylindrical(phase: np.ndarray, masks: np.ndarray, origin: np.nd
     return cylindrical
 
 
+def substract_estimated_bg(velocities: np.ndarray, bg: str = "Estimated"):
+    """Subtracts the estimated background to the velocities, if required."""
+    if bg != "Estimated":
+        return velocities
+
+    return velocities - velocities.mean(axis=2)[:, :, None]
+
+
+def velocity_global(cylindrical: np.ndarray, mask: np.ndarray, bg: str):
+    """Calculate the global velocity."""
+    label = f"global - {bg}"
+    velocities = {label: masked_means(cylindrical, mask, axes=(2, 3))}
+    velocities[label] = substract_estimated_bg(velocities[label], bg=bg)
+    masks = {label: mask}
+    return velocities, masks
+
+
+def velocities_angular_segments(
+    cylindrical: np.ndarray,
+    zero_angle: np.ndarray,
+    origin: np.ndarray,
+    mask: np.ndarray,
+    bg: str,
+    regions: Sequence[int] = (6,),
+):
+    """Calculate the angular velocities for angular regions."""
+    theta0 = find_theta0(zero_angle)
+
+    velocities: Dict[str, np.ndarray] = dict()
+    masks: Dict[str, np.ndarray] = dict()
+    for ang in regions:
+        label = f"angular x{ang} - {bg}"
+        region_labels = angular_segments(
+            nsegments=ang, origin=origin, theta0=theta0, shape=cylindrical.shape[2:]
+        ).transpose((2, 0, 1))
+        velocities[label] = masked_means(cylindrical, region_labels * mask, axes=(2, 3))
+        masks[label] = region_labels * mask
+
+    return velocities, masks
+
+
 def velocities_radial_segments(
     cylindrical: np.ndarray,
-    outer: np.ndarray,
-    inner: np.ndarray,
+    segments: Dict[str, np.ndarray],
     origin: np.ndarray,
-    segments: int = 3,
+    bg: str,
+    regions: Sequence[int] = (3,),
 ):
-    """Calculates the regional velocities of the chosen dataset for radial regions."""
-    velocities = np.zeros((segments, cylindrical.shape[0], cylindrical.shape[1]))
+    """Calculates the regional velocities for radial regions."""
+    outer = segments["epicardium"]
+    inner = segments["endocardium"]
 
-    for i in range(cylindrical.shape[1]):
-        labels = radial_segments(
-            outer=Contour(outer[i].T, shape=cylindrical.shape[2:]),
-            inner=Contour(inner[i].T, shape=cylindrical.shape[2:]),
-            nr=segments,
-            shape=cylindrical.shape[2:],
-            center=origin[i],
-        )
-        velocities[:, :, i] = masked_means(cylindrical[:, i, :, :], labels, axes=(1, 2))
+    velocities: Dict[str, np.ndarray] = dict()
+    masks: Dict[str, Union[list, np.ndarray]] = dict()
+    for nr in regions:
+        label = f"radial x{nr} - {bg}"
+        velocities[label] = np.zeros((nr, cylindrical.shape[0], cylindrical.shape[1]))
+        masks[label] = []
 
-    return velocities
+        for i in range(cylindrical.shape[1]):
+            masks[label].append(
+                radial_segments(
+                    outer=Contour(outer[i].T, shape=cylindrical.shape[2:]),
+                    inner=Contour(inner[i].T, shape=cylindrical.shape[2:]),
+                    nr=nr,
+                    shape=cylindrical.shape[2:],
+                    center=origin[i],
+                )
+            )
+            velocities[label][:, :, i] = masked_means(
+                cylindrical[:, i, :, :], masks[label][-1], axes=(1, 2)
+            )
+
+        masks[label] = np.array(masks[label])
+
+    return velocities, masks
 
 
 def calculate_velocities(
@@ -129,47 +184,47 @@ def calculate_velocities(
     sign_reversal: Tuple[bool, bool, bool] = (False, False, False),
 ):
     """Calculates the velocity of the chosen dataset and regions."""
-    bg = bg if bg in data.bg_files else "Estimated"
     swap, signs = image_orientation(data.data_files[dataset_name]["PhaseZ"][0])
     phase = scale_phase(data, dataset_name, bg, swap, sign_reversal)
-    masks, origin = global_masks_and_origin(
+    mask, origin = global_masks_and_origin(
         outer=data.segments[dataset_name]["epicardium"],
         inner=data.segments[dataset_name]["endocardium"],
         img_shape=phase.shape[2:],
     )
     sensitivity = velocity_sensitivity(data.data_files[dataset_name]["PhaseZ"][0]) * 2
     cylindrical = (
-        transform_to_cylindrical(phase, masks, origin)
+        transform_to_cylindrical(phase, mask, origin)
         * (sensitivity * signs)[:, None, None, None]
     )
     data.masks[dataset_name][f"cylindrical - {bg}"] = cylindrical
 
-    vel_labels = []
+    vel_labels: List[str] = []
     if global_velocity:
-        data.velocities[dataset_name][f"global - {bg}"] = masked_means(
-            cylindrical, masks, axes=(2, 3)
-        )
-        data.masks[dataset_name][f"global - {bg}"] = masks
-        vel_labels.append(f"global - {bg}")
+        velocities, masks = velocity_global(cylindrical, mask, bg)
+        data.velocities[dataset_name].update(velocities)
+        data.masks[dataset_name].update(masks)
+        vel_labels += list(velocities.keys())
 
-    for ang in angular_regions:
-        theta0 = find_theta0(data.zero_angle[dataset_name])
-        labels = angular_segments(
-            nsegments=ang, origin=origin, theta0=theta0, shape=cylindrical.shape[2:]
-        ).transpose((2, 0, 1))
-        data.velocities[dataset_name][f"angular x{ang} - {bg}"] = masked_means(
-            cylindrical, labels * masks, axes=(2, 3)
+    if angular_regions:
+        velocities, masks = velocities_angular_segments(
+            cylindrical,
+            data.zero_angle[dataset_name],
+            origin,
+            mask,
+            bg,
+            angular_regions,
         )
-        data.masks[dataset_name][f"angular x{ang} - {bg}"] = labels * masks
-        vel_labels.append(f"angular x{ang} - {bg}")
+        data.velocities[dataset_name].update(velocities)
+        data.masks[dataset_name].update(masks)
+        vel_labels += list(velocities.keys())
 
-    for rad in radial_regions:
-        epi = data.segments[dataset_name]["epicardium"]
-        endo = data.segments[dataset_name]["endocardium"]
-        data.velocities[dataset_name][
-            f"radial x{rad} - {bg}"
-        ] = velocities_radial_segments(cylindrical, epi, endo, origin, rad)
-        vel_labels.append(f"radial x{rad} - {bg}")
+    if radial_regions:
+        velocities, masks = velocities_radial_segments(
+            cylindrical, data.segments[dataset_name], origin, bg, radial_regions
+        )
+        data.velocities[dataset_name].update(velocities)
+        data.masks[dataset_name].update(masks)
+        vel_labels += list(velocities.keys())
 
     data = initialise_markers(data, dataset_name, vel_labels)
 
@@ -281,7 +336,7 @@ def marker_pc3(comp, es):
 
     value = comp[idx]
     if abs(value) < 0.5:
-        idx = np.nan
+        idx = 0
         value = np.nan
 
     return idx, value, 0

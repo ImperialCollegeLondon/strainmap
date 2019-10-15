@@ -381,7 +381,7 @@ class VelocitiesTaskView(TaskViewBase):
 
     def populate_bg_box(self, dataset):
         """Populates the background box and try to match the bg choice by name."""
-        values = ["Estimated"] + list(self.data.bg_files.keys())
+        values = ["Estimated", "None"] + list(self.data.bg_files.keys())
         self.bg_box.config(values=values)
         if dataset in values:
             self.bg_var.set(dataset)

@@ -169,7 +169,7 @@ def test_marker_pc3():
     idx = np.argmin(abs(vel[1:25] - 10 * np.sin(3 * np.pi / 2))) + 1
     expected = (idx, vel[idx], 0)
     assert marker_pc3(vel, es) == expected
-    assert marker_pc3(vel / 100, es) == (np.nan, np.nan, 0)
+    assert marker_pc3(vel / 100, es) == (0, np.nan, 0)
 
 
 def test_normalised_times(markers):
