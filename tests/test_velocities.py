@@ -74,6 +74,72 @@ def test_transform_to_cylindrical():
     assert expected == approx(velocities)
 
 
+def test_substract_estimated_bg():
+    from strainmap.models.velocities import substract_estimated_bg
+    import numpy as np
+
+    a = np.ones((3, 5, 5))
+    assert substract_estimated_bg(a).mean(axis=2) == approx(0)
+    assert substract_estimated_bg(a, bg="None").mean(axis=2) == approx(1)
+
+
+def test_velocity_global():
+    from strainmap.models.velocities import velocity_global
+    import numpy as np
+
+    cylindrical = np.random.random((3, 5, 48, 58))
+    mask = np.random.randint(0, 2, (5, 48, 58))
+
+    actual_v, actual_m = velocity_global(cylindrical, mask, "Estimated")
+
+    assert "global - Estimated" in actual_v
+    assert "global - Estimated" in actual_m
+    assert actual_v["global - Estimated"].shape == (1, 3, 5)
+    assert actual_m["global - Estimated"] == approx(mask)
+
+
+def test_velocities_angular():
+    from strainmap.models.velocities import velocities_angular
+    import numpy as np
+
+    cylindrical = np.random.random((3, 5, 48, 58))
+    mask = np.random.randint(0, 2, (5, 48, 58))
+    origin = np.ones((5, 2)) * 20
+    zero_angle = np.ones((5, 2, 2)) * 20
+    zero_angle[:, :, 1] += 5
+
+    actual_v, actual_m = velocities_angular(
+        cylindrical, zero_angle, origin, mask, "Estimated", regions=(6,)
+    )
+    assert len(list(actual_v.keys())) == len(list(actual_m.keys())) == 1
+    assert list(actual_v.values())[0].shape == (6, 3, 5)
+    assert list(actual_m.values())[0].shape == (5, 48, 58)
+    assert set(list(actual_m.values())[0].flatten()) == set(range(7))
+
+
+def test_velocities_radial():
+    from strainmap.models.velocities import velocities_radial
+    from strainmap.models.contour_mask import Contour
+    import numpy as np
+
+    N = 5
+    cylindrical = np.random.random((3, N, 48, 58))
+    origin = np.ones((N, 2)) * 20
+    s = Contour.circle((20, 20), 5, shape=(48, 58))
+    segments = {
+        "endocardium": np.tile(s.xy.T, (N, 1, 1)),
+        "epicardium": np.tile(s.dilate(2).xy.T, (N, 1, 1)),
+    }
+
+    actual_v, actual_m = velocities_radial(
+        cylindrical, segments, origin, "Estimated", regions=(4,)
+    )
+    assert len(list(actual_v.keys())) == len(list(actual_m.keys())) == 1
+    assert list(actual_v.values())[0].shape == (4, 3, 5)
+    assert list(actual_m.values())[0].shape == (5, 48, 58)
+    assert set(list(actual_m.values())[0].flatten()) == set(range(5))
+
+
 def test_calculate_velocities(segmented_data):
     from strainmap.models.velocities import calculate_velocities
 

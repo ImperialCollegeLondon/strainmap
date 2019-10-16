@@ -95,12 +95,14 @@ def transform_to_cylindrical(phase: np.ndarray, masks: np.ndarray, origin: np.nd
     return cylindrical
 
 
-def substract_estimated_bg(velocities: np.ndarray, bg: str = "Estimated"):
+def substract_estimated_bg(
+    velocities: np.ndarray, bg: str = "Estimated", axis: int = 2
+):
     """Subtracts the estimated background to the velocities, if required."""
     if bg != "Estimated":
         return velocities
 
-    return velocities - velocities.mean(axis=2)[:, :, None]
+    return velocities - velocities.mean(axis=axis)[:, :, None]
 
 
 def velocity_global(cylindrical: np.ndarray, mask: np.ndarray, bg: str):
