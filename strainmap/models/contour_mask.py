@@ -247,16 +247,16 @@ def radial_segments(
          [0 0 0 0 0 0 0 3 0 0 0 0 0 0 0]
          [0 0 0 0 3 2 2 2 3 3 3 0 0 0 0]
          [0 0 0 3 1 1 1 1 2 2 3 3 0 0 0]
-         [0 0 3 1 0 0 0 0 1 2 2 3 3 0 0]
+         [0 0 3 1 0 0 0 0 1 1 2 3 3 0 0]
          [0 0 2 0 0 0 0 0 0 1 2 2 3 0 0]
          [0 0 2 0 0 0 0 0 0 1 2 2 3 0 0]
          [0 0 2 0 0 0 0 0 0 1 2 2 3 3 0]
          [0 0 2 1 0 0 0 0 1 1 2 2 3 0 0]
          [0 0 3 2 1 1 1 1 1 2 2 3 3 0 0]
-         [0 0 3 2 2 2 1 1 2 2 2 3 3 0 0]
+         [0 0 3 3 2 2 1 1 2 2 2 3 3 0 0]
          [0 0 0 3 3 2 2 2 2 3 3 3 0 0 0]
          [0 0 0 0 3 3 3 3 3 3 3 0 0 0 0]
-         [0 0 0 0 0 0 0 3 0 0 0 0 0 0 0]
+         [0 0 0 0 0 0 0 0 0 0 0 0 0 0 0]
          [0 0 0 0 0 0 0 0 0 0 0 0 0 0 0]]
 
         Note that it is an error if the outer and inner boundaries are swapped:
@@ -280,9 +280,9 @@ def radial_segments(
 
     thetas = np.arctan2(y, x)
     r = np.sqrt(x * x + y * y)
-    polar = cart2pol(outer.xy - origin)
+    polar = cart2pol(outer.xy - origin[::-1])
     outer_pol = np.interp(thetas, polar.theta, polar.r, period=2 * np.pi)
-    polar = cart2pol(inner.xy - origin)
+    polar = cart2pol(inner.xy - origin[::-1])
     inner_pol = np.interp(thetas, polar.theta, polar.r, period=2 * np.pi)
 
     # ensure numerical noise doesn't push the inner contour to the outside

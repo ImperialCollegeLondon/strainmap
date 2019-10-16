@@ -58,21 +58,20 @@ def scale_phase(
     if swap:
         phase[0], phase[1] = phase[1], phase[0].copy()
 
-    phase[0] *= (-1) ** sign_reversal[0]
-    phase[1] *= (-1) ** sign_reversal[1]
-    phase[2] *= (-1) ** sign_reversal[2]
+    for i, r in enumerate(sign_reversal):
+        phase[i] *= (-1) ** r
 
     return phase
 
 
 def global_masks_and_origin(outer, inner, img_shape):
     """Finds the global masks and origin versus time frame."""
-    masks = [
-        contour_diff(outer[i].T, inner[i].T, img_shape).T for i in range(len(outer))
-    ]
-    origin = list(map(ndimage.measurements.center_of_mass, masks))
+    masks = np.array(
+        [contour_diff(o.T, i.T, img_shape).T for o, i in zip(outer, inner)]
+    )
+    origin = np.array([*map(ndimage.measurements.center_of_mass, masks)])
 
-    return np.array(masks), np.array(origin)
+    return masks, origin
 
 
 def transform_to_cylindrical(phase: np.ndarray, masks: np.ndarray, origin: np.ndarray):
@@ -113,7 +112,7 @@ def velocity_global(cylindrical: np.ndarray, mask: np.ndarray, bg: str):
     return velocities, masks
 
 
-def velocities_angular_segments(
+def velocities_angular(
     cylindrical: np.ndarray,
     zero_angle: np.ndarray,
     origin: np.ndarray,
@@ -138,7 +137,7 @@ def velocities_angular_segments(
     return velocities, masks
 
 
-def velocities_radial_segments(
+def velocities_radial(
     cylindrical: np.ndarray,
     segments: Dict[str, np.ndarray],
     origin: np.ndarray,
@@ -209,7 +208,7 @@ def calculate_velocities(
         vel_labels += list(velocities.keys())
 
     if angular_regions:
-        velocities, masks = velocities_angular_segments(
+        velocities, masks = velocities_angular(
             cylindrical,
             data.zero_angle[dataset_name],
             origin,
@@ -222,7 +221,7 @@ def calculate_velocities(
         vel_labels += list(velocities.keys())
 
     if radial_regions:
-        velocities, masks = velocities_radial_segments(
+        velocities, masks = velocities_radial(
             cylindrical, data.segments[dataset_name], origin, bg, radial_regions
         )
         data.velocities[dataset_name].update(velocities)
