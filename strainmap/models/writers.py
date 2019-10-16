@@ -24,6 +24,7 @@ def velocity_to_xlsx(filename, data, dataset, vel_label):
     params_ws = wb.active
     params_ws.title = "Parameters"
     add_metadata(data.metadata(dataset), background, params_ws)
+    add_sign_reversal(data.sign_reversal, params_ws)
 
     for l in labels:
         title = l.split(" - ")[0]
@@ -37,10 +38,17 @@ def velocity_to_xlsx(filename, data, dataset, vel_label):
 def add_metadata(metadata, background, ws):
     """Prepares the metadata of interest to be exported."""
     ws.column_dimensions["A"].width = 15
-    for i, key in enumerate(metadata):
-        ws.append((key, "", metadata[key]))
+    for key, value in metadata.items():
+        ws.append((key, "", value))
 
     ws.append(("Background Correction", "", background))
+
+
+def add_sign_reversal(sign_reversal, ws):
+    """Adds the sign reversal information."""
+    ws.append(("Sign reversal",))
+    for i, key in enumerate(("X", "Y", "Z")):
+        ws.append(("", key, str(sign_reversal[i])))
 
 
 def add_markers(markers, ws, title=None):
@@ -120,6 +128,8 @@ def write_hdf5_file(data, filename: Union[h5py.File, str]):
     for s in data.__dict__.keys():
         if s == "strainmap_file":
             continue
+        elif s == "sign_reversal":
+            f.create_dataset(s, data=getattr(data, s))
         elif "files" in s:
             paths_to_hdf5(f, f.filename, s, getattr(data, s))
         else:

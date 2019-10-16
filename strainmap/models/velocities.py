@@ -183,7 +183,7 @@ def calculate_velocities(
     angular_regions: Sequence[int] = (),
     radial_regions: Sequence[int] = (),
     bg: str = "Estimated",
-    sign_reversal: Tuple[bool, bool, bool] = (False, False, False),
+    sign_reversal: Tuple[bool, ...] = (False, False, False),
 ):
     """Calculates the velocity of the chosen dataset and regions."""
     swap, signs = image_orientation(data.data_files[dataset_name]["PhaseZ"][0])
@@ -199,6 +199,7 @@ def calculate_velocities(
         * (sensitivity * signs)[:, None, None, None]
     )
     data.masks[dataset_name][f"cylindrical - {bg}"] = cylindrical
+    data.sign_reversal = sign_reversal
 
     vel_labels: List[str] = []
     if global_velocity:
@@ -235,6 +236,7 @@ def calculate_velocities(
         *[["masks", dataset_name, vel] for vel in vel_labels],
         *[["markers", dataset_name, vel] for vel in vel_labels],
         ["masks", dataset_name, f"cylindrical - {bg}"],
+        ["sign_reversal"],
     )
 
     return data

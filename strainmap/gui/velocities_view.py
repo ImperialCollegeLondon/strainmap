@@ -118,12 +118,6 @@ class VelocitiesTaskView(TaskViewBase):
         # Sign reversal frame
         reversal_frame = ttk.Labelframe(control, text="Reverse sign:")
         reversal_frame.rowconfigure(0, weight=1)
-        z = ttk.Checkbutton(
-            reversal_frame,
-            text="Z",
-            variable=self.reverse_vel_var[2],
-            command=self.reversal_checked,
-        )
         x = ttk.Checkbutton(
             reversal_frame,
             text="X",
@@ -134,6 +128,12 @@ class VelocitiesTaskView(TaskViewBase):
             reversal_frame,
             text="Y",
             variable=self.reverse_vel_var[1],
+            command=self.reversal_checked,
+        )
+        z = ttk.Checkbutton(
+            reversal_frame,
+            text="Z",
+            variable=self.reverse_vel_var[2],
             command=self.reversal_checked,
         )
         self.update_vel_btn = ttk.Button(
@@ -156,9 +156,9 @@ class VelocitiesTaskView(TaskViewBase):
         for i, table in enumerate(self.param_tables):
             table.grid(row=0, column=i, sticky=tk.NSEW, padx=5)
         reversal_frame.grid(row=0, column=98, rowspan=2, sticky=tk.NSEW, padx=5)
-        z.grid(row=0, column=0, sticky=tk.NSEW, padx=5)
-        x.grid(row=0, column=1, sticky=tk.NSEW, padx=5)
-        y.grid(row=0, column=2, sticky=tk.NSEW, padx=5)
+        x.grid(row=0, column=0, sticky=tk.NSEW, padx=5)
+        y.grid(row=0, column=1, sticky=tk.NSEW, padx=5)
+        z.grid(row=0, column=2, sticky=tk.NSEW, padx=5)
         self.update_vel_btn.grid(row=1, column=0, columnspan=3, sticky=tk.NSEW, padx=5)
         export_btn.grid(row=0, column=99, sticky=tk.NSEW, padx=5)
 
@@ -186,7 +186,6 @@ class VelocitiesTaskView(TaskViewBase):
 
     def recalculate_velocities(self):
         """Recalculate velocities after a sign reversal."""
-        self.reverse_status = tuple(var.get() for var in self.reverse_vel_var)
         self.update_vel_btn.state(["disabled"])
         dataset = self.datasets_var.get()
         existing_vels = self.data.velocities[dataset].keys()
@@ -196,8 +195,7 @@ class VelocitiesTaskView(TaskViewBase):
 
     def reversal_checked(self):
         """Enables/disables de update velocities button if amy sign reversal changes."""
-        status = tuple(var.get() for var in self.reverse_vel_var)
-        if status != self.reverse_status:
+        if tuple(var.get() for var in self.reverse_vel_var) != self.data.sign_reversal:
             self.update_vel_btn.state(["!disabled"])
         else:
             self.update_vel_btn.state(["disabled"])
@@ -349,7 +347,7 @@ class VelocitiesTaskView(TaskViewBase):
             global_velocity=True,
             angular_regions=[6, 24],
             bg=self.bg_var.get() if bg is None else bg,
-            sign_reversal=self.reverse_status,
+            sign_reversal=tuple(var.get() for var in self.reverse_vel_var),
         )
 
     @trigger_event(name="export_velocity")
@@ -388,10 +386,16 @@ class VelocitiesTaskView(TaskViewBase):
         else:
             self.bg_var.set(values[0])
 
+    def update_sign_reversal(self):
+        """Updates the sign reversal information with data.sign_reversal info."""
+        for i, var in enumerate(self.data.sign_reversal):
+            self.reverse_vel_var[i].set(bool(var))
+
     def update_widgets(self):
         """ Updates widgets after an update in the data variable. """
         current = self.populate_dataset_box()
         self.populate_bg_box(current)
+        self.update_sign_reversal()
         self.images = self.data.get_images(current, "MagZ")
 
         if self.data.velocities.get(current):
