@@ -59,7 +59,7 @@ def scale_phase(
         phase[0], phase[1] = phase[1], phase[0].copy()
 
     for i, r in enumerate(sign_reversal):
-        phase[i] *= 1 if r else -1 
+        phase[i] *= 1 if r else -1
 
     return phase
 
