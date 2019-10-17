@@ -224,7 +224,7 @@ class DataTaskView(TaskViewBase):
         return dicom_frame
 
     @trigger_event
-    def load_data(self):
+    def load_data(self, data=None):
         """Loads new data into StrainMap"""
         path = tk.filedialog.askdirectory(
             title="Select DATA directory", initialdir=self.current_dir
@@ -233,8 +233,10 @@ class DataTaskView(TaskViewBase):
         output = {}
         if path != "":
             self.current_dir = path
-            output = dict(data_files=path)
+            output = dict(data=data, data_files=path)
             self.data_folder.set(self.current_dir)
+        elif data is not None:
+            output = dict(data_files="no_path")
 
         return output
 
@@ -393,8 +395,7 @@ class DataTaskView(TaskViewBase):
                 message="Data paths found in the StrainMap data file do not exist."
                 "Choose an alternative folder for the data DICOM files.",
             )
-            self.load_data()
-            return
+            self.load_data(data=self.data)
 
         values = list(self.data.bg_files.keys())
         if len(values) > 0 and len(self.data.bg_files[values[0]]["MagZ"]) == 0:
@@ -404,7 +405,6 @@ class DataTaskView(TaskViewBase):
                 "Choose an alternative folder for the Phantom data.",
             )
             self.load_phantom()
-            return
 
         self.nametowidget("control.chooseOutputFile")["state"] = "enable"
         self.create_data_selector()
