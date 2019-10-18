@@ -234,7 +234,10 @@ def read_data_structure(g, structure):
 def from_relative_paths(master: str, paths: List[bytes]) -> list:
     """Transform a list of relative paths to a given master to absolute paths."""
     root = Path(master).parent
-    return [str((root / PurePosixPath(p.decode())).resolve()) for p in paths]
+    return [
+        str((root / PurePosixPath(p.decode().replace("\\", "/"))).resolve())
+        for p in paths
+    ]
 
 
 def paths_from_hdf5(g, master, structure):
