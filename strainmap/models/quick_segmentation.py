@@ -181,7 +181,7 @@ def simple_segmentation(
     """
     segmenter = Segmenter.setup(model=model, ffilter=ffilter, propagator=propagator)
 
-    shape = data.shape[:2]
+    shape = data.shape[-2:]
 
     if initial.shape[1] != 2:
         initial = initial.T
