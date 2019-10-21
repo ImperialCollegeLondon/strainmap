@@ -109,13 +109,9 @@ def test_to_relative_paths():
         str(Path("home/data/cars").resolve()),
         str(Path("home/data/cars/Tesla").resolve()),
     ]
-    expected = [b"..", b".", b"cars", str(Path("cars/Tesla")).encode("ascii", "ignore")]
+    expected = [b"..", b".", b"cars", b"cars/Tesla"]
     actual = to_relative_paths(master, paths)
     assert actual == expected
-
-    paths[0] = ""
-    actual = to_relative_paths(master, paths)
-    assert actual == []
 
 
 def test_paths_to_hdf5(strainmap_data, tmpdir):
