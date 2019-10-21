@@ -31,25 +31,37 @@ from strainmap.models.contour_mask import Contour
 from strainmap.models.quick_segmentation import simple_segmentation
 
 # Load the data of interest
-path = Path(__file__).parent.parent / "tests/data/SUB1/MR024001000.dcm"
+path = Path(__file__).parent.parent / "tests/data/SUB1/MR012001002.dcm"
 image = pydicom.dcmread(str(path)).pixel_array
 
 # Create the initial contour
-init = Contour.circle(center=(310, 280), radius=60, shape=image.shape).xy
+init_out = Contour.circle(center=(305, 275), radius=60, shape=image.shape).xy
+init_in = Contour.circle(center=(310, 280), radius=40, shape=image.shape).xy
 
 # Choose the models and parameters. See 'simple_segmentation' for a description of
 # all the options
 model = "AC"
 ffilter = "gaussian"
 propagator = "initial"
-model_params = dict(alpha=0.01, beta=10, gamma=0.002)
-filter_params = dict(sigma=1)
+model_params = dict(alpha=0.0098, beta=15.5, gamma=0.0022)
+filter_params = dict(sigma=2)
 propagator_params = dict()
 
 # Launch the segmentation process
-segment = simple_segmentation(
+outer = simple_segmentation(
     data=image,
-    initial=init,
+    initial=init_out,
+    model=model,
+    ffilter=ffilter,
+    propagator=propagator,
+    model_params=model_params,
+    filter_params=filter_params,
+    propagator_params=propagator_params,
+)
+
+inner = simple_segmentation(
+    data=image,
+    initial=init_in,
     model=model,
     ffilter=ffilter,
     propagator=propagator,
@@ -60,7 +72,10 @@ segment = simple_segmentation(
 
 # Plot the results
 plt.imshow(image)
-plt.plot(*init.T, "r", label="Initial")
-plt.plot(*segment, "y", label="Segmented")
+plt.plot(*init_out.T, "r", label="Initial Out")
+plt.plot(*init_in.T, "r--", label="Initial In")
+plt.plot(*outer, "y", label="Segmented Outer")
+plt.plot(*inner, "y--", label="Segmented Inner")
+
 plt.legend()
 plt.show()
