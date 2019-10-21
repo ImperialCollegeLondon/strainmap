@@ -257,6 +257,39 @@ class DataTaskView(TaskViewBase):
 
         return result
 
+    @trigger_event(name="load_data")
+    def open_existing_file(self):
+        """ Opens an existing StrainMap file."""
+        path = tk.filedialog.askopenfilename(
+            title="Select existing StrainMap file (HDF5 format)",
+            initialdir=self.current_dir,
+            filetypes=(("StrainMap files", "*.h5"),),
+        )
+
+        output = {}
+        if path != "":
+            output = dict(strainmap_file=path)
+            self.output_file.set(path)
+
+        return output
+
+    @trigger_event(name="load_data")
+    def select_output_file(self):
+        """ Selects an output file in which to store the current data."""
+        path = tk.filedialog.asksaveasfilename(
+            title="Introduce new StrainMap filename.",
+            initialdir=self.current_dir,
+            filetypes=(("StrainMap files", "*.h5"),),
+            defaultextension="h5",
+        )
+
+        output = {}
+        if path != "":
+            output = dict(data=self.data, strainmap_file=path)
+            self.output_file.set(path)
+
+        return output
+
     @trigger_event
     def clear_data(self):
         """ Clears all data from memory."""
@@ -266,16 +299,6 @@ class DataTaskView(TaskViewBase):
             icon="warning",
         )
         return {"clear": clear}
-
-    def open_existing_file(self):
-        """ Opens an existing StrainMap file."""
-        messagebox.showinfo(message="This functionality is not implemented, yet.")
-        self.output_file.set("")
-
-    def select_output_file(self):
-        """ Selects an output file in which to store the analysis."""
-        messagebox.showinfo(message="This functionality is not implemented, yet.")
-        self.output_file.set("")
 
     def get_data_information(self):
         """ Gets some information related to the available datasets, frames, etc. """
@@ -358,13 +381,32 @@ class DataTaskView(TaskViewBase):
 
     def update_widgets(self):
         """ Updates widgets after an update in the data variable. """
+        values = list(self.data.data_files.keys())
+        if len(values) > 0 and len(self.data.data_files[values[0]]["MagZ"]) == 0:
+            messagebox.showwarning(
+                "DICOM data not found!",
+                message="Data paths found in the StrainMap data file do not exist."
+                "Choose an alternative folder for the data DICOM files.",
+            )
+            self.load_data()
+            return
+
+        values = list(self.data.bg_files.keys())
+        if len(values) > 0 and len(self.data.bg_files[values[0]]["MagZ"]) == 0:
+            messagebox.showwarning(
+                "PHANTOM data not found!",
+                message="Phantom data paths found in the file do not exist either!"
+                "Choose an alternative folder for the Phantom data.",
+            )
+            self.load_phantom()
+            return
+
         self.nametowidget("control.chooseOutputFile")["state"] = "enable"
         self.create_data_selector()
         self.create_data_viewer()
         self.update_visualization()
 
-        values = list(self.data.bg_files.keys())
-        if self.phantom_check.get() and len(values) > 0:
+        if len(values) > 0:
             self.phantoms_box["values"] = values
             self.phantoms_box.current(0)
             self.phantoms_box.grid(column=0, sticky=tk.NSEW, padx=5, pady=5)

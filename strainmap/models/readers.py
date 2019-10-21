@@ -1,5 +1,6 @@
 import glob
 import re
+import os
 from collections import OrderedDict
 from dataclasses import dataclass
 from pathlib import Path
@@ -8,6 +9,8 @@ from typing import ClassVar, Dict, Iterable, List, Mapping, Optional, Text, Tupl
 import pydicom
 from nibabel.nicom import csareader as csar
 import numpy as np
+import h5py
+
 
 VAR_OFFSET = {"MagZ": 0, "PhaseZ": 1, "MagX": 2, "PhaseX": 3, "MagY": 4, "PhaseY": 5}
 
@@ -185,8 +188,7 @@ def images_to_numpy(data: Mapping) -> Mapping[Text, ImageTimeSeries]:
 
 
 def read_strainmap_file(filename: Union[Path, Text]):
-    """Reads a StrainMap file with existing information on previous
-    segmentations."""
+    """Reads a StrainMap file with existing information on previous segmentations."""
     if str(filename).endswith(".h5"):
         return read_h5_file(filename)
     elif str(filename).endswith(".m"):
@@ -195,11 +197,52 @@ def read_strainmap_file(filename: Union[Path, Text]):
         raise RuntimeError("File type not recognised by StrainMap.")
 
 
-def read_h5_file(filename: Union[Path, Text]):
-    """Reads a HDF5 file."""
-    raise NotImplementedError
-
-
 def read_matlab_file(filename: Union[Path, Text]):
     """Reads a Matlab file."""
     raise NotImplementedError
+
+
+def read_h5_file(filename: Union[Path, Text]):
+    """Reads a HDF5 file."""
+    from .strainmap_data_model import factory
+
+    sm_file = h5py.File(filename, "a")
+
+    data = factory()
+
+    for s in data.__dict__.keys():
+        if s == "strainmap_file":
+            data.strainmap_file = sm_file
+        elif "files" in s:
+            paths_from_hdf5(getattr(data, s), filename, sm_file[s])
+        else:
+            read_data_structure(getattr(data, s), sm_file[s])
+
+    return data
+
+
+def read_data_structure(g, structure):
+    """Recursively populates the StrainData object with the contents of the hdf5 file.
+    """
+    for n, struct in structure.items():
+        if isinstance(struct, h5py.Group):
+            read_data_structure(g[n], struct)
+        else:
+            g[n] = struct[...]
+
+
+def from_relative_paths(master: str, paths: List[bytes]) -> list:
+    """Transform a list of relative paths to a given master to absolute paths."""
+    root = Path(master).parent
+    return [str((root / Path(p.decode())).resolve()) for p in paths]
+
+
+def paths_from_hdf5(g, master, structure):
+    """Populates the StrainData object with the paths contained in the hdf5 file.
+    """
+    for n, struct in structure.items():
+        if isinstance(struct, h5py.Group):
+            paths_from_hdf5(g[n], master, struct)
+        else:
+            filenames = from_relative_paths(master, struct[...])
+            g[n] = filenames if all(map(os.path.isfile, filenames)) else []

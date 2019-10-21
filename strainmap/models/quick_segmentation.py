@@ -64,6 +64,12 @@ def find_segmentation(
     data.segments[dataset_name]["endocardium"][frame] = results["endocardium"]
     data.segments[dataset_name]["epicardium"][frame] = results["epicardium"]
 
+    data.save(
+        ["segments", dataset_name, "endocardium"],
+        ["segments", dataset_name, "epicardium"],
+        ["zero_angle", dataset_name],
+    )
+
     return data
 
 
@@ -115,6 +121,13 @@ def update_segmentation(
     else:
         data.segments.pop(dataset_name, None)
         data.zero_angle.pop(dataset_name, None)
+
+    data.save(
+        ["segments", dataset_name, "endocardium"],
+        ["segments", dataset_name, "epicardium"],
+        ["zero_angle", dataset_name],
+    )
+
     return data
 
 

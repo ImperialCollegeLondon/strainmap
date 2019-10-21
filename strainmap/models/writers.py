@@ -1,5 +1,9 @@
 import openpyxl as xlsx
+import h5py
 import numpy as np
+from typing import List, Union
+import os
+from pathlib import Path
 
 
 def velocity_to_xlsx(filename, data, dataset, vel_label):
@@ -19,7 +23,7 @@ def velocity_to_xlsx(filename, data, dataset, vel_label):
 
     params_ws = wb.active
     params_ws.title = "Parameters"
-    add_metadata(data, dataset, background, params_ws)
+    add_metadata(data.metadata(dataset), background, params_ws)
 
     for l in labels:
         title = l.split(" - ")[0]
@@ -30,20 +34,13 @@ def velocity_to_xlsx(filename, data, dataset, vel_label):
     wb.close()
 
 
-def add_metadata(data, dataset, background, ws):
+def add_metadata(metadata, background, ws):
     """Prepares the metadata of interest to be exported."""
-    patient_data = data.read_dicom_file_tags(dataset, "MagZ", 0)
-    metadata = {
-        "Patient Name": str(patient_data.get("PatientName", "")),
-        "Patient DOB": str(patient_data.get("PatientBirthDate", "")),
-        "Date of Scan": str(patient_data.get("StudyDate", "")),
-        "Dataset": dataset,
-        "Background Correction": background,
-    }
-
     ws.column_dimensions["A"].width = 15
     for i, key in enumerate(metadata):
         ws.append((key, "", metadata[key]))
+
+    ws.append(("Background Correction", "", background))
 
 
 def add_markers(markers, ws, title=None):
@@ -112,3 +109,69 @@ def add_velocity(velocity, ws):
                 start_row=1, start_column=row, end_row=1, end_column=row + reg - 1
             )
             row = row + reg + 1
+
+
+def write_hdf5_file(data, filename: Union[h5py.File, str]):
+    """Writes the contents of the StrainMap data object to a HDF5 file."""
+    f = filename if isinstance(filename, h5py.File) else h5py.File(filename, "a")
+
+    metadata_to_hdf5(f, data.metadata())
+
+    for s in data.__dict__.keys():
+        if s == "strainmap_file":
+            continue
+        elif "files" in s:
+            paths_to_hdf5(f, f.filename, s, getattr(data, s))
+        else:
+            write_data_structure(f, s, getattr(data, s))
+
+
+def metadata_to_hdf5(g, metadata):
+    """"""
+    for key, value in metadata.items():
+        g.attrs[key] = value
+
+
+def write_data_structure(g, name, structure):
+    """Recursively populates the hdf5 file with a nested dictionary.
+
+    If any dataset already exist, it gets updated with the new values, otherwise it
+    is created.
+    """
+    group = g[name] if name in g else g.create_group(name, track_order=True)
+
+    for n, struct in structure.items():
+        if isinstance(struct, dict):
+            write_data_structure(group, n, struct)
+        elif n in group:
+            group[n][...] = struct
+        else:
+            group.create_dataset(n, data=struct, track_order=True)
+
+
+def to_relative_paths(master: str, paths: List[str]) -> list:
+    """Finds the relative paths of "paths" with respect to "master"."""
+    root = Path(master).parent
+    try:
+        filenames = [os.path.relpath(p, root).encode("ascii", "ignore") for p in paths]
+    except ValueError:
+        filenames = []
+
+    return filenames
+
+
+def paths_to_hdf5(
+    g: Union[h5py.File, h5py.Group], master: str, name: str, structure: dict
+) -> None:
+    """Saves a dictionary with paths as values after calculating the relative path."""
+    group = g[name] if name in g else g.create_group(name, track_order=True)
+
+    for n, struct in structure.items():
+        if isinstance(struct, dict):
+            paths_to_hdf5(group, master, n, struct)
+        elif n in group:
+            paths = to_relative_paths(master, struct)
+            group[n][...] = paths
+        else:
+            paths = to_relative_paths(master, struct)
+            group.create_dataset(n, data=paths, track_order=True)
