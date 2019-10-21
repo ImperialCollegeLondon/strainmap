@@ -116,6 +116,8 @@ class MainWindow(tk.Tk):
 
     def __init__(self):
         super().__init__()
+        ttk.Style().theme_use("clam")
+
         self.title("StrainMap")
         self.minsize(1280, 720)
         self.geometry("{}x{}+0+0".format(*self.maxsize()))

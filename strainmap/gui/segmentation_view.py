@@ -99,7 +99,6 @@ class SegmentationTaskView(TaskViewBase):
         dataset_frame = ttk.Labelframe(control, text="Datasets:")
         dataset_frame.columnconfigure(0, weight=1)
         dataset_frame.rowconfigure(0, weight=1)
-        dataset_frame.rowconfigure(1, weight=1)
 
         self.datasets_box = ttk.Combobox(
             master=dataset_frame,
