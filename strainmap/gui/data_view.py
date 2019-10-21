@@ -71,7 +71,7 @@ class DataTaskView(TaskViewBase):
             text="Resume analysis",
             command=self.open_existing_file,
             width=25,
-        ).grid(sticky=tk.NSEW, columnspan=2)
+        ).grid(sticky=tk.NSEW, columnspan=2, pady=5)
 
         ttk.Button(
             master=self.control,
@@ -81,11 +81,13 @@ class DataTaskView(TaskViewBase):
             state="disabled",
         ).grid(sticky=tk.NSEW, columnspan=2)
 
-        ttk.Label(master=self.control, text="Data folder: ").grid(row=4, sticky=tk.W)
+        ttk.Label(master=self.control, text="Data folder: ").grid(
+            row=4, sticky=tk.W, pady=5
+        )
 
         ttk.Entry(
             master=self.control, textvariable=self.data_folder, state="disabled"
-        ).grid(row=4, column=1, sticky=tk.NSEW)
+        ).grid(row=4, column=1, sticky=tk.NSEW, pady=5)
 
         ttk.Label(master=self.control, text="Output file: ").grid(row=5, sticky=tk.W)
 

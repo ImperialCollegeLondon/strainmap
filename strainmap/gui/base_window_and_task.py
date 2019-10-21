@@ -68,7 +68,6 @@ class TaskViewBase(ABC, ttk.Frame):
             master=root.button_frame,
             text=button_text,
             image=self.image,
-            padding=5,
             compound="top",
             command=self.tkraise,
         )
@@ -116,7 +115,10 @@ class MainWindow(tk.Tk):
 
     def __init__(self):
         super().__init__()
-        ttk.Style().theme_use("clam")
+        style = ttk.Style()
+        style.theme_use("clam")
+        style.configure("TLabelframe", borderwidth=0)
+        style.configure("TProgressbar", foreground="#f8d568", background="#f8d568")
 
         self.title("StrainMap")
         self.minsize(1280, 720)
