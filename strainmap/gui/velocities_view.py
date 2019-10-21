@@ -98,9 +98,7 @@ class VelocitiesTaskView(TaskViewBase):
         self.bg_box.bind("<<ComboboxSelected>>", self.bg_changed)
 
         # Velocities frame
-        self.velocities_frame = ttk.Labelframe(
-            control, text="Velocities:", borderwidth=0
-        )
+        self.velocities_frame = ttk.Labelframe(control, text="Velocities:")
         for i in range(3):
             self.velocities_frame.rowconfigure(i, weight=1)
 
