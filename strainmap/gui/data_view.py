@@ -276,8 +276,13 @@ class DataTaskView(TaskViewBase):
     @trigger_event(name="load_data")
     def select_output_file(self):
         """ Selects an output file in which to store the current data."""
+        meta = self.data.metadata()
+        name, date = [meta[key] for key in ["Patient Name", "Date of Scan"]]
+        init = f"{name}_{date}.h5"
+
         path = tk.filedialog.asksaveasfilename(
             title="Introduce new StrainMap filename.",
+            initialfile=init,
             initialdir=self.current_dir,
             filetypes=(("StrainMap files", "*.h5"),),
             defaultextension="h5",

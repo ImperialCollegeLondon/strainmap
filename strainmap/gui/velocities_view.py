@@ -353,11 +353,16 @@ class VelocitiesTaskView(TaskViewBase):
     @trigger_event(name="export_velocity")
     def export(self, *args):
         """Exports the current velocity data to an XLSX file."""
+        meta = self.data.metadata()
+        name, date = [meta[key] for key in ["Patient Name", "Date of Scan"]]
+        init = f"{name}_{date}_{self.datasets_var.get()}.xlsx"
 
         filename = tk.filedialog.asksaveasfilename(
-            defaultextension="xlsx", filetypes=[("Excel files", "*.xlsx")]
+            initialfile=init,
+            defaultextension="xlsx",
+            filetypes=[("Excel files", "*.xlsx")],
         )
-        if filename is None:
+        if filename == "":
             return dict()
 
         return dict(
