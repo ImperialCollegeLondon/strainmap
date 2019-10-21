@@ -3,7 +3,7 @@ import h5py
 import numpy as np
 from typing import List, Union
 import os
-from pathlib import PurePosixPath, PurePath
+from pathlib import PurePosixPath, PurePath, Path
 
 
 def velocity_to_xlsx(filename, data, dataset, vel_label):
@@ -154,7 +154,9 @@ def to_relative_paths(master: str, paths: List[str]) -> list:
     try:
         filenames = [
             str(
-                PurePosixPath(os.path.relpath(PurePath(p), PurePath(master).parent))
+                PurePosixPath(
+                    Path(os.path.relpath(PurePath(p), PurePath(master).parent))
+                )
             ).encode("ascii", "ignore")
             for p in paths
         ]
