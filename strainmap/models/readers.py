@@ -3,7 +3,7 @@ import re
 import os
 from collections import OrderedDict
 from dataclasses import dataclass
-from pathlib import Path, PurePosixPath
+from pathlib import Path, PurePosixPath, PurePath
 from typing import ClassVar, Dict, Iterable, List, Mapping, Optional, Text, Tuple, Union
 
 import pydicom
@@ -233,9 +233,8 @@ def read_data_structure(g, structure):
 
 def from_relative_paths(master: str, paths: List[bytes]) -> list:
     """Transform a list of relative paths to a given master to absolute paths."""
-    root = Path(master).parent
     return [
-        str((root / PurePosixPath(p.decode().replace("\\", "/"))).resolve())
+        str((Path(master).parent / PurePath(PurePosixPath(p.decode()))).resolve())
         for p in paths
     ]
 

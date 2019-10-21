@@ -113,10 +113,6 @@ def test_to_relative_paths():
     actual = to_relative_paths(master, paths)
     assert actual == expected
 
-    paths[0] = ""
-    actual = to_relative_paths(master, paths)
-    assert actual == []
-
 
 def test_paths_to_hdf5(strainmap_data, tmpdir):
     from strainmap.models.writers import paths_to_hdf5, to_relative_paths
