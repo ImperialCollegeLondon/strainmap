@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Mapping, Optional, Text, Union
+from typing import Mapping, Optional, Text, Union, Tuple
 from collections import defaultdict
 import numpy as np
 import h5py
@@ -18,6 +18,30 @@ class StrainMapLoadError(Exception):
     pass
 
 
+def compare_dicts(one, two):
+    """Recursive comparison of two (nested) dictionaries with lists and numpy arrays."""
+    if one.keys() != two.keys():
+        return False
+
+    equal = True
+    for key, value in one.items():
+        if isinstance(value, dict) and isinstance(two[key], dict):
+            equal = compare_dicts(value, two[key]) and equal
+        elif not isinstance(value, dict) and not isinstance(two[key], dict):
+            if (
+                len(value) != len(two[key])
+                or not (np.array(value) == np.array(two[key])).all()
+            ):
+                return False
+        else:
+            return False
+
+        if not equal:
+            return False
+
+    return True
+
+
 class StrainMapData(object):
     def __init__(
         self,
@@ -29,6 +53,7 @@ class StrainMapData(object):
         self.data_files = data_files
         self.bg_files = bg_files if bg_files else defaultdict(dict)
         self.strainmap_file = strainmap_file
+        self.sign_reversal: Tuple[bool, ...] = (False, False, False)
         self.segments: dict = defaultdict(dict)
         self.zero_angle: dict = {}
         self.velocities: dict = defaultdict(dict)
@@ -87,6 +112,16 @@ class StrainMapData(object):
                 self.strainmap_file.create_dataset(
                     s, data=reduce(lambda x, y: x[y], keys), track_order=True
                 )
+
+    def __eq__(self, other) -> bool:
+        """Compares two StrainMapData objects.
+
+        The "strainmap_file" attribute is ignored as it might have different values."""
+        equal = self.sign_reversal == other.sign_reversal
+        keys = set(self.__dict__.keys()) - {"sign_reversal", "strainmap_file"}
+        for k in keys:
+            equal = equal and compare_dicts(getattr(self, k), getattr(other, k))
+        return equal
 
 
 def factory(

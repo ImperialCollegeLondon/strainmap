@@ -229,3 +229,18 @@ def velocity(markers):
             velocities[i] += amplitude * np.exp(-(idx - centre) ** 2 / 3)
 
     return velocities
+
+
+@fixture
+def data_with_velocities(segmented_data):
+    from strainmap.models.velocities import calculate_velocities
+    from copy import deepcopy
+
+    dataset_name = list(segmented_data.segments.keys())[0]
+    return calculate_velocities(
+        deepcopy(segmented_data),
+        dataset_name,
+        global_velocity=True,
+        angular_regions=(6,),
+        radial_regions=(4,),
+    )

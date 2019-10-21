@@ -1,7 +1,6 @@
 from pathlib import Path
 from typing import Mapping, Text, Tuple, Union
 from pytest import approx
-import numpy as np
 
 
 def search_in_tree(
@@ -181,30 +180,6 @@ def test_paths_from_hdf5(strainmap_data, tmpdir):
         assert d[dataset_name]["MagX"] == abs_paths
 
 
-def compare_dicts(one, two):
-    """Recursive comparison of two (nested) dictionaries with lists and numpy arrays."""
-    if one.keys() != two.keys():
-        return False
-
-    equal = True
-    for key, value in one.items():
-        if isinstance(value, dict) and isinstance(two[key], dict):
-            equal = compare_dicts(value, two[key]) and equal
-        elif not isinstance(value, dict) and not isinstance(two[key], dict):
-            if (
-                len(value) != len(two[key])
-                or not (np.array(value) == np.array(two[key])).all()
-            ):
-                return False
-        else:
-            return False
-
-        if not equal:
-            return False
-
-    return True
-
-
 def test_read_h5_file(tmpdir, segmented_data):
     from strainmap.models.readers import read_h5_file
     from strainmap.models.writers import write_hdf5_file
@@ -216,10 +191,7 @@ def test_read_h5_file(tmpdir, segmented_data):
     write_hdf5_file(segmented_data, filename)
     new_data = read_h5_file(filename)
 
-    for s in new_data.__dict__.keys():
-        if s == "strainmap_file":
-            continue
-        elif s == "data_files" and str(filename)[0] != abs_paths[0][0]:
-            assert not compare_dicts(getattr(new_data, s), getattr(segmented_data, s))
-        else:
-            assert compare_dicts(getattr(new_data, s), getattr(segmented_data, s))
+    if str(filename)[0] != abs_paths[0][0]:
+        assert segmented_data != new_data
+    else:
+        assert segmented_data == new_data

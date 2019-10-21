@@ -190,11 +190,11 @@ def angular_segments(
         origin = np.array(origin)
 
     if origin.size == 2:
-        x = np.arange(0, shape[0], dtype=int)[None, :] - origin[1]
-        y = np.arange(0, shape[1], dtype=int)[:, None] - origin[0]
+        x = np.arange(0, shape[1], dtype=int)[None, :] - origin[1]
+        y = np.arange(0, shape[0], dtype=int)[:, None] - origin[0]
     else:
-        x = np.arange(0, shape[0], dtype=int)[None, :, None] - origin[:, 1]
-        y = np.arange(0, shape[1], dtype=int)[:, None, None] - origin[:, 0]
+        x = np.arange(0, shape[1], dtype=int)[None, :, None] - origin[:, 1]
+        y = np.arange(0, shape[0], dtype=int)[:, None, None] - origin[:, 0]
 
     theta = np.mod(np.arctan2(y, x) - theta0, 2 * np.pi)
     if not clockwise:
@@ -247,16 +247,16 @@ def radial_segments(
          [0 0 0 0 0 0 0 3 0 0 0 0 0 0 0]
          [0 0 0 0 3 2 2 2 3 3 3 0 0 0 0]
          [0 0 0 3 1 1 1 1 2 2 3 3 0 0 0]
-         [0 0 3 1 0 0 0 0 1 2 2 3 3 0 0]
+         [0 0 3 1 0 0 0 0 1 1 2 3 3 0 0]
          [0 0 2 0 0 0 0 0 0 1 2 2 3 0 0]
          [0 0 2 0 0 0 0 0 0 1 2 2 3 0 0]
          [0 0 2 0 0 0 0 0 0 1 2 2 3 3 0]
          [0 0 2 1 0 0 0 0 1 1 2 2 3 0 0]
          [0 0 3 2 1 1 1 1 1 2 2 3 3 0 0]
-         [0 0 3 2 2 2 1 1 2 2 2 3 3 0 0]
+         [0 0 3 3 2 2 1 1 2 2 2 3 3 0 0]
          [0 0 0 3 3 2 2 2 2 3 3 3 0 0 0]
          [0 0 0 0 3 3 3 3 3 3 3 0 0 0 0]
-         [0 0 0 0 0 0 0 3 0 0 0 0 0 0 0]
+         [0 0 0 0 0 0 0 0 0 0 0 0 0 0 0]
          [0 0 0 0 0 0 0 0 0 0 0 0 0 0 0]]
 
         Note that it is an error if the outer and inner boundaries are swapped:
@@ -275,14 +275,14 @@ def radial_segments(
         shape = outer.shape[0], outer.shape[1]
     nx, ny = shape
 
-    x = np.arange(0, nx, dtype=int)[None, :] - origin[0]
-    y = np.arange(0, ny, dtype=int)[:, None] - origin[1]
+    x = np.arange(0, shape[1], dtype=int)[None, :] - origin[0]
+    y = np.arange(0, shape[0], dtype=int)[:, None] - origin[1]
 
     thetas = np.arctan2(y, x)
     r = np.sqrt(x * x + y * y)
-    polar = cart2pol(outer.xy - origin)
+    polar = cart2pol(outer.xy - origin[::-1])
     outer_pol = np.interp(thetas, polar.theta, polar.r, period=2 * np.pi)
-    polar = cart2pol(inner.xy - origin)
+    polar = cart2pol(inner.xy - origin[::-1])
     inner_pol = np.interp(thetas, polar.theta, polar.r, period=2 * np.pi)
 
     # ensure numerical noise doesn't push the inner contour to the outside
@@ -448,11 +448,11 @@ def cylindrical_projection(
         ... )
         >>> proj3d.shape
         (10, 10, 3)
-        >>> np.allclose(proj3d[:, :, 0], 1)
+        >>> np.allclose(proj3d[:, :, 1], 1)
         True
-        >>> np.allclose(proj3d[:, :, 1], 0)
+        >>> np.allclose(proj3d[:, :, 2], 0)
         True
-        >>> np.allclose(proj3d[:, :, 2], z)
+        >>> np.allclose(proj3d[:, :, 0], z)
         True
     """
     origin = np.array(origin)
@@ -476,7 +476,7 @@ def cylindrical_projection(
             image_axes=image_axes,
         )
         return np.concatenate(
-            (result, np.take(field, (2,), axis=component_axis)), axis=component_axis
+            (np.take(field, (2,), axis=component_axis), result), axis=component_axis
         )
 
     x = np.arange(0, field.shape[image_axes[0]], dtype=int)[None, :] - origin[0]

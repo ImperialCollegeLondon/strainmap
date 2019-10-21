@@ -213,6 +213,8 @@ def read_h5_file(filename: Union[Path, Text]):
     for s in data.__dict__.keys():
         if s == "strainmap_file":
             data.strainmap_file = sm_file
+        elif s == "sign_reversal":
+            data.sign_reversal = tuple(sm_file[s][...])
         elif "files" in s:
             paths_from_hdf5(getattr(data, s), filename, sm_file[s])
         else:
