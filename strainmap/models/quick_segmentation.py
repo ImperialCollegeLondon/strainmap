@@ -28,12 +28,15 @@ def find_segmentation(
     """
     model = "AC"
     model_params = {
-        "endocardium": dict(alpha=0.01, beta=10, gamma=0.002),
-        "epicardium": dict(alpha=0.01, beta=10, gamma=0.002),
+        "endocardium": dict(alpha=0.0098, beta=15.5, gamma=0.0022),
+        "epicardium": dict(alpha=0.0098, beta=15.5, gamma=0.0022),
     }
 
     ffilter = "gaussian"
-    filter_params: Dict[str, Dict] = {"endocardium": dict(), "epicardium": dict()}
+    filter_params: Dict[str, Dict] = {
+        "endocardium": dict(sigma=2),
+        "epicardium": dict(sigma=2),
+    }
 
     propagator = "initial"
     propagator_params: Dict[str, Dict] = {"endocardium": dict(), "epicardium": dict()}
