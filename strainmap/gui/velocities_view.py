@@ -696,9 +696,10 @@ def colour_figure(
     velocities: np.ndarray, labels: tuple, markers_idx: np.ndarray, master: ttk.Frame
 ) -> Figure:
     """Creates the color plots for the regional velocities."""
-    fig, ax = plt.subplots(ncols=3, nrows=1, constrained_layout=True)
+    fig = Figure(constrained_layout=True)
     canvas = FigureCanvasTkAgg(fig, master=master)
     canvas.get_tk_widget().grid(row=0, column=0, sticky=tk.NSEW)
+    ax = fig.subplots(ncols=3, nrows=1)
 
     space = velocities.shape[0] / len(labels)
     lines_pos = np.arange(space, velocities.shape[0], space) - 0.5
