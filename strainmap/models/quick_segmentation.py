@@ -131,7 +131,13 @@ def update_segmentation(
         data.segments.pop(dataset_name, None)
         data.zero_angle.pop(dataset_name, None)
 
-        data.delete(["segments", dataset_name], ["zero_angle", dataset_name])
+        data.delete(
+            ["segments", dataset_name],
+            ["zero_angle", dataset_name],
+            ["velocities", dataset_name],
+            ["masks", dataset_name],
+            ["markers", dataset_name],
+        )
 
     return data
 
