@@ -110,7 +110,7 @@ class VelocitiesTaskView(TaskViewBase):
             self.param_tables[-1].tag_configure("others", background="#FFFFFF")
             self.param_tables[-1]["columns"] = labels
             self.param_tables[-1].heading("#0", text="Region")
-            self.param_tables[-1].column("#0", width=100, stretch=tk.YES)
+            self.param_tables[-1].column("#0", width=110, stretch=tk.YES)
 
             for l in labels:
                 self.param_tables[-1].heading(l, text=l)
@@ -203,21 +203,10 @@ class VelocitiesTaskView(TaskViewBase):
 
     def switch_velocity(self):
         """Switch the plot to show the chosen velocity."""
-        if (
-            self.data.velocities[self.datasets_var.get()][
-                self.velocities_var.get()
-            ].shape[0]
-            == 24
-        ):
-            self.fig = colour_figure(
-                self.data.velocities[self.datasets_var.get()][
-                    self.velocities_var.get()
-                ],
-                self.region_labels(6),
-                self.visualise_frame,
-            )
-            self.fig.canvas.draw_idle()
-            self.current_region = -1
+        dataset = self.datasets_var.get()
+        vel_label = self.velocities_var.get()
+        if self.data.velocities[dataset][vel_label].shape[0] == 24:
+            self.color_plots(dataset, vel_label)
         elif self.fig is None or self.current_region == -1:
             self.current_region = 0
             self.markers_figure(
@@ -226,13 +215,29 @@ class VelocitiesTaskView(TaskViewBase):
                 self.images,
                 self.markers[self.current_region],
             )
+            self.populate_tables()
         else:
             self.current_region = -1
             self.scroll()
             self.draw()
+            self.populate_tables()
 
         self.bg_var.set(self.velocities_var.get().split(" - ")[-1])
-        self.populate_tables()
+
+    def color_plots(self, dataset, vel_label):
+        """Creates the color plots for the case of 24 angular regions."""
+        gmark = self.data.markers[dataset][f"global - {vel_label.split(' - ')[-1]}"][0]
+        markers_idx = gmark[:, :3, 0].flatten()
+        self.fig = colour_figure(
+            self.data.velocities[dataset][vel_label],
+            self.region_labels(6),
+            markers_idx,
+            self.visualise_frame,
+        )
+        self.fig.canvas.draw_idle()
+        self.current_region = -1
+        markers = self.data.markers[dataset][vel_label.replace("24", "6")]
+        self.populate_tables(markers)
 
     def marker_moved(self):
         """Updates plot and table after a marker has been moved."""
@@ -314,18 +319,19 @@ class VelocitiesTaskView(TaskViewBase):
         else:
             return list(range(1, regions + 1))
 
-    def populate_tables(self):
+    def populate_tables(self, markers=None):
         """Populates the information tables with the marker parameters."""
+        markers = markers if markers is not None else self.markers
         for t in self.param_tables:
             old_list = t.get_children()
             if len(old_list) > 0:
                 t.delete(*old_list)
 
-        labels = self.region_labels(len(self.markers))
+        labels = self.region_labels(len(markers))
         for i, t in enumerate(self.param_tables):
             vel = t.insert("", tk.END, text="Velocity (cm/s)", open=True)
             time = t.insert("", tk.END, text="Norm. Time (s)", open=True)
-            for j, marker in enumerate(self.markers):
+            for j, marker in enumerate(markers):
                 tag = "current" if j == self.current_region else "others"
                 val = np.around(marker[i, :3, 1], decimals=2).tolist()
                 t.insert(vel, tk.END, text=labels[j], values=val, tags=(tag,))
@@ -686,7 +692,9 @@ class VelocitiesTaskView(TaskViewBase):
         )
 
 
-def colour_figure(velocities: np.ndarray, labels: tuple, master: ttk.Frame) -> Figure:
+def colour_figure(
+    velocities: np.ndarray, labels: tuple, markers_idx: np.ndarray, master: ttk.Frame
+) -> Figure:
     """Creates the color plots for the regional velocities."""
     fig, ax = plt.subplots(ncols=3, nrows=1, constrained_layout=True)
     canvas = FigureCanvasTkAgg(fig, master=master)
@@ -695,16 +703,21 @@ def colour_figure(velocities: np.ndarray, labels: tuple, master: ttk.Frame) -> F
     space = velocities.shape[0] / len(labels)
     lines_pos = np.arange(space, velocities.shape[0], space) - 0.5
     labels_pos = np.arange(space // 2, velocities.shape[0], space) - 0.5
+    marker_lbl = ["PS", "PD", "PAS"] * 2 + ["PC1", "PC2", "PC3"]
 
     for i, title in enumerate(("Longitudinal", "Radial", "Circumferential")):
         ax[i].imshow(velocities[:, i], cmap=plt.get_cmap("seismic"), aspect="auto")
         ax[i].set_title(title)
+
         ax[i].set_yticks(lines_pos, minor=True)
         ax[i].set_yticks(labels_pos, minor=False)
         ax[i].set_yticklabels(labels[::-1], minor=False)
         ax[i].yaxis.grid(True, which="minor", color="k", linestyle="-")
-        ax[i].get_xaxis().set_visible(False)
         ax[i].set_ylim((-0.5, velocities.shape[0] - 0.5))
+
+        ax[i].set_xticks(markers_idx[3 * i : 3 * i + 3], minor=False)
+        ax[i].set_xticklabels(marker_lbl[3 * i : 3 * i + 3], minor=False)
+
         fig.colorbar(ax[i].images[0], ax=ax[i], orientation="horizontal")
 
     return fig
