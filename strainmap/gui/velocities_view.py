@@ -73,9 +73,10 @@ class VelocitiesTaskView(TaskViewBase):
         info.columnconfigure(2, weight=1)
 
         # Dataset frame
-        dataset_frame = ttk.Labelframe(control, text="Datasets:")
+        dataset_frame = ttk.Labelframe(control, text="Datasets:", borderwidth=0)
         dataset_frame.columnconfigure(0, weight=1)
         dataset_frame.rowconfigure(0, weight=1)
+
         self.datasets_box = ttk.Combobox(
             master=dataset_frame,
             textvariable=self.datasets_var,
