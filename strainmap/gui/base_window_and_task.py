@@ -110,6 +110,23 @@ def register_view(view: Type[TaskViewBase]) -> Type[TaskViewBase]:
     return view
 
 
+def fixed_map(option, style):
+    """ Fix for setting text colour for Tkinter 8.6.9
+    From: https://core.tcl.tk/tk/info/509cafafae
+
+    Returns the style map for 'option' with any styles starting with ('!disabled',
+    '!selected', ...) filtered out. style.map() returns an empty list for missing
+    options, so this should be future-safe.
+
+    Solution found here: https://stackoverflow.com/a/57009674/3778792
+    """
+    return [
+        elm
+        for elm in style.map("Treeview", query_opt=option)
+        if elm[:2] != ("!disabled", "!selected")
+    ]
+
+
 class MainWindow(tk.Tk):
     """ StrainMap main window."""
 
@@ -117,6 +134,11 @@ class MainWindow(tk.Tk):
         super().__init__()
         style = ttk.Style()
         style.theme_use("clam")
+        style.map(
+            "Treeview",
+            foreground=fixed_map("foreground", style),
+            background=fixed_map("background", style),
+        )
         style.configure("TLabelframe", borderwidth=0)
         style.configure("TProgressbar", foreground="#f8d568", background="#f8d568")
 

@@ -129,7 +129,10 @@ def write_hdf5_file(data, filename: Union[h5py.File, str]):
         if s == "strainmap_file":
             continue
         elif s == "sign_reversal":
-            f.create_dataset(s, data=getattr(data, s))
+            if s in f:
+                f[s][...] = getattr(data, s)
+            else:
+                f.create_dataset(s, data=getattr(data, s))
         elif "files" in s:
             paths_to_hdf5(f, f.filename, s, getattr(data, s))
         else:
