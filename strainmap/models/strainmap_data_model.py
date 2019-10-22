@@ -113,6 +113,20 @@ class StrainMapData(object):
                     s, data=reduce(lambda x, y: x[y], keys), track_order=True
                 )
 
+    def delete(self, *args):
+        """ Deletes the chosen dataset or group from the hdf5 file.
+
+        Each dataset to be saved must be defined as a list of keys, where key[0]
+        must be one of the StrainMapData attributes (segments, velocities, etc.)
+        """
+        if self.strainmap_file is None:
+            return
+
+        for keys in args:
+            s = "/".join(keys)
+            if s in self.strainmap_file:
+                del self.strainmap_file[s]
+
     def __eq__(self, other) -> bool:
         """Compares two StrainMapData objects.
 
