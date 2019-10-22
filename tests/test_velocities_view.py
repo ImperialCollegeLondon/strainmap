@@ -1,4 +1,5 @@
 from unittest.mock import MagicMock
+from pytest import approx
 
 
 def test_update_widgets(velocities_view, segmented_data, data_with_velocities):
@@ -52,3 +53,18 @@ def test_scroll(velocities_view, data_with_velocities):
     assert velocities_view.current_region == 0
     region, _, _ = velocities_view.scroll()
     assert region == 1
+
+
+def test_color_plot(velocities_view, data_with_velocities):
+    velocities_view.calculate_velocities = MagicMock()
+    velocities_view.data = data_with_velocities
+    velocities_view.velocities_var.set("angular x24 - Estimated")
+    velocities_view.switch_velocity()
+
+    expected = list(data_with_velocities.velocities.values())[0][
+        "angular x24 - Estimated"
+    ][:, 0, :]
+    actual = velocities_view.fig.axes[0].images[0].get_array().data
+
+    assert len(velocities_view.fig.axes) == 6  # 3 axes + 3 colorbars
+    assert actual == approx(expected)

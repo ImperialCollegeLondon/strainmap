@@ -241,6 +241,6 @@ def data_with_velocities(segmented_data):
         deepcopy(segmented_data),
         dataset_name,
         global_velocity=True,
-        angular_regions=(6,),
+        angular_regions=(6, 24),
         radial_regions=(4,),
     )
