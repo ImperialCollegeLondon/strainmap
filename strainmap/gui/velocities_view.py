@@ -706,7 +706,7 @@ def colour_figure(
     marker_lbl = ["PS", "PD", "PAS"] * 2 + ["PC1", "PC2", "PC3"]
 
     for i, title in enumerate(("Longitudinal", "Radial", "Circumferential")):
-        ax[i].imshow(velocities[:, i], cmap=plt.get_cmap("seismic"), aspect="auto")
+        ax[i].imshow(velocities[:, i], cmap=plt.get_cmap("terrain"), aspect="auto")
         ax[i].set_title(title)
 
         ax[i].set_yticks(lines_pos, minor=True)
