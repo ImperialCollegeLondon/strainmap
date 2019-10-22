@@ -203,7 +203,22 @@ class VelocitiesTaskView(TaskViewBase):
 
     def switch_velocity(self):
         """Switch the plot to show the chosen velocity."""
-        if self.fig is None:
+        if (
+            self.data.velocities[self.datasets_var.get()][
+                self.velocities_var.get()
+            ].shape[0]
+            == 24
+        ):
+            self.fig = colour_figure(
+                self.data.velocities[self.datasets_var.get()][
+                    self.velocities_var.get()
+                ],
+                self.region_labels(6),
+                self.visualise_frame,
+            )
+            self.fig.canvas.draw_idle()
+            self.current_region = -1
+        elif self.fig is None or self.current_region == -1:
             self.current_region = 0
             self.markers_figure(
                 self.velocities,
@@ -669,3 +684,27 @@ class VelocitiesTaskView(TaskViewBase):
             marker_idx=self.marker_idx[marker.get_label()],
             position=position,
         )
+
+
+def colour_figure(velocities: np.ndarray, labels: tuple, master: ttk.Frame) -> Figure:
+    """Creates the color plots for the regional velocities."""
+    fig, ax = plt.subplots(ncols=3, nrows=1, constrained_layout=True)
+    canvas = FigureCanvasTkAgg(fig, master=master)
+    canvas.get_tk_widget().grid(row=0, column=0, sticky=tk.NSEW)
+
+    space = velocities.shape[0] / len(labels)
+    lines_pos = np.arange(space, velocities.shape[0], space) - 0.5
+    labels_pos = np.arange(space // 2, velocities.shape[0], space) - 0.5
+
+    for i, title in enumerate(("Longitudinal", "Radial", "Circumferential")):
+        ax[i].imshow(velocities[:, i], cmap=plt.get_cmap("seismic"), aspect="auto")
+        ax[i].set_title(title)
+        ax[i].set_yticks(lines_pos, minor=True)
+        ax[i].set_yticks(labels_pos, minor=False)
+        ax[i].set_yticklabels(labels[::-1], minor=False)
+        ax[i].yaxis.grid(True, which="minor", color="k", linestyle="-")
+        ax[i].get_xaxis().set_visible(False)
+        ax[i].set_ylim((-0.5, velocities.shape[0] - 0.5))
+        fig.colorbar(ax[i].images[0], ax=ax[i], orientation="horizontal")
+
+    return fig
