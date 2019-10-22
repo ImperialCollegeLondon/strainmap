@@ -55,10 +55,10 @@ def segmented_data(strainmap_data):
     import numpy as np
 
     dataset = list(strainmap_data.data_files.keys())[0]
-    image = strainmap_data.get_images(dataset, "MagX")
+    image = strainmap_data.get_images(dataset, "MagZ")
 
     # Create the initial contour
-    init_epi = Contour.circle(center=(310, 280), radius=60, shape=image.shape).xy
+    init_epi = Contour.circle(center=(305, 275), radius=60, shape=image.shape).xy
     init_endo = Contour.circle(center=(310, 280), radius=40, shape=image.shape).xy
 
     # Launch the segmentation process
