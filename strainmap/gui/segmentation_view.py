@@ -328,7 +328,7 @@ class SegmentationTaskView(TaskViewBase):
         for side in ("endocardium", "epicardium", "septum mid-point"):
             self.switch_mark_state(side, "ready")
 
-        colors = ("tab:blue", "tab:orange")
+        colors = ("lime", "tab:orange")
         for i, side in enumerate(["endocardium", "epicardium"]):
             self.final_segments[side] = self.data.segments[dataset][side]
             self.ax_mag.plot(
