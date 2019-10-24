@@ -146,9 +146,8 @@ def factory(
 ) -> StrainMapData:
     """ Creates a new StrainMapData object or updates the data of an existing one.
 
-    The exiting object might be passed as an argument or be loaded from an HDF5 or
-    Matlab files. In either case, its data_files, bg_files or both will be updated
-    accordingly.
+    The exiting object might be passed as an argument or be loaded from an HDF5file.
+    In either case, its data_files, bg_files or both will be updated accordingly.
 
     If there is no existing object, a new one will be created from the data_files and
     the bg_files.
