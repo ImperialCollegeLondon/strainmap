@@ -424,18 +424,18 @@ def cylindrical_projection(
         >>> origin = np.array([3.5, 5])
         >>> field = np.stack(
         ...   (
-        ...       np.arange(0, 10, dtype=int)[None, :] + np.zeros((10, 10), dtype=int),
-        ...       np.arange(0, 10, dtype=int)[:, None] + np.zeros((10, 10), dtype=int)
+        ...       np.arange(0, 10, dtype=int)[:, None] + np.zeros((10, 10), dtype=int),
+        ...       np.arange(0, 10, dtype=int)[None, :] + np.zeros((10, 10), dtype=int)
         ...   ),
         ...   axis=2
         ... ) - origin[None, None, :]
-        >>> unit_field = field / np.linalg.norm(field, axis=2)[:, :, None]
+        >>> unit_field = -field / np.linalg.norm(field, axis=2)[:, :, None]
         >>> projection = cylindrical_projection(
         ...     unit_field, origin=origin, component_axis=2, image_axes=(0, 1)
         ... )
-        >>> np.allclose(projection[:, :, 0], 1)
+        >>> np.allclose(projection[:, :, 0], 0)
         True
-        >>> np.allclose(projection[:, :, 1], 0)
+        >>> np.allclose(projection[:, :, 1], 1)
         True
 
         A 3d field that is centrepedal in x and y only should give us the same result,
@@ -448,9 +448,9 @@ def cylindrical_projection(
         ... )
         >>> proj3d.shape
         (10, 10, 3)
-        >>> np.allclose(proj3d[:, :, 1], 1)
+        >>> np.allclose(proj3d[:, :, 1], 0)
         True
-        >>> np.allclose(proj3d[:, :, 2], 0)
+        >>> np.allclose(proj3d[:, :, 2], 1)
         True
         >>> np.allclose(proj3d[:, :, 0], z)
         True
@@ -479,17 +479,17 @@ def cylindrical_projection(
             (np.take(field, (2,), axis=component_axis), result), axis=component_axis
         )
 
-    x = np.arange(0, field.shape[image_axes[0]], dtype=int)[None, :] - origin[0]
-    y = np.arange(0, field.shape[image_axes[1]], dtype=int)[:, None] - origin[1]
+    x = np.arange(0, field.shape[image_axes[0]], dtype=int)[None, :] - origin[1]
+    y = np.arange(0, field.shape[image_axes[1]], dtype=int)[:, None] - origin[0]
 
     theta = np.arctan2(y, x)
     shape = tuple(field.shape[i] if i in image_axes else 1 for i in range(field.ndim))
     r_vec = np.concatenate(
-        (np.cos(theta).reshape(shape), np.sin(theta).reshape(shape)),
+        (-np.cos(theta).reshape(shape), np.sin(theta).reshape(shape)),
         axis=component_axis,
     )
     theta_vec = np.concatenate(
-        (-np.sin(theta).reshape(shape), np.cos(theta).reshape(shape)),
+        (-np.sin(theta).reshape(shape), -np.cos(theta).reshape(shape)),
         axis=component_axis,
     )
 

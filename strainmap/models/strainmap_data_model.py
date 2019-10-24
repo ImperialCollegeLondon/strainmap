@@ -177,7 +177,7 @@ def factory(
         data.save_all()
     elif df:
         data = StrainMapData(data_files=df, bg_files=bg, strainmap_file=sm_file)
-        data.save()
+        data.save_all()
     else:
         data = StrainMapData(
             data_files=defaultdict(dict),

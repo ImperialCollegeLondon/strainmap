@@ -63,10 +63,10 @@ def velocity_sensitivity(filename):
 
     ascii_header = csa["tags"]["MrPhoenixProtocol"]["items"][0]
     z = float(re.search(r"asElm\[0\].nVelocity\t = \t(.*)", ascii_header)[1])
-    x = float(re.search(r"asElm\[1\].nVelocity\t = \t(.*)", ascii_header)[1])
-    y = float(re.search(r"asElm\[2\].nVelocity\t = \t(.*)", ascii_header)[1])
+    r = float(re.search(r"asElm\[1\].nVelocity\t = \t(.*)", ascii_header)[1])
+    theta = float(re.search(r"asElm\[2\].nVelocity\t = \t(.*)", ascii_header)[1])
 
-    return np.array((x, y, z))
+    return np.array((z, r, theta)) * 2
 
 
 def image_orientation(filename):
