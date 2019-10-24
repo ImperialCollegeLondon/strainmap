@@ -77,9 +77,12 @@ class Contour(object):
         """Binary image, with 1 inside and 0 outside the contour."""
         return ndimage.morphology.binary_fill_holes(self.image)
 
-    def dilate(self, p: float = 1) -> Contour:
-        """Creates an expanded (or contracted y p<1) copy of a contour."""
-        return dilate(self, p)
+    def dilate(self, p: float = 1, s: int = 0) -> Contour:
+        """Creates an expanded (or contracted y p<1) copy of a contour.
+
+        p is a multiplicative factor while s is a additive factor.
+        """
+        return dilate(self, p, s)
 
     @staticmethod
     def circle(
@@ -327,11 +330,14 @@ def pol2cart(polar: Union[np.ndarray, np.recarray]) -> np.ndarray:
     return np.array([x, y]).T
 
 
-def dilate(contour: Contour, p: float = 1) -> Contour:
-    """Creates an expanded (or contracted if p<1) copy of a contour."""
+def dilate(contour: Contour, p: float = 1, s: int = 0) -> Contour:
+    """Creates an expanded (or contracted if p<1) copy of a contour.
+
+    p is a multiplicative factor while s is a additive factor.
+    """
     result = copy.copy(contour)
     polar = result.polar
-    polar.r *= max(p, 0)
+    polar.r = (polar.r * max(p, 0) + s).clip(min=0)
     result.polar = polar
     return result
 
