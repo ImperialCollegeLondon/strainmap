@@ -330,7 +330,7 @@ class VelocitiesTaskView(TaskViewBase):
         labels = self.region_labels(len(markers))
         for i, t in enumerate(self.param_tables):
             vel = t.insert("", tk.END, text="Velocity (cm/s)", open=True)
-            time = t.insert("", tk.END, text="Norm. Time (s)", open=True)
+            time = t.insert("", tk.END, text="Norm. Time (ms)", open=True)
             for j, marker in enumerate(markers):
                 tag = "current" if j == self.current_region else "others"
                 val = np.around(marker[i, :3, 1], decimals=2).tolist()
