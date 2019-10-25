@@ -110,7 +110,7 @@ def test_quick_segmentation(septum, centroid, segmentation_view, strainmap_data)
     segmentation_view.go_to_frame = MagicMock()
     centroid.return_value = 0
     septum.return_value = 0
-    segmentation_view.zero_angle = np.zeros(2)
+    segmentation_view.zero_angle = np.zeros((3, 2, 2))
 
     segmentation_view.quick_segment_var.set(True)
     contour = np.random.random((2, 5))
