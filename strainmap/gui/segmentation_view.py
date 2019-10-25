@@ -76,6 +76,7 @@ class SegmentationTaskView(TaskViewBase):
         self.ax_vel = None
         self.cursors: Dict[str, Optional[Cursor]] = {"mag": None, "vel": None}
         self.datasets_box = None
+        self.quick_checkbox = None
         self.clear_btn = None
         self.undo_last_btn = None
         self.undo_all_btn = None
@@ -132,10 +133,11 @@ class SegmentationTaskView(TaskViewBase):
             master=segment_frame, textvariable=self.septum_redy_var, width=18
         )
 
-        quick_checkbox = ttk.Checkbutton(
+        self.quick_checkbox = ttk.Checkbutton(
             master=segment_frame,
             text="Quick segmentation",
             variable=self.quick_segment_var,
+            state="enable",
         )
 
         for i, text in enumerate(["mag", "vel"]):
@@ -221,7 +223,7 @@ class SegmentationTaskView(TaskViewBase):
         endo_redy_lbl.grid(row=0, column=0, sticky=tk.NSEW)
         epi_redy_lbl.grid(row=1, column=0, sticky=tk.NSEW)
         septum_redy_lbl.grid(row=0, column=1, sticky=tk.NSEW)
-        quick_checkbox.grid(row=1, column=1, sticky=tk.NSEW)
+        self.quick_checkbox.grid(row=1, column=1, sticky=tk.NSEW)
         manual_frame.grid(row=0, column=3, rowspan=3, sticky=tk.NSEW, padx=5)
         drag_lbl.grid(row=0, sticky=tk.NSEW, padx=5, pady=5)
         width_lbl.grid(row=0, column=1, sticky=tk.E, padx=5, pady=5)
@@ -629,6 +631,7 @@ class SegmentationTaskView(TaskViewBase):
         markers = self.fig.actions_manager.Markers
         drag = self.fig.actions_manager.DragContours
         self.switch_mark_state("septum mid-point", "ready")
+        self.quick_checkbox.state(["disabled"])
 
         options = dict(marker="o", markersize=8, color="r")
 
@@ -696,6 +699,7 @@ class SegmentationTaskView(TaskViewBase):
         self.current_frame = 0
         self.next_btn.state(["disabled"])
         self.datasets_box.state(["!disabled"])
+        self.quick_checkbox.state(["!disabled"])
         self.next_btn.config(text="Next \u25B6", command=self.next_first_frame)
         self.fig.actions_manager.DragContours.disabled = False
         self.fig.actions_manager.Markers.disabled = False
