@@ -480,6 +480,10 @@ class VelocitiesTaskView(TaskViewBase):
         ax_rad = self.fig.add_subplot(gs[0, 3:6])
         ax_circ = self.fig.add_subplot(gs[0, 6:])
 
+        ax_long.axhline(color="k", lw=1)
+        ax_rad.axhline(color="k", lw=1)
+        ax_circ.axhline(color="k", lw=1)
+
         ax_long.set_title("Longitudinal")
         ax_long.set_ylabel("Velocity (cm/s)")
         ax_long.set_xlabel("Frame")
@@ -707,7 +711,12 @@ def colour_figure(
     marker_lbl = ["PS", "PD", "PAS"] * 2 + ["PC1", "PC2", "PC3"]
 
     for i, title in enumerate(("Longitudinal", "Radial", "Circumferential")):
-        ax[i].imshow(velocities[:, i], cmap=plt.get_cmap("terrain"), aspect="auto")
+        ax[i].imshow(
+            velocities[:, i],
+            cmap=plt.get_cmap("terrain"),
+            aspect="auto",
+            interpolation="bilinear",
+        )
         ax[i].set_title(title)
 
         ax[i].set_yticks(lines_pos, minor=True)
