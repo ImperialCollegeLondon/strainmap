@@ -296,6 +296,13 @@ class SegmentationTaskView(TaskViewBase):
         for ax in self.fig.axes:
             self.fig.actions_manager.DrawContours.clear_drawing_(ax)
 
+        clim_mag = clim_vel = xlim = ylim = None
+        if len(self.ax_mag.images) > 0:
+            clim_mag = self.ax_mag.images[0].get_clim()
+            clim_vel = self.ax_vel.images[0].get_clim()
+            xlim = self.ax_mag.get_xlim()
+            ylim = self.ax_mag.get_ylim()
+
         self.ax_mag.lines.clear()
         self.ax_vel.lines.clear()
         self.ax_mag.images.clear()
@@ -305,6 +312,12 @@ class SegmentationTaskView(TaskViewBase):
         self.plot_segments(dataset)
         self.plot_zero_angle(dataset)
         self.plot_markers()
+
+        if clim_mag is not None:
+            self.ax_mag.images[0].set_clim(*clim_mag)
+            self.ax_vel.images[0].set_clim(*clim_vel)
+            self.ax_mag.set_xlim(*xlim)
+            self.ax_mag.set_ylim(*ylim)
 
         self.fig.canvas.draw_idle()
 
