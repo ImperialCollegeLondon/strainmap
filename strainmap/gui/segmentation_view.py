@@ -434,7 +434,7 @@ class SegmentationTaskView(TaskViewBase):
             self.fig.actions_manager.DragContours.disabled = True
             self.fig.actions_manager.Markers.disabled = True
         else:
-            self.clear_btn.state(["disabled"])
+            self.clear_btn.state(["!disabled"])
 
     def switch_mark_state(self, side, state):
         """Switch the text displayed in the initial segmentation buttons."""
