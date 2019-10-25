@@ -1,8 +1,9 @@
 from .segmenters import Segmenter
 from .strainmap_data_model import StrainMapData
-from .contour_mask import Contour, dilate
+from .contour_mask import Contour, dilate, contour_diff
 
 import numpy as np
+from scipy import ndimage
 from copy import copy
 from typing import Text, Dict, Any, Union, List, Callable
 from functools import partial, reduce
@@ -51,12 +52,9 @@ def find_segmentation(
             data, dataset_name, initials["endocardium"].shape
         )
 
+    img_shape = images["endocardium"].shape[-2:]
     rules = create_rules(
-        frame,
-        data.segments[dataset_name],
-        images["endocardium"].shape[-2:],
-        rtol,
-        replace_threshold,
+        frame, data.segments[dataset_name], img_shape, rtol, replace_threshold
     )
 
     results = {}
@@ -87,6 +85,9 @@ def find_segmentation(
 
     data.segments[dataset_name]["endocardium"][frame] = results["endocardium"]
     data.segments[dataset_name]["epicardium"][frame] = results["epicardium"]
+    data.zero_angle[dataset_name][frame, :, 1] = centroid(
+        data.segments[dataset_name], frame, img_shape
+    )
 
     data.save(
         ["segments", dataset_name, "endocardium"],
@@ -95,6 +96,21 @@ def find_segmentation(
     )
 
     return data
+
+
+def centroid(segments, frame, shape):
+    """Return an array with the position of the centroid at a given time."""
+    mask = np.array(
+        [
+            ndimage.measurements.center_of_mass(
+                contour_diff(outer.T, inner.T, shape=shape)
+            )
+            for outer, inner in zip(
+                segments["epicardium"][frame], segments["endocardium"][frame]
+            )
+        ]
+    )
+    return mask
 
 
 def initialize_data_segments(data, dataset_name, shape):

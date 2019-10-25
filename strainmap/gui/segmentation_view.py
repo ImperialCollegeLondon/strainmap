@@ -487,7 +487,7 @@ class SegmentationTaskView(TaskViewBase):
         """Triggers a quick segmentation of the whole dataset."""
         self.next_btn.config(text="Next \u25B6", command=self.finish_segmentation)
         self.find_segmentation(slice(None), self.initial_segments)
-        self.zero_angle[:] = np.array((self.septum, self.centroid)).T
+        self.zero_angle[:, :, 0] = self.septum
         self.working_frame_var.set(self.num_frames - 1)
         self.go_to_frame()
 
