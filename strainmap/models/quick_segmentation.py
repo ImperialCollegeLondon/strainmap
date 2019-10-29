@@ -15,8 +15,9 @@ def find_segmentation(
     frame: Union[int, slice, None],
     images: Dict[str, np.ndarray],
     initials: Dict[str, np.ndarray],
-    rtol: float = 0.15,
-    replace_threshold: int = 30,
+    rtol_endo: float = 0.15,
+    rtol_epi: float = 0.10,
+    replace_threshold: int = 31,
 ) -> StrainMapData:
     """Find the segmentation for the endocardium and the epicardium at one single frame.
 
@@ -26,6 +27,8 @@ def find_segmentation(
         frame: index of the frame to segment
         images: Dictionary with the images to segment for the epi- and endocardium
         initials: Dictionary with the initial segmentation for the epi- and endocardium.
+        rtol_endo: Relative tolerance of areal change in the endocardium.
+        rtol_epi: Relative tolerance of areal change in the endocardium.
         replace_threshold: frame threshold from where endocardium segment must be
             replaced
 
@@ -54,16 +57,16 @@ def find_segmentation(
 
     img_shape = images["endocardium"].shape[-2:]
     rules = create_rules(
-        frame, data.segments[dataset_name], img_shape, rtol, replace_threshold
+        frame,
+        data.segments[dataset_name],
+        img_shape,
+        {"endocardium": rtol_endo, "epicardium": rtol_epi},
+        replace_threshold,
     )
 
     results = {}
     for side in ("endocardium", "epicardium"):
-        if (
-            side == "endocardium"
-            and isinstance(frame, int)
-            and frame >= replace_threshold
-        ):
+        if isinstance(frame, int) and frame >= replace_threshold:
             results[side] = copy(data.segments[dataset_name][side][frame - 1])
         else:
             results[side] = simple_segmentation(
@@ -134,7 +137,6 @@ def initialize_data_segments(data, dataset_name, shape):
 def create_rules(frame, segments, shape, rtol, replace_threshold):
     """Create the rules to apply to the segments to ensure their 'quality'."""
     rules = {"endocardium": [], "epicardium": []}
-    threshold = {"endocardium": replace_threshold, "epicardium": np.inf}
     shift = {"endocardium": 1, "epicardium": -1}
 
     for side in ("endocardium", "epicardium"):
@@ -145,7 +147,7 @@ def create_rules(frame, segments, shape, rtol, replace_threshold):
                     partial(
                         replace_single,
                         replacement=Contour(segments[side][frame - 1].T, shape=shape),
-                        rtol=rtol,
+                        rtol=rtol[side],
                         replace=False,
                     )
                 )
@@ -153,7 +155,9 @@ def create_rules(frame, segments, shape, rtol, replace_threshold):
         elif frame is None or isinstance(frame, slice):
             rules[side].append(lambda c: list(map(partial(dilate, s=shift[side]), c)))
             rules[side].append(
-                partial(replace_in_list, rtol=rtol, frame_threshold=threshold[side])
+                partial(
+                    replace_in_list, rtol=rtol[side], frame_threshold=replace_threshold
+                )
             )
 
     return rules
