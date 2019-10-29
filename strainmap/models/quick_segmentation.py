@@ -121,15 +121,23 @@ def update_segmentation(
             segments["epicardium"][frame]
         )
         data.zero_angle[dataset_name][frame] = copy(zero_angle[frame])
+
+        data.save(
+            ["segments", dataset_name, "endocardium"],
+            ["segments", dataset_name, "epicardium"],
+            ["zero_angle", dataset_name],
+        )
     else:
         data.segments.pop(dataset_name, None)
         data.zero_angle.pop(dataset_name, None)
 
-    data.save(
-        ["segments", dataset_name, "endocardium"],
-        ["segments", dataset_name, "epicardium"],
-        ["zero_angle", dataset_name],
-    )
+        data.delete(
+            ["segments", dataset_name],
+            ["zero_angle", dataset_name],
+            ["velocities", dataset_name],
+            ["masks", dataset_name],
+            ["markers", dataset_name],
+        )
 
     return data
 
