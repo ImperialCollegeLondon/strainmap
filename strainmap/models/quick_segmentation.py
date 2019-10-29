@@ -170,7 +170,7 @@ def update_segmentation(
     zero_angle: np.ndarray,
     frame: Union[int, slice],
 ) -> StrainMapData:
-    """Updates an existing segmentation with new segments, potentially clearing them.
+    """Updates an existing segmentation with new segments.
 
     Args:
         data: StrainMapData object containing the data
@@ -182,33 +182,49 @@ def update_segmentation(
     Returns:
         The StrainMapData object updated with the segmentation.
     """
-    if segments["endocardium"] is not None and segments["epicardium"] is not None:
-        data.segments[dataset_name]["endocardium"][frame] = copy(
-            segments["endocardium"][frame]
-        )
-        data.segments[dataset_name]["epicardium"][frame] = copy(
-            segments["epicardium"][frame]
-        )
-        data.zero_angle[dataset_name][frame] = copy(zero_angle[frame])
+    data.segments[dataset_name]["endocardium"][frame] = copy(
+        segments["endocardium"][frame]
+    )
+    data.segments[dataset_name]["epicardium"][frame] = copy(
+        segments["epicardium"][frame]
+    )
+    data.zero_angle[dataset_name][frame] = copy(zero_angle[frame])
 
-        data.save(
-            ["segments", dataset_name, "endocardium"],
-            ["segments", dataset_name, "epicardium"],
-            ["zero_angle", dataset_name],
-        )
-    else:
-        data.segments.pop(dataset_name, None)
-        data.zero_angle.pop(dataset_name, None)
-
-        data.delete(
-            ["segments", dataset_name],
-            ["zero_angle", dataset_name],
-            ["velocities", dataset_name],
-            ["masks", dataset_name],
-            ["markers", dataset_name],
-        )
+    data.save(
+        ["segments", dataset_name, "endocardium"],
+        ["segments", dataset_name, "epicardium"],
+        ["zero_angle", dataset_name],
+    )
 
     return data
+
+
+def clear_segmentation(data: StrainMapData, dataset_name: str) -> StrainMapData:
+    """Clears the segmentation for the given dataset."""
+    data.segments.pop(dataset_name, None)
+    data.zero_angle.pop(dataset_name, None)
+    data.velocities.pop(dataset_name, None)
+    data.masks.pop(dataset_name, None)
+    data.markers.pop(dataset_name, None)
+
+    data.delete(
+        ["segments", dataset_name],
+        ["zero_angle", dataset_name],
+        ["velocities", dataset_name],
+        ["masks", dataset_name],
+        ["markers", dataset_name],
+    )
+    return data
+
+
+def update_and_find(
+    data: StrainMapData,
+    dataset_name: str,
+    segments: dict,
+    zero_angle: np.ndarray,
+    frame: Union[int, slice],
+) -> StrainMapData:
+    """Updates the segmentation for the current frame and starts the next one."""
 
 
 def simple_segmentation(
@@ -285,7 +301,6 @@ def simple_segmentation(
 def replace_single(
     contour: Contour, replacement: Contour, rtol: float = 0.15, replace: bool = True
 ) -> Contour:
-
     value = abs(contour.mask.sum() - replacement.mask.sum()) / replacement.mask.sum()
     if replace or value > rtol:
         return copy(replacement)
@@ -296,7 +311,6 @@ def replace_single(
 def replace_in_list(
     contour: List[Contour], rtol: float = 0.15, frame_threshold: int = 30
 ) -> List[Contour]:
-
     result = [contour[0]]
     for i, c in enumerate(contour[1:]):
         result.append(replace_single(c, result[i], rtol, i + 1 >= frame_threshold))

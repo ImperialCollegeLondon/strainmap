@@ -117,6 +117,15 @@ class StrainMap(object):
         self.update_views()
 
     @bind_event
+    def clear_segmentation(self, **kwargs):
+        """Clears an existing segmentation."""
+        self.data = quick_segmentation.clear_segmentation(**kwargs)
+        there_are_segments = any(len(i) != 0 for i in self.data.segments.values())
+        if not there_are_segments:
+            self.lock(Requisites.SEGMENTED)
+        self.update_views()
+
+    @bind_event
     def calculate_velocities(self, **kwargs):
         """Calculates the velocities based on a given segmentation."""
         self.data = calculate_velocities(**kwargs)

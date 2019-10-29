@@ -705,7 +705,7 @@ class SegmentationTaskView(TaskViewBase):
         self.fig.actions_manager.Markers.disabled = False
 
         if button_pressed:
-            self.update_segmentation()
+            self.clear_segmentation()
 
     @trigger_event
     def find_segmentation(self, frame, initial):
@@ -735,6 +735,11 @@ class SegmentationTaskView(TaskViewBase):
             frame=slice(0, self.working_frame_var.get() + 1),
             unlock=unlock,
         )
+
+    @trigger_event
+    def clear_segmentation(self):
+        """Confirm the new segments after a manual segmentation process."""
+        return dict(data=self.data, dataset_name=self.datasets_var.get())
 
     def stop_animation(self):
         """Stops an animation, if there is one running."""
