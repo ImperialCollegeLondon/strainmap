@@ -117,6 +117,12 @@ class StrainMap(object):
         self.update_views()
 
     @bind_event
+    def update_and_find_next(self, **kwargs):
+        """Runs an automated segmentation routine."""
+        self.data = quick_segmentation.update_and_find_next(**kwargs)
+        self.update_views()
+
+    @bind_event
     def clear_segmentation(self, **kwargs):
         """Clears an existing segmentation."""
         self.data = quick_segmentation.clear_segmentation(**kwargs)

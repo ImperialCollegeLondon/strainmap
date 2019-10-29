@@ -240,6 +240,7 @@ def test_next_frames(segmentation_view, strainmap_data):
 
     segmentation_view.find_segmentation = MagicMock()
     segmentation_view.update_segmentation = MagicMock()
+    segmentation_view.update_and_find_next = MagicMock()
     segmentation_view.go_to_frame = MagicMock()
 
     # First frame
@@ -249,8 +250,7 @@ def test_next_frames(segmentation_view, strainmap_data):
 
     # Other frames
     segmentation_view.next_other_frames()
-    segmentation_view.find_segmentation.assert_called()
-    segmentation_view.update_segmentation.assert_called()
+    segmentation_view.update_and_find_next.assert_called()
     assert segmentation_view.go_to_frame.call_count == 2
 
 

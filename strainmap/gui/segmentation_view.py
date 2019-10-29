@@ -69,6 +69,7 @@ class SegmentationTaskView(TaskViewBase):
         self.working_frame_var = tk.IntVar(value=0)
         self.initialization = None
         self.quick_segment_var = tk.BooleanVar(value=False)
+        self.segmenting = False
 
         # Visualization-related attributes
         self.fig = None
@@ -399,6 +400,13 @@ class SegmentationTaskView(TaskViewBase):
                 self.ax_mag.plot(*self.initial_segments[side], **style)
                 self.ax_vel.plot(*self.initial_segments[side], **style)
 
+    def refresh_data(self):
+        """Refresh the data available in the local variables."""
+        dataset = self.datasets_var.get()
+        self.images = self.get_data_to_segment(dataset)
+        for i, side in enumerate(["endocardium", "epicardium"]):
+            self.final_segments[side] = self.data.segments[dataset][side]
+
     @property
     def centroid(self):
         """Return an array with the position of the centroid at a given time."""
@@ -466,24 +474,20 @@ class SegmentationTaskView(TaskViewBase):
 
     def next_other_frames(self):
         """Triggers the segmentation in the rest of the frames."""
-        self.update_segmentation()
-
+        self.next_btn.state(["disabled"])
+        self.segmenting = True
+        self.update_and_find_next()
         self.zero_angle[self.current_frame] = np.array((self.septum, self.centroid)).T
 
         frame = self.working_frame_var.get()
         if frame == self.num_frames - 2:
             self.next_btn.config(command=self.finish_segmentation)
 
-        initial = {
-            "endocardium": self.final_segments["endocardium"][frame],
-            "epicardium": self.final_segments["epicardium"][frame],
-        }
-
         self.working_frame_var.set(frame + 1)
         self.current_frame = frame + 1
-        self.find_segmentation(self.current_frame, initial)
         self.zero_angle[self.current_frame] = np.array((self.septum, self.centroid)).T
         self.go_to_frame()
+        self.next_btn.state(["!disabled"])
 
     def next_quick_segmentation(self):
         """Triggers a quick segmentation of the whole dataset."""
@@ -501,6 +505,7 @@ class SegmentationTaskView(TaskViewBase):
         self.datasets_box.state(["!disabled"])
         self.fig.actions_manager.DragContours.disabled = True
         self.fig.actions_manager.Markers.disabled = True
+        self.segmenting = False
 
     def scroll(self, frame, image=None):
         """Provides the next images and lines to plot when scrolling."""
@@ -700,6 +705,7 @@ class SegmentationTaskView(TaskViewBase):
         self.next_btn.state(["disabled"])
         self.datasets_box.state(["!disabled"])
         self.quick_checkbox.state(["!disabled"])
+        self.segmenting = False
         self.next_btn.config(text="Next \u25B6", command=self.next_first_frame)
         self.fig.actions_manager.DragContours.disabled = False
         self.fig.actions_manager.Markers.disabled = False
@@ -737,6 +743,23 @@ class SegmentationTaskView(TaskViewBase):
         )
 
     @trigger_event
+    def update_and_find_next(self):
+        """Confirm the new segments and moves to the next."""
+        frame = self.current_frame + 1
+        images = {
+            "endocardium": self.images[self.endocardium_target_var.get()][frame],
+            "epicardium": self.images[self.epicardium_target_var.get()][frame],
+        }
+        return dict(
+            data=self.data,
+            dataset_name=self.datasets_var.get(),
+            segments=self.final_segments,
+            zero_angle=self.zero_angle,
+            frame=self.current_frame,
+            images=images,
+        )
+
+    @trigger_event
     def clear_segmentation(self):
         """Confirm the new segments after a manual segmentation process."""
         return dict(data=self.data, dataset_name=self.datasets_var.get())
@@ -755,7 +778,10 @@ class SegmentationTaskView(TaskViewBase):
         else:
             self.datasets_var.set(values[0])
 
-        self.dataset_changed()
+        if self.segmenting:
+            self.refresh_data()
+        else:
+            self.dataset_changed()
 
     def clear_widgets(self):
         """ Clear widgets after removing the data. """

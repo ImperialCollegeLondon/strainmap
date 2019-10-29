@@ -18,6 +18,7 @@ def find_segmentation(
     rtol_endo: float = 0.15,
     rtol_epi: float = 0.10,
     replace_threshold: int = 31,
+    save=True,
 ) -> StrainMapData:
     """Find the segmentation for the endocardium and the epicardium at one single frame.
 
@@ -92,11 +93,12 @@ def find_segmentation(
         data.segments[dataset_name], frame, img_shape
     )
 
-    data.save(
-        ["segments", dataset_name, "endocardium"],
-        ["segments", dataset_name, "epicardium"],
-        ["zero_angle", dataset_name],
-    )
+    if save:
+        data.save(
+            ["segments", dataset_name, "endocardium"],
+            ["segments", dataset_name, "epicardium"],
+            ["zero_angle", dataset_name],
+        )
 
     return data
 
@@ -217,14 +219,24 @@ def clear_segmentation(data: StrainMapData, dataset_name: str) -> StrainMapData:
     return data
 
 
-def update_and_find(
+def update_and_find_next(
     data: StrainMapData,
     dataset_name: str,
     segments: dict,
     zero_angle: np.ndarray,
-    frame: Union[int, slice],
+    frame: int,
+    images: Dict[str, np.ndarray],
 ) -> StrainMapData:
     """Updates the segmentation for the current frame and starts the next one."""
+    data = update_segmentation(data, dataset_name, segments, zero_angle, frame)
+    initial = {
+        "endocardium": data.segments[dataset_name]["endocardium"][frame],
+        "epicardium": data.segments[dataset_name]["epicardium"][frame],
+    }
+    frame += 1
+    data = find_segmentation(data, dataset_name, frame, images, initial, save=False)
+
+    return data
 
 
 def simple_segmentation(
