@@ -109,7 +109,7 @@ def test_velocity_sensitivity(data_tree):
     import numpy as np
 
     filename = list(data_tree.values())[0]["PhaseZ"][0]
-    expected = np.array((20, 20, 30))
+    expected = np.array((60, 40, 40))
     actual = velocity_sensitivity(filename)
 
     assert expected == approx(actual)

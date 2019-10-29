@@ -330,7 +330,7 @@ class VelocitiesTaskView(TaskViewBase):
         labels = self.region_labels(len(markers))
         for i, t in enumerate(self.param_tables):
             vel = t.insert("", tk.END, text="Velocity (cm/s)", open=True)
-            time = t.insert("", tk.END, text="Norm. Time (s)", open=True)
+            time = t.insert("", tk.END, text="Norm. Time (ms)", open=True)
             for j, marker in enumerate(markers):
                 tag = "current" if j == self.current_region else "others"
                 val = np.around(marker[i, :3, 1], decimals=2).tolist()
@@ -479,6 +479,10 @@ class VelocitiesTaskView(TaskViewBase):
         ax_long = self.fig.add_subplot(gs[0, :3])
         ax_rad = self.fig.add_subplot(gs[0, 3:6])
         ax_circ = self.fig.add_subplot(gs[0, 6:])
+
+        ax_long.axhline(color="k", lw=1)
+        ax_rad.axhline(color="k", lw=1)
+        ax_circ.axhline(color="k", lw=1)
 
         ax_long.set_title("Longitudinal")
         ax_long.set_ylabel("Velocity (cm/s)")
@@ -707,7 +711,12 @@ def colour_figure(
     marker_lbl = ["PS", "PD", "PAS"] * 2 + ["PC1", "PC2", "PC3"]
 
     for i, title in enumerate(("Longitudinal", "Radial", "Circumferential")):
-        ax[i].imshow(velocities[:, i], cmap=plt.get_cmap("terrain"), aspect="auto")
+        ax[i].imshow(
+            velocities[:, i],
+            cmap=plt.get_cmap("terrain"),
+            aspect="auto",
+            interpolation="bilinear",
+        )
         ax[i].set_title(title)
 
         ax[i].set_yticks(lines_pos, minor=True)

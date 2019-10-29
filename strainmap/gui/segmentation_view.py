@@ -76,6 +76,7 @@ class SegmentationTaskView(TaskViewBase):
         self.ax_vel = None
         self.cursors: Dict[str, Optional[Cursor]] = {"mag": None, "vel": None}
         self.datasets_box = None
+        self.quick_checkbox = None
         self.clear_btn = None
         self.undo_last_btn = None
         self.undo_all_btn = None
@@ -132,10 +133,11 @@ class SegmentationTaskView(TaskViewBase):
             master=segment_frame, textvariable=self.septum_redy_var, width=18
         )
 
-        quick_checkbox = ttk.Checkbutton(
+        self.quick_checkbox = ttk.Checkbutton(
             master=segment_frame,
             text="Quick segmentation",
             variable=self.quick_segment_var,
+            state="enable",
         )
 
         for i, text in enumerate(["mag", "vel"]):
@@ -221,7 +223,7 @@ class SegmentationTaskView(TaskViewBase):
         endo_redy_lbl.grid(row=0, column=0, sticky=tk.NSEW)
         epi_redy_lbl.grid(row=1, column=0, sticky=tk.NSEW)
         septum_redy_lbl.grid(row=0, column=1, sticky=tk.NSEW)
-        quick_checkbox.grid(row=1, column=1, sticky=tk.NSEW)
+        self.quick_checkbox.grid(row=1, column=1, sticky=tk.NSEW)
         manual_frame.grid(row=0, column=3, rowspan=3, sticky=tk.NSEW, padx=5)
         drag_lbl.grid(row=0, sticky=tk.NSEW, padx=5, pady=5)
         width_lbl.grid(row=0, column=1, sticky=tk.E, padx=5, pady=5)
@@ -296,6 +298,13 @@ class SegmentationTaskView(TaskViewBase):
         for ax in self.fig.axes:
             self.fig.actions_manager.DrawContours.clear_drawing_(ax)
 
+        clim_mag = clim_vel = xlim = ylim = None
+        if len(self.ax_mag.images) > 0:
+            clim_mag = self.ax_mag.images[0].get_clim()
+            clim_vel = self.ax_vel.images[0].get_clim()
+            xlim = self.ax_mag.get_xlim()
+            ylim = self.ax_mag.get_ylim()
+
         self.ax_mag.lines.clear()
         self.ax_vel.lines.clear()
         self.ax_mag.images.clear()
@@ -305,6 +314,12 @@ class SegmentationTaskView(TaskViewBase):
         self.plot_segments(dataset)
         self.plot_zero_angle(dataset)
         self.plot_markers()
+
+        if clim_mag is not None:
+            self.ax_mag.images[0].set_clim(*clim_mag)
+            self.ax_vel.images[0].set_clim(*clim_vel)
+            self.ax_mag.set_xlim(*xlim)
+            self.ax_mag.set_ylim(*ylim)
 
         self.fig.canvas.draw_idle()
 
@@ -328,7 +343,7 @@ class SegmentationTaskView(TaskViewBase):
         for side in ("endocardium", "epicardium", "septum mid-point"):
             self.switch_mark_state(side, "ready")
 
-        colors = ("tab:blue", "tab:orange")
+        colors = ("lime", "tab:orange")
         for i, side in enumerate(["endocardium", "epicardium"]):
             self.final_segments[side] = self.data.segments[dataset][side]
             self.ax_mag.plot(
@@ -421,7 +436,7 @@ class SegmentationTaskView(TaskViewBase):
             self.fig.actions_manager.DragContours.disabled = True
             self.fig.actions_manager.Markers.disabled = True
         else:
-            self.clear_btn.state(["disabled"])
+            self.clear_btn.state(["!disabled"])
 
     def switch_mark_state(self, side, state):
         """Switch the text displayed in the initial segmentation buttons."""
@@ -474,7 +489,7 @@ class SegmentationTaskView(TaskViewBase):
         """Triggers a quick segmentation of the whole dataset."""
         self.next_btn.config(text="Next \u25B6", command=self.finish_segmentation)
         self.find_segmentation(slice(None), self.initial_segments)
-        self.zero_angle[:] = np.array((self.septum, self.centroid)).T
+        self.zero_angle[:, :, 0] = self.septum
         self.working_frame_var.set(self.num_frames - 1)
         self.go_to_frame()
 
@@ -616,6 +631,7 @@ class SegmentationTaskView(TaskViewBase):
         markers = self.fig.actions_manager.Markers
         drag = self.fig.actions_manager.DragContours
         self.switch_mark_state("septum mid-point", "ready")
+        self.quick_checkbox.state(["disabled"])
 
         options = dict(marker="o", markersize=8, color="r")
 
@@ -683,6 +699,7 @@ class SegmentationTaskView(TaskViewBase):
         self.current_frame = 0
         self.next_btn.state(["disabled"])
         self.datasets_box.state(["!disabled"])
+        self.quick_checkbox.state(["!disabled"])
         self.next_btn.config(text="Next \u25B6", command=self.next_first_frame)
         self.fig.actions_manager.DragContours.disabled = False
         self.fig.actions_manager.Markers.disabled = False

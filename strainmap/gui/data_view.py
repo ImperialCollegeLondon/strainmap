@@ -408,6 +408,12 @@ class DataTaskView(TaskViewBase):
             )
             self.load_phantom()
 
+        filename = (
+            self.data.strainmap_file.filename
+            if self.data.strainmap_file is not None
+            else None
+        )
+        self.output_file.set(filename)
         self.nametowidget("control.chooseOutputFile")["state"] = "enable"
         self.create_data_selector()
         self.create_data_viewer()

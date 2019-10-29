@@ -1,10 +1,12 @@
 from .segmenters import Segmenter
 from .strainmap_data_model import StrainMapData
-from .contour_mask import Contour
+from .contour_mask import Contour, dilate, contour_diff
 
 import numpy as np
+from scipy import ndimage
 from copy import copy
-from typing import Text, Dict, Any, Union, List
+from typing import Text, Dict, Any, Union, List, Callable
+from functools import partial, reduce
 
 
 def find_segmentation(
@@ -13,6 +15,8 @@ def find_segmentation(
     frame: Union[int, slice, None],
     images: Dict[str, np.ndarray],
     initials: Dict[str, np.ndarray],
+    rtol: float = 0.15,
+    replace_threshold: int = 30,
 ) -> StrainMapData:
     """Find the segmentation for the endocardium and the epicardium at one single frame.
 
@@ -22,6 +26,8 @@ def find_segmentation(
         frame: index of the frame to segment
         images: Dictionary with the images to segment for the epi- and endocardium
         initials: Dictionary with the initial segmentation for the epi- and endocardium.
+        replace_threshold: frame threshold from where endocardium segment must be
+            replaced
 
     Returns:
         The StrainMapData object updated with the segmentation.
@@ -46,18 +52,31 @@ def find_segmentation(
             data, dataset_name, initials["endocardium"].shape
         )
 
+    img_shape = images["endocardium"].shape[-2:]
+    rules = create_rules(
+        frame, data.segments[dataset_name], img_shape, rtol, replace_threshold
+    )
+
     results = {}
     for side in ("endocardium", "epicardium"):
-        results[side] = simple_segmentation(
-            images[side],
-            initials[side],
-            model=model,
-            model_params=model_params[side],
-            ffilter=ffilter,
-            filter_params=filter_params[side],
-            propagator=propagator,
-            propagator_params=propagator_params[side],
-        )
+        if (
+            side == "endocardium"
+            and isinstance(frame, int)
+            and frame >= replace_threshold
+        ):
+            results[side] = copy(data.segments[dataset_name][side][frame - 1])
+        else:
+            results[side] = simple_segmentation(
+                images[side],
+                initials[side],
+                model=model,
+                model_params=model_params[side],
+                ffilter=ffilter,
+                filter_params=filter_params[side],
+                propagator=propagator,
+                propagator_params=propagator_params[side],
+                rules=rules[side],
+            )
 
     if frame is None:
         frame = slice(None)
@@ -66,6 +85,9 @@ def find_segmentation(
 
     data.segments[dataset_name]["endocardium"][frame] = results["endocardium"]
     data.segments[dataset_name]["epicardium"][frame] = results["epicardium"]
+    data.zero_angle[dataset_name][frame, :, 1] = centroid(
+        data.segments[dataset_name], frame, img_shape
+    )
 
     data.save(
         ["segments", dataset_name, "endocardium"],
@@ -74,6 +96,21 @@ def find_segmentation(
     )
 
     return data
+
+
+def centroid(segments, frame, shape):
+    """Return an array with the position of the centroid at a given time."""
+    mask = np.array(
+        [
+            ndimage.measurements.center_of_mass(
+                contour_diff(outer.T, inner.T, shape=shape)
+            )
+            for outer, inner in zip(
+                segments["epicardium"][frame], segments["endocardium"][frame]
+            )
+        ]
+    )
+    return mask
 
 
 def initialize_data_segments(data, dataset_name, shape):
@@ -92,6 +129,34 @@ def initialize_data_segments(data, dataset_name, shape):
     data.zero_angle[dataset_name] = np.full((num_frames, 2, 2), np.nan)
 
     return data
+
+
+def create_rules(frame, segments, shape, rtol, replace_threshold):
+    """Create the rules to apply to the segments to ensure their 'quality'."""
+    rules = {"endocardium": [], "epicardium": []}
+    threshold = {"endocardium": replace_threshold, "epicardium": np.inf}
+    shift = {"endocardium": 1, "epicardium": -1}
+
+    for side in ("endocardium", "epicardium"):
+        if isinstance(frame, int):
+            rules[side].append(partial(dilate, s=shift[side]))
+            if frame > 0:
+                rules[side].append(
+                    partial(
+                        replace_single,
+                        replacement=Contour(segments[side][frame - 1].T, shape=shape),
+                        rtol=rtol,
+                        replace=False,
+                    )
+                )
+
+        elif frame is None or isinstance(frame, slice):
+            rules[side].append(lambda c: list(map(partial(dilate, s=shift[side]), c)))
+            rules[side].append(
+                partial(replace_in_list, rtol=rtol, frame_threshold=threshold[side])
+            )
+
+    return rules
 
 
 def update_segmentation(
@@ -151,6 +216,7 @@ def simple_segmentation(
     model_params: Dict[Text, Any],
     filter_params: Dict[Text, Any],
     propagator_params: Dict[Text, Any],
+    rules: List[Callable[[Contour], Contour]],
 ) -> Union[np.ndarray, List[np.ndarray]]:
     """Performs a segmentation of the data with the chosen parameters.
 
@@ -182,6 +248,7 @@ def simple_segmentation(
             Possible parameters are described in the corresponding filter documentation.
         propagator_params: Dictionary with the parameters to be passed to the
             propagator. See the description of the propagators above.
+        rules: List of rules (callables) to ensure the quality of the segmentation.
 
     Returns:
         A 2D or 3D numpy array with the coordinates of the contour resulting from the
@@ -202,8 +269,32 @@ def simple_segmentation(
         propagator_params=propagator_params,
     )
 
+    segmentation = reduce(lambda s, f: f(s), rules, segmentation)
+
     return (
         np.array([c.xy for c in segmentation]).transpose([0, 2, 1])
         if isinstance(segmentation, list)
         else segmentation.xy.T
     )
+
+
+def replace_single(
+    contour: Contour, replacement: Contour, rtol: float = 0.15, replace: bool = True
+) -> Contour:
+
+    value = abs(contour.mask.sum() - replacement.mask.sum()) / replacement.mask.sum()
+    if replace or value > rtol:
+        return copy(replacement)
+
+    return contour
+
+
+def replace_in_list(
+    contour: List[Contour], rtol: float = 0.15, frame_threshold: int = 30
+) -> List[Contour]:
+
+    result = [contour[0]]
+    for i, c in enumerate(contour[1:]):
+        result.append(replace_single(c, result[i], rtol, i + 1 >= frame_threshold))
+
+    return result

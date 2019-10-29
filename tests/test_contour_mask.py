@@ -36,6 +36,10 @@ def test_dilate():
 
     assert 2 * xy == approx(c2.xy)
 
+    c3 = c.dilate(s=1)
+    expected = np.array([[2, 0], [0, 2], [-2, 0], [0, -2]])
+    assert expected == approx(c3.xy)
+
 
 def test_image_to_coordinates():
     import numpy as np

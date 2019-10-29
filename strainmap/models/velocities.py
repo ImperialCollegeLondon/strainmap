@@ -194,7 +194,7 @@ def calculate_velocities(
         inner=data.segments[dataset_name]["endocardium"],
         img_shape=phase.shape[2:],
     )
-    sensitivity = velocity_sensitivity(data.data_files[dataset_name]["PhaseZ"][0]) * 2
+    sensitivity = velocity_sensitivity(data.data_files[dataset_name]["PhaseZ"][0])
     cylindrical = (
         transform_to_cylindrical(phase, mask, origin)
         * (sensitivity * signs)[:, None, None, None]
