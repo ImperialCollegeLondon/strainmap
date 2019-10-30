@@ -19,7 +19,7 @@ def read_dicom_directory_tree(path: Union[Path, Text]) -> Mapping:
     """Creates a dictionary with the available series and associated
     filenames."""
 
-    path = str(Path(path) / "*.dcm")
+    path = str(Path(path) / "*00.dcm")
     filenames = sorted(glob.glob(path))
 
     data_files: OrderedDict = OrderedDict()
@@ -37,8 +37,10 @@ def read_dicom_directory_tree(path: Union[Path, Text]) -> Mapping:
                 data_files[ds.SeriesDescription][var] = []
                 var_idx[int(Path(f).name[3:5]) + VAR_OFFSET[var]] = var
 
-        var = var_idx[int(Path(f).name[3:5])]
-        data_files[ds.SeriesDescription][var].append(f)
+        series_files = sorted(glob.glob(f.replace("00.dcm", "*")))
+        for g in series_files:
+            var = var_idx[int(Path(g).name[3:5])]
+            data_files[ds.SeriesDescription][var].append(g)
 
     return data_files
 
