@@ -30,17 +30,17 @@ def read_dicom_directory_tree(path: Union[Path, Text]) -> Mapping:
         if not parallel_spirals(ds):
             continue
 
-        if ds.SeriesDescription not in data_files.keys():
-            data_files[ds.SeriesDescription] = OrderedDict()
+        name = ds.SeriesDescription
+        if name not in data_files.keys():
+            data_files[name] = OrderedDict()
             var_idx = {}
             for var in VAR_OFFSET:
-                data_files[ds.SeriesDescription][var] = []
+                data_files[name][var] = []
                 var_idx[int(Path(f).name[3:5]) + VAR_OFFSET[var]] = var
 
-        series_files = sorted(glob.glob(f.replace("00.dcm", "*")))
-        for g in series_files:
-            var = var_idx[int(Path(g).name[3:5])]
-            data_files[ds.SeriesDescription][var].append(g)
+        data_files[name][var_idx[int(Path(f).name[3:5])]] = sorted(
+            glob.glob(f.replace("00.dcm", "*.dcm"))
+        )
 
     return data_files
 
