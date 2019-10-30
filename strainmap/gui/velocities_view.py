@@ -713,7 +713,7 @@ def colour_figure(
     for i, title in enumerate(("Longitudinal", "Radial", "Circumferential")):
         ax[i].imshow(
             velocities[:, i],
-            cmap=plt.get_cmap("terrain"),
+            cmap=plt.get_cmap("jet"),
             aspect="auto",
             interpolation="bilinear",
         )
