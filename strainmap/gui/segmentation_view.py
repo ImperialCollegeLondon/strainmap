@@ -402,10 +402,7 @@ class SegmentationTaskView(TaskViewBase):
 
     def refresh_data(self):
         """Refresh the data available in the local variables."""
-        dataset = self.datasets_var.get()
-        self.images = self.get_data_to_segment(dataset)
-        for i, side in enumerate(["endocardium", "epicardium"]):
-            self.final_segments[side] = self.data.segments[dataset][side]
+        self.final_segments = copy(self.data.segments[self.datasets_var.get()])
 
     @property
     def centroid(self):
