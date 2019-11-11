@@ -173,7 +173,8 @@ def factory(
         data.data_files = df if df is not None else data.data_files
         data.bg_files = bg if bg is not None else data.bg_files
         data.strainmap_file = sm_file if sm_file is not None else data.strainmap_file
-        data.save_all()
+        if data.strainmap_file is None:
+            data.save_all()
     elif df:
         data = StrainMapData(data_files=df, bg_files=bg, strainmap_file=sm_file)
         data.save_all()
