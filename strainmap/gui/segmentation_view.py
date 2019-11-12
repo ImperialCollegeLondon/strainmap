@@ -337,7 +337,7 @@ class SegmentationTaskView(TaskViewBase):
 
     def plot_segments(self, dataset):
         """Plot or updates the segments in the figure, if they already exist."""
-        if len(self.data.segments[dataset]) == 0:
+        if len(self.data.segments.get(dataset, [])) == 0:
             self.initialize_segmentation()
             return
 
@@ -403,6 +403,7 @@ class SegmentationTaskView(TaskViewBase):
     def refresh_data(self):
         """Refresh the data available in the local variables."""
         self.final_segments = copy(self.data.segments[self.datasets_var.get()])
+        self.zero_angle = copy(self.data.zero_angle[self.datasets_var.get()])
 
     @property
     def centroid(self):
@@ -428,10 +429,10 @@ class SegmentationTaskView(TaskViewBase):
         """Updates the state of buttons and vars when something happens in the GUI."""
         self.undo_stack = defaultdict(list)
         self.update_undo_state()
-        if len(self.data.segments[dataset]) == 0:
+        if len(self.data.segments.get(dataset, [])) == 0:
             self.clear_segment_variables(button_pressed=False)
             self.clear_btn.state(["disabled"])
-        elif not np.isnan(self.data.zero_angle[dataset][:, 0, 0]).any():
+        elif not np.isnan(self.data.zero_angle.get(dataset)[:, :, 1]).any():
             self.current_frame = self.num_frames - 1
             self.working_frame_var.set(self.current_frame)
             self.clear_btn.state(["!disabled"])
@@ -440,6 +441,8 @@ class SegmentationTaskView(TaskViewBase):
             self.datasets_box.state(["!disabled"])
             self.fig.actions_manager.DragContours.disabled = True
             self.fig.actions_manager.Markers.disabled = True
+            self.cursors["mag"] = None
+            self.cursors["vel"] = None
         else:
             self.clear_btn.state(["!disabled"])
 
@@ -466,13 +469,13 @@ class SegmentationTaskView(TaskViewBase):
         """Triggers the segmentation when frame is 0."""
         self.next_btn.config(text="Next \u25B6", command=self.next_other_frames)
         self.find_segmentation(0, self.initial_segments)
+        self.segmenting = True
         self.zero_angle[self.current_frame] = np.array((self.septum, self.centroid)).T
         self.go_to_frame()
 
     def next_other_frames(self):
         """Triggers the segmentation in the rest of the frames."""
         self.next_btn.state(["disabled"])
-        self.segmenting = True
         self.update_and_find_next()
         self.zero_angle[self.current_frame] = np.array((self.septum, self.centroid)).T
 
@@ -496,13 +499,14 @@ class SegmentationTaskView(TaskViewBase):
 
     def finish_segmentation(self):
         """Finish the segmentation, updating values and state of buttons."""
-        self.update_segmentation(unlock=True)
+        if self.segmenting:
+            self.update_segmentation(unlock=True)
+            self.segmenting = False
         self.next_btn.config(text="Done!")
         self.next_btn.state(["disabled"])
         self.datasets_box.state(["!disabled"])
         self.fig.actions_manager.DragContours.disabled = True
         self.fig.actions_manager.Markers.disabled = True
-        self.segmenting = False
 
     def scroll(self, frame, image=None):
         """Provides the next images and lines to plot when scrolling."""
@@ -647,6 +651,7 @@ class SegmentationTaskView(TaskViewBase):
     def initialize_segmentation(self):
         """Starts the segmentation process defining the initial contours and septum."""
         self.working_frame_var.set(0)
+        self.current_frame = 0
         self.go_to_frame()
 
         self.initialization = iter(
@@ -768,10 +773,14 @@ class SegmentationTaskView(TaskViewBase):
     def update_widgets(self):
         """ Updates widgets after an update in the data variable. """
         values = list(self.data.data_files.keys())
+        values_segments = list(self.data.segments.keys())
         current = self.datasets_var.get()
         self.datasets_box.config(values=values)
         if current in values:
             self.datasets_var.set(current)
+        elif len(values_segments) > 0:
+            self.datasets_var.set(values_segments[0])
+            self.segmenting = False
         else:
             self.datasets_var.set(values[0])
 
