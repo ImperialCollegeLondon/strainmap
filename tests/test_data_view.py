@@ -9,10 +9,10 @@ from .conftest import patch_dialogs
 def test_load_data_button(data_view, dicom_data_path):
     from strainmap.gui.base_window_and_task import EVENTS
 
-    EVENTS["load_data"] = MagicMock()
+    EVENTS["load_data_from_folder"] = MagicMock()
 
     data_view.nametowidget("control.chooseDataFolder").invoke()
-    assert EVENTS["load_data"].call_count == 1
+    assert EVENTS["load_data_from_folder"].call_count == 1
     assert data_view.data_folder.get() == str(dicom_data_path)
 
 

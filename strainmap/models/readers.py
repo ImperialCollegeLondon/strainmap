@@ -189,28 +189,24 @@ def images_to_numpy(data: Mapping) -> Mapping[Text, ImageTimeSeries]:
     }
 
 
-def read_strainmap_file(filename: Union[Path, Text]):
+def read_strainmap_file(data, filename: Union[Path, Text]):
     """Reads a StrainMap file with existing information on previous segmentations."""
     if str(filename).endswith(".h5"):
-        return read_h5_file(filename)
+        return read_h5_file(data, filename)
     elif str(filename).endswith(".m"):
-        return read_matlab_file(filename)
+        return read_matlab_file(data, filename)
     else:
         raise RuntimeError("File type not recognised by StrainMap.")
 
 
-def read_matlab_file(filename: Union[Path, Text]):
+def read_matlab_file(data, filename: Union[Path, Text]):
     """Reads a Matlab file."""
     raise NotImplementedError
 
 
-def read_h5_file(filename: Union[Path, Text]):
+def read_h5_file(data, filename: Union[Path, Text]):
     """Reads a HDF5 file."""
-    from .strainmap_data_model import factory
-
     sm_file = h5py.File(filename, "a")
-
-    data = factory()
 
     for s in data.__dict__.keys():
         if s == "strainmap_file":
