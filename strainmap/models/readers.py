@@ -230,6 +230,9 @@ def read_data_structure(g, structure):
     """
     for n, struct in structure.items():
         if isinstance(struct, h5py.Group):
+            if len(struct.keys()) == 0:
+                del structure[n]
+                continue
             read_data_structure(g[n], struct)
         else:
             g[n] = struct[...]
