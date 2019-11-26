@@ -1,7 +1,5 @@
 from unittest.mock import MagicMock
 
-from pytest import mark
-
 from .conftest import patch_dialogs
 
 
@@ -26,18 +24,7 @@ def test_clear_data_button(data_view, dicom_data_path):
     assert EVENTS["clear_data"].call_count == 1
 
 
-@mark.skip("Functionality ot implemented, yet.")
-def test_resume_button(data_view):
-    pass
-
-
-@mark.skip("Functionality ot implemented, yet.")
-def test_output_button(data_view):
-    pass
-
-
 def test_update_and_clear_widgets(data_view, strainmap_data):
-
     data_view.data = strainmap_data
 
     assert data_view.nametowidget("visualise.notebook")

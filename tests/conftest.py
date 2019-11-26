@@ -42,9 +42,9 @@ def data_tree(dicom_data_path):
 @fixture
 def strainmap_data(dicom_data_path):
     """Returns a loaded StrainMapData object."""
-    from strainmap.models.strainmap_data_model import factory
+    from strainmap.models.strainmap_data_model import StrainMapData
 
-    return factory(data_files=dicom_data_path)
+    return StrainMapData.from_folder(data_files=dicom_data_path)
 
 
 @fixture
