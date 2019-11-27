@@ -241,18 +241,16 @@ class VelocitiesTaskView(TaskViewBase):
 
     def marker_moved(self):
         """Updates plot and table after a marker has been moved."""
-        self.populate_tables()
-
         if self.marker_moved_info[1] == "ES":
-            self.marker_moved_info = ()
-            return
-
-        self.update_one_map(
-            self.velocity_maps,
-            self.images,
-            self.markers[self.current_region],
-            *self.marker_moved_info,
-        )
+            self.update_table_es()
+        else:
+            self.update_table_one_marker(*self.marker_moved_info)
+            self.update_one_map(
+                self.velocity_maps,
+                self.images,
+                self.markers[self.current_region],
+                *self.marker_moved_info,
+            )
         self.marker_moved_info = ()
 
     def scroll(self, step=1, *args):
@@ -336,6 +334,37 @@ class VelocitiesTaskView(TaskViewBase):
                 t.insert(vel, tk.END, text=labels[j], values=val, tags=(tag,))
                 val = np.around(marker[i, :3, 2], decimals=2).tolist()
                 t.insert(time, tk.END, text=labels[j], values=val, tags=(tag,))
+
+    def update_table_one_marker(self, table, marker):
+        """Updates peak velocity and time table entry for a single marker."""
+        table = self.axes_lbl.index(table)
+        idx = self.marker_idx[marker]
+        t = self.param_tables[table]
+        velitem = t.get_children(t.get_children()[0])[self.current_region]
+        timeitem = t.get_children(t.get_children()[1])[self.current_region]
+
+        t.set(
+            velitem,
+            column=marker,
+            value=round(self.markers[self.current_region, table, idx, 1], 2),
+        )
+        t.set(
+            timeitem,
+            column=marker,
+            value=round(self.markers[self.current_region, table, idx, 2], 2),
+        )
+
+    def update_table_es(self):
+        """Updates a row of the markers table after ES has moved."""
+        for i, t in enumerate(self.param_tables):
+            timeitem = t.get_children(t.get_children()[1])[self.current_region]
+
+            t.item(
+                timeitem,
+                values=np.around(
+                    self.markers[self.current_region, i, :3, 2], decimals=2
+                ).tolist(),
+            )
 
     def update_velocities_list(self, dataset):
         """Updates the list of radio buttons with the currently available velocities."""

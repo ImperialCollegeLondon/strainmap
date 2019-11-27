@@ -492,8 +492,9 @@ class SegmentationTaskView(TaskViewBase):
     def next_quick_segmentation(self):
         """Triggers a quick segmentation of the whole dataset."""
         self.next_btn.config(text="Next \u25B6", command=self.finish_segmentation)
-        self.find_segmentation(slice(None), self.initial_segments, unlock=True)
-        self.zero_angle[:, :, 0] = self.septum
+        self.find_segmentation(
+            slice(None), self.initial_segments, self.septum, unlock=True
+        )
         self.working_frame_var.set(self.num_frames - 1)
         self.go_to_frame()
 
@@ -716,7 +717,7 @@ class SegmentationTaskView(TaskViewBase):
             self.clear_segmentation()
 
     @trigger_event
-    def find_segmentation(self, frame, initial, unlock=False):
+    def find_segmentation(self, frame, initial, zero_angle=None, unlock=False):
         """Runs an automatic segmentation sequence."""
         images = {
             "endocardium": self.images[self.endocardium_target_var.get()][frame],
@@ -729,6 +730,7 @@ class SegmentationTaskView(TaskViewBase):
             frame=frame,
             images=images,
             initials=initial,
+            zero_angle=zero_angle,
             unlock=unlock,
         )
 

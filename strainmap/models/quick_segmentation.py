@@ -5,7 +5,7 @@ from .contour_mask import Contour, dilate, contour_diff
 import numpy as np
 from scipy import ndimage
 from copy import copy
-from typing import Text, Dict, Any, Union, List, Callable
+from typing import Text, Dict, Any, Union, List, Callable, Optional
 from functools import partial, reduce
 
 
@@ -15,6 +15,7 @@ def find_segmentation(
     frame: Union[int, slice, None],
     images: Dict[str, np.ndarray],
     initials: Dict[str, np.ndarray],
+    zero_angle: Optional[np.ndarray] = None,
     rtol_endo: float = 0.15,
     rtol_epi: float = 0.10,
     replace_threshold: int = 31,
@@ -92,6 +93,8 @@ def find_segmentation(
     data.zero_angle[dataset_name][frame, :, 1] = centroid(
         data.segments[dataset_name], frame, img_shape
     )
+    if zero_angle is not None:
+        data.zero_angle[dataset_name][frame, :, 0] = copy(zero_angle)
 
     if save:
         data.save(
