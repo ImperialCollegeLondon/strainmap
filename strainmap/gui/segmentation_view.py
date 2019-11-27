@@ -755,7 +755,6 @@ class SegmentationTaskView(TaskViewBase):
             "epicardium": self.images[self.epicardium_target_var.get()][frame],
         }
         return dict(
-            data=self.data,
             dataset_name=self.datasets_var.get(),
             segments=self.final_segments,
             zero_angle=self.zero_angle,
@@ -766,7 +765,7 @@ class SegmentationTaskView(TaskViewBase):
     @trigger_event
     def clear_segmentation(self):
         """Confirm the new segments after a manual segmentation process."""
-        return dict(data=self.data, dataset_name=self.datasets_var.get())
+        return dict(dataset_name=self.datasets_var.get())
 
     def stop_animation(self):
         """Stops an animation, if there is one running."""

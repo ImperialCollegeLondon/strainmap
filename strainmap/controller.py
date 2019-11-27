@@ -70,7 +70,7 @@ class StrainMap(object):
             ](control, **kwargs)
 
     @bind_event
-    def load_data_from_folder(self, data_files):
+    def load_data_from_folder(self, view, data_files):
         """Creates a StrainMapData object."""
         self.data = StrainMapData.from_folder(data_files)
 
@@ -78,10 +78,10 @@ class StrainMap(object):
             self.unlock(Requisites.DATALOADED)
         else:
             self.lock(Requisites.DATALOADED)
-        self.update_views()
+        view.update_widgets()
 
     @bind_event
-    def load_data_from_file(self, strainmap_file):
+    def load_data_from_file(self, view, strainmap_file):
         """Creates a StrainMapData object."""
         self.data = StrainMapData.from_file(strainmap_file)
 
@@ -95,29 +95,29 @@ class StrainMap(object):
         else:
             self.lock(Requisites.SEGMENTED)
 
-        self.update_views()
+        view.update_widgets()
 
     @bind_event
-    def clear_data(self, **kwargs):
+    def clear_data(self, view, **kwargs):
         """Clears the StrainMapData object from the widgets."""
         if kwargs.get("clear", False):
             self.data = StrainMapData.from_folder()
             self.lock(Requisites.DATALOADED)
             self.lock(Requisites.SEGMENTED)
-            self.update_views()
+            view.update_widgets()
 
     @bind_event
-    def add_paths(self, data_files=None, bg_files=None):
+    def add_paths(self, view, data_files=None, bg_files=None):
         if self.data.add_paths(data_files, bg_files):
-            self.update_views()
+            view.update_widgets()
 
     @bind_event
-    def add_h5_file(self, strainmap_file):
+    def add_h5_file(self, view, strainmap_file):
         if self.data.add_h5_file(strainmap_file):
-            self.update_views()
+            view.update_widgets()
 
     @bind_event
-    def find_segmentation(self, unlock=True, **kwargs):
+    def find_segmentation(self, view, unlock=True, **kwargs):
         """Runs an automated segmentation routine."""
         quick_segmentation.find_segmentation(data=self.data, **kwargs)
         there_are_segments = any(len(i) != 0 for i in self.data.segments.values())
@@ -125,10 +125,10 @@ class StrainMap(object):
             self.unlock(Requisites.SEGMENTED)
         elif not there_are_segments:
             self.lock(Requisites.SEGMENTED)
-        self.update_views()
+        view.update_widgets()
 
     @bind_event
-    def update_segmentation(self, unlock=True, **kwargs):
+    def update_segmentation(self, view, unlock=True, **kwargs):
         """Runs an automated segmentation routine."""
         quick_segmentation.update_segmentation(data=self.data, **kwargs)
         there_are_segments = any(len(i) != 0 for i in self.data.segments.values())
@@ -136,36 +136,36 @@ class StrainMap(object):
             self.unlock(Requisites.SEGMENTED)
         elif not there_are_segments:
             self.lock(Requisites.SEGMENTED)
-        self.update_views()
+        view.update_widgets()
 
     @bind_event
-    def update_and_find_next(self, **kwargs):
+    def update_and_find_next(self, view, **kwargs):
         """Runs an automated segmentation routine."""
-        quick_segmentation.update_and_find_next(**kwargs)
-        self.update_views()
+        quick_segmentation.update_and_find_next(data=self.data, **kwargs)
+        view.update_widgets()
 
     @bind_event
-    def clear_segmentation(self, **kwargs):
+    def clear_segmentation(self, view, **kwargs):
         """Clears an existing segmentation."""
-        quick_segmentation.clear_segmentation(**kwargs)
+        quick_segmentation.clear_segmentation(data=self.data, **kwargs)
         there_are_segments = any(len(i) != 0 for i in self.data.segments.values())
         if not there_are_segments:
             self.lock(Requisites.SEGMENTED)
-        self.update_views()
+        view.update_widgets()
 
     @bind_event
-    def calculate_velocities(self, **kwargs):
+    def calculate_velocities(self, view, **kwargs):
         """Calculates the velocities based on a given segmentation."""
-        calculate_velocities(**kwargs)
-        self.update_views()
+        calculate_velocities(data=self.data, **kwargs)
+        view.update_widgets()
 
     @bind_event
-    def update_marker(self, **kwargs):
+    def update_marker(self, view, **kwargs):
         """Updates the markers information after moving one of them."""
-        update_marker(**kwargs)
-        self.update_views()
+        update_marker(data=self.data, **kwargs)
+        view.update_widgets()
 
     @bind_event
     def export_velocity(self, **kwargs):
         """Exports velocity data to a XLSX file."""
-        velocity_to_xlsx(**kwargs)
+        velocity_to_xlsx(data=self.data, **kwargs)

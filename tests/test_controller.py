@@ -31,11 +31,14 @@ def test_update_views(control_with_mock_window):
     assert control_with_mock_window.window.views[0].update_widgets.called
 
 
-def test_load_data(control_with_mock_window, dicom_data_path):
+def test_load_data(control_with_mock_window, dicom_data_path, data_view):
 
     control_with_mock_window.unlock = MagicMock()
+    data_view.update_widgets = MagicMock()
 
-    control_with_mock_window.load_data_from_folder(data_files=dicom_data_path)
+    control_with_mock_window.load_data_from_folder(
+        view=data_view, data_files=dicom_data_path
+    )
 
     assert control_with_mock_window.unlock.call_count == 1
     assert len(control_with_mock_window.data.data_files.keys()) == 3
@@ -43,13 +46,14 @@ def test_load_data(control_with_mock_window, dicom_data_path):
     control_with_mock_window.window.reset_mock()
 
 
-def test_clear_data(control_with_mock_window):
+def test_clear_data(control_with_mock_window, data_view):
     from strainmap.models.strainmap_data_model import StrainMapData
 
     control_with_mock_window.data = "Dummy"
     control_with_mock_window.lock = MagicMock()
+    data_view.update_widgets = MagicMock()
 
-    control_with_mock_window.clear_data(clear=True)
+    control_with_mock_window.clear_data(view=data_view, clear=True)
 
     assert control_with_mock_window.lock.call_count == 2
     assert type(control_with_mock_window.data) is StrainMapData

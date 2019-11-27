@@ -394,7 +394,6 @@ class VelocitiesTaskView(TaskViewBase):
     def calculate_velocities(self, dataset, bg=None):
         """Calculate pre-defined velocities for the chosen dataset."""
         return dict(
-            data=self.data,
             dataset_name=dataset,
             global_velocity=True,
             angular_regions=[6, 24],
@@ -419,7 +418,6 @@ class VelocitiesTaskView(TaskViewBase):
 
         return dict(
             filename=filename,
-            data=self.data,
             dataset=self.datasets_var.get(),
             vel_label=self.velocities_var.get(),
         )
@@ -724,7 +722,6 @@ class VelocitiesTaskView(TaskViewBase):
         """When a marker moves, mask data should be updated."""
         self.marker_moved_info = (data.get_label(), marker.get_label())
         return dict(
-            data=self.data,
             dataset=self.datasets_var.get(),
             vel_label=self.velocities_var.get(),
             region=self.current_region,

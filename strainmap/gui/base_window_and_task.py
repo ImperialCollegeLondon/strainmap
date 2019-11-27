@@ -8,10 +8,10 @@ views.
 import tkinter as tk
 from abc import ABC, abstractmethod
 from enum import Flag, auto
-from functools import wraps
 from pathlib import Path
 from tkinter import ttk
 from typing import Callable, List, Optional, Text, Type
+import wrapt
 
 import weakref
 from PIL import Image, ImageTk
@@ -73,6 +73,11 @@ class TaskViewBase(ABC, ttk.Frame):
             compound="top",
             command=self.tkraise,
         )
+
+    def tkraise(self, aboveThis=None):
+        """Brings the frame to the front."""
+        super().tkraise()
+        self.update_widgets()
 
     @property
     def data(self):
@@ -214,22 +219,26 @@ EVENTS: dict = {}
 
 
 def trigger_event(fun: Optional[Callable] = None, name: Optional[Text] = None):
-    """Registers a view method that will trigger an event. """
+    """Registers a view method that will trigger an event.
+
+    Uses the more advanced wrapt package instead of functools.wrap:
+    https://pypi.org/project/wrapt/
+    """
 
     if fun is None:
         return lambda x: trigger_event(x, name=name)
 
     name = name if name else fun.__name__
 
-    @wraps(fun)
-    def wrapper(*args, **kwargs):
+    @wrapt.decorator
+    def wrapper(fun, instance, args, kwargs):
         params = fun(*args, **kwargs)
         if params:
-            EVENTS[name](**params)
+            EVENTS[name](view=instance, **params)
 
     REGISTERED_TRIGGERS.append(name)
 
-    return wrapper
+    return wrapper(fun)
 
 
 def bind_event(fun: Callable, name=None):
