@@ -408,6 +408,11 @@ class DataTaskView(TaskViewBase):
     def update_widgets(self):
         """ Updates widgets after an update in the data variable. """
         values = list(self.data.data_files.keys())
+        if len(values) > 0:
+            self.nametowidget("control.chooseOutputFile")["state"] = "enable"
+        else:
+            self.nametowidget("control.chooseOutputFile")["state"] = "disable"
+
         data_missing = (
             len(values) > 0 and len(self.data.data_files[values[0]]["MagZ"]) == 0
         )
@@ -433,7 +438,6 @@ class DataTaskView(TaskViewBase):
             else None
         )
         self.output_file.set(filename)
-        self.nametowidget("control.chooseOutputFile")["state"] = "enable"
         self.create_data_selector()
         self.create_data_viewer()
         self.update_visualization()
