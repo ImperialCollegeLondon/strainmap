@@ -13,6 +13,7 @@ from pathlib import Path
 from tkinter import ttk
 from typing import Callable, List, Optional, Text, Type
 
+import weakref
 from PIL import Image, ImageTk
 
 ICONS_DIRECTORY = Path(__file__).parent / "icons"
@@ -51,11 +52,12 @@ class TaskViewBase(ABC, ttk.Frame):
     def __init__(
         self,
         root: tk.Tk,
+        controller: weakref.ReferenceType,
         button_text: Optional[Text] = None,
         button_image: Optional[Text] = None,
     ):
         super().__init__(root)
-        self.__data = None
+        self._controller = controller
 
         if button_image is not None:
             self.image = Image.open(ICONS_DIRECTORY / button_image)
@@ -74,15 +76,7 @@ class TaskViewBase(ABC, ttk.Frame):
 
     @property
     def data(self):
-        return self.__data
-
-    @data.setter
-    def data(self, data):
-        self.__data = data
-        if data is None:
-            self.clear_widgets()
-        else:
-            self.update_widgets()
+        return self._controller().data
 
     @abstractmethod
     def update_widgets(self):
@@ -164,10 +158,10 @@ class MainWindow(tk.Tk):
     def view_classes(self):
         return [type(v) for v in self.winfo_children() if isinstance(v, TaskViewBase)]
 
-    def add(self, view: Type[TaskViewBase]):
+    def add(self, view: Type[TaskViewBase], controller):
         """ Creates a view if not already created and adds it to the main window."""
         if view not in self.view_classes:
-            v = view(root=self)
+            v = view(root=self, controller=controller)
             v.button.grid(column=0, sticky=(tk.EW, tk.N), padx=10, pady=10)
             v.grid(column=1, row=1, sticky=tk.NSEW)
             v.lower()

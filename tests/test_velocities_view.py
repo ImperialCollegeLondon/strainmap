@@ -7,19 +7,23 @@ def test_update_widgets(velocities_view, segmented_data, data_with_velocities):
     velocities_view.update_velocities_list = MagicMock()
     velocities_view.switch_velocity = MagicMock()
 
-    velocities_view.data = segmented_data
+    velocities_view._controller().data = segmented_data
+    velocities_view.update_widgets()
+
     expected = list(segmented_data.data_files.keys())[0]
     assert velocities_view.datasets_var.get() == expected
     velocities_view.calculate_velocities.assert_called_once()
 
-    velocities_view.data = data_with_velocities
+    velocities_view._controller().data = data_with_velocities
+    velocities_view.update_widgets()
     velocities_view.update_velocities_list.assert_called_once()
     velocities_view.switch_velocity.assert_called_once()
 
 
 def test_bg_changed(velocities_view, data_with_velocities):
     velocities_view.calculate_velocities = MagicMock()
-    velocities_view.data = data_with_velocities
+    velocities_view._controller().data = data_with_velocities
+    velocities_view.update_widgets()
     velocities_view.bg_var.set("None")
     velocities_view.bg_changed()
     velocities_view.calculate_velocities.assert_called_once()
@@ -27,7 +31,8 @@ def test_bg_changed(velocities_view, data_with_velocities):
 
 def test_reversal_checked(velocities_view, data_with_velocities):
     velocities_view.calculate_velocities = MagicMock()
-    velocities_view.data = data_with_velocities
+    velocities_view._controller().data = data_with_velocities
+    velocities_view.update_widgets()
 
     velocities_view.reversal_checked()
     assert velocities_view.update_vel_btn.instate(["disabled"])
@@ -39,14 +44,16 @@ def test_reversal_checked(velocities_view, data_with_velocities):
 
 def test_recalculate_velocities(velocities_view, data_with_velocities):
     velocities_view.calculate_velocities = MagicMock()
-    velocities_view.data = data_with_velocities
+    velocities_view._controller().data = data_with_velocities
+    velocities_view.update_widgets()
     velocities_view.recalculate_velocities()
     velocities_view.calculate_velocities.assert_called_once()
 
 
 def test_scroll(velocities_view, data_with_velocities):
     velocities_view.calculate_velocities = MagicMock()
-    velocities_view.data = data_with_velocities
+    velocities_view._controller().data = data_with_velocities
+    velocities_view.update_widgets()
     vel = list(list(data_with_velocities.velocities.values())[0].keys())[1]
     velocities_view.velocities_var.set(vel)
 
@@ -57,7 +64,8 @@ def test_scroll(velocities_view, data_with_velocities):
 
 def test_color_plot(velocities_view, data_with_velocities):
     velocities_view.calculate_velocities = MagicMock()
-    velocities_view.data = data_with_velocities
+    velocities_view._controller().data = data_with_velocities
+    velocities_view.update_widgets()
     velocities_view.velocities_var.set("angular x24 - Estimated")
     velocities_view.switch_velocity()
 

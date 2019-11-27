@@ -109,41 +109,30 @@ def main_window():
 
 
 @fixture
-def empty_view():
-    from strainmap.gui.base_window_and_task import TaskViewBase
-
-    class TestView(TaskViewBase):
-        def __init__(self, root):
-            super().__init__(root)
-
-        def update_widgets(self):
-            pass
-
-        def clear_widgets(self):
-            pass
-
-    return TestView
-
-
-@fixture
 def data_view(main_window):
     from strainmap.gui.data_view import DataTaskView
+    from strainmap.controller import StrainMap
+    import weakref
 
-    return DataTaskView(main_window)
+    return DataTaskView(main_window, weakref.ref(StrainMap))
 
 
 @fixture
 def segmentation_view(main_window):
     from strainmap.gui.segmentation_view import SegmentationTaskView
+    from strainmap.controller import StrainMap
+    import weakref
 
-    return SegmentationTaskView(main_window)
+    return SegmentationTaskView(main_window, weakref.ref(StrainMap))
 
 
 @fixture
 def velocities_view(main_window):
     from strainmap.gui.velocities_view import VelocitiesTaskView
+    from strainmap.controller import StrainMap
+    import weakref
 
-    return VelocitiesTaskView(main_window)
+    return VelocitiesTaskView(main_window, weakref.ref(StrainMap))
 
 
 @fixture

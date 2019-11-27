@@ -19,9 +19,11 @@ class VelocitiesTaskView(TaskViewBase):
     axes_lbl = ("_long", "_rad", "_circ")
     marker_idx = {"PS": 0, "PD": 1, "PAS": 2, "PC1": 0, "PC2": 1, "PC3": 2, "ES": 3}
 
-    def __init__(self, root):
+    def __init__(self, root, controller):
 
-        super().__init__(root, button_text="Velocities", button_image="speed.gif")
+        super().__init__(
+            root, controller, button_text="Velocities", button_image="speed.gif"
+        )
         self.rowconfigure(1, weight=1)
         self.columnconfigure(0, weight=1)
 

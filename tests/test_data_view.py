@@ -25,29 +25,9 @@ def test_clear_data_button(data_view, dicom_data_path):
 
 
 def test_update_and_clear_widgets(data_view, strainmap_data):
-    data_view.data = strainmap_data
+    data_view._controller().data = strainmap_data
+    data_view.update_widgets()
 
     assert data_view.nametowidget("visualise.notebook")
     assert len(data_view.notebook.tabs()) == 2
     assert data_view.nametowidget("control.chooseOutputFile")["state"] == "enable"
-
-    data_view.data = None
-
-    assert not data_view.notebook
-    assert (
-        str(data_view.nametowidget("control.chooseOutputFile")["state"]) == "disabled"
-    )
-
-
-def test_update_plot(data_view, strainmap_data):
-
-    assert not data_view.fig
-    data_view.data = strainmap_data
-    assert data_view.fig.axes
-
-
-def test_update_tree(data_view, strainmap_data):
-
-    assert not data_view.treeview
-    data_view.data = strainmap_data
-    assert len(data_view.treeview.get_children()) > 0

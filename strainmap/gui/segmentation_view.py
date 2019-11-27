@@ -39,9 +39,11 @@ class SegmentationTaskView(TaskViewBase):
 
     requisites = Requisites.DATALOADED
 
-    def __init__(self, root):
+    def __init__(self, root, controller):
 
-        super().__init__(root, button_text="Segmentation", button_image="molecules.gif")
+        super().__init__(
+            root, controller, button_text="Segmentation", button_image="molecules.gif"
+        )
         self.rowconfigure(1, weight=1)
         self.columnconfigure(0, weight=1)
 
@@ -725,7 +727,6 @@ class SegmentationTaskView(TaskViewBase):
         }
 
         return dict(
-            data=self.data,
             dataset_name=self.datasets_var.get(),
             frame=frame,
             images=images,
@@ -738,7 +739,6 @@ class SegmentationTaskView(TaskViewBase):
     def update_segmentation(self, unlock=False):
         """Confirm the new segments after a manual segmentation process."""
         return dict(
-            data=self.data,
             dataset_name=self.datasets_var.get(),
             segments=self.final_segments,
             zero_angle=self.zero_angle,

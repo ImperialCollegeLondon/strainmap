@@ -27,10 +27,8 @@ def test_update_views(control_with_mock_window):
 
     view = control_with_mock_window.registered_views[0]
     control_with_mock_window.window.views = [MagicMock(view)]
-    control_with_mock_window.data = "Dummy"
-    assert control_with_mock_window.window.views[0].data != "Dummy"
     control_with_mock_window.update_views()
-    assert control_with_mock_window.window.views[0].data == "Dummy"
+    assert control_with_mock_window.window.views[0].update_widgets.called
 
 
 def test_load_data(control_with_mock_window, dicom_data_path):
@@ -46,12 +44,14 @@ def test_load_data(control_with_mock_window, dicom_data_path):
 
 
 def test_clear_data(control_with_mock_window):
+    from strainmap.models.strainmap_data_model import StrainMapData
+
     control_with_mock_window.data = "Dummy"
     control_with_mock_window.lock = MagicMock()
 
     control_with_mock_window.clear_data(clear=True)
 
     assert control_with_mock_window.lock.call_count == 2
-    assert control_with_mock_window.data is None
+    assert type(control_with_mock_window.data) is StrainMapData
 
     control_with_mock_window.window.reset_mock()
