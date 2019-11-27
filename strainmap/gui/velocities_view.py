@@ -527,23 +527,25 @@ class VelocitiesTaskView(TaskViewBase):
         if "global" in self.velocities_var.get():
             self.limits = self.find_limits(vel_masks[0, 0])
 
+        rmin, rmax, cmin, cmax = self.limits
         vmin, vmax = vel_masks.min(), vel_masks.max()
         for i in range(9):
             axes = self.axes_lbl[i // 3]
             frame = int(markers[i // 3, i % 3, 0])
             bg[axes].append(
-                self.maps[i].imshow(mag[frame], cmap=plt.get_cmap("binary_r"))
+                self.maps[i].imshow(
+                    mag[frame, rmin : rmax + 1, cmin : cmax + 1],
+                    cmap=plt.get_cmap("binary_r"),
+                )
             )
             masks[axes].append(
                 self.maps[i].imshow(
-                    vel_masks[i // 3, frame],
+                    vel_masks[i // 3, frame, rmin : rmax + 1, cmin : cmax + 1],
                     cmap=plt.get_cmap("seismic"),
                     vmin=vmin,
                     vmax=vmax,
                 )
             )
-            self.maps[i].set_xlim(*self.limits[0])
-            self.maps[i].set_ylim(*self.limits[1])
 
         cbar = self.fig.colorbar(masks["_long"][0], ax=self.maps[0], pad=-1.4)
 
@@ -552,14 +554,14 @@ class VelocitiesTaskView(TaskViewBase):
     @staticmethod
     def find_limits(mask, margin=30):
         """Find the appropiate limits of a masked array in order to plot it nicely."""
-        yaxes, xaxes = mask.nonzero()
+        rows, cols = mask.nonzero()
 
-        xmin = max(xaxes.min() - margin, 0)
-        ymin = max(yaxes.min() - margin, 0)
-        xmax = min(xaxes.max() + margin, mask.shape[0])
-        ymax = min(yaxes.max() + margin, mask.shape[1])
+        cmin = max(cols.min() - margin, 0)
+        rmin = max(rows.min() - margin, 0)
+        cmax = min(cols.max() + margin, mask.shape[0])
+        rmax = min(rows.max() + margin, mask.shape[1])
 
-        return (xmin, xmax), (ymax, ymin)
+        return rmin, rmax, cmin, cmax
 
     def add_markers(self, markers):
         """Adds markers to the plots.).
@@ -634,11 +636,14 @@ class VelocitiesTaskView(TaskViewBase):
         self, vel_masks: np.ndarray, images: np.ndarray, markers: np.ndarray, draw=True
     ):
         """Updates the maps (masks and background data)."""
+        rmin, rmax, cmin, cmax = self.limits
         for i in range(9):
             axes = self.axes_lbl[i // 3]
             frame = int(markers[i // 3, i % 3, 0])
-            self.update_mask(axes, i % 3, vel_masks[i // 3, frame])
-            self.update_bg(axes, i % 3, images[frame])
+            self.update_mask(
+                axes, i % 3, vel_masks[i // 3, frame, rmin : rmax + 1, cmin : cmax + 1]
+            )
+            self.update_bg(axes, i % 3, images[frame, rmin : rmax + 1, cmin : cmax + 1])
 
         if draw:
             self.draw()
@@ -652,11 +657,14 @@ class VelocitiesTaskView(TaskViewBase):
         marker_lbl: str,
     ):
         """Updates the maps correspoinding to a single marker."""
+        rmin, rmax, cmin, cmax = self.limits
         component = self.axes_lbl.index(axes)
         idx = self.marker_idx[marker_lbl]
         frame = int(markers[component, idx, 0])
-        self.update_mask(axes, idx, vel_masks[component, frame])
-        self.update_bg(axes, idx, images[frame])
+        self.update_mask(
+            axes, idx, vel_masks[component, frame, rmin : rmax + 1, cmin : cmax + 1]
+        )
+        self.update_bg(axes, idx, images[frame, rmin : rmax + 1, cmin : cmax + 1])
         self.draw()
 
     def update_velocities(self, vels, draw=True):
