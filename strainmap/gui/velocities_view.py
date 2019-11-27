@@ -242,18 +242,17 @@ class VelocitiesTaskView(TaskViewBase):
     def marker_moved(self):
         """Updates plot and table after a marker has been moved."""
         self.populate_tables()
-        if self.marker_moved_info[1] == "ES":
-            self.update_maps(
-                self.velocity_maps, self.images, self.markers[self.current_region]
-            )
-        else:
-            self.update_one_map(
-                self.velocity_maps,
-                self.images,
-                self.markers[self.current_region],
-                *self.marker_moved_info,
-            )
 
+        if self.marker_moved_info[1] == "ES":
+            self.marker_moved_info = ()
+            return
+
+        self.update_one_map(
+            self.velocity_maps,
+            self.images,
+            self.markers[self.current_region],
+            *self.marker_moved_info,
+        )
         self.marker_moved_info = ()
 
     def scroll(self, step=1, *args):
