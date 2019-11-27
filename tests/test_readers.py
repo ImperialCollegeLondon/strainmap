@@ -183,13 +183,14 @@ def test_paths_from_hdf5(strainmap_data, tmpdir):
 def test_read_h5_file(tmpdir, segmented_data):
     from strainmap.models.readers import read_h5_file
     from strainmap.models.writers import write_hdf5_file
+    from strainmap.models.strainmap_data_model import StrainMapData
 
     filename = tmpdir / "strain_map_file.h5"
     dataset_name = list(segmented_data.data_files.keys())[0]
     abs_paths = segmented_data.data_files[dataset_name]["MagX"]
 
     write_hdf5_file(segmented_data, filename)
-    new_data = read_h5_file(filename)
+    new_data = read_h5_file(StrainMapData.from_folder(), filename)
 
     if str(filename)[0] != abs_paths[0][0]:
         assert segmented_data != new_data

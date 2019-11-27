@@ -225,8 +225,8 @@ class DataTaskView(TaskViewBase):
 
         return dicom_frame
 
-    @trigger_event
-    def load_data(self, data=None):
+    @trigger_event(name="load_data_from_folder")
+    def load_data(self):
         """Loads new data into StrainMap"""
         path = tk.filedialog.askdirectory(
             title="Select DATA directory", initialdir=self.current_dir
@@ -235,14 +235,12 @@ class DataTaskView(TaskViewBase):
         output = {}
         if path != "":
             self.current_dir = path
-            output = dict(data=data, data_files=path)
+            output = dict(data_files=path)
             self.data_folder.set(self.current_dir)
-        elif data is not None:
-            output = dict(data_files="no_path")
 
         return output
 
-    @trigger_event(name="load_data")
+    @trigger_event(name="add_paths")
     def load_phantom(self):
         """Loads phantom data into a data structure."""
 
@@ -254,14 +252,33 @@ class DataTaskView(TaskViewBase):
             if path == "":
                 self.phantom_check.set(False)
             else:
-                result = dict(bg_files=path, data=self.data)
+                result = dict(bg_files=path)
         else:
             self.phantoms_box.grid_remove()
-            result = dict(bg_files="", data=self.data)
+            result = dict(bg_files="")
 
         return result
 
-    @trigger_event(name="load_data")
+    @trigger_event(name="add_paths")
+    def load_missing_data(self, data_missing=False, phantom_missing=False):
+
+        data_path = phantom_path = None
+        if data_missing:
+            data_path = tk.filedialog.askdirectory(
+                title="Select DATA directory", initialdir=self.current_dir
+            )
+        if phantom_missing:
+            phantom_path = tk.filedialog.askdirectory(
+                title="Select PHANTOM directory", initialdir=self.current_dir
+            )
+
+        if data_path is not None:
+            self.current_dir = data_path
+            self.data_folder.set(self.current_dir)
+
+        return dict(data_files=data_path, bg_files=phantom_path)
+
+    @trigger_event(name="load_data_from_file")
     def open_existing_file(self):
         """ Opens an existing StrainMap file."""
         path = tk.filedialog.askopenfilename(
@@ -277,7 +294,7 @@ class DataTaskView(TaskViewBase):
 
         return output
 
-    @trigger_event(name="load_data")
+    @trigger_event(name="add_h5_file")
     def select_output_file(self):
         """ Selects an output file in which to store the current data."""
         meta = self.data.metadata()
@@ -294,7 +311,7 @@ class DataTaskView(TaskViewBase):
 
         output = {}
         if path != "":
-            output = dict(data=self.data, strainmap_file=path)
+            output = dict(strainmap_file=path)
             self.output_file.set(path)
 
         return output
@@ -391,22 +408,24 @@ class DataTaskView(TaskViewBase):
     def update_widgets(self):
         """ Updates widgets after an update in the data variable. """
         values = list(self.data.data_files.keys())
-        if len(values) > 0 and len(self.data.data_files[values[0]]["MagZ"]) == 0:
-            messagebox.showwarning(
-                "DICOM data not found!",
-                message="Data paths found in the StrainMap data file do not exist."
-                "Choose an alternative folder for the data DICOM files.",
-            )
-            self.load_data(data=self.data)
-
+        data_missing = (
+            len(values) > 0 and len(self.data.data_files[values[0]]["MagZ"]) == 0
+        )
         values = list(self.data.bg_files.keys())
-        if len(values) > 0 and len(self.data.bg_files[values[0]]["MagZ"]) == 0:
+        phantom_missing = (
+            len(values) > 0 and len(self.data.bg_files[values[0]]["MagZ"]) == 0
+        )
+
+        if data_missing or phantom_missing:
             messagebox.showwarning(
-                "PHANTOM data not found!",
-                message="Phantom data paths found in the file do not exist either!"
-                "Choose an alternative folder for the Phantom data.",
+                "DICOM data not found! " * data_missing
+                + "PHANTOM data not found!" * phantom_missing,
+                message="Data paths found in the StrainMap data file do not exist."
+                "Choose an alternative folder for the files.",
             )
-            self.load_phantom()
+            self.load_missing_data(
+                data_missing=data_missing, phantom_missing=phantom_missing
+            )
 
         filename = (
             self.data.strainmap_file.filename

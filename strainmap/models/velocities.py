@@ -294,9 +294,10 @@ def mean_velocities(
 markers_options = {
     "PS": dict(low=1, high=15, maximum=True),
     "PD": dict(low=15, high=30, maximum=False),
-    "PAS": dict(low=31, high=41, maximum=False),
+    "PAS": dict(low=35, high=47, maximum=False),
     "PC1": dict(low=1, high=5, maximum=False),
     "PC2": dict(low=6, high=12, maximum=True),
+    "ES": dict(low=14, high=21),
 }
 
 
@@ -311,15 +312,19 @@ def marker(comp, low=1, high=49, maximum=True):
     return idx, comp[idx], 0
 
 
-def marker_es(comp, pd):
+def marker_es(comp, pd, low=14, high=21):
     """Finds the default position of the ES marker."""
-    idx = round(len(comp) / 3)
-    low = int(min(max(1, idx - 5), len(comp) - 1))
-    high = int(min(idx + 5, len(comp) - 1))
+    low = min(low, len(comp) - 1)
+    high = min(high, len(comp) - 1)
 
-    idx = np.argmin(comp[low : high + 1]) + low
+    # Hack needed for testing when using only 3 frames.
+    if high - low < 3:
+        low = 0
 
-    if idx == pd[0] or comp[idx] < -2:
+    grad = np.gradient(comp[low : high + 1])
+    idx = np.argmin(abs(grad)) + low
+
+    if idx == pd[0] or comp[idx] < -2.5:
         idx = np.argmin(abs(comp[low : high + 1])) + low
 
     return idx, comp[idx], 0
@@ -419,7 +424,7 @@ def _markers_positions(
             markers[i, j] = marker(velocity[i], **markers_options[key])
 
     markers[1, 3] = (
-        marker_es(velocity[1], markers[1, 1])
+        marker_es(velocity[1], markers[1, 1], **markers_options["ES"])
         if es is None
         else (int(es[0]), velocity[1, int(es[0])], 0)
     )

@@ -146,7 +146,7 @@ def test_plot_segments(segmentation_view, strainmap_data):
 def test_clear_segments(segmentation_view):
     import numpy as np
 
-    segmentation_view.update_segmentation = MagicMock()
+    segmentation_view.clear_segmentation = MagicMock()
     contour = np.random.random((2, 5))
 
     segmentation_view.initial_segments["endocardium"] = contour
@@ -160,7 +160,7 @@ def test_clear_segments(segmentation_view):
     assert segmentation_view.initial_segments["epicardium"] is None
     assert segmentation_view.final_segments["endocardium"] is None
     assert segmentation_view.final_segments["epicardium"] is None
-    segmentation_view.update_segmentation.assert_called_once()
+    segmentation_view.clear_segmentation.assert_called_once()
 
 
 def test_scroll(segmentation_view):
@@ -240,6 +240,7 @@ def test_next_frames(segmentation_view, strainmap_data):
 
     segmentation_view.find_segmentation = MagicMock()
     segmentation_view.update_segmentation = MagicMock()
+    segmentation_view.update_and_find_next = MagicMock()
     segmentation_view.go_to_frame = MagicMock()
 
     # First frame
@@ -249,14 +250,14 @@ def test_next_frames(segmentation_view, strainmap_data):
 
     # Other frames
     segmentation_view.next_other_frames()
-    segmentation_view.find_segmentation.assert_called()
-    segmentation_view.update_segmentation.assert_called()
+    segmentation_view.update_and_find_next.assert_called()
     assert segmentation_view.go_to_frame.call_count == 2
 
 
 def test_finish_segmentation(segmentation_view):
     segmentation_view.update_segmentation = MagicMock()
 
+    segmentation_view.segmenting = True
     segmentation_view.finish_segmentation()
     segmentation_view.update_segmentation.assert_called()
     assert segmentation_view.fig.actions_manager.Markers.disabled

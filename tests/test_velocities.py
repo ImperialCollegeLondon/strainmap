@@ -212,14 +212,14 @@ def test_marker():
 
 
 def test_marker_es():
-    from strainmap.models.velocities import marker_es
+    from strainmap.models.velocities import marker_es, markers_options
     import numpy as np
 
     vel = 10 * np.sin(np.linspace(0, 4 * np.pi, 50))
 
     pd_idx = np.argmin(abs(vel[1:25] - 10 * np.sin(3 * np.pi / 2)))
     pd = (pd_idx, vel[pd_idx], 0)
-    idx = np.argmin(abs(vel[1:25] - 10 * np.sin(np.pi))) + 1
+    idx = markers_options["ES"]["low"]
     expected = (idx, vel[idx], 0)
     assert marker_es(vel, pd) == expected
 

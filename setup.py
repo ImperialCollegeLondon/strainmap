@@ -16,7 +16,7 @@ setup(
         "scikit-image",
         "matplotlib",
         "numpy",
-        "scipy",
+        "scipy<=1.3.1",
         "nibabel",
         "openpyxl",
         "h5py",

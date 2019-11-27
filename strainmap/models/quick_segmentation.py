@@ -15,8 +15,10 @@ def find_segmentation(
     frame: Union[int, slice, None],
     images: Dict[str, np.ndarray],
     initials: Dict[str, np.ndarray],
-    rtol: float = 0.15,
-    replace_threshold: int = 30,
+    rtol_endo: float = 0.15,
+    rtol_epi: float = 0.10,
+    replace_threshold: int = 31,
+    save=True,
 ) -> StrainMapData:
     """Find the segmentation for the endocardium and the epicardium at one single frame.
 
@@ -26,6 +28,8 @@ def find_segmentation(
         frame: index of the frame to segment
         images: Dictionary with the images to segment for the epi- and endocardium
         initials: Dictionary with the initial segmentation for the epi- and endocardium.
+        rtol_endo: Relative tolerance of areal change in the endocardium.
+        rtol_epi: Relative tolerance of areal change in the endocardium.
         replace_threshold: frame threshold from where endocardium segment must be
             replaced
 
@@ -54,16 +58,16 @@ def find_segmentation(
 
     img_shape = images["endocardium"].shape[-2:]
     rules = create_rules(
-        frame, data.segments[dataset_name], img_shape, rtol, replace_threshold
+        frame,
+        data.segments[dataset_name],
+        img_shape,
+        {"endocardium": rtol_endo, "epicardium": rtol_epi},
+        replace_threshold,
     )
 
     results = {}
     for side in ("endocardium", "epicardium"):
-        if (
-            side == "endocardium"
-            and isinstance(frame, int)
-            and frame >= replace_threshold
-        ):
+        if isinstance(frame, int) and frame >= replace_threshold:
             results[side] = copy(data.segments[dataset_name][side][frame - 1])
         else:
             results[side] = simple_segmentation(
@@ -89,11 +93,12 @@ def find_segmentation(
         data.segments[dataset_name], frame, img_shape
     )
 
-    data.save(
-        ["segments", dataset_name, "endocardium"],
-        ["segments", dataset_name, "epicardium"],
-        ["zero_angle", dataset_name],
-    )
+    if save:
+        data.save(
+            ["segments", dataset_name, "endocardium"],
+            ["segments", dataset_name, "epicardium"],
+            ["zero_angle", dataset_name],
+        )
 
     return data
 
@@ -134,7 +139,6 @@ def initialize_data_segments(data, dataset_name, shape):
 def create_rules(frame, segments, shape, rtol, replace_threshold):
     """Create the rules to apply to the segments to ensure their 'quality'."""
     rules = {"endocardium": [], "epicardium": []}
-    threshold = {"endocardium": replace_threshold, "epicardium": np.inf}
     shift = {"endocardium": 1, "epicardium": -1}
 
     for side in ("endocardium", "epicardium"):
@@ -145,7 +149,7 @@ def create_rules(frame, segments, shape, rtol, replace_threshold):
                     partial(
                         replace_single,
                         replacement=Contour(segments[side][frame - 1].T, shape=shape),
-                        rtol=rtol,
+                        rtol=rtol[side],
                         replace=False,
                     )
                 )
@@ -153,7 +157,9 @@ def create_rules(frame, segments, shape, rtol, replace_threshold):
         elif frame is None or isinstance(frame, slice):
             rules[side].append(lambda c: list(map(partial(dilate, s=shift[side]), c)))
             rules[side].append(
-                partial(replace_in_list, rtol=rtol, frame_threshold=threshold[side])
+                partial(
+                    replace_in_list, rtol=rtol[side], frame_threshold=replace_threshold
+                )
             )
 
     return rules
@@ -166,7 +172,7 @@ def update_segmentation(
     zero_angle: np.ndarray,
     frame: Union[int, slice],
 ) -> StrainMapData:
-    """Updates an existing segmentation with new segments, potentially clearing them.
+    """Updates an existing segmentation with new segments.
 
     Args:
         data: StrainMapData object containing the data
@@ -178,31 +184,57 @@ def update_segmentation(
     Returns:
         The StrainMapData object updated with the segmentation.
     """
-    if segments["endocardium"] is not None and segments["epicardium"] is not None:
-        data.segments[dataset_name]["endocardium"][frame] = copy(
-            segments["endocardium"][frame]
-        )
-        data.segments[dataset_name]["epicardium"][frame] = copy(
-            segments["epicardium"][frame]
-        )
-        data.zero_angle[dataset_name][frame] = copy(zero_angle[frame])
+    data.segments[dataset_name]["endocardium"][frame] = copy(
+        segments["endocardium"][frame]
+    )
+    data.segments[dataset_name]["epicardium"][frame] = copy(
+        segments["epicardium"][frame]
+    )
+    data.zero_angle[dataset_name][frame] = copy(zero_angle[frame])
 
-        data.save(
-            ["segments", dataset_name, "endocardium"],
-            ["segments", dataset_name, "epicardium"],
-            ["zero_angle", dataset_name],
-        )
-    else:
-        data.segments.pop(dataset_name, None)
-        data.zero_angle.pop(dataset_name, None)
+    data.save(
+        ["segments", dataset_name, "endocardium"],
+        ["segments", dataset_name, "epicardium"],
+        ["zero_angle", dataset_name],
+    )
 
-        data.delete(
-            ["segments", dataset_name],
-            ["zero_angle", dataset_name],
-            ["velocities", dataset_name],
-            ["masks", dataset_name],
-            ["markers", dataset_name],
-        )
+    return data
+
+
+def clear_segmentation(data: StrainMapData, dataset_name: str) -> StrainMapData:
+    """Clears the segmentation for the given dataset."""
+    data.segments.pop(dataset_name, None)
+    data.zero_angle.pop(dataset_name, None)
+    data.velocities.pop(dataset_name, None)
+    data.masks.pop(dataset_name, None)
+    data.markers.pop(dataset_name, None)
+
+    data.delete(
+        ["segments", dataset_name],
+        ["zero_angle", dataset_name],
+        ["velocities", dataset_name],
+        ["masks", dataset_name],
+        ["markers", dataset_name],
+    )
+    return data
+
+
+def update_and_find_next(
+    data: StrainMapData,
+    dataset_name: str,
+    segments: dict,
+    zero_angle: np.ndarray,
+    frame: int,
+    images: Dict[str, np.ndarray],
+) -> StrainMapData:
+    """Updates the segmentation for the current frame and starts the next one."""
+    data = update_segmentation(data, dataset_name, segments, zero_angle, frame)
+    initial = {
+        "endocardium": data.segments[dataset_name]["endocardium"][frame],
+        "epicardium": data.segments[dataset_name]["epicardium"][frame],
+    }
+    frame += 1
+    data = find_segmentation(data, dataset_name, frame, images, initial, save=False)
 
     return data
 
@@ -281,7 +313,6 @@ def simple_segmentation(
 def replace_single(
     contour: Contour, replacement: Contour, rtol: float = 0.15, replace: bool = True
 ) -> Contour:
-
     value = abs(contour.mask.sum() - replacement.mask.sum()) / replacement.mask.sum()
     if replace or value > rtol:
         return copy(replacement)
@@ -292,7 +323,6 @@ def replace_single(
 def replace_in_list(
     contour: List[Contour], rtol: float = 0.15, frame_threshold: int = 30
 ) -> List[Contour]:
-
     result = [contour[0]]
     for i, c in enumerate(contour[1:]):
         result.append(replace_single(c, result[i], rtol, i + 1 >= frame_threshold))

@@ -43,6 +43,22 @@ def compare_dicts(one, two):
 
 
 class StrainMapData(object):
+    @classmethod
+    def from_folder(cls, data_files: Union[Path, Text, None] = None):
+        """Creates a new StrainMap data object from a folder containing DICOMs"""
+        if data_files is None:
+            data = cls(defaultdict(dict))
+        else:
+            data = cls(data_files=read_dicom_directory_tree(data_files))
+            data.save_all()
+        return data
+
+    @classmethod
+    def from_file(cls, strainmap_file: Union[Path, Text]):
+        """Creates a new StrainMap data object from a h5 file."""
+        assert Path(strainmap_file).is_file()
+        return read_strainmap_file(cls.from_folder(), strainmap_file)
+
     def __init__(
         self,
         data_files: Mapping,
@@ -59,6 +75,29 @@ class StrainMapData(object):
         self.velocities: dict = defaultdict(dict)
         self.masks: dict = defaultdict(dict)
         self.markers: dict = defaultdict(dict)
+
+    def add_paths(
+        self,
+        data_files: Union[Path, Text, None] = None,
+        bg_files: Union[Path, Text, None] = None,
+    ):
+        """Adds data and/or pahtom paths to the object."""
+        if data_files is not None:
+            self.data_files = read_dicom_directory_tree(data_files)
+        if bg_files is not None:
+            self.bg_files = read_dicom_directory_tree(bg_files)
+        if data_files is not None or bg_files is not None:
+            self.save_all()
+            return True
+        return False
+
+    def add_h5_file(self, strainmap_file: Union[Path, Text]):
+        """Creates anew h5 file in the given path and add it to the structure."""
+        if not str(strainmap_file).endswith(".h5"):
+            return False
+        self.strainmap_file = h5py.File(strainmap_file, "a")
+        self.save_all()
+        return True
 
     def metadata(self, dataset=None):
         """Retrieve the metadata from the DICOM files"""
@@ -136,52 +175,3 @@ class StrainMapData(object):
         for k in keys:
             equal = equal and compare_dicts(getattr(self, k), getattr(other, k))
         return equal
-
-
-def factory(
-    data: Optional[StrainMapData] = None,
-    data_files: Union[Path, Text, None] = None,
-    bg_files: Union[Path, Text, None] = None,
-    strainmap_file: Union[Path, Text, None] = None,
-) -> StrainMapData:
-    """ Creates a new StrainMapData object or updates the data of an existing one.
-
-    The exiting object might be passed as an argument or be loaded from an HDF5file.
-    In either case, its data_files, bg_files or both will be updated accordingly.
-
-    If there is no existing object, a new one will be created from the data_files and
-    the bg_files.
-    """
-    df: Optional[Mapping] = None
-    if data_files is not None:
-        df = read_dicom_directory_tree(data_files)
-
-    bg: Optional[Mapping] = None
-    if bg_files is not None:
-        bg = read_dicom_directory_tree(bg_files)
-
-    sm_file: Optional[h5py.File] = None
-    if strainmap_file is not None:
-        if Path(strainmap_file).is_file():
-            data = read_strainmap_file(strainmap_file)
-        elif str(strainmap_file).endswith(".h5"):
-            sm_file = h5py.File(strainmap_file, "a")
-        else:
-            raise RuntimeError("File type cannot be opened by StrainMap.")
-
-    if isinstance(data, StrainMapData):
-        data.data_files = df if df is not None else data.data_files
-        data.bg_files = bg if bg is not None else data.bg_files
-        data.strainmap_file = sm_file if sm_file is not None else data.strainmap_file
-        data.save_all()
-    elif df:
-        data = StrainMapData(data_files=df, bg_files=bg, strainmap_file=sm_file)
-        data.save_all()
-    else:
-        data = StrainMapData(
-            data_files=defaultdict(dict),
-            bg_files=defaultdict(dict),
-            strainmap_file=sm_file,
-        )
-
-    return data

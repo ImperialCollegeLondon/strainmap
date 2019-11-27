@@ -11,7 +11,7 @@ from .gui.base_window_and_task import (
     Requisites,
     bind_event,
 )
-from .models.strainmap_data_model import factory
+from .models.strainmap_data_model import StrainMapData
 from .models import quick_segmentation
 from .models.velocities import calculate_velocities, update_marker
 from .models.writers import velocity_to_xlsx
@@ -69,9 +69,20 @@ class StrainMap(object):
             ](control, **kwargs)
 
     @bind_event
-    def load_data(self, **kwargs):
+    def load_data_from_folder(self, data_files):
         """Creates a StrainMapData object."""
-        self.data = factory(**kwargs)
+        self.data = StrainMapData.from_folder(data_files)
+
+        if self.data.data_files:
+            self.unlock(Requisites.DATALOADED)
+        else:
+            self.lock(Requisites.DATALOADED)
+        self.update_views()
+
+    @bind_event
+    def load_data_from_file(self, strainmap_file):
+        """Creates a StrainMapData object."""
+        self.data = StrainMapData.from_file(strainmap_file)
 
         if self.data.data_files:
             self.unlock(Requisites.DATALOADED)
@@ -83,6 +94,16 @@ class StrainMap(object):
         else:
             self.lock(Requisites.SEGMENTED)
         self.update_views()
+
+    @bind_event
+    def add_paths(self, data_files=None, bg_files=None):
+        if self.data.add_paths(data_files, bg_files):
+            self.update_views()
+
+    @bind_event
+    def add_h5_file(self, strainmap_file):
+        if self.data.add_h5_file(strainmap_file):
+            self.update_views()
 
     @bind_event
     def clear_data(self, **kwargs):
@@ -113,6 +134,21 @@ class StrainMap(object):
         if there_are_segments and unlock:
             self.unlock(Requisites.SEGMENTED)
         elif not there_are_segments:
+            self.lock(Requisites.SEGMENTED)
+        self.update_views()
+
+    @bind_event
+    def update_and_find_next(self, **kwargs):
+        """Runs an automated segmentation routine."""
+        self.data = quick_segmentation.update_and_find_next(**kwargs)
+        self.update_views()
+
+    @bind_event
+    def clear_segmentation(self, **kwargs):
+        """Clears an existing segmentation."""
+        self.data = quick_segmentation.clear_segmentation(**kwargs)
+        there_are_segments = any(len(i) != 0 for i in self.data.segments.values())
+        if not there_are_segments:
             self.lock(Requisites.SEGMENTED)
         self.update_views()
 

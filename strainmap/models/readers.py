@@ -19,7 +19,7 @@ def read_dicom_directory_tree(path: Union[Path, Text]) -> Mapping:
     """Creates a dictionary with the available series and associated
     filenames."""
 
-    path = str(Path(path) / "*.dcm")
+    path = str(Path(path) / "*00.dcm")
     filenames = sorted(glob.glob(path))
 
     data_files: OrderedDict = OrderedDict()
@@ -30,15 +30,17 @@ def read_dicom_directory_tree(path: Union[Path, Text]) -> Mapping:
         if not parallel_spirals(ds):
             continue
 
-        if ds.SeriesDescription not in data_files.keys():
-            data_files[ds.SeriesDescription] = OrderedDict()
+        name = ds.SeriesDescription
+        if name not in data_files.keys():
+            data_files[name] = OrderedDict()
             var_idx = {}
             for var in VAR_OFFSET:
-                data_files[ds.SeriesDescription][var] = []
+                data_files[name][var] = []
                 var_idx[int(Path(f).name[3:5]) + VAR_OFFSET[var]] = var
 
-        var = var_idx[int(Path(f).name[3:5])]
-        data_files[ds.SeriesDescription][var].append(f)
+        data_files[name][var_idx[int(Path(f).name[3:5])]] = sorted(
+            glob.glob(f.replace("00.dcm", "*.dcm"))
+        )
 
     return data_files
 
@@ -187,28 +189,24 @@ def images_to_numpy(data: Mapping) -> Mapping[Text, ImageTimeSeries]:
     }
 
 
-def read_strainmap_file(filename: Union[Path, Text]):
+def read_strainmap_file(data, filename: Union[Path, Text]):
     """Reads a StrainMap file with existing information on previous segmentations."""
     if str(filename).endswith(".h5"):
-        return read_h5_file(filename)
+        return read_h5_file(data, filename)
     elif str(filename).endswith(".m"):
-        return read_matlab_file(filename)
+        return read_matlab_file(data, filename)
     else:
         raise RuntimeError("File type not recognised by StrainMap.")
 
 
-def read_matlab_file(filename: Union[Path, Text]):
+def read_matlab_file(data, filename: Union[Path, Text]):
     """Reads a Matlab file."""
     raise NotImplementedError
 
 
-def read_h5_file(filename: Union[Path, Text]):
+def read_h5_file(data, filename: Union[Path, Text]):
     """Reads a HDF5 file."""
-    from .strainmap_data_model import factory
-
     sm_file = h5py.File(filename, "a")
-
-    data = factory()
 
     for s in data.__dict__.keys():
         if s == "strainmap_file":
@@ -228,6 +226,9 @@ def read_data_structure(g, structure):
     """
     for n, struct in structure.items():
         if isinstance(struct, h5py.Group):
+            if len(struct.keys()) == 0:
+                del structure[n]
+                continue
             read_data_structure(g[n], struct)
         else:
             g[n] = struct[...]
