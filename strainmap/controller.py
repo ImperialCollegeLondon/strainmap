@@ -27,7 +27,7 @@ class StrainMap(object):
 
         self.window = MainWindow()
         self.achieved = Requisites.NONE
-        self.data = StrainMapData.from_folder()
+        self.data = None
         self.pair_events()
         self.unlock()
 
@@ -36,14 +36,19 @@ class StrainMap(object):
         self.window.mainloop()
 
     def unlock(self, requisite=Requisites.NONE):
-        """ Adds requisites and loads views. """
+        """ Adds requisites and loads views. If loaded, they are marked to update."""
         self.achieved = self.achieved | requisite
 
         for view in self.registered_views:
             if Requisites.check(self.achieved, view.requisites):
                 self.window.add(view, weakref.ref(self))
 
-        self.update_views()
+        for view in list(self.window.views):
+            if (
+                Requisites.check(self.achieved, view.requisites)
+                and view.requisites != Requisites.NONE
+            ):
+                view.to_update = True
 
     def lock(self, requisite):
         """ Removes requisites and updates loaded views."""
@@ -52,6 +57,13 @@ class StrainMap(object):
         for view in list(self.window.views):
             if not Requisites.check(self.achieved, view.requisites):
                 self.window.remove(view)
+
+    def lock_unlock(self, condition, requisite):
+        """Conditional lock/unlock of a requisite."""
+        if condition:
+            self.unlock(requisite)
+        else:
+            self.lock(requisite)
 
     def update_views(self):
         """ Updates the data attribute of the views and the widgets depending on it. """
@@ -69,52 +81,36 @@ class StrainMap(object):
                 event
             ](control, **kwargs)
 
-    @bind_event
-    def load_data_from_folder(self, view, data_files):
+    def load_data_from_folder(self, data_files):
         """Creates a StrainMapData object."""
         self.data = StrainMapData.from_folder(data_files)
+        self.lock_unlock(self.data.data_files, Requisites.DATALOADED)
+        return self.data is not None
 
-        if self.data.data_files:
-            self.unlock(Requisites.DATALOADED)
-        else:
-            self.lock(Requisites.DATALOADED)
-        view.update_widgets()
-
-    @bind_event
-    def load_data_from_file(self, view, strainmap_file):
+    def load_data_from_file(self, strainmap_file):
         """Creates a StrainMapData object."""
         self.data = StrainMapData.from_file(strainmap_file)
+        self.lock_unlock(self.data.data_files, Requisites.DATALOADED)
+        self.lock_unlock(
+            any(len(i) != 0 for i in self.data.segments.values()), Requisites.SEGMENTED
+        )
+        return self.data is not None
 
-        if self.data.data_files:
-            self.unlock(Requisites.DATALOADED)
-        else:
-            self.lock(Requisites.DATALOADED)
-
-        if any(len(i) != 0 for i in self.data.segments.values()):
-            self.unlock(Requisites.SEGMENTED)
-        else:
-            self.lock(Requisites.SEGMENTED)
-
-        view.update_widgets()
-
-    @bind_event
-    def clear_data(self, view, **kwargs):
+    def clear_data(self):
         """Clears the StrainMapData object from the widgets."""
-        if kwargs.get("clear", False):
-            self.data = StrainMapData.from_folder()
-            self.lock(Requisites.DATALOADED)
-            self.lock(Requisites.SEGMENTED)
-            view.update_widgets()
+        self.data = None
+        self.lock(Requisites.DATALOADED)
+        self.lock(Requisites.SEGMENTED)
 
-    @bind_event
-    def add_paths(self, view, data_files=None, bg_files=None):
-        if self.data.add_paths(data_files, bg_files):
-            view.update_widgets()
+    def add_paths(self, data_files=None, bg_files=None):
+        self.data.add_paths(data_files, bg_files)
+        self.lock_unlock(self.data.data_files, Requisites.DATALOADED)
+        self.lock_unlock(
+            any(len(i) != 0 for i in self.data.segments.values()), Requisites.SEGMENTED
+        )
 
-    @bind_event
-    def add_h5_file(self, view, strainmap_file):
-        if self.data.add_h5_file(strainmap_file):
-            view.update_widgets()
+    def add_h5_file(self, strainmap_file):
+        return self.data.add_h5_file(strainmap_file)
 
     @bind_event
     def find_segmentation(self, view, unlock=True, **kwargs):

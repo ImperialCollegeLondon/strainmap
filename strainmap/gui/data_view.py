@@ -3,12 +3,13 @@ import tkinter.filedialog
 from tkinter import messagebox, ttk
 import os
 from functools import partial
+from pathlib import Path
 
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.figure import Figure
 
-from .base_window_and_task import TaskViewBase, register_view, trigger_event
+from .base_window_and_task import TaskViewBase, register_view
 from .figure_actions import BrightnessAndContrast, ScrollFrames, ZoomAndPan
 from .figure_actions_manager import FigureActionsManager
 
@@ -225,22 +226,34 @@ class DataTaskView(TaskViewBase):
 
         return dicom_frame
 
-    @trigger_event(name="load_data_from_folder")
     def load_data(self):
         """Loads new data into StrainMap"""
         path = tk.filedialog.askdirectory(
             title="Select DATA directory", initialdir=self.current_dir
         )
 
-        output = {}
-        if path != "":
+        if path != "" and self.controller.load_data_from_folder(data_files=path):
             self.current_dir = path
-            output = dict(data_files=path)
             self.data_folder.set(self.current_dir)
+            self.output_file.set(None)
+            self.nametowidget("control.chooseOutputFile")["state"] = "enable"
+            self.update_widgets()
 
-        return output
+    def open_existing_file(self):
+        """ Opens an existing StrainMap file."""
+        path = tk.filedialog.askopenfilename(
+            title="Select existing StrainMap file (HDF5 format)",
+            initialdir=self.current_dir,
+            filetypes=(("StrainMap files", "*.h5"),),
+        )
 
-    @trigger_event(name="add_paths")
+        if path != "" and self.controller.load_data_from_file(strainmap_file=path):
+            self.output_file.set(path)
+            self.current_dir = str(Path(path).parent)
+            self.load_missing_data()
+            self.nametowidget("control.chooseOutputFile")["state"] = "enable"
+            self.update_widgets()
+
     def load_phantom(self):
         """Loads phantom data into a data structure."""
 
@@ -257,44 +270,39 @@ class DataTaskView(TaskViewBase):
             self.phantoms_box.grid_remove()
             result = dict(bg_files="")
 
-        return result
+        self.controller.add_paths(**result)
+        self.update_phantom_widgets()
 
-    @trigger_event(name="add_paths")
-    def load_missing_data(self, data_missing=False, phantom_missing=False):
+    def load_missing_data(self):
+        """Adds missing data to StrainMap if data or phantom files not found."""
+        values = list(self.data.data_files.keys())
+        data_missing = (
+            len(values) > 0 and len(self.data.data_files[values[0]]["MagZ"]) == 0
+        )
+        values = list(self.data.bg_files.keys())
+        phantom_missing = (
+            len(values) > 0 and len(self.data.bg_files[values[0]]["MagZ"]) == 0
+        )
 
         data_path = phantom_path = None
         if data_missing:
             data_path = tk.filedialog.askdirectory(
                 title="Select DATA directory", initialdir=self.current_dir
             )
+            if data_path != "":
+                self.current_dir = data_path
+                self.data_folder.set(self.current_dir)
+
         if phantom_missing:
             phantom_path = tk.filedialog.askdirectory(
                 title="Select PHANTOM directory", initialdir=self.current_dir
             )
+            if phantom_path != "":
+                self.current_dir = data_path
 
-        if data_path is not None:
-            self.current_dir = data_path
-            self.data_folder.set(self.current_dir)
+        self.controller.add_paths(data_files=data_path, bg_files=phantom_path)
+        self.update_phantom_widgets()
 
-        return dict(data_files=data_path, bg_files=phantom_path)
-
-    @trigger_event(name="load_data_from_file")
-    def open_existing_file(self):
-        """ Opens an existing StrainMap file."""
-        path = tk.filedialog.askopenfilename(
-            title="Select existing StrainMap file (HDF5 format)",
-            initialdir=self.current_dir,
-            filetypes=(("StrainMap files", "*.h5"),),
-        )
-
-        output = {}
-        if path != "":
-            output = dict(strainmap_file=path)
-            self.output_file.set(path)
-
-        return output
-
-    @trigger_event(name="add_h5_file")
     def select_output_file(self):
         """ Selects an output file in which to store the current data."""
         meta = self.data.metadata()
@@ -309,14 +317,11 @@ class DataTaskView(TaskViewBase):
             defaultextension="h5",
         )
 
-        output = {}
-        if path != "":
-            output = dict(strainmap_file=path)
+        if path == "":
+            return
+        elif self.controller.add_h5_file(strainmap_file=path):
             self.output_file.set(path)
 
-        return output
-
-    @trigger_event
     def clear_data(self):
         """ Clears all data from memory."""
         clear = messagebox.askokcancel(
@@ -324,7 +329,9 @@ class DataTaskView(TaskViewBase):
             "This will erase all data from memory\nDo you want to continue?",
             icon="warning",
         )
-        return {"clear": clear}
+        if clear:
+            self.controller.clear_data()
+            self.clear_widgets()
 
     def get_data_information(self):
         """ Gets some information related to the available datasets, frames, etc. """
@@ -407,45 +414,18 @@ class DataTaskView(TaskViewBase):
 
     def update_widgets(self):
         """ Updates widgets after an update in the data variable. """
-        values = list(self.data.data_files.keys())
-        if len(values) > 0:
-            self.nametowidget("control.chooseOutputFile")["state"] = "enable"
-        else:
-            self.nametowidget("control.chooseOutputFile")["state"] = "disable"
-
-        data_missing = (
-            len(values) > 0 and len(self.data.data_files[values[0]]["MagZ"]) == 0
-        )
-        values = list(self.data.bg_files.keys())
-        phantom_missing = (
-            len(values) > 0 and len(self.data.bg_files[values[0]]["MagZ"]) == 0
-        )
-
-        if data_missing or phantom_missing:
-            messagebox.showwarning(
-                "DICOM data not found! " * data_missing
-                + "PHANTOM data not found!" * phantom_missing,
-                message="Data paths found in the StrainMap data file do not exist."
-                "Choose an alternative folder for the files.",
-            )
-            self.load_missing_data(
-                data_missing=data_missing, phantom_missing=phantom_missing
-            )
-
-        filename = (
-            self.data.strainmap_file.filename
-            if self.data.strainmap_file is not None
-            else None
-        )
-        self.output_file.set(filename)
         self.create_data_selector()
         self.create_data_viewer()
         self.update_visualization()
 
+    def update_phantom_widgets(self):
+        """Updates the widgets related to the Phantom"""
+        values = list(self.data.bg_files.keys())
         if len(values) > 0:
             self.phantoms_box["values"] = values
             self.phantoms_box.current(0)
             self.phantoms_box.grid(column=0, sticky=tk.NSEW, padx=5, pady=5)
+            self.phantom_check.set(True)
         else:
             self.phantom_check.set(False)
 
