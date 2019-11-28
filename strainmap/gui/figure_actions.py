@@ -640,6 +640,7 @@ class Markers(ActionBase):
         self,
         marker_moved: Optional[Callable] = None,
         drag_marker=TriggerSignature(Location.ANY, Button.LEFT, MouseAction.PICKDRAG),
+        move_finish=TriggerSignature(Location.ANY, Button.LEFT, MouseAction.RELEASE),
     ):
         """Add sliding markers to read the data from a plot.
 
@@ -648,7 +649,9 @@ class Markers(ActionBase):
             drag_marker: TriggerSignature for this action.
         """
 
-        super().__init__(signatures={drag_marker: self.drag_marker})
+        super().__init__(
+            signatures={drag_marker: self.drag_marker, move_finish: self.move_finish}
+        )
         self.disabled = False
         self._current_marker = None
         self._current_data = None
@@ -714,20 +717,25 @@ class Markers(ActionBase):
         if self._current_marker is None:
             return
 
-        ev = last_event.mouseevent if hasattr(last_event, "mouseevent") else last_event
+        ev = event.mouseevent if hasattr(event, "mouseevent") else event
         old_x = self._current_marker.get_xdata()
 
         if self._current_data is None:
             x, y = ev.xdata, ev.ydata
-            idx = 0
         else:
             x, y, idx = self.get_closest(self._current_data, ev.xdata)
 
         if x != old_x:
             self._current_marker.set_data([x], [y])
-            self._marker_moved(self._current_marker, self._current_data, x, y, idx)
 
         return event
+
+    def move_finish(self, event, last_event, *args):
+        """Executes marker move after mouse release."""
+        if self._current_data is None:
+            return
+        x, y, idx = self.get_closest(self._current_data, event.xdata)
+        self._marker_moved(self._current_marker, self._current_data, x, y, idx)
 
     @staticmethod
     def get_closest(line, mx):

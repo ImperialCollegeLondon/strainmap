@@ -78,6 +78,7 @@ def test_mouse_released(actions_manager):
     from time import sleep, time
 
     event = MouseEvent("moved", actions_manager.canvas, 100, 200)
+    revent = MouseEvent("button_release_event", actions_manager.canvas, 100, 200)
     actions_manager._select_action = MagicMock()
     actions_manager._select_click_type = MagicMock(
         return_value=(None, MouseAction.CLICK, event)
@@ -86,10 +87,13 @@ def test_mouse_released(actions_manager):
     # Too late for a release event
     actions_manager._time_init = time()
     sleep(0.25)
-    actions_manager._on_mouse_released(event)
-    assert not actions_manager._select_action.called
+    actions_manager._on_mouse_released(revent)
+    actions_manager._select_action.assert_called_once_with(
+        Location.OUTSIDE, Button.NONE, MouseAction.RELEASE
+    )
 
     # A release event
+    actions_manager._select_action.reset_mock()
     actions_manager._time_init = time()
     actions_manager._on_mouse_released(event)
     actions_manager._select_action.assert_called_once_with(

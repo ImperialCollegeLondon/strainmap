@@ -48,6 +48,7 @@ class MouseAction(Flag):
     LEAVEAXES = auto()
     ENTERFIGURE = auto()
     LEAVEFIGURE = auto()
+    RELEASE = auto()
 
 
 class TriggerSignature(NamedTuple):
@@ -244,14 +245,17 @@ class FigureActionsManager(object):
         self.draw()
 
     def _on_mouse_released(self, event):
-        """Stops the timer and executes the original click event, if necessary."""
+        """Stops the timer and executes the relevant events, if necessary."""
         if time() - self._time_init > self.delay:
             self.clean_events()
-            return
-
-        ev, mouse_action, mouse_event = self._select_click_type()
-        button = self.MOUSE_BUTTONS.get(mouse_event.button, Button.NONE)
-        location = self._select_location(mouse_event)
+            ev = event
+            mouse_action = MouseAction.RELEASE
+            button = self.MOUSE_BUTTONS.get(event.button, Button.NONE)
+            location = self._select_location(event)
+        else:
+            ev, mouse_action, mouse_event = self._select_click_type()
+            button = self.MOUSE_BUTTONS.get(mouse_event.button, Button.NONE)
+            location = self._select_location(mouse_event)
 
         self._execute_action_and_redraw(event, ev, location, button, mouse_action)
 
