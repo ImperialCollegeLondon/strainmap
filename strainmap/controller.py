@@ -3,14 +3,7 @@ whole code. """
 import weakref
 
 from .gui import *  # noqa: F403,F401
-from .gui.base_window_and_task import (
-    EVENTS,
-    REGISTERED_BINDINGS,
-    REGISTERED_TRIGGERS,
-    REGISTERED_VIEWS,
-    Requisites,
-    bind_event,
-)
+from .gui.base_window_and_task import REGISTERED_VIEWS, Requisites
 from .models.strainmap_data_model import StrainMapData
 from .models import quick_segmentation
 from .models.velocities import calculate_velocities, update_marker
@@ -28,7 +21,6 @@ class StrainMap(object):
         self.window = MainWindow()
         self.achieved = Requisites.NONE
         self.data = None
-        self.pair_events()
         self.unlock()
 
     def run(self):
@@ -70,17 +62,6 @@ class StrainMap(object):
         for view in self.window.views:
             view.update_widgets()
 
-    def pair_events(self):
-        """ Pair the registered triggers with the registered binds.
-
-        This will produce an error if there is a trigger without an associated binding.
-        """
-        for ev in REGISTERED_TRIGGERS:
-            assert ev in REGISTERED_BINDINGS.keys()
-            EVENTS[ev] = lambda control=self, event=ev, **kwargs: REGISTERED_BINDINGS[
-                event
-            ](control, **kwargs)
-
     def load_data_from_folder(self, data_files):
         """Creates a StrainMapData object."""
         self.data = StrainMapData.from_folder(data_files)
@@ -90,10 +71,9 @@ class StrainMap(object):
     def load_data_from_file(self, strainmap_file):
         """Creates a StrainMapData object."""
         self.data = StrainMapData.from_file(strainmap_file)
+        there_are_segments = any(len(i) != 0 for i in self.data.segments.values())
         self.lock_unlock(self.data.data_files, Requisites.DATALOADED)
-        self.lock_unlock(
-            any(len(i) != 0 for i in self.data.segments.values()), Requisites.SEGMENTED
-        )
+        self.lock_unlock(there_are_segments, Requisites.SEGMENTED)
         return self.data is not None
 
     def clear_data(self):
@@ -104,10 +84,9 @@ class StrainMap(object):
 
     def add_paths(self, data_files=None, bg_files=None):
         self.data.add_paths(data_files, bg_files)
+        there_are_segments = any(len(i) != 0 for i in self.data.segments.values())
         self.lock_unlock(self.data.data_files, Requisites.DATALOADED)
-        self.lock_unlock(
-            any(len(i) != 0 for i in self.data.segments.values()), Requisites.SEGMENTED
-        )
+        self.lock_unlock(there_are_segments, Requisites.SEGMENTED)
 
     def add_h5_file(self, strainmap_file):
         return self.data.add_h5_file(strainmap_file)
@@ -141,19 +120,14 @@ class StrainMap(object):
         if not there_are_segments:
             self.lock(Requisites.SEGMENTED)
 
-    @bind_event
-    def calculate_velocities(self, view, **kwargs):
+    def calculate_velocities(self, **kwargs):
         """Calculates the velocities based on a given segmentation."""
         calculate_velocities(data=self.data, **kwargs)
-        view.update_widgets()
 
-    @bind_event
-    def update_marker(self, view, **kwargs):
+    def update_marker(self, **kwargs):
         """Updates the markers information after moving one of them."""
         update_marker(data=self.data, **kwargs)
-        view.update_widgets()
 
-    @bind_event
     def export_velocity(self, **kwargs):
         """Exports velocity data to a XLSX file."""
         velocity_to_xlsx(data=self.data, **kwargs)

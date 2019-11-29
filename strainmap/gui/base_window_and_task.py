@@ -10,8 +10,7 @@ from abc import ABC, abstractmethod
 from enum import Flag, auto
 from pathlib import Path
 from tkinter import ttk
-from typing import Callable, List, Optional, Text, Type
-import wrapt
+from typing import List, Optional, Text, Type
 
 import weakref
 from PIL import Image, ImageTk
@@ -213,46 +212,3 @@ class MainWindow(tk.Tk):
         for view in self.views:
             if hasattr(view, "stop_animation"):
                 view.stop_animation()
-
-
-REGISTERED_BINDINGS: dict = {}
-""" Registered event bindings."""
-
-REGISTERED_TRIGGERS: list = []
-""" Registered event triggers."""
-
-EVENTS: dict = {}
-""" Dictionary with the events linked to the control."""
-
-
-def trigger_event(fun: Optional[Callable] = None, name: Optional[Text] = None):
-    """Registers a view method that will trigger an event.
-
-    Uses the more advanced wrapt package instead of functools.wrap:
-    https://pypi.org/project/wrapt/
-    """
-
-    if fun is None:
-        return lambda x: trigger_event(x, name=name)
-
-    name = name if name else fun.__name__
-
-    @wrapt.decorator
-    def wrapper(fun, instance, args, kwargs):
-        params = fun(*args, **kwargs)
-        if params:
-            EVENTS[name](view=instance, **params)
-
-    REGISTERED_TRIGGERS.append(name)
-
-    return wrapper(fun)
-
-
-def bind_event(fun: Callable, name=None):
-    """Registers a control method that will be bound to an event."""
-
-    name = name if name else fun.__name__
-
-    REGISTERED_BINDINGS[name] = fun
-
-    return fun

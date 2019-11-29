@@ -5,7 +5,7 @@ from pytest import approx
 def test_update_widgets(velocities_view, segmented_data, data_with_velocities):
     velocities_view.calculate_velocities = MagicMock()
     velocities_view.update_velocities_list = MagicMock()
-    velocities_view.switch_velocity = MagicMock()
+    velocities_view.replot = MagicMock()
 
     velocities_view.controller.data = segmented_data
     velocities_view.update_widgets()
@@ -13,11 +13,12 @@ def test_update_widgets(velocities_view, segmented_data, data_with_velocities):
     expected = list(segmented_data.data_files.keys())[0]
     assert velocities_view.datasets_var.get() == expected
     velocities_view.calculate_velocities.assert_called_once()
+    assert velocities_view.replot.call_count == 1
 
     velocities_view.controller.data = data_with_velocities
     velocities_view.update_widgets()
     velocities_view.update_velocities_list.assert_called_once()
-    velocities_view.switch_velocity.assert_called_once()
+    assert velocities_view.replot.call_count == 2
 
 
 def test_bg_changed(velocities_view, data_with_velocities):
@@ -67,7 +68,7 @@ def test_color_plot(velocities_view, data_with_velocities):
     velocities_view.controller.data = data_with_velocities
     velocities_view.update_widgets()
     velocities_view.velocities_var.set("angular x24 - Estimated")
-    velocities_view.switch_velocity()
+    velocities_view.replot()
 
     expected = list(data_with_velocities.velocities.values())[0][
         "angular x24 - Estimated"

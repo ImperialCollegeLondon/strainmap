@@ -20,7 +20,6 @@ setup(
         "nibabel",
         "openpyxl",
         "h5py",
-        "wrapt",
     ],
     package_data={"strainmap.gui": ["icons/*.gif", "icons/CREDITS.md"]},
     packages=find_packages("."),
