@@ -112,8 +112,7 @@ class StrainMap(object):
     def add_h5_file(self, strainmap_file):
         return self.data.add_h5_file(strainmap_file)
 
-    @bind_event
-    def find_segmentation(self, view, unlock=True, **kwargs):
+    def find_segmentation(self, unlock=True, **kwargs):
         """Runs an automated segmentation routine."""
         quick_segmentation.find_segmentation(data=self.data, **kwargs)
         there_are_segments = any(len(i) != 0 for i in self.data.segments.values())
@@ -121,10 +120,8 @@ class StrainMap(object):
             self.unlock(Requisites.SEGMENTED)
         elif not there_are_segments:
             self.lock(Requisites.SEGMENTED)
-        view.update_widgets()
 
-    @bind_event
-    def update_segmentation(self, view, unlock=True, **kwargs):
+    def update_segmentation(self, unlock=True, **kwargs):
         """Runs an automated segmentation routine."""
         quick_segmentation.update_segmentation(data=self.data, **kwargs)
         there_are_segments = any(len(i) != 0 for i in self.data.segments.values())
@@ -132,22 +129,17 @@ class StrainMap(object):
             self.unlock(Requisites.SEGMENTED)
         elif not there_are_segments:
             self.lock(Requisites.SEGMENTED)
-        view.update_widgets()
 
-    @bind_event
-    def update_and_find_next(self, view, **kwargs):
+    def update_and_find_next(self, **kwargs):
         """Runs an automated segmentation routine."""
         quick_segmentation.update_and_find_next(data=self.data, **kwargs)
-        view.update_widgets()
 
-    @bind_event
-    def clear_segmentation(self, view, **kwargs):
+    def clear_segmentation(self, dataset_name):
         """Clears an existing segmentation."""
-        quick_segmentation.clear_segmentation(data=self.data, **kwargs)
+        quick_segmentation.clear_segmentation(data=self.data, dataset_name=dataset_name)
         there_are_segments = any(len(i) != 0 for i in self.data.segments.values())
         if not there_are_segments:
             self.lock(Requisites.SEGMENTED)
-        view.update_widgets()
 
     @bind_event
     def calculate_velocities(self, view, **kwargs):

@@ -13,7 +13,7 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.widgets import Cursor
 from matplotlib.figure import Figure
 
-from .base_window_and_task import Requisites, TaskViewBase, register_view, trigger_event
+from .base_window_and_task import Requisites, TaskViewBase, register_view
 from .figure_actions import (
     BrightnessAndContrast,
     DrawContours,
@@ -206,7 +206,7 @@ class SegmentationTaskView(TaskViewBase):
             text="Next \u25B6",
             width=5,
             state="disabled",
-            command=self.next_first_frame,
+            command=self.first_frame,
         )
 
         self.pbar = ttk.Progressbar(
@@ -296,7 +296,10 @@ class SegmentationTaskView(TaskViewBase):
         dataset = self.datasets_var.get()
         self.images = self.get_data_to_segment(dataset)
         self.update_state(dataset)
+        self.replot(dataset)
 
+    def replot(self, dataset):
+        """Replots the data, updating the relevant variables if needed."""
         self.fig.actions_manager.ScrollFrames.clear()
         for ax in self.fig.axes:
             self.fig.actions_manager.DrawContours.clear_drawing_(ax)
@@ -404,8 +407,14 @@ class SegmentationTaskView(TaskViewBase):
 
     def refresh_data(self):
         """Refresh the data available in the local variables."""
-        self.final_segments = copy(self.data.segments[self.datasets_var.get()])
-        self.zero_angle = copy(self.data.zero_angle[self.datasets_var.get()])
+        dataset = self.datasets_var.get()
+        self.zero_angle[self.current_frame] = self.data.zero_angle[dataset][
+            self.current_frame
+        ][:]
+        for i, side in enumerate(["endocardium", "epicardium"]):
+            self.final_segments[side][self.current_frame] = self.data.segments[dataset][
+                side
+            ][self.current_frame][:]
 
     @property
     def centroid(self):
@@ -467,18 +476,20 @@ class SegmentationTaskView(TaskViewBase):
         self.fig.actions_manager.ScrollFrames.go_to_frame(frame, self.fig.axes[0])
         self.fig.canvas.draw_idle()
 
-    def next_first_frame(self):
+    def first_frame(self):
         """Triggers the segmentation when frame is 0."""
-        self.next_btn.config(text="Next \u25B6", command=self.next_other_frames)
+        self.next_btn.config(text="Next \u25B6", command=self.next)
         self.find_segmentation(0, self.initial_segments)
+        self.replot(self.datasets_var.get())
         self.segmenting = True
         self.zero_angle[self.current_frame] = np.array((self.septum, self.centroid)).T
         self.go_to_frame()
 
-    def next_other_frames(self):
+    def next(self):
         """Triggers the segmentation in the rest of the frames."""
         self.next_btn.state(["disabled"])
         self.update_and_find_next()
+        self.refresh_data()
         self.zero_angle[self.current_frame] = np.array((self.septum, self.centroid)).T
 
         frame = self.working_frame_var.get()
@@ -491,20 +502,25 @@ class SegmentationTaskView(TaskViewBase):
         self.go_to_frame()
         self.next_btn.state(["!disabled"])
 
-    def next_quick_segmentation(self):
+    def quick_segmentation(self):
         """Triggers a quick segmentation of the whole dataset."""
-        self.next_btn.config(text="Next \u25B6", command=self.finish_segmentation)
         self.find_segmentation(
             slice(None), self.initial_segments, self.septum, unlock=True
         )
+        self.finish_segmentation(update=False)
+        self.replot(self.datasets_var.get())
         self.working_frame_var.set(self.num_frames - 1)
         self.go_to_frame()
 
-    def finish_segmentation(self):
+    def finish_segmentation(self, update=True):
         """Finish the segmentation, updating values and state of buttons."""
-        if self.segmenting:
-            self.update_segmentation(unlock=True)
-            self.segmenting = False
+        if update:
+            self.controller.update_segmentation(
+                dataset_name=self.datasets_var.get(),
+                segments=self.final_segments,
+                zero_angle=self.zero_angle,
+                frame=slice(0, self.working_frame_var.get() + 1),
+            )
         self.next_btn.config(text="Done!")
         self.next_btn.state(["disabled"])
         self.datasets_box.state(["!disabled"])
@@ -663,7 +679,6 @@ class SegmentationTaskView(TaskViewBase):
                 lambda: self.set_initial_contour("epicardium"),
                 self.set_septum,
                 self.initialization_complete,
-                self.next_first_frame,
             )
         )
 
@@ -690,9 +705,9 @@ class SegmentationTaskView(TaskViewBase):
         self.next_btn.state(["!disabled"])
 
         if self.quick_segment_var.get():
-            self.next_quick_segmentation()
+            self.quick_segmentation()
         else:
-            next(self.initialization)()
+            self.first_frame()
 
     def clear_segment_variables(self, button_pressed=True):
         """Clears all segmentation when a dataset with no segmentation is loaded."""
@@ -711,22 +726,20 @@ class SegmentationTaskView(TaskViewBase):
         self.datasets_box.state(["!disabled"])
         self.quick_checkbox.state(["!disabled"])
         self.segmenting = False
-        self.next_btn.config(text="Next \u25B6", command=self.next_first_frame)
+        self.next_btn.config(text="Next \u25B6", command=self.first_frame)
         self.fig.actions_manager.DragContours.disabled = False
         self.fig.actions_manager.Markers.disabled = False
 
         if button_pressed:
             self.clear_segmentation()
 
-    @trigger_event
     def find_segmentation(self, frame, initial, zero_angle=None, unlock=False):
         """Runs an automatic segmentation sequence."""
         images = {
             "endocardium": self.images[self.endocardium_target_var.get()][frame],
             "epicardium": self.images[self.epicardium_target_var.get()][frame],
         }
-
-        return dict(
+        self.controller.find_segmentation(
             dataset_name=self.datasets_var.get(),
             frame=frame,
             images=images,
@@ -735,18 +748,6 @@ class SegmentationTaskView(TaskViewBase):
             unlock=unlock,
         )
 
-    @trigger_event
-    def update_segmentation(self, unlock=False):
-        """Confirm the new segments after a manual segmentation process."""
-        return dict(
-            dataset_name=self.datasets_var.get(),
-            segments=self.final_segments,
-            zero_angle=self.zero_angle,
-            frame=slice(0, self.working_frame_var.get() + 1),
-            unlock=unlock,
-        )
-
-    @trigger_event
     def update_and_find_next(self):
         """Confirm the new segments and moves to the next."""
         frame = self.current_frame + 1
@@ -754,7 +755,7 @@ class SegmentationTaskView(TaskViewBase):
             "endocardium": self.images[self.endocardium_target_var.get()][frame],
             "epicardium": self.images[self.epicardium_target_var.get()][frame],
         }
-        return dict(
+        self.controller.update_and_find_next(
             dataset_name=self.datasets_var.get(),
             segments=self.final_segments,
             zero_angle=self.zero_angle,
@@ -762,10 +763,11 @@ class SegmentationTaskView(TaskViewBase):
             images=images,
         )
 
-    @trigger_event
     def clear_segmentation(self):
         """Confirm the new segments after a manual segmentation process."""
-        return dict(dataset_name=self.datasets_var.get())
+        dataset_name = self.datasets_var.get()
+        self.controller.clear_segmentation(dataset_name=dataset_name)
+        self.replot(dataset_name)
 
     def stop_animation(self):
         """Stops an animation, if there is one running."""
@@ -785,10 +787,7 @@ class SegmentationTaskView(TaskViewBase):
         else:
             self.datasets_var.set(values[0])
 
-        if self.segmenting:
-            self.refresh_data()
-        else:
-            self.dataset_changed()
+        self.dataset_changed()
 
     def clear_widgets(self):
         """ Clear widgets after removing the data. """

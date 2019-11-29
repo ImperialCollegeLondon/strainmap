@@ -75,7 +75,7 @@ class TaskViewBase(ABC, ttk.Frame):
             command=self.tkraise,
         )
 
-    def tkraise(self, aboveThis=None):
+    def tkraise(self, *args):
         """Brings the frame to the front."""
         super().tkraise()
         if self.to_update:
