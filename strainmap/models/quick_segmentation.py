@@ -20,7 +20,7 @@ def find_segmentation(
     rtol_epi: float = 0.10,
     replace_threshold: int = 31,
     save=True,
-) -> StrainMapData:
+) -> None:
     """Find the segmentation for the endocardium and the epicardium at one single frame.
 
     Args:
@@ -103,8 +103,6 @@ def find_segmentation(
             ["zero_angle", dataset_name],
         )
 
-    return data
-
 
 def centroid(segments, frame, shape):
     """Return an array with the position of the centroid at a given time."""
@@ -174,7 +172,7 @@ def update_segmentation(
     segments: dict,
     zero_angle: np.ndarray,
     frame: Union[int, slice],
-) -> StrainMapData:
+) -> None:
     """Updates an existing segmentation with new segments.
 
     Args:
@@ -201,10 +199,8 @@ def update_segmentation(
         ["zero_angle", dataset_name],
     )
 
-    return data
 
-
-def clear_segmentation(data: StrainMapData, dataset_name: str) -> StrainMapData:
+def clear_segmentation(data: StrainMapData, dataset_name: str) -> None:
     """Clears the segmentation for the given dataset."""
     data.segments.pop(dataset_name, None)
     data.zero_angle.pop(dataset_name, None)
@@ -219,7 +215,6 @@ def clear_segmentation(data: StrainMapData, dataset_name: str) -> StrainMapData:
         ["masks", dataset_name],
         ["markers", dataset_name],
     )
-    return data
 
 
 def update_and_find_next(
@@ -229,17 +224,15 @@ def update_and_find_next(
     zero_angle: np.ndarray,
     frame: int,
     images: Dict[str, np.ndarray],
-) -> StrainMapData:
+) -> None:
     """Updates the segmentation for the current frame and starts the next one."""
-    data = update_segmentation(data, dataset_name, segments, zero_angle, frame)
+    update_segmentation(data, dataset_name, segments, zero_angle, frame)
     initial = {
         "endocardium": data.segments[dataset_name]["endocardium"][frame],
         "epicardium": data.segments[dataset_name]["epicardium"][frame],
     }
     frame += 1
-    data = find_segmentation(data, dataset_name, frame, images, initial, save=False)
-
-    return data
+    find_segmentation(data, dataset_name, frame, images, initial, save=False)
 
 
 def simple_segmentation(

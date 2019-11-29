@@ -62,7 +62,7 @@ def segmented_data(strainmap_data):
     init_endo = Contour.circle(center=(310, 280), radius=40, shape=image.shape).xy
 
     # Launch the segmentation process
-    data = find_segmentation(
+    find_segmentation(
         data=strainmap_data,
         dataset_name=dataset,
         images={"endocardium": image, "epicardium": image},
@@ -70,9 +70,8 @@ def segmented_data(strainmap_data):
         initials={"epicardium": init_epi, "endocardium": init_endo},
     )
 
-    data.zero_angle[dataset] = np.tile([[260, 230], [310, 280]], (3, 2, 2))
-
-    return data
+    strainmap_data.zero_angle[dataset] = np.tile([[260, 230], [310, 280]], (3, 2, 2))
+    return strainmap_data
 
 
 @fixture(scope="session")
@@ -226,10 +225,12 @@ def data_with_velocities(segmented_data):
     from copy import deepcopy
 
     dataset_name = list(segmented_data.segments.keys())[0]
-    return calculate_velocities(
-        deepcopy(segmented_data),
+    output = deepcopy(segmented_data)
+    calculate_velocities(
+        output,
         dataset_name,
         global_velocity=True,
         angular_regions=(6, 24),
         radial_regions=(4,),
     )
+    return output
