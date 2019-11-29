@@ -140,7 +140,7 @@ def initialize_data_segments(data, dataset_name, shape):
 def create_rules(frame, segments, shape, rtol, replace_threshold):
     """Create the rules to apply to the segments to ensure their 'quality'."""
     rules = {"endocardium": [], "epicardium": []}
-    shift = {"endocardium": 1, "epicardium": -1}
+    shift = {"endocardium": 2, "epicardium": -2}
 
     for side in ("endocardium", "epicardium"):
         if isinstance(frame, int):
