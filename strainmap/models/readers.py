@@ -19,7 +19,7 @@ def read_dicom_directory_tree(path: Union[Path, Text]) -> Mapping:
     """Creates a dictionary with the available series and associated
     filenames."""
 
-    path = str(Path(path) / "*00.dcm")
+    path = str(Path(path) / "*01.dcm")
     filenames = sorted(glob.glob(path))
 
     data_files: OrderedDict = OrderedDict()
@@ -39,7 +39,7 @@ def read_dicom_directory_tree(path: Union[Path, Text]) -> Mapping:
                 var_idx[int(Path(f).name[3:5]) + VAR_OFFSET[var]] = var
 
         data_files[name][var_idx[int(Path(f).name[3:5])]] = sorted(
-            glob.glob(f.replace("00.dcm", "*.dcm"))
+            glob.glob(f.replace("01.dcm", "*.dcm"))
         )
 
     return data_files
@@ -53,7 +53,9 @@ def parallel_spirals(dicom_data):
         tSequenceFileName = re.search('tSequenceFileName\t = \t""(.*)""', ascii_header)
         if tSequenceFileName is None:
             return False
-        return True if "ParallelSpirals" in tSequenceFileName[1] else False
+        return (
+            re.search(r"(.*)Parallel(.?)Spirals(.?)", tSequenceFileName[1]) is not None
+        )
     except TypeError:
         return False
 
