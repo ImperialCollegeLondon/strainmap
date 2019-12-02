@@ -175,11 +175,14 @@ def update_segmentation(
 ) -> None:
     """Updates an existing segmentation with new segments.
 
+    Any velocities calculated for this dataset are deleted, forcing their recalculation.
+
     Args:
         data: StrainMapData object containing the data
         dataset_name: Name of the dataset whose segmentation are to modify
         segments: Dictionary with the segmentation for the epi- and endocardium. If
             either is None, the existing segmentation is erased.
+        zero_angle: array with the zero angle information.
         frame: int or slice indicating the frames to update
 
     Returns:
@@ -192,6 +195,8 @@ def update_segmentation(
         segments["epicardium"][frame]
     )
     data.zero_angle[dataset_name][frame] = copy(zero_angle[frame])
+
+    data.velocities.pop(dataset_name, None)
 
     data.save(
         ["segments", dataset_name, "endocardium"],

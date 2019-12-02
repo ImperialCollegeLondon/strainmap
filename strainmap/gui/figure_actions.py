@@ -732,10 +732,17 @@ class Markers(ActionBase):
 
     def move_finish(self, event, last_event, *args):
         """Executes marker move after mouse release."""
-        if self._current_data is None:
+        if self._current_marker is None:
             return
-        x, y, idx = self.get_closest(self._current_data, event.xdata)
+
+        if self._current_data is None:
+            x, y = event.xdata, event.ydata
+            idx = 0
+        else:
+            x, y, idx = self.get_closest(self._current_data, event.xdata)
+
         self._marker_moved(self._current_marker, self._current_data, x, y, idx)
+        self._current_marker = None
 
     @staticmethod
     def get_closest(line, mx):

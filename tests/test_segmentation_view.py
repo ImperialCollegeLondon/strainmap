@@ -271,7 +271,6 @@ def test_next_frames(segmentation_view, strainmap_data):
 def test_finish_segmentation(segmentation_view):
     segmentation_view.controller.update_segmentation = MagicMock()
 
-    segmentation_view.segmenting = True
     segmentation_view.finish_segmentation()
     segmentation_view.controller.update_segmentation.assert_called()
-    assert segmentation_view.fig.actions_manager.Markers.disabled
+    assert segmentation_view.completed

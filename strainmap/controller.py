@@ -37,8 +37,8 @@ class StrainMap(object):
 
         for view in list(self.window.views):
             if (
-                Requisites.check(self.achieved, view.requisites)
-                and view.requisites != Requisites.NONE
+                Requisites.check(requisite, view.requisites)
+                and requisite != Requisites.NONE
             ):
                 view.to_update = True
 
