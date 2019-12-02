@@ -117,7 +117,9 @@ class StrainMapData(object):
         )
         return output
 
-    def read_dicom_file_tags(self, series, variable, idx):
+    def read_dicom_file_tags(self, series, variable, idx, phantom=False):
+        if phantom:
+            return read_dicom_file_tags(self.bg_files, series, variable, idx)
         return read_dicom_file_tags(self.data_files, series, variable, idx)
 
     def get_images(self, series, variable):
