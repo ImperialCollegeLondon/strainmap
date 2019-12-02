@@ -312,14 +312,13 @@ def marker(comp, low=1, high=49, maximum=True):
 
 def marker_es(comp, pd, low=14, high=21):
     """Finds the default position of the ES marker."""
-    low = min(low, len(comp) - 1)
-    high = min(high, len(comp) - 1)
+    low = min(low, int(pd[0]) - 1)
+    high = min(high, int(pd[0]) - 1)
 
-    # Hack needed for testing when using only 3 frames.
-    if high - low < 3:
+    if high - low == 0:
         low = 0
 
-    grad = np.gradient(comp[low : high + 1])
+    grad = np.diff(comp[low : high + 1])
     idx = np.argmin(abs(grad)) + low
 
     if idx == pd[0] or comp[idx] < -2.5:
@@ -420,7 +419,7 @@ def _markers_positions(
     for i in range(3):
         for j, key in enumerate(markers_lbl[i]):
             markers[i, j] = marker(velocity[i], **markers_options[key])
-
+    print()
     markers[1, 3] = (
         marker_es(velocity[1], markers[1, 1], **markers_options["ES"])
         if es is None
