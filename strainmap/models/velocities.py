@@ -185,6 +185,7 @@ def calculate_velocities(
     radial_regions: Sequence[int] = (),
     bg: str = "Estimated",
     sign_reversal: Tuple[bool, ...] = (False, False, False),
+    init_markers: bool = True,
 ):
     """Calculates the velocity of the chosen dataset and regions."""
     swap, signs = image_orientation(data.data_files[dataset_name]["PhaseZ"][0])
@@ -230,15 +231,11 @@ def calculate_velocities(
         data.masks[dataset_name].update(masks)
         vel_labels += list(velocities.keys())
 
-    data = initialise_markers(data, dataset_name, vel_labels)
-
-    data.save(
-        *[["velocities", dataset_name, vel] for vel in vel_labels],
-        *[["masks", dataset_name, vel] for vel in vel_labels],
-        *[["markers", dataset_name, vel] for vel in vel_labels],
-        ["masks", dataset_name, f"cylindrical - {bg}"],
-        ["sign_reversal"],
-    )
+    if init_markers:
+        initialise_markers(data, dataset_name, vel_labels)
+        data.save(
+            *[["markers", dataset_name, vel] for vel in vel_labels], ["sign_reversal"]
+        )
 
 
 def mean_velocities(
@@ -419,7 +416,7 @@ def _markers_positions(
     for i in range(3):
         for j, key in enumerate(markers_lbl[i]):
             markers[i, j] = marker(velocity[i], **markers_options[key])
-    print()
+
     markers[1, 3] = (
         marker_es(velocity[1], markers[1, 1], **markers_options["ES"])
         if es is None
@@ -491,6 +488,7 @@ def update_marker(
         marker_idx,
         position,
     )
+    data.save(["markers", dataset, vel_label])
 
 
 def initialise_markers(data: StrainMapData, dataset: str, vel_labels: list):

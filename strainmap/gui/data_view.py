@@ -252,11 +252,12 @@ class DataTaskView(TaskViewBase):
         )
 
         if path != "" and self.controller.load_data_from_file(strainmap_file=path):
+            self.load_missing_data()
             self.output_file.set(path)
             self.current_dir = str(Path(path).parent)
             self.nametowidget("control.chooseOutputFile")["state"] = "enable"
             self.update_widgets()
-            self.load_missing_data()
+            self.update_phantom_widgets()
 
     def load_phantom(self):
         """Loads phantom data into a data structure."""
@@ -305,7 +306,6 @@ class DataTaskView(TaskViewBase):
                 self.current_dir = data_path
 
         self.controller.add_paths(data_files=data_path, bg_files=phantom_path)
-        self.update_phantom_widgets()
 
     def select_output_file(self):
         """ Selects an output file in which to store the current data."""

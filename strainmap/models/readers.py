@@ -195,25 +195,17 @@ def read_strainmap_file(data, filename: Union[Path, Text]):
     """Reads a StrainMap file with existing information on previous segmentations."""
     if str(filename).endswith(".h5"):
         return read_h5_file(data, filename)
-    elif str(filename).endswith(".m"):
-        return read_matlab_file(data, filename)
     else:
         raise RuntimeError("File type not recognised by StrainMap.")
-
-
-def read_matlab_file(data, filename: Union[Path, Text]):
-    """Reads a Matlab file."""
-    raise NotImplementedError
 
 
 def read_h5_file(data, filename: Union[Path, Text]):
     """Reads a HDF5 file."""
     sm_file = h5py.File(filename, "a")
+    data.strainmap_file = sm_file
 
-    for s in data.__dict__.keys():
-        if s == "strainmap_file":
-            data.strainmap_file = sm_file
-        elif s == "sign_reversal":
+    for s in data.stored:
+        if s == "sign_reversal":
             data.sign_reversal = tuple(sm_file[s][...])
         elif "files" in s:
             paths_from_hdf5(getattr(data, s), filename, sm_file[s])

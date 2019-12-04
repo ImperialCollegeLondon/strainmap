@@ -43,6 +43,15 @@ def compare_dicts(one, two):
 
 
 class StrainMapData(object):
+    stored = (
+        "data_files",
+        "bg_files",
+        "sign_reversal",
+        "segments",
+        "zero_angle",
+        "markers",
+    )
+
     @classmethod
     def from_folder(cls, data_files: Union[Path, Text, None] = None):
         """Creates a new StrainMap data object from a folder containing DICOMs"""
@@ -57,7 +66,9 @@ class StrainMapData(object):
     def from_file(cls, strainmap_file: Union[Path, Text]):
         """Creates a new StrainMap data object from a h5 file."""
         assert Path(strainmap_file).is_file()
-        return read_strainmap_file(cls.from_folder(), strainmap_file)
+        result = read_strainmap_file(cls.from_folder(), strainmap_file)
+        result.regenerate()
+        return result
 
     def __init__(
         self,
@@ -76,17 +87,24 @@ class StrainMapData(object):
         self.masks: dict = defaultdict(dict)
         self.markers: dict = defaultdict(dict)
 
+    @property
+    def rebuilt(self):
+        """Flag to indicate if data structure has been rebuilt after loading."""
+        return all([k in self.velocities.keys() for k in self.markers.keys()])
+
     def add_paths(
         self,
         data_files: Union[Path, Text, None] = None,
         bg_files: Union[Path, Text, None] = None,
     ):
-        """Adds data and/or pahtom paths to the object."""
+        """Adds data and/or phantom paths to the object."""
         if data_files is not None:
             self.data_files = read_dicom_directory_tree(data_files)
         if bg_files is not None:
             self.bg_files = read_dicom_directory_tree(bg_files)
         if data_files is not None or bg_files is not None:
+            if not self.rebuilt:
+                self.regenerate()
             self.save_all()
             return True
         return False
@@ -98,6 +116,36 @@ class StrainMapData(object):
         self.strainmap_file = h5py.File(strainmap_file, "a")
         self.save_all()
         return True
+
+    def regenerate(self):
+        """Regenerate velocities and masks information after loading from h5 file."""
+        from .velocities import calculate_velocities
+
+        # If there is no data paths yet, we postpone the regeneration.
+        if any([len(p) == 0 for p in list(self.data_files.values())[0].values()]):
+            return
+
+        for dataset, markers in self.markers.items():
+            regions = dict()
+            for k in markers.keys():
+                info = k.split(" - ")
+                if info[-1] not in regions.keys():
+                    regions[info[-1]] = dict(angular_regions=[], radial_regions=[])
+                if "global" in info[0]:
+                    regions[info[-1]]["global_velocity"] = True
+                else:
+                    rtype, num = info[0].split(" x")
+                    regions[info[-1]][f"{rtype}_regions"].append(int(num))
+
+            for bg, region in regions.items():
+                calculate_velocities(
+                    data=self,
+                    dataset_name=dataset,
+                    bg=bg,
+                    sign_reversal=self.sign_reversal,
+                    init_markers=False,
+                    **region,
+                )
 
     def metadata(self, dataset=None):
         """Retrieve the metadata from the DICOM files"""
@@ -145,6 +193,7 @@ class StrainMapData(object):
             return
 
         for keys in args:
+            assert keys[0] in self.stored, f"{keys[0]} is not storable."
             s = "/".join(keys)
             keys[0] = getattr(self, keys[0])
             if s in self.strainmap_file:

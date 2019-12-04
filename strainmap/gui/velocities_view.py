@@ -453,6 +453,7 @@ class VelocitiesTaskView(TaskViewBase):
     def update_widgets(self):
         """ Updates widgets after an update in the data variable. """
         self.populate_dataset_box()
+        self.populate_bg_box(self.datasets_var.get())
         self.update_sign_reversal()
         self.dataset_changed()
 

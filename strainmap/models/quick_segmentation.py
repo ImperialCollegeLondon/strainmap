@@ -216,8 +216,6 @@ def clear_segmentation(data: StrainMapData, dataset_name: str) -> None:
     data.delete(
         ["segments", dataset_name],
         ["zero_angle", dataset_name],
-        ["velocities", dataset_name],
-        ["masks", dataset_name],
         ["markers", dataset_name],
     )
 
