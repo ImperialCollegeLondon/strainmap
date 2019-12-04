@@ -237,6 +237,7 @@ class DataTaskView(TaskViewBase):
         )
 
         if path != "" and self.controller.load_data_from_folder(data_files=path):
+            self.controller.review_mode = False
             self.current_dir = path
             self.data_folder.set(self.current_dir)
             self.output_file.set(None)
@@ -253,6 +254,7 @@ class DataTaskView(TaskViewBase):
 
         if path != "" and self.controller.load_data_from_file(strainmap_file=path):
             self.load_missing_data()
+            self.controller.review_mode = True
             self.output_file.set(path)
             self.current_dir = str(Path(path).parent)
             self.nametowidget("control.chooseOutputFile")["state"] = "enable"
@@ -339,7 +341,11 @@ class DataTaskView(TaskViewBase):
 
     def get_data_information(self):
         """ Gets some information related to the available datasets, frames, etc. """
-        values = list(self.data.data_files.keys())
+        if self.controller.review_mode:
+            values = list(self.data.segments.keys())
+        else:
+            values = list(self.data.data_files.keys())
+
         if len(values) > 0:
             texts = [
                 "Magnitude",

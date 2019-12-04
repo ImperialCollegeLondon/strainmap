@@ -21,6 +21,7 @@ class StrainMap(object):
         self.window = MainWindow()
         self.achieved = Requisites.NONE
         self.data = None
+        self.review_mode = False
         self.unlock()
 
     def run(self):

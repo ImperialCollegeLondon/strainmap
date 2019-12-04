@@ -472,6 +472,9 @@ class SegmentationTaskView(TaskViewBase):
             self.clear_btn.state(["!disabled"])
             self.completed = False
 
+        if self.controller.review_mode:
+            self.clear_btn.state(["disabled"])
+
     def switch_mark_state(self, side, state):
         """Switch the text displayed in the initial segmentation buttons."""
         variable, order = {
@@ -659,8 +662,9 @@ class SegmentationTaskView(TaskViewBase):
         """Plots the just defined contour in both axes and leaves the edit mode."""
         self.initial_segments[side] = contour[-1]
         self.switch_mark_state(side, "ready")
-        self.clear_btn.state(["!disabled"])
         self.datasets_box.state(["disabled"])
+        if not self.controller.review_mode:
+            self.clear_btn.state(["!disabled"])
 
         for ax in self.fig.axes:
             self.fig.actions_manager.DrawContours.clear_drawing_(ax)
@@ -799,7 +803,7 @@ class SegmentationTaskView(TaskViewBase):
         )
 
     def clear_segmentation(self):
-        """Confirm the new segments after a manual segmentation process."""
+        """Clear an existing segmentation."""
         dataset_name = self.datasets_var.get()
         self.controller.clear_segmentation(dataset_name=dataset_name)
         self.replot(dataset_name)
@@ -810,7 +814,10 @@ class SegmentationTaskView(TaskViewBase):
 
     def update_widgets(self):
         """ Updates widgets after an update in the data variable. """
-        values = list(self.data.data_files.keys())
+        if self.controller.review_mode:
+            values = list(self.data.segments.keys())
+        else:
+            values = list(self.data.data_files.keys())
         values_segments = list(self.data.segments.keys())
         current = self.datasets_var.get()
         self.datasets_box.config(values=values)
