@@ -68,7 +68,7 @@ class DataTaskView(TaskViewBase):
         ttk.Button(
             master=self.control,
             name="openStrainMapFile",
-            text="Resume analysis",
+            text="Review analysis",
             command=self.open_existing_file,
             width=25,
         ).grid(sticky=tk.NSEW, columnspan=2, pady=5)
