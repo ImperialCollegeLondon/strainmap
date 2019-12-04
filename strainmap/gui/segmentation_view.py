@@ -643,8 +643,8 @@ class SegmentationTaskView(TaskViewBase):
     def set_initial_contour(self, side):
         """Enables the definition of the initial segment for the side."""
         self.fig.suptitle(
-            "Left click once to define the center and then once to define the edge of "
-            f"the initial segment for the {side.upper()}."
+            "Left click once to define the center, once to define the edge of the "
+            f"ENDOCARDIUM and once for the edge of the EPICARDIUM."
         )
         get_contour = partial(self.get_contour, side=side)
         self.fig.actions_manager.DrawContours.contours_updated = get_contour
@@ -658,8 +658,8 @@ class SegmentationTaskView(TaskViewBase):
         get_septum = partial(self.get_septum)
         self.fig.actions_manager.DrawContours.contours_updated = get_septum
 
-    def get_contour(self, contour, *args, side):
-        """Plots the just defined contour in both axes and leaves the edit mode."""
+    def get_contour(self, contour, points, side):
+        """Gets and plots the contour."""
         self.initial_segments[side] = contour[-1]
         self.switch_mark_state(side, "ready")
         self.datasets_box.state(["disabled"])
@@ -668,6 +668,11 @@ class SegmentationTaskView(TaskViewBase):
 
         for ax in self.fig.axes:
             self.fig.actions_manager.DrawContours.clear_drawing_(ax)
+
+        if any([s is None for s in self.initial_segments.values()]):
+            self.fig.actions_manager.DrawContours.add_point(
+                self.fig.axes[0], *points[0]
+            )
 
         self.plot_initial_segments()
         self.fig.canvas.draw()
