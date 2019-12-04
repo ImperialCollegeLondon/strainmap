@@ -57,7 +57,7 @@ class TaskViewBase(ABC, ttk.Frame):
     ):
         super().__init__(root)
         self.__controller = controller
-        self.to_update = False
+        self.is_stale = False
 
         if button_image is not None:
             self.image = Image.open(ICONS_DIRECTORY / button_image)
@@ -77,9 +77,9 @@ class TaskViewBase(ABC, ttk.Frame):
     def tkraise(self, *args):
         """Brings the frame to the front."""
         super().tkraise()
-        if self.to_update:
+        if self.is_stale:
             self.update_widgets()
-            self.to_update = False
+            self.is_stale = False
 
     @property
     def data(self):
