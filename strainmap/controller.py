@@ -35,22 +35,22 @@ class StrainMap(object):
             if Requisites.check(self.achieved, view.requisites):
                 self.window.add(view, weakref.ref(self))
 
-        for view in list(self.window.views):
+        for view in self.window.views:
             if (
                 Requisites.check(self.achieved, view.requisites)
                 and view.requisites != Requisites.NONE
             ):
-                view.to_update = True
+                view.is_stale = True
 
     def lock(self, requisite):
         """ Removes requisites and updates loaded views."""
         self.achieved = self.achieved ^ requisite
 
-        for view in list(self.window.views):
+        for view in self.window.views:
             if not Requisites.check(self.achieved, view.requisites):
                 self.window.remove(view)
 
-    def lock_unlock(self, condition, requisite):
+    def lock_toggle(self, condition, requisite):
         """Conditional lock/unlock of a requisite."""
         if condition:
             self.unlock(requisite)
@@ -65,15 +65,15 @@ class StrainMap(object):
     def load_data_from_folder(self, data_files):
         """Creates a StrainMapData object."""
         self.data = StrainMapData.from_folder(data_files)
-        self.lock_unlock(self.data.data_files, Requisites.DATALOADED)
+        self.lock_toggle(self.data.data_files, Requisites.DATALOADED)
         return self.data is not None
 
     def load_data_from_file(self, strainmap_file):
         """Creates a StrainMapData object."""
         self.data = StrainMapData.from_file(strainmap_file)
         there_are_segments = any(len(i) != 0 for i in self.data.segments.values())
-        self.lock_unlock(self.data.data_files, Requisites.DATALOADED)
-        self.lock_unlock(there_are_segments, Requisites.SEGMENTED)
+        self.lock_toggle(self.data.data_files, Requisites.DATALOADED)
+        self.lock_toggle(there_are_segments, Requisites.SEGMENTED)
         return self.data is not None
 
     def clear_data(self):
@@ -85,8 +85,8 @@ class StrainMap(object):
     def add_paths(self, data_files=None, bg_files=None):
         self.data.add_paths(data_files, bg_files)
         there_are_segments = any(len(i) != 0 for i in self.data.segments.values())
-        self.lock_unlock(self.data.data_files, Requisites.DATALOADED)
-        self.lock_unlock(there_are_segments, Requisites.SEGMENTED)
+        self.lock_toggle(self.data.data_files, Requisites.DATALOADED)
+        self.lock_toggle(there_are_segments, Requisites.SEGMENTED)
 
     def add_h5_file(self, strainmap_file):
         return self.data.add_h5_file(strainmap_file)
