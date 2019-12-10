@@ -7,7 +7,7 @@ from matplotlib import pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.figure import Figure
 
-from .base_window_and_task import Requisites, TaskViewBase, register_view, trigger_event
+from .base_window_and_task import Requisites, TaskViewBase, register_view
 from .figure_actions_manager import FigureActionsManager
 from .figure_actions import Markers, SimpleScroller
 
@@ -19,9 +19,11 @@ class VelocitiesTaskView(TaskViewBase):
     axes_lbl = ("_long", "_rad", "_circ")
     marker_idx = {"PS": 0, "PD": 1, "PAS": 2, "PC1": 0, "PC2": 1, "PC3": 2, "ES": 3}
 
-    def __init__(self, root):
+    def __init__(self, root, controller):
 
-        super().__init__(root, button_text="Velocities", button_image="speed.gif")
+        super().__init__(
+            root, controller, button_text="Velocities", button_image="speed.gif"
+        )
         self.rowconfigure(1, weight=1)
         self.columnconfigure(0, weight=1)
 
@@ -55,7 +57,6 @@ class VelocitiesTaskView(TaskViewBase):
         self.cbar = None
         self.limits = None
         self.marker_artists = None
-        self.marker_moved_info = ()
 
         self.create_controls()
 
@@ -166,16 +167,13 @@ class VelocitiesTaskView(TaskViewBase):
     def dataset_changed(self, *args):
         """Updates the view when the selected dataset is changed."""
         current = self.datasets_var.get()
+        self.images = self.data.get_images(current, "MagZ")
         if self.data.velocities.get(current):
-            self.images = self.data.get_images(current, "MagZ")
             self.update_velocities_list(current)
-            if self.marker_moved_info:
-                self.marker_moved()
-            else:
-                self.switch_velocity()
         else:
             self.populate_bg_box(current)
-            self.calculate_velocities(current)
+            self.calculate_velocities()
+        self.replot()
 
     def bg_changed(self, *args):
         """When the background is changed, new velocities need to be calculated."""
@@ -183,7 +181,8 @@ class VelocitiesTaskView(TaskViewBase):
         dataset = self.datasets_var.get()
         existing_vels = self.data.velocities[dataset].keys()
         if not any([bg in vel_label for vel_label in existing_vels]):
-            self.calculate_velocities(dataset)
+            self.calculate_velocities()
+            self.replot()
 
     def recalculate_velocities(self):
         """Recalculate velocities after a sign reversal."""
@@ -192,7 +191,8 @@ class VelocitiesTaskView(TaskViewBase):
         existing_vels = self.data.velocities[dataset].keys()
         existing_bg = {vel_label.split(" - ")[-1] for vel_label in existing_vels}
         for bg in existing_bg:
-            self.calculate_velocities(dataset, bg=bg)
+            self.calculate_velocities(bg=bg)
+            self.replot()
 
     def reversal_checked(self):
         """Enables/disables de update velocities button if amy sign reversal changes."""
@@ -201,8 +201,8 @@ class VelocitiesTaskView(TaskViewBase):
         else:
             self.update_vel_btn.state(["disabled"])
 
-    def switch_velocity(self):
-        """Switch the plot to show the chosen velocity."""
+    def replot(self):
+        """Updates the plot to show the chosen velocity."""
         dataset = self.datasets_var.get()
         vel_label = self.velocities_var.get()
         if self.data.velocities[dataset][vel_label].shape[0] == 24:
@@ -239,22 +239,19 @@ class VelocitiesTaskView(TaskViewBase):
         markers = self.data.markers[dataset][vel_label.replace("24", "6")]
         self.populate_tables(markers)
 
-    def marker_moved(self):
+    def marker_moved(self, table, marker):
         """Updates plot and table after a marker has been moved."""
-        self.populate_tables()
-        if self.marker_moved_info[1] == "ES":
-            self.update_maps(
-                self.velocity_maps, self.images, self.markers[self.current_region]
-            )
+        if marker == "ES":
+            self.update_table_es()
         else:
+            self.update_table_one_marker(table, marker)
             self.update_one_map(
                 self.velocity_maps,
                 self.images,
                 self.markers[self.current_region],
-                *self.marker_moved_info,
+                table,
+                marker,
             )
-
-        self.marker_moved_info = ()
 
     def scroll(self, step=1, *args):
         """Changes the region being plotted when scrolling with the mouse."""
@@ -338,6 +335,37 @@ class VelocitiesTaskView(TaskViewBase):
                 val = np.around(marker[i, :3, 2], decimals=2).tolist()
                 t.insert(time, tk.END, text=labels[j], values=val, tags=(tag,))
 
+    def update_table_one_marker(self, table, marker):
+        """Updates peak velocity and time table entry for a single marker."""
+        table = self.axes_lbl.index(table)
+        idx = self.marker_idx[marker]
+        t = self.param_tables[table]
+        velitem = t.get_children(t.get_children()[0])[self.current_region]
+        timeitem = t.get_children(t.get_children()[1])[self.current_region]
+
+        t.set(
+            velitem,
+            column=marker,
+            value=round(self.markers[self.current_region, table, idx, 1], 2),
+        )
+        t.set(
+            timeitem,
+            column=marker,
+            value=round(self.markers[self.current_region, table, idx, 2], 2),
+        )
+
+    def update_table_es(self):
+        """Updates a row of the markers table after ES has moved."""
+        for i, t in enumerate(self.param_tables):
+            timeitem = t.get_children(t.get_children()[1])[self.current_region]
+
+            t.item(
+                timeitem,
+                values=np.around(
+                    self.markers[self.current_region, i, :3, 2], decimals=2
+                ).tolist(),
+            )
+
     def update_velocities_list(self, dataset):
         """Updates the list of radio buttons with the currently available velocities."""
         velocities = self.data.velocities[dataset]
@@ -352,7 +380,7 @@ class VelocitiesTaskView(TaskViewBase):
                 text=v,
                 value=v,
                 variable=self.velocities_var,
-                command=self.switch_velocity,
+                command=self.replot,
             ).grid(row=row, column=col, sticky=tk.NSEW)
 
         if self.velocities_var.get() not in velocities and len(velocities) > 0:
@@ -360,19 +388,17 @@ class VelocitiesTaskView(TaskViewBase):
 
         self.bg_var.set(self.velocities_var.get().split(" - ")[-1])
 
-    @trigger_event
-    def calculate_velocities(self, dataset, bg=None):
+    def calculate_velocities(self, bg=None):
         """Calculate pre-defined velocities for the chosen dataset."""
-        return dict(
-            data=self.data,
-            dataset_name=dataset,
+        self.controller.calculate_velocities(
+            dataset_name=self.datasets_var.get(),
             global_velocity=True,
             angular_regions=[6, 24],
             bg=self.bg_var.get() if bg is None else bg,
             sign_reversal=tuple(var.get() for var in self.reverse_vel_var),
         )
+        self.update_velocities_list(self.datasets_var.get())
 
-    @trigger_event(name="export_velocity")
     def export(self, *args):
         """Exports the current velocity data to an XLSX file."""
         meta = self.data.metadata()
@@ -384,15 +410,12 @@ class VelocitiesTaskView(TaskViewBase):
             defaultextension="xlsx",
             filetypes=[("Excel files", "*.xlsx")],
         )
-        if filename == "":
-            return dict()
-
-        return dict(
-            filename=filename,
-            data=self.data,
-            dataset=self.datasets_var.get(),
-            vel_label=self.velocities_var.get(),
-        )
+        if filename != "":
+            self.controller.export_velocity(
+                filename=filename,
+                dataset=self.datasets_var.get(),
+                vel_label=self.velocities_var.get(),
+            )
 
     def populate_dataset_box(self):
         """Populate the dataset box with available segmentations."""
@@ -400,9 +423,7 @@ class VelocitiesTaskView(TaskViewBase):
         current = self.datasets_var.get()
         self.datasets_box.config(values=values)
         if current not in values:
-            current = values[0]
-            self.datasets_var.set(current)
-        return current
+            self.datasets_var.set(values[0])
 
     def populate_bg_box(self, dataset):
         """Populates the background box and try to match the bg choice by name."""
@@ -420,19 +441,9 @@ class VelocitiesTaskView(TaskViewBase):
 
     def update_widgets(self):
         """ Updates widgets after an update in the data variable. """
-        current = self.populate_dataset_box()
-        self.populate_bg_box(current)
+        self.populate_dataset_box()
         self.update_sign_reversal()
-        self.images = self.data.get_images(current, "MagZ")
-
-        if self.data.velocities.get(current):
-            self.update_velocities_list(current)
-            if self.marker_moved_info:
-                self.marker_moved()
-            else:
-                self.switch_velocity()
-        else:
-            self.calculate_velocities(current)
+        self.dataset_changed()
 
     def clear_widgets(self):
         """ Clear widgets after removing the data. """
@@ -527,23 +538,25 @@ class VelocitiesTaskView(TaskViewBase):
         if "global" in self.velocities_var.get():
             self.limits = self.find_limits(vel_masks[0, 0])
 
+        rmin, rmax, cmin, cmax = self.limits
         vmin, vmax = vel_masks.min(), vel_masks.max()
         for i in range(9):
             axes = self.axes_lbl[i // 3]
             frame = int(markers[i // 3, i % 3, 0])
             bg[axes].append(
-                self.maps[i].imshow(mag[frame], cmap=plt.get_cmap("binary_r"))
+                self.maps[i].imshow(
+                    mag[frame, rmin : rmax + 1, cmin : cmax + 1],
+                    cmap=plt.get_cmap("binary_r"),
+                )
             )
             masks[axes].append(
                 self.maps[i].imshow(
-                    vel_masks[i // 3, frame],
+                    vel_masks[i // 3, frame, rmin : rmax + 1, cmin : cmax + 1],
                     cmap=plt.get_cmap("seismic"),
                     vmin=vmin,
                     vmax=vmax,
                 )
             )
-            self.maps[i].set_xlim(*self.limits[0])
-            self.maps[i].set_ylim(*self.limits[1])
 
         cbar = self.fig.colorbar(masks["_long"][0], ax=self.maps[0], pad=-1.4)
 
@@ -552,14 +565,14 @@ class VelocitiesTaskView(TaskViewBase):
     @staticmethod
     def find_limits(mask, margin=30):
         """Find the appropiate limits of a masked array in order to plot it nicely."""
-        yaxes, xaxes = mask.nonzero()
+        rows, cols = mask.nonzero()
 
-        xmin = max(xaxes.min() - margin, 0)
-        ymin = max(yaxes.min() - margin, 0)
-        xmax = min(xaxes.max() + margin, mask.shape[0])
-        ymax = min(yaxes.max() + margin, mask.shape[1])
+        cmin = max(cols.min() - margin, 0)
+        rmin = max(rows.min() - margin, 0)
+        cmax = min(cols.max() + margin, mask.shape[0])
+        rmax = min(rows.max() + margin, mask.shape[1])
 
-        return (xmin, xmax), (ymax, ymin)
+        return rmin, rmax, cmin, cmax
 
     def add_markers(self, markers):
         """Adds markers to the plots.).
@@ -634,11 +647,14 @@ class VelocitiesTaskView(TaskViewBase):
         self, vel_masks: np.ndarray, images: np.ndarray, markers: np.ndarray, draw=True
     ):
         """Updates the maps (masks and background data)."""
+        rmin, rmax, cmin, cmax = self.limits
         for i in range(9):
             axes = self.axes_lbl[i // 3]
             frame = int(markers[i // 3, i % 3, 0])
-            self.update_mask(axes, i % 3, vel_masks[i // 3, frame])
-            self.update_bg(axes, i % 3, images[frame])
+            self.update_mask(
+                axes, i % 3, vel_masks[i // 3, frame, rmin : rmax + 1, cmin : cmax + 1]
+            )
+            self.update_bg(axes, i % 3, images[frame, rmin : rmax + 1, cmin : cmax + 1])
 
         if draw:
             self.draw()
@@ -652,11 +668,14 @@ class VelocitiesTaskView(TaskViewBase):
         marker_lbl: str,
     ):
         """Updates the maps correspoinding to a single marker."""
+        rmin, rmax, cmin, cmax = self.limits
         component = self.axes_lbl.index(axes)
         idx = self.marker_idx[marker_lbl]
         frame = int(markers[component, idx, 0])
-        self.update_mask(axes, idx, vel_masks[component, frame])
-        self.update_bg(axes, idx, images[frame])
+        self.update_mask(
+            axes, idx, vel_masks[component, frame, rmin : rmax + 1, cmin : cmax + 1]
+        )
+        self.update_bg(axes, idx, images[frame, rmin : rmax + 1, cmin : cmax + 1])
         self.draw()
 
     def update_velocities(self, vels, draw=True):
@@ -681,12 +700,9 @@ class VelocitiesTaskView(TaskViewBase):
         if draw:
             self.draw()
 
-    @trigger_event
     def update_marker(self, marker, data, x, y, position):
         """When a marker moves, mask data should be updated."""
-        self.marker_moved_info = (data.get_label(), marker.get_label())
-        return dict(
-            data=self.data,
+        self.controller.update_marker(
             dataset=self.datasets_var.get(),
             vel_label=self.velocities_var.get(),
             region=self.current_region,
@@ -694,6 +710,7 @@ class VelocitiesTaskView(TaskViewBase):
             marker_idx=self.marker_idx[marker.get_label()],
             position=position,
         )
+        self.marker_moved(data.get_label(), marker.get_label())
 
 
 def colour_figure(

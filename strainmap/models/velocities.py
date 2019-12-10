@@ -240,8 +240,6 @@ def calculate_velocities(
         ["sign_reversal"],
     )
 
-    return data
-
 
 def mean_velocities(
     velocities: np.ndarray,
@@ -494,8 +492,6 @@ def update_marker(
         marker_idx,
         position,
     )
-
-    return data
 
 
 def initialise_markers(data: StrainMapData, dataset: str, vel_labels: list):

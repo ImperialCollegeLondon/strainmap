@@ -145,13 +145,14 @@ def test_calculate_velocities(segmented_data):
 
     dataset_name = list(segmented_data.segments.keys())[0]
 
-    velocities = calculate_velocities(
+    calculate_velocities(
         segmented_data,
         dataset_name,
         global_velocity=True,
         angular_regions=(6,),
         radial_regions=(4,),
-    ).velocities
+    )
+    velocities = segmented_data.velocities
 
     assert dataset_name in velocities
     assert "global - Estimated" in velocities[dataset_name]
@@ -268,12 +269,16 @@ def test_update_marker(strainmap_data, markers, velocity):
     strainmap_data.velocities[dataset]["global"] = [velocity]
     strainmap_data.markers[dataset]["global"] = [deepcopy(markers)]
 
-    data = update_marker(strainmap_data, dataset, "global", 0, 0, 0, 2)
-    assert data.markers[dataset]["global"][0][0, 0, 0] == 2
-    assert data.markers[dataset]["global"][0][0, 0, 2] != markers[0, 0, 2]
-    assert np.all(data.markers[dataset]["global"][0][0, 1:, 2] == markers[0, 1:, 2])
+    update_marker(strainmap_data, dataset, "global", 0, 0, 0, 2)
+    assert strainmap_data.markers[dataset]["global"][0][0, 0, 0] == 2
+    assert strainmap_data.markers[dataset]["global"][0][0, 0, 2] != markers[0, 0, 2]
+    assert np.all(
+        strainmap_data.markers[dataset]["global"][0][0, 1:, 2] == markers[0, 1:, 2]
+    )
 
-    data = update_marker(strainmap_data, dataset, "global", 0, 1, 3, 15)
-    assert data.markers[dataset]["global"][0][1, 3, 0] == 15
-    assert data.markers[dataset]["global"][0][1, 3, 2] == 350
-    assert np.all(data.markers[dataset]["global"][0][0, :3, 2] != markers[0, :3, 2])
+    update_marker(strainmap_data, dataset, "global", 0, 1, 3, 15)
+    assert strainmap_data.markers[dataset]["global"][0][1, 3, 0] == 15
+    assert strainmap_data.markers[dataset]["global"][0][1, 3, 2] == 350
+    assert np.all(
+        strainmap_data.markers[dataset]["global"][0][0, :3, 2] != markers[0, :3, 2]
+    )

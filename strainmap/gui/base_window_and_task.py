@@ -8,11 +8,11 @@ views.
 import tkinter as tk
 from abc import ABC, abstractmethod
 from enum import Flag, auto
-from functools import wraps
 from pathlib import Path
 from tkinter import ttk
-from typing import Callable, List, Optional, Text, Type
+from typing import List, Optional, Text, Type
 
+import weakref
 from PIL import Image, ImageTk
 
 ICONS_DIRECTORY = Path(__file__).parent / "icons"
@@ -51,11 +51,13 @@ class TaskViewBase(ABC, ttk.Frame):
     def __init__(
         self,
         root: tk.Tk,
+        controller: weakref.ReferenceType,
         button_text: Optional[Text] = None,
         button_image: Optional[Text] = None,
     ):
         super().__init__(root)
-        self.__data = None
+        self.__controller = controller
+        self.is_stale = False
 
         if button_image is not None:
             self.image = Image.open(ICONS_DIRECTORY / button_image)
@@ -72,17 +74,20 @@ class TaskViewBase(ABC, ttk.Frame):
             command=self.tkraise,
         )
 
+    def tkraise(self, *args):
+        """Brings the frame to the front."""
+        super().tkraise()
+        if self.is_stale:
+            self.update_widgets()
+            self.is_stale = False
+
     @property
     def data(self):
-        return self.__data
+        return self.controller.data
 
-    @data.setter
-    def data(self, data):
-        self.__data = data
-        if data is None:
-            self.clear_widgets()
-        else:
-            self.update_widgets()
+    @property
+    def controller(self):
+        return self.__controller()
 
     @abstractmethod
     def update_widgets(self):
@@ -164,10 +169,10 @@ class MainWindow(tk.Tk):
     def view_classes(self):
         return [type(v) for v in self.winfo_children() if isinstance(v, TaskViewBase)]
 
-    def add(self, view: Type[TaskViewBase]):
+    def add(self, view: Type[TaskViewBase], controller):
         """ Creates a view if not already created and adds it to the main window."""
         if view not in self.view_classes:
-            v = view(root=self)
+            v = view(root=self, controller=controller)
             v.button.grid(column=0, sticky=(tk.EW, tk.N), padx=10, pady=10)
             v.grid(column=1, row=1, sticky=tk.NSEW)
             v.lower()
@@ -207,42 +212,3 @@ class MainWindow(tk.Tk):
         for view in self.views:
             if hasattr(view, "stop_animation"):
                 view.stop_animation()
-
-
-REGISTERED_BINDINGS: dict = {}
-""" Registered event bindings."""
-
-REGISTERED_TRIGGERS: list = []
-""" Registered event triggers."""
-
-EVENTS: dict = {}
-""" Dictionary with the events linked to the control."""
-
-
-def trigger_event(fun: Optional[Callable] = None, name: Optional[Text] = None):
-    """Registers a view method that will trigger an event. """
-
-    if fun is None:
-        return lambda x: trigger_event(x, name=name)
-
-    name = name if name else fun.__name__
-
-    @wraps(fun)
-    def wrapper(*args, **kwargs):
-        params = fun(*args, **kwargs)
-        if params:
-            EVENTS[name](**params)
-
-    REGISTERED_TRIGGERS.append(name)
-
-    return wrapper
-
-
-def bind_event(fun: Callable, name=None):
-    """Registers a control method that will be bound to an event."""
-
-    name = name if name else fun.__name__
-
-    REGISTERED_BINDINGS[name] = fun
-
-    return fun

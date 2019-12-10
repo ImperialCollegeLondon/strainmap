@@ -5,7 +5,7 @@ from .contour_mask import Contour, dilate, contour_diff
 import numpy as np
 from scipy import ndimage
 from copy import copy
-from typing import Text, Dict, Any, Union, List, Callable
+from typing import Text, Dict, Any, Union, List, Callable, Optional
 from functools import partial, reduce
 
 
@@ -15,11 +15,12 @@ def find_segmentation(
     frame: Union[int, slice, None],
     images: Dict[str, np.ndarray],
     initials: Dict[str, np.ndarray],
+    zero_angle: Optional[np.ndarray] = None,
     rtol_endo: float = 0.15,
     rtol_epi: float = 0.10,
     replace_threshold: int = 31,
     save=True,
-) -> StrainMapData:
+) -> None:
     """Find the segmentation for the endocardium and the epicardium at one single frame.
 
     Args:
@@ -92,6 +93,8 @@ def find_segmentation(
     data.zero_angle[dataset_name][frame, :, 1] = centroid(
         data.segments[dataset_name], frame, img_shape
     )
+    if zero_angle is not None:
+        data.zero_angle[dataset_name][frame, :, 0] = copy(zero_angle)
 
     if save:
         data.save(
@@ -99,8 +102,6 @@ def find_segmentation(
             ["segments", dataset_name, "epicardium"],
             ["zero_angle", dataset_name],
         )
-
-    return data
 
 
 def centroid(segments, frame, shape):
@@ -171,7 +172,7 @@ def update_segmentation(
     segments: dict,
     zero_angle: np.ndarray,
     frame: Union[int, slice],
-) -> StrainMapData:
+) -> None:
     """Updates an existing segmentation with new segments.
 
     Args:
@@ -198,10 +199,8 @@ def update_segmentation(
         ["zero_angle", dataset_name],
     )
 
-    return data
 
-
-def clear_segmentation(data: StrainMapData, dataset_name: str) -> StrainMapData:
+def clear_segmentation(data: StrainMapData, dataset_name: str) -> None:
     """Clears the segmentation for the given dataset."""
     data.segments.pop(dataset_name, None)
     data.zero_angle.pop(dataset_name, None)
@@ -216,7 +215,6 @@ def clear_segmentation(data: StrainMapData, dataset_name: str) -> StrainMapData:
         ["masks", dataset_name],
         ["markers", dataset_name],
     )
-    return data
 
 
 def update_and_find_next(
@@ -226,17 +224,15 @@ def update_and_find_next(
     zero_angle: np.ndarray,
     frame: int,
     images: Dict[str, np.ndarray],
-) -> StrainMapData:
+) -> None:
     """Updates the segmentation for the current frame and starts the next one."""
-    data = update_segmentation(data, dataset_name, segments, zero_angle, frame)
+    update_segmentation(data, dataset_name, segments, zero_angle, frame)
     initial = {
         "endocardium": data.segments[dataset_name]["endocardium"][frame],
         "epicardium": data.segments[dataset_name]["epicardium"][frame],
     }
     frame += 1
-    data = find_segmentation(data, dataset_name, frame, images, initial, save=False)
-
-    return data
+    find_segmentation(data, dataset_name, frame, images, initial, save=False)
 
 
 def simple_segmentation(
