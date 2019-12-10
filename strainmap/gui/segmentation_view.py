@@ -71,7 +71,7 @@ class SegmentationTaskView(TaskViewBase):
         self.working_frame_var = tk.IntVar(value=0)
         self.initialization = None
         self.quick_segment_var = tk.BooleanVar(value=False)
-        self.segmenting = False
+        self.completed = False
 
         # Visualization-related attributes
         self.fig = None
@@ -81,6 +81,7 @@ class SegmentationTaskView(TaskViewBase):
         self.datasets_box = None
         self.quick_checkbox = None
         self.clear_btn = None
+        self.confirm_btn = None
         self.undo_last_btn = None
         self.undo_all_btn = None
         self.next_btn = None
@@ -118,6 +119,14 @@ class SegmentationTaskView(TaskViewBase):
             state="disabled",
             width=20,
             command=self.clear_segment_variables,
+        )
+
+        self.confirm_btn = ttk.Button(
+            master=control,
+            text="Confirm segmentation",
+            state="disabled",
+            width=20,
+            command=self.confirm_segmentation,
         )
 
         # Automatic segmentation frame
@@ -222,6 +231,7 @@ class SegmentationTaskView(TaskViewBase):
         dataset_frame.grid(row=0, column=0, sticky=tk.NSEW, padx=5)
         self.datasets_box.grid(row=0, column=0, sticky=tk.NSEW)
         self.clear_btn.grid(row=0, column=50, sticky=(tk.N, tk.E, tk.S))
+        self.confirm_btn.grid(row=1, column=50, sticky=(tk.N, tk.E, tk.S))
         segment_frame.grid(row=0, column=1, rowspan=3, sticky=tk.NSEW, padx=5)
         endo_redy_lbl.grid(row=0, column=0, sticky=tk.NSEW)
         epi_redy_lbl.grid(row=1, column=0, sticky=tk.NSEW)
@@ -273,7 +283,10 @@ class SegmentationTaskView(TaskViewBase):
             options_Markers={
                 "drag_marker": TriggerSignature(
                     Location.ANY, Button.RIGHT, MouseAction.PICKDRAG
-                )
+                ),
+                "move_finish": TriggerSignature(
+                    Location.ANY, Button.RIGHT, MouseAction.RELEASE
+                ),
             },
         )
         self.fig.actions_manager.DrawContours.num_contours = 0
@@ -440,9 +453,11 @@ class SegmentationTaskView(TaskViewBase):
         """Updates the state of buttons and vars when something happens in the GUI."""
         self.undo_stack = defaultdict(list)
         self.update_undo_state()
+        self.confirm_btn.state(["disabled"])
         if len(self.data.segments.get(dataset, [])) == 0:
             self.clear_segment_variables(button_pressed=False)
             self.clear_btn.state(["disabled"])
+            self.completed = False
         elif not np.isnan(self.data.zero_angle.get(dataset)[:, :, 1]).any():
             self.current_frame = self.num_frames - 1
             self.working_frame_var.set(self.current_frame)
@@ -450,12 +465,15 @@ class SegmentationTaskView(TaskViewBase):
             self.next_btn.config(text="Done!")
             self.next_btn.state(["disabled"])
             self.datasets_box.state(["!disabled"])
-            self.fig.actions_manager.DragContours.disabled = True
-            self.fig.actions_manager.Markers.disabled = True
+            self.completed = True
             self.cursors["mag"] = None
             self.cursors["vel"] = None
         else:
             self.clear_btn.state(["!disabled"])
+            self.completed = False
+
+        if self.controller.review_mode:
+            self.clear_btn.state(["disabled"])
 
     def switch_mark_state(self, side, state):
         """Switch the text displayed in the initial segmentation buttons."""
@@ -481,7 +499,6 @@ class SegmentationTaskView(TaskViewBase):
         self.next_btn.config(text="Next \u25B6", command=self.next)
         self.find_segmentation(0, self.initial_segments)
         self.replot(self.datasets_var.get())
-        self.segmenting = True
         self.zero_angle[self.current_frame] = np.array((self.septum, self.centroid)).T
         self.go_to_frame()
 
@@ -524,8 +541,7 @@ class SegmentationTaskView(TaskViewBase):
         self.next_btn.config(text="Done!")
         self.next_btn.state(["disabled"])
         self.datasets_box.state(["!disabled"])
-        self.fig.actions_manager.DragContours.disabled = True
-        self.fig.actions_manager.Markers.disabled = True
+        self.completed = True
 
     def scroll(self, frame, image=None):
         """Provides the next images and lines to plot when scrolling."""
@@ -547,11 +563,12 @@ class SegmentationTaskView(TaskViewBase):
 
     def contour_edited(self, label, axes, data):
         """After a contour is modified, this function is executed."""
-
         self.undo_stack[self.current_frame].append(
             dict(label=label, data=copy(self.final_segments[label][self.current_frame]))
         )
         self.update_undo_state()
+        if self.completed:
+            self.confirm_btn.state(["!disabled"])
 
         self.final_segments[label][self.current_frame] = data
         self.zero_angle[self.current_frame, :, 1] = self.centroid
@@ -569,10 +586,15 @@ class SegmentationTaskView(TaskViewBase):
         if self.zero_angle is None:
             return
 
+        if self.completed:
+            self.confirm_btn.state(["!disabled"])
+
         self.zero_angle[self.current_frame, :, 0] = np.array((x, y))
         for i in range(2):
             self.zero_angle_lines[i].set_data(self.zero_angle[self.current_frame])
             self.septum_markers[i].set_data(np.array((x, y)))
+
+        self.fig.canvas.draw_idle()
 
     def undo(self, index):
         """Undo the last manual modification in the current frame."""
@@ -621,8 +643,8 @@ class SegmentationTaskView(TaskViewBase):
     def set_initial_contour(self, side):
         """Enables the definition of the initial segment for the side."""
         self.fig.suptitle(
-            "Left click once to define the center and then once to define the edge of "
-            f"the initial segment for the {side.upper()}."
+            "Left click once to define the center, once to define the edge of the "
+            f"ENDOCARDIUM and once for the edge of the EPICARDIUM."
         )
         get_contour = partial(self.get_contour, side=side)
         self.fig.actions_manager.DrawContours.contours_updated = get_contour
@@ -636,15 +658,21 @@ class SegmentationTaskView(TaskViewBase):
         get_septum = partial(self.get_septum)
         self.fig.actions_manager.DrawContours.contours_updated = get_septum
 
-    def get_contour(self, contour, *args, side):
-        """Plots the just defined contour in both axes and leaves the edit mode."""
+    def get_contour(self, contour, points, side):
+        """Gets and plots the contour."""
         self.initial_segments[side] = contour[-1]
         self.switch_mark_state(side, "ready")
-        self.clear_btn.state(["!disabled"])
         self.datasets_box.state(["disabled"])
+        if not self.controller.review_mode:
+            self.clear_btn.state(["!disabled"])
 
         for ax in self.fig.axes:
             self.fig.actions_manager.DrawContours.clear_drawing_(ax)
+
+        if any([s is None for s in self.initial_segments.values()]):
+            self.fig.actions_manager.DrawContours.add_point(
+                self.fig.axes[0], *points[0]
+            )
 
         self.plot_initial_segments()
         self.fig.canvas.draw()
@@ -725,7 +753,8 @@ class SegmentationTaskView(TaskViewBase):
         self.next_btn.state(["disabled"])
         self.datasets_box.state(["!disabled"])
         self.quick_checkbox.state(["!disabled"])
-        self.segmenting = False
+        self.confirm_btn.state(["disabled"])
+        self.completed = False
         self.next_btn.config(text="Next \u25B6", command=self.first_frame)
         self.fig.actions_manager.DragContours.disabled = False
         self.fig.actions_manager.Markers.disabled = False
@@ -763,8 +792,23 @@ class SegmentationTaskView(TaskViewBase):
             images=images,
         )
 
+    def confirm_segmentation(self, *args):
+        """Updates an existing segmentation after modifying the contours.
+
+        If there was a velocity with this segmentation, it is deleted too."""
+        self.confirm_btn.state(["disabled"])
+        self.undo_last_btn.state(["disabled"])
+        self.undo_all_btn.state(["disabled"])
+        self.undo_stack = defaultdict(list)
+        self.controller.update_segmentation(
+            dataset_name=self.datasets_var.get(),
+            segments=self.final_segments,
+            zero_angle=self.zero_angle,
+            frame=slice(None),
+        )
+
     def clear_segmentation(self):
-        """Confirm the new segments after a manual segmentation process."""
+        """Clear an existing segmentation."""
         dataset_name = self.datasets_var.get()
         self.controller.clear_segmentation(dataset_name=dataset_name)
         self.replot(dataset_name)
@@ -775,7 +819,10 @@ class SegmentationTaskView(TaskViewBase):
 
     def update_widgets(self):
         """ Updates widgets after an update in the data variable. """
-        values = list(self.data.data_files.keys())
+        if self.controller.review_mode:
+            values = list(self.data.segments.keys())
+        else:
+            values = list(self.data.data_files.keys())
         values_segments = list(self.data.segments.keys())
         current = self.datasets_var.get()
         self.datasets_box.config(values=values)
@@ -783,7 +830,6 @@ class SegmentationTaskView(TaskViewBase):
             self.datasets_var.set(current)
         elif len(values_segments) > 0:
             self.datasets_var.set(values_segments[0])
-            self.segmenting = False
         else:
             self.datasets_var.set(values[0])
 

@@ -75,9 +75,11 @@ def test_define_initial_contour(segmentation_view, strainmap_data):
 def test_get_contour(segmentation_view):
     import numpy as np
 
+    segmentation_view.controller.review_mode = False
     segmentation_view.initialization = iter((lambda: None,))
     contour = np.random.random((2, 5))
-    segmentation_view.get_contour([contour], side="endocardium")
+    points = np.random.random((2, 2))
+    segmentation_view.get_contour([contour], points=points, side="endocardium")
     assert segmentation_view.initial_segments["endocardium"] == approx(contour)
 
 
@@ -86,15 +88,17 @@ def test_initialize_segmentation(segmentation_view, strainmap_data):
     from copy import deepcopy
 
     segmentation_view.controller.data = deepcopy(strainmap_data)
+    segmentation_view.controller.review_mode = False
     segmentation_view.update_widgets()
 
     segmentation_view.first_frame = MagicMock()
     contour = np.random.random((2, 5))
+    points = np.random.random((2, 2))
     assert segmentation_view.next_btn.instate(["disabled"])
 
     segmentation_view.initialize_segmentation()
-    segmentation_view.get_contour([contour], side="endocardium")
-    segmentation_view.get_contour([contour], side="epicardium")
+    segmentation_view.get_contour([contour], points=points, side="endocardium")
+    segmentation_view.get_contour([contour], points=points, side="epicardium")
     segmentation_view.get_septum(None, [np.random.random(2)])
     assert segmentation_view.next_btn.instate(["!disabled"])
     segmentation_view.first_frame.assert_called_once()
@@ -113,6 +117,7 @@ def test_quick_segmentation(septum, centroid, segmentation_view, strainmap_data)
     from copy import deepcopy
 
     segmentation_view.controller.data = deepcopy(strainmap_data)
+    segmentation_view.controller.review_mode = False
     segmentation_view.update_widgets()
 
     segmentation_view.first_frame = MagicMock()
@@ -124,10 +129,11 @@ def test_quick_segmentation(septum, centroid, segmentation_view, strainmap_data)
 
     segmentation_view.quick_segment_var.set(True)
     contour = np.random.random((2, 5))
+    points = np.random.random((2, 2))
 
     segmentation_view.initialize_segmentation()
-    segmentation_view.get_contour([contour], side="endocardium")
-    segmentation_view.get_contour([contour], side="epicardium")
+    segmentation_view.get_contour([contour], points=points, side="endocardium")
+    segmentation_view.get_contour([contour], points=points, side="epicardium")
     segmentation_view.get_septum(None, [np.random.random(2)])
     assert segmentation_view.next_btn.instate(["disabled"])
     assert segmentation_view.working_frame_var.get() == 2
@@ -271,7 +277,6 @@ def test_next_frames(segmentation_view, strainmap_data):
 def test_finish_segmentation(segmentation_view):
     segmentation_view.controller.update_segmentation = MagicMock()
 
-    segmentation_view.segmenting = True
     segmentation_view.finish_segmentation()
     segmentation_view.controller.update_segmentation.assert_called()
-    assert segmentation_view.fig.actions_manager.Markers.disabled
+    assert segmentation_view.completed

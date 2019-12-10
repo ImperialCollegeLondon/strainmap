@@ -125,10 +125,8 @@ def write_hdf5_file(data, filename: Union[h5py.File, str]):
 
     metadata_to_hdf5(f, data.metadata())
 
-    for s in data.__dict__.keys():
-        if s == "strainmap_file":
-            continue
-        elif s == "sign_reversal":
+    for s in data.stored:
+        if s == "sign_reversal":
             if s in f:
                 f[s][...] = getattr(data, s)
             else:

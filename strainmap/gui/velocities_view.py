@@ -57,6 +57,7 @@ class VelocitiesTaskView(TaskViewBase):
         self.cbar = None
         self.limits = None
         self.marker_artists = None
+        self.vel_lim = dict()
 
         self.create_controls()
 
@@ -201,10 +202,18 @@ class VelocitiesTaskView(TaskViewBase):
         else:
             self.update_vel_btn.state(["disabled"])
 
+    def find_velocity_limits(self, vel_label):
+        """Finds suitable maximum and minimum for the velocity plots."""
+        vel = self.data.velocities[self.datasets_var.get()][vel_label]
+        for i, label in enumerate(self.axes_lbl):
+            m = (vel[:, i, :].max() - vel[:, i, :].min()) * 0.10
+            self.vel_lim[label] = (vel[:, i, :].min() - m, vel[:, i, :].max() + m)
+
     def replot(self):
         """Updates the plot to show the chosen velocity."""
         dataset = self.datasets_var.get()
         vel_label = self.velocities_var.get()
+        self.find_velocity_limits(vel_label)
         if self.data.velocities[dataset][vel_label].shape[0] == 24:
             self.color_plots(dataset, vel_label)
         elif self.fig is None or self.current_region == -1:
@@ -270,6 +279,8 @@ class VelocitiesTaskView(TaskViewBase):
             self.update_markers(self.markers[self.current_region], draw=False)
             self.populate_tables()
             self.fig.actions_manager.SimpleScroller.disabled = False
+            for vel_label, ax in self.axes.items():
+                ax.set_ylim(*self.vel_lim[vel_label])
 
         return self.current_region, None, None
 
@@ -442,6 +453,7 @@ class VelocitiesTaskView(TaskViewBase):
     def update_widgets(self):
         """ Updates widgets after an update in the data variable. """
         self.populate_dataset_box()
+        self.populate_bg_box(self.datasets_var.get())
         self.update_sign_reversal()
         self.dataset_changed()
 
@@ -511,10 +523,12 @@ class VelocitiesTaskView(TaskViewBase):
         vels - 2D array with the velocities with shape [components (3), frames]
         """
         x = np.arange(vels.shape[-1])
-        return {
-            label: self.axes[label].plot(x, vels[i], "k", label=label)[0]
-            for i, label in enumerate(self.axes_lbl)
-        }
+        output = dict()
+        for i, label in enumerate(self.axes_lbl):
+            output[label] = self.axes[label].plot(x, vels[i], "k", label=label)[0]
+            self.axes[label].set_ylim(*self.vel_lim[label])
+            self.axes[label].autoscale(False)
+        return output
 
     def add_maps_subplots(self, gs):
         """Adds the maps subplots."""
@@ -624,7 +638,9 @@ class VelocitiesTaskView(TaskViewBase):
 
     def update_line(self, vel_label, data, draw=False):
         """Updates the data of the chosen line."""
-        self.update_data(self.vel_lines[vel_label], vel_label, data, draw)
+        self.vel_lines[vel_label].set_data(data)
+        if draw:
+            self.draw()
 
     def update_bg(self, vel_label, idx, data, draw=False):
         """Updates the data of the chosen bg."""
@@ -676,15 +692,14 @@ class VelocitiesTaskView(TaskViewBase):
             axes, idx, vel_masks[component, frame, rmin : rmax + 1, cmin : cmax + 1]
         )
         self.update_bg(axes, idx, images[frame, rmin : rmax + 1, cmin : cmax + 1])
+        self.axes[axes].set_ylim(*self.vel_lim[axes])
         self.draw()
 
     def update_velocities(self, vels, draw=True):
         """Updates all velocities."""
         x = np.arange(vels.shape[-1])
-
         for i, label in enumerate(self.axes_lbl):
             self.update_line(label, (x, vels[i]))
-
         if draw:
             self.draw()
 

@@ -21,6 +21,7 @@ class StrainMap(object):
         self.window = MainWindow()
         self.achieved = Requisites.NONE
         self.data = None
+        self.review_mode = False
         self.unlock()
 
     def run(self):
@@ -37,8 +38,8 @@ class StrainMap(object):
 
         for view in self.window.views:
             if (
-                Requisites.check(self.achieved, view.requisites)
-                and view.requisites != Requisites.NONE
+                Requisites.check(requisite, view.requisites)
+                and requisite != Requisites.NONE
             ):
                 view.is_stale = True
 

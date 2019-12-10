@@ -362,7 +362,7 @@ class DrawContours(ActionBase):
         """
         super().__init__(
             signatures={
-                add_point: self.add_point,
+                add_point: self._add_point,
                 remove_artist: self.remove_artist,
                 clear_drawing: self.clear_drawing,
             }
@@ -381,7 +381,7 @@ class DrawContours(ActionBase):
         self.marks: Dict = defaultdict(list)
         self.contours: Dict = defaultdict(list)
 
-    def add_point(self, _, event, *args):
+    def _add_point(self, _, event, *args):
         """Records the position of the click and marks it on the plot.
 
         Args:
@@ -392,18 +392,22 @@ class DrawContours(ActionBase):
         Returns:
             None
         """
+        self.add_point(event.inaxes, event.xdata, event.ydata)
+
+    def add_point(self, ax, xdata, ydata):
+        """Adds a point to the given axes."""
         if (
-            len(self.contours[event.inaxes]) == self.num_contours
-            or len(self.points[event.inaxes]) == self.num_points
+            len(self.contours[ax]) == self.num_contours
+            or len(self.points[ax]) == self.num_points
         ):
             return
 
-        self.points[event.inaxes].append((event.xdata, event.ydata))
+        self.points[ax].append((xdata, ydata))
 
-        line = Line2D([event.xdata], [event.ydata], marker="o", color="r", picker=4)
-        event.inaxes.add_line(line)
-        self.marks[event.inaxes].append(line)
-        self.add_contour(event.inaxes)
+        line = Line2D([xdata], [ydata], marker="o", color="r", picker=4)
+        ax.add_line(line)
+        self.marks[ax].append(line)
+        self.add_contour(ax)
 
     def remove_artist(self, _, event, *args) -> None:
         """ Removes an artist (point or contour) from the plot.
@@ -732,10 +736,17 @@ class Markers(ActionBase):
 
     def move_finish(self, event, last_event, *args):
         """Executes marker move after mouse release."""
-        if self._current_data is None:
+        if self._current_marker is None:
             return
-        x, y, idx = self.get_closest(self._current_data, event.xdata)
+
+        if self._current_data is None:
+            x, y = event.xdata, event.ydata
+            idx = 0
+        else:
+            x, y, idx = self.get_closest(self._current_data, event.xdata)
+
         self._marker_moved(self._current_marker, self._current_data, x, y, idx)
+        self._current_marker = None
 
     @staticmethod
     def get_closest(line, mx):

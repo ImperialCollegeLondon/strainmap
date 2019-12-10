@@ -185,6 +185,7 @@ def calculate_velocities(
     radial_regions: Sequence[int] = (),
     bg: str = "Estimated",
     sign_reversal: Tuple[bool, ...] = (False, False, False),
+    init_markers: bool = True,
 ):
     """Calculates the velocity of the chosen dataset and regions."""
     swap, signs = image_orientation(data.data_files[dataset_name]["PhaseZ"][0])
@@ -230,15 +231,11 @@ def calculate_velocities(
         data.masks[dataset_name].update(masks)
         vel_labels += list(velocities.keys())
 
-    data = initialise_markers(data, dataset_name, vel_labels)
-
-    data.save(
-        *[["velocities", dataset_name, vel] for vel in vel_labels],
-        *[["masks", dataset_name, vel] for vel in vel_labels],
-        *[["markers", dataset_name, vel] for vel in vel_labels],
-        ["masks", dataset_name, f"cylindrical - {bg}"],
-        ["sign_reversal"],
-    )
+    if init_markers:
+        initialise_markers(data, dataset_name, vel_labels)
+        data.save(
+            *[["markers", dataset_name, vel] for vel in vel_labels], ["sign_reversal"]
+        )
 
 
 def mean_velocities(
@@ -312,14 +309,13 @@ def marker(comp, low=1, high=49, maximum=True):
 
 def marker_es(comp, pd, low=14, high=21):
     """Finds the default position of the ES marker."""
-    low = min(low, len(comp) - 1)
-    high = min(high, len(comp) - 1)
+    low = min(low, int(pd[0]) - 1)
+    high = min(high, int(pd[0]) - 1)
 
-    # Hack needed for testing when using only 3 frames.
-    if high - low < 3:
+    if high - low == 0:
         low = 0
 
-    grad = np.gradient(comp[low : high + 1])
+    grad = np.diff(comp[low : high + 1])
     idx = np.argmin(abs(grad)) + low
 
     if idx == pd[0] or comp[idx] < -2.5:
@@ -492,6 +488,7 @@ def update_marker(
         marker_idx,
         position,
     )
+    data.save(["markers", dataset, vel_label])
 
 
 def initialise_markers(data: StrainMapData, dataset: str, vel_labels: list):

@@ -19,7 +19,7 @@ def read_dicom_directory_tree(path: Union[Path, Text]) -> Mapping:
     """Creates a dictionary with the available series and associated
     filenames."""
 
-    path = str(Path(path) / "*00.dcm")
+    path = str(Path(path) / "*01.dcm")
     filenames = sorted(glob.glob(path))
 
     data_files: OrderedDict = OrderedDict()
@@ -39,7 +39,7 @@ def read_dicom_directory_tree(path: Union[Path, Text]) -> Mapping:
                 var_idx[int(Path(f).name[3:5]) + VAR_OFFSET[var]] = var
 
         data_files[name][var_idx[int(Path(f).name[3:5])]] = sorted(
-            glob.glob(f.replace("00.dcm", "*.dcm"))
+            glob.glob(f.replace("01.dcm", "*.dcm"))
         )
 
     return data_files
@@ -53,7 +53,9 @@ def parallel_spirals(dicom_data):
         tSequenceFileName = re.search('tSequenceFileName\t = \t""(.*)""', ascii_header)
         if tSequenceFileName is None:
             return False
-        return True if "ParallelSpirals" in tSequenceFileName[1] else False
+        return (
+            re.search(r"(.*)Parallel(.?)Spirals(.?)", tSequenceFileName[1]) is not None
+        )
     except TypeError:
         return False
 
@@ -193,25 +195,17 @@ def read_strainmap_file(data, filename: Union[Path, Text]):
     """Reads a StrainMap file with existing information on previous segmentations."""
     if str(filename).endswith(".h5"):
         return read_h5_file(data, filename)
-    elif str(filename).endswith(".m"):
-        return read_matlab_file(data, filename)
     else:
         raise RuntimeError("File type not recognised by StrainMap.")
-
-
-def read_matlab_file(data, filename: Union[Path, Text]):
-    """Reads a Matlab file."""
-    raise NotImplementedError
 
 
 def read_h5_file(data, filename: Union[Path, Text]):
     """Reads a HDF5 file."""
     sm_file = h5py.File(filename, "a")
+    data.strainmap_file = sm_file
 
-    for s in data.__dict__.keys():
-        if s == "strainmap_file":
-            data.strainmap_file = sm_file
-        elif s == "sign_reversal":
+    for s in data.stored:
+        if s == "sign_reversal":
             data.sign_reversal = tuple(sm_file[s][...])
         elif "files" in s:
             paths_from_hdf5(getattr(data, s), filename, sm_file[s])

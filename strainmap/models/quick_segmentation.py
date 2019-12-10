@@ -140,7 +140,7 @@ def initialize_data_segments(data, dataset_name, shape):
 def create_rules(frame, segments, shape, rtol, replace_threshold):
     """Create the rules to apply to the segments to ensure their 'quality'."""
     rules = {"endocardium": [], "epicardium": []}
-    shift = {"endocardium": 1, "epicardium": -1}
+    shift = {"endocardium": 2, "epicardium": -2}
 
     for side in ("endocardium", "epicardium"):
         if isinstance(frame, int):
@@ -175,11 +175,14 @@ def update_segmentation(
 ) -> None:
     """Updates an existing segmentation with new segments.
 
+    Any velocities calculated for this dataset are deleted, forcing their recalculation.
+
     Args:
         data: StrainMapData object containing the data
         dataset_name: Name of the dataset whose segmentation are to modify
         segments: Dictionary with the segmentation for the epi- and endocardium. If
             either is None, the existing segmentation is erased.
+        zero_angle: array with the zero angle information.
         frame: int or slice indicating the frames to update
 
     Returns:
@@ -192,6 +195,8 @@ def update_segmentation(
         segments["epicardium"][frame]
     )
     data.zero_angle[dataset_name][frame] = copy(zero_angle[frame])
+
+    data.velocities.pop(dataset_name, None)
 
     data.save(
         ["segments", dataset_name, "endocardium"],
@@ -211,8 +216,6 @@ def clear_segmentation(data: StrainMapData, dataset_name: str) -> None:
     data.delete(
         ["segments", dataset_name],
         ["zero_angle", dataset_name],
-        ["velocities", dataset_name],
-        ["masks", dataset_name],
         ["markers", dataset_name],
     )
 

@@ -218,7 +218,7 @@ def test_add_point(figure):
     xdata = event.xdata
     ydata = event.ydata
 
-    draw.add_point(None, event)
+    draw._add_point(None, event)
     assert len(draw.points[axes]) == 1
     assert len(draw.marks[axes]) == 1
     assert len(draw.contours[axes]) == 0
@@ -256,8 +256,8 @@ def test_remove_artist(figure):
     event1 = MouseEvent("click", figure.canvas, x=100, y=200)
     event2 = MouseEvent("click", figure.canvas, x=100, y=250)
 
-    draw.add_point(None, event1)
-    draw.add_point(None, event2)
+    draw._add_point(None, event1)
+    draw._add_point(None, event2)
     assert len(draw.contours[axes]) == 1
     assert len(draw.marks[axes]) == 2
 
@@ -283,8 +283,8 @@ def test_clear_drawing(figure):
     event1 = MouseEvent("click", figure.canvas, x=100, y=200)
     event2 = MouseEvent("click", figure.canvas, x=100, y=250)
 
-    draw.add_point(None, event1)
-    draw.add_point(None, event2)
+    draw._add_point(None, event1)
+    draw._add_point(None, event2)
     assert len(draw.contours[axes]) == 1
     assert len(draw.marks[axes]) == 2
 

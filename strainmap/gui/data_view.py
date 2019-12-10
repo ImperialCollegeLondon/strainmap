@@ -22,7 +22,6 @@ class DataTaskView(TaskViewBase):
         self.rowconfigure(0, weight=1)
         self.columnconfigure(1, weight=1)
 
-        # Control-related attributes
         self.data_folder = tk.StringVar(value="")
         self.output_file = tk.StringVar(value="")
         self.current_dir = os.path.expanduser("~")
@@ -31,16 +30,16 @@ class DataTaskView(TaskViewBase):
         self.dataselector = None
         self.patient_info = None
 
-        # Visualization-related attributes
         self.visualise = None
         self.notebook = None
         self.treeview = None
-        self.time_step = None
+        self.treeview_bg = None
+        self.bg_tab_frame = None
+        self.phantoms_box = None
         self.fig = None
         self.datasets_var = tk.StringVar(value="")
         self.maps_var = tk.StringVar(value="MagZ")
-        self.cine_frame_var = tk.IntVar(value=0)
-        self.phantoms_box = None
+        self.bg_var = tk.StringVar(value="")
         self.anim = False
 
         self.create_controls()
@@ -69,7 +68,7 @@ class DataTaskView(TaskViewBase):
         ttk.Button(
             master=self.control,
             name="openStrainMapFile",
-            text="Resume analysis",
+            text="Review analysis",
             command=self.open_existing_file,
             width=25,
         ).grid(sticky=tk.NSEW, columnspan=2, pady=5)
@@ -105,11 +104,8 @@ class DataTaskView(TaskViewBase):
 
     def create_data_selector(self):
         """ Creates the selector for the data. """
-        values, texts, var_values, cine_frames, patient_data = (
-            self.get_data_information()
-        )
+        values, texts, var_values, patient_data = self.get_data_information()
         self.datasets_var.set(values[0])
-        self.cine_frame_var.set(cine_frames[0])
 
         patient_name = patient_data.get("PatientName", "")
         patient_dob = patient_data.get("PatientBirthDate", "")
@@ -170,7 +166,13 @@ class DataTaskView(TaskViewBase):
         ).grid(sticky=tk.NSEW, padx=5, pady=5)
 
         self.phantoms_box = ttk.Combobox(
-            master=self.dataselector, values=[], state="readonly"
+            master=self.dataselector,
+            textvariable=self.bg_var,
+            values=[],
+            state="readonly",
+        )
+        self.phantoms_box.bind(
+            "<<ComboboxSelected>>", lambda _: self.update_visualization(phantom=True)
         )
 
     def create_data_viewer(self):
@@ -181,7 +183,11 @@ class DataTaskView(TaskViewBase):
         self.notebook.rowconfigure(0, weight=1)
 
         self.notebook.add(self.create_animation_viewer(), text="Animation")
-        self.notebook.add(self.create_dicom_viewer(), text="DICOM Data")
+        data_frame, self.treeview = self.create_dicom_viewer()
+        self.notebook.add(data_frame, text="DATA dicom")
+        self.bg_tab_frame, self.treeview_bg = self.create_dicom_viewer()
+        self.notebook.add(self.bg_tab_frame, text="PHANTOM dicom")
+        self.notebook.hide(2)
 
     def create_animation_viewer(self):
         """ Creates the animation plot area. """
@@ -206,25 +212,23 @@ class DataTaskView(TaskViewBase):
 
     def create_dicom_viewer(self):
 
-        dicom_frame = ttk.Frame(self.notebook)
-        dicom_frame.columnconfigure(0, weight=1)
-        dicom_frame.rowconfigure(0, weight=1)
+        frame = ttk.Frame(self.notebook)
+        frame.columnconfigure(0, weight=1)
+        frame.rowconfigure(0, weight=1)
 
-        self.treeview = ttk.Treeview(dicom_frame, selectmode="browse")
-        vsb = ttk.Scrollbar(
-            dicom_frame, orient="vertical", command=self.treeview.yview()
-        )
-        self.treeview.configure(yscrollcommand=vsb.set)
-        self.treeview.grid(column=0, row=0, sticky=tk.NSEW, padx=5, pady=5)
+        treeview = ttk.Treeview(frame, selectmode="browse")
+        vsb = ttk.Scrollbar(frame, orient="vertical", command=treeview.yview())
+        treeview.configure(yscrollcommand=vsb.set)
+        treeview.grid(column=0, row=0, sticky=tk.NSEW, padx=5, pady=5)
         vsb.grid(column=1, row=0, sticky=tk.NSEW)
 
-        self.treeview["columns"] = ("1", "2")
-        self.treeview["show"] = "headings"
-        self.treeview.column("1", width=300, stretch=False)
-        self.treeview.heading("1", text="Tags")
-        self.treeview.heading("2", text="Values")
+        treeview["columns"] = ("1", "2")
+        treeview["show"] = "headings"
+        treeview.column("1", width=300, stretch=False)
+        treeview.heading("1", text="Tags")
+        treeview.heading("2", text="Values")
 
-        return dicom_frame
+        return frame, treeview
 
     def load_data(self):
         """Loads new data into StrainMap"""
@@ -233,6 +237,7 @@ class DataTaskView(TaskViewBase):
         )
 
         if path != "" and self.controller.load_data_from_folder(data_files=path):
+            self.controller.review_mode = False
             self.current_dir = path
             self.data_folder.set(self.current_dir)
             self.output_file.set(None)
@@ -248,11 +253,13 @@ class DataTaskView(TaskViewBase):
         )
 
         if path != "" and self.controller.load_data_from_file(strainmap_file=path):
+            self.load_missing_data()
+            self.controller.review_mode = True
             self.output_file.set(path)
             self.current_dir = str(Path(path).parent)
             self.nametowidget("control.chooseOutputFile")["state"] = "enable"
             self.update_widgets()
-            self.load_missing_data()
+            self.update_phantom_widgets()
 
     def load_phantom(self):
         """Loads phantom data into a data structure."""
@@ -301,7 +308,6 @@ class DataTaskView(TaskViewBase):
                 self.current_dir = data_path
 
         self.controller.add_paths(data_files=data_path, bg_files=phantom_path)
-        self.update_phantom_widgets()
 
     def select_output_file(self):
         """ Selects an output file in which to store the current data."""
@@ -335,7 +341,11 @@ class DataTaskView(TaskViewBase):
 
     def get_data_information(self):
         """ Gets some information related to the available datasets, frames, etc. """
-        values = list(self.data.data_files.keys())
+        if self.controller.review_mode:
+            values = list(self.data.segments.keys())
+        else:
+            values = list(self.data.data_files.keys())
+
         if len(values) > 0:
             texts = [
                 "Magnitude",
@@ -344,23 +354,31 @@ class DataTaskView(TaskViewBase):
                 "In-plane velocity map (Y)",
             ]
             var_values = ["MagZ", "PhaseZ", "PhaseX", "PhaseY"]
-            cine_frames = [*range(len(self.data.data_files[values[0]]["MagZ"]))]
             patient_data = self.data.read_dicom_file_tags(values[0], "MagZ", 0)
         else:
             values = ["No suitable datasets available."]
             texts = []
             var_values = []
-            cine_frames = [""]
             patient_data = {}
 
-        return values, texts, var_values, cine_frames, patient_data
+        return values, texts, var_values, patient_data
 
-    def update_visualization(self, *args):
+    def update_visualization(self, *args, phantom=False):
         """ Updates the visualization whenever the data selected changes. """
-        series = self.datasets_var.get()
         variable = self.maps_var.get()
 
+        if phantom:
+            self.update_dicom_data_view(self.bg_var.get(), variable, phantom=True)
+            return
+
+        series = self.datasets_var.get()
+        if series in self.phantoms_box["values"]:
+            self.bg_var.set(series)
+        else:
+            self.bg_var.set("")
+
         self.update_plot(series, variable)
+        self.update_dicom_data_view(self.bg_var.get(), variable, phantom=True)
         self.update_dicom_data_view(series, variable)
 
     def update_plot(self, series, variable):
@@ -394,16 +412,24 @@ class DataTaskView(TaskViewBase):
         current_frame = frame % images.shape[0]
         return current_frame, images[current_frame], None
 
-    def update_dicom_data_view(self, series, variable):
+    def update_dicom_data_view(self, series, variable, phantom=False):
         """ Updates the treeview with data from the selected options.
 
         Only data for cine = 0 is loaded."""
+        if phantom:
+            treeview = self.treeview_bg
+        else:
+            treeview = self.treeview
 
-        self.treeview.delete(*self.treeview.get_children())
+        treeview.delete(*treeview.get_children())
 
-        data = self.data.read_dicom_file_tags(series, variable, 0)
+        if series == "":
+            data = []
+        else:
+            data = self.data.read_dicom_file_tags(series, variable, 0, phantom=phantom)
+
         for d in data:
-            self.treeview.insert("", tk.END, values=(d, data.get(d)))
+            treeview.insert("", tk.END, values=(d, data.get(d)))
 
     def stop_animation(self):
         """Stops an animation, if there is one running."""
@@ -426,8 +452,11 @@ class DataTaskView(TaskViewBase):
             self.phantoms_box.current(0)
             self.phantoms_box.grid(column=0, sticky=tk.NSEW, padx=5, pady=5)
             self.phantom_check.set(True)
+            self.notebook.add(self.bg_tab_frame)
+            self.update_visualization(phantom=True)
         else:
             self.phantom_check.set(False)
+            self.notebook.hide(2)
 
     def clear_widgets(self):
         """ Clear widgets after removing the data. """
