@@ -215,7 +215,25 @@ def test_legacy_dicom():
     assert files.tags(files.datasets[0])["PatientName"] == "SUBJECT1"
     assert files.mag(files.datasets[0]).shape == (3, 512, 512)
     assert files.phase(files.datasets[0]).shape == (3, 3, 512, 512)
-    assert files.slice_loc(files.datasets[0])
-    assert files.pixel_size(files.datasets[0])
+    with raises(AttributeError):
+        assert files.slice_loc(files.datasets[0])
+    with raises(AttributeError):
+        assert files.pixel_size(files.datasets[0])
     with raises(AttributeError):
         files.time_interval(files.datasets[0])
+
+
+def test_readers_registry():
+    from strainmap.models.readers import (
+        DICOM_READERS,
+        register_dicom_reader,
+        DICOMReaderBase,
+    )
+
+    assert len(DICOM_READERS) > 0
+
+    class Dummy:
+        pass
+
+    register_dicom_reader(Dummy)
+    assert all([issubclass(c, DICOMReaderBase) for c in DICOM_READERS])

@@ -266,7 +266,7 @@ class DICOMReaderBase(ABC):
     @staticmethod
     @abstractmethod
     def belongs(path: Union[Path, Text]) -> bool:
-        """Indicates if the input file is compatible with this reader.
+        """Indicates if the input file is compatible with this reader_class.
 
         This could be by analysing the filename itself or some specific content
         within the file."""
@@ -340,6 +340,18 @@ class DICOMReaderBase(ABC):
         should follow the order PhaseX -> PhaseY -> PhaseZ."""
 
 
+DICOM_READERS = []
+"""List of available DICOM readers."""
+
+
+def register_dicom_reader(reader_class):
+    """Registers the reader_class in the list of available readers."""
+    if issubclass(reader_class, DICOMReaderBase):
+        DICOM_READERS.append(reader_class)
+    return reader_class
+
+
+@register_dicom_reader
 class LegacyDICOM(DICOMReaderBase):
 
     var_offset = {
@@ -353,7 +365,7 @@ class LegacyDICOM(DICOMReaderBase):
 
     @staticmethod
     def belongs(path: Union[Path, Text]) -> bool:
-        """Indicates if the input folder is compatible with this reader."""
+        """Indicates if the input folder is compatible with this reader_class."""
         path = str(Path(path) / "*.dcm")
         filenames = sorted(glob.glob(path))
         return all(
@@ -388,13 +400,13 @@ class LegacyDICOM(DICOMReaderBase):
 
         return cls(data_files)
 
-    def slice_loc(self, dataset: str) -> float:
+    def slice_loc(self, dataset: str) -> NoReturn:
         """Returns the slice location in cm from the isocentre."""
-        return self.tags(dataset)["SliceLocation"] / 100
+        raise AttributeError("LegacyDICOM has no slice location defined.")
 
-    def pixel_size(self, dataset: str) -> float:
+    def pixel_size(self, dataset: str) -> NoReturn:
         """Returns the pixel size in cm."""
-        return float(self.tags(dataset)["PixelSpacing"][0])
+        raise AttributeError("LegacyDICOM has no pixel size defined.")
 
     def time_interval(self, dataset: str) -> NoReturn:
         """Returns the frame time interval in seconds."""
