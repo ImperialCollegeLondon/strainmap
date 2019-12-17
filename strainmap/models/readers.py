@@ -4,7 +4,20 @@ import os
 from collections import OrderedDict
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath, PurePath
-from typing import ClassVar, Dict, Iterable, List, Mapping, Optional, Text, Tuple, Union
+from typing import (
+    ClassVar,
+    Dict,
+    Iterable,
+    List,
+    Mapping,
+    Optional,
+    Text,
+    Tuple,
+    Union,
+    NoReturn,
+)
+from abc import ABC, abstractmethod
+from functools import lru_cache
 
 import pydicom
 from nibabel.nicom import csareader as csar
@@ -245,3 +258,162 @@ def paths_from_hdf5(g, master, structure):
         else:
             filenames = from_relative_paths(master, struct[...])
             g[n] = filenames if all(map(os.path.isfile, filenames)) else []
+
+
+class DICOMReaderBase(ABC):
+    """Base class for all the DICOM file readers"""
+
+    @staticmethod
+    @abstractmethod
+    def belongs(path: Union[Path, Text]) -> bool:
+        """Indicates if the input file is compatible with this reader.
+
+        This could be by analysing the filename itself or some specific content
+        within the file."""
+
+    @classmethod
+    @abstractmethod
+    def factory(cls, path: Union[Path, Text]):
+        """Reads the dicom files in the directory indicated in path."""
+
+    def __init__(self, files: OrderedDict):
+        self.files = files
+
+    @property
+    def datasets(self) -> list:
+        """List of datasets available in the files."""
+        return list(self.files.keys())
+
+    @property
+    def is_avail(self) -> Union[str, bool]:
+        """Provides the first filename or False if there are no files."""
+        var = list(self.files[self.datasets[0]].values())
+        return var[0][0] if len(var) > 0 and len(var[0]) > 0 else False
+
+    @property
+    def sensitivity(self):
+        """Obtains the in-plane and out of plane velocity sensitivity (scale)."""
+        return velocity_sensitivity(self.is_avail)
+
+    @property
+    def orientation(self):
+        """Indicates if X-Y Phases should be swapped and the velocity sign factors."""
+        return image_orientation(self.is_avail)
+
+    def tags(self, dataset: str) -> OrderedDict:
+        """Dictionary with the tags available in the DICOM files."""
+        data_dict: OrderedDict = OrderedDict()
+        var = list(self.files[dataset].values())
+        if len(var) > 0 and len(var[0]) > 0:
+            data = pydicom.dcmread(var[0][0])
+
+            for i, d in enumerate(data.dir()):
+                data_dict[d] = getattr(data, d)
+
+        return data_dict
+
+    @abstractmethod
+    def slice_loc(self, dataset: str) -> float:
+        """Returns the slice location in cm from the isocentre."""
+
+    @abstractmethod
+    def pixel_size(self, dataset: str) -> float:
+        """Returns the pixel size in cm."""
+
+    @abstractmethod
+    def time_interval(self, dataset: str) -> float:
+        """Returns the frame time interval in seconds."""
+
+    @lru_cache(1)
+    @abstractmethod
+    def mag(self, dataset: str) -> np.ndarray:
+        """Provides the magnitude data corresponding to the chosen dataset.
+
+        The expected shape of the array is [frames, xpoints, ypoints]."""
+
+    @lru_cache(1)
+    @abstractmethod
+    def phase(self, dataset: str) -> np.ndarray:
+        """Provides the Phase data corresponding to the chosen dataset.
+
+        The expected shape of the array is [3, frames, xpoints, ypoints]. The components
+        should follow the order PhaseX -> PhaseY -> PhaseZ."""
+
+
+class LegacyDICOM(DICOMReaderBase):
+
+    var_offset = {
+        "MagZ": 0,
+        "PhaseZ": 1,
+        "MagX": 2,
+        "PhaseX": 3,
+        "MagY": 4,
+        "PhaseY": 5,
+    }
+
+    @staticmethod
+    def belongs(path: Union[Path, Text]) -> bool:
+        """Indicates if the input folder is compatible with this reader."""
+        path = str(Path(path) / "*.dcm")
+        filenames = sorted(glob.glob(path))
+        return all(
+            [len(Path(p).stem) == 11 and Path(p).stem[:2] == "MR" for p in filenames]
+        )
+
+    @classmethod
+    def factory(cls, path: Union[Path, Text]):
+        """Reads in the legacy Dicom data files."""
+        path = str(Path(path) / "*00.dcm")
+        filenames = sorted(glob.glob(path))
+
+        data_files: OrderedDict = OrderedDict()
+        var_idx: Dict = {}
+        for f in filenames:
+            ds = pydicom.dcmread(f)
+
+            if not parallel_spirals(ds):
+                continue
+
+            name = ds.SeriesDescription
+            if name not in data_files.keys():
+                data_files[name] = OrderedDict()
+                var_idx = {}
+                for var in cls.var_offset:
+                    data_files[name][var] = []
+                    var_idx[int(Path(f).name[3:5]) + cls.var_offset[var]] = var
+
+            data_files[name][var_idx[int(Path(f).name[3:5])]] = sorted(
+                glob.glob(f.replace("00.dcm", "*.dcm"))
+            )
+
+        return cls(data_files)
+
+    def slice_loc(self, dataset: str) -> float:
+        """Returns the slice location in cm from the isocentre."""
+        return self.tags(dataset)["SliceLocation"] / 100
+
+    def pixel_size(self, dataset: str) -> float:
+        """Returns the pixel size in cm."""
+        return float(self.tags(dataset)["PixelSpacing"][0])
+
+    def time_interval(self, dataset: str) -> NoReturn:
+        """Returns the frame time interval in seconds."""
+        raise AttributeError("LegacyDICOM has no time interval defined.")
+
+    @lru_cache(1)
+    def mag(self, dataset: str) -> np.ndarray:
+        """Provides the Magnitude data corresponding to the chosen dataset."""
+        magx = np.array(read_images(self.files, dataset, "MagX"))
+        magy = np.array(read_images(self.files, dataset, "MagY"))
+        magz = np.array(read_images(self.files, dataset, "MagZ"))
+
+        return (magx + magy + magz) / 3
+
+    @lru_cache(1)
+    def phase(self, dataset: str) -> np.ndarray:
+        """Provides the Phase data corresponding to the chosen dataset."""
+        phasex = np.array(read_images(self.files, dataset, "PhaseX"))
+        phasey = np.array(read_images(self.files, dataset, "PhaseY"))
+        phasez = np.array(read_images(self.files, dataset, "PhaseZ"))
+
+        return np.stack((phasex, phasey, phasez))

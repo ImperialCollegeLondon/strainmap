@@ -1,6 +1,6 @@
 from pathlib import Path
 from typing import Mapping, Text, Tuple, Union
-from pytest import approx
+from pytest import approx, raises
 
 
 def search_in_tree(
@@ -196,3 +196,26 @@ def test_read_h5_file(tmpdir, segmented_data):
         assert segmented_data != new_data
     else:
         assert segmented_data == new_data
+
+
+def test_legacy_dicom():
+    from strainmap.models.readers import LegacyDICOM
+    from pathlib import Path
+
+    path = Path(__file__).parent / "data" / "SUB1"
+    assert LegacyDICOM.belongs(path)
+
+    files = LegacyDICOM.factory(path)
+    assert files.is_avail
+    assert len(files.datasets) == 3
+    assert list(files.sensitivity) == [60.0, 40.0, 40.0]
+    swap, signs = files.orientation
+    assert not swap
+    assert list(signs) == [1, -1, 1]
+    assert files.tags(files.datasets[0])["PatientName"] == "SUBJECT1"
+    assert files.mag(files.datasets[0]).shape == (3, 512, 512)
+    assert files.phase(files.datasets[0]).shape == (3, 3, 512, 512)
+    assert files.slice_loc(files.datasets[0])
+    assert files.pixel_size(files.datasets[0])
+    with raises(AttributeError):
+        files.time_interval(files.datasets[0])
