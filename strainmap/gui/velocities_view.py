@@ -168,7 +168,7 @@ class VelocitiesTaskView(TaskViewBase):
     def dataset_changed(self, *args):
         """Updates the view when the selected dataset is changed."""
         current = self.datasets_var.get()
-        self.images = self.data.get_images(current, "MagZ")
+        self.images = self.data.images(current, "MagZ")
         if self.data.velocities.get(current):
             self.update_velocities_list(current)
         else:
@@ -451,7 +451,7 @@ class VelocitiesTaskView(TaskViewBase):
             self.reverse_vel_var[i].set(bool(var))
 
     def update_widgets(self):
-        """ Updates widgets after an update in the data variable. """
+        """ Updates widgets after an update in the data var. """
         self.populate_dataset_box()
         self.populate_bg_box(self.datasets_var.get())
         self.update_sign_reversal()

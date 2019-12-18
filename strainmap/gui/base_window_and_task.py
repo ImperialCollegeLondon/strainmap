@@ -91,7 +91,7 @@ class TaskViewBase(ABC, ttk.Frame):
 
     @abstractmethod
     def update_widgets(self):
-        """ Updates widgets after an update in the data variable. """
+        """ Updates widgets after an update in the data var. """
         pass
 
     @abstractmethod

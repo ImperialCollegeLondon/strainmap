@@ -15,9 +15,11 @@ from typing import (
     Tuple,
     Union,
     NoReturn,
+    Type,
 )
 from abc import ABC, abstractmethod
 from functools import lru_cache
+from collections import defaultdict
 
 import pydicom
 from nibabel.nicom import csareader as csar
@@ -123,7 +125,7 @@ def read_dicom_file_tags(
 
 
 def read_images(origin: Mapping, series: Text, variable: Text) -> List:
-    """Returns the images for a given series and variable."""
+    """Returns the images for a given series and var."""
     if series in origin and variable in origin[series]:
         return [pydicom.dcmread(f).pixel_array for f in origin[series][variable]]
     else:
@@ -220,9 +222,13 @@ def read_h5_file(data, filename: Union[Path, Text]):
     for s in data.stored:
         if s == "sign_reversal":
             data.sign_reversal = tuple(sm_file[s][...])
-        elif "files" in s:
-            paths_from_hdf5(getattr(data, s), filename, sm_file[s])
-        else:
+        elif "files" in s and s in sm_file:
+            base_dir = paths_from_hdf5(defaultdict(dict), filename, sm_file[s])
+            if base_dir is None:
+                setattr(data, s, ())
+            else:
+                setattr(data, s, read_folder(base_dir))
+        elif s in sm_file:
             read_data_structure(getattr(data, s), sm_file[s])
 
     return data
@@ -252,16 +258,29 @@ def from_relative_paths(master: str, paths: List[bytes]) -> list:
 def paths_from_hdf5(g, master, structure):
     """Populates the StrainData object with the paths contained in the hdf5 file.
     """
+    base_dir = None
     for n, struct in structure.items():
         if isinstance(struct, h5py.Group):
-            paths_from_hdf5(g[n], master, struct)
+            base_dir = paths_from_hdf5(g[n], master, struct)
         else:
             filenames = from_relative_paths(master, struct[...])
-            g[n] = filenames if all(map(os.path.isfile, filenames)) else []
+            if all(map(os.path.isfile, filenames)):
+                g[n] = filenames
+                base_dir = Path(filenames[0]).parent
+
+    return base_dir
 
 
 class DICOMReaderBase(ABC):
     """Base class for all the DICOM file readers"""
+
+    @property
+    @classmethod
+    @abstractmethod
+    def vars(cls) -> dict:
+        """Equivalence between general var names and actual ones.
+
+        eg. [Mag, PhaseX, PhaseY, PhaseZ] -> [MagZ, PhaseX, PhaseY, PhaseZ]"""
 
     @staticmethod
     @abstractmethod
@@ -300,12 +319,18 @@ class DICOMReaderBase(ABC):
         """Indicates if X-Y Phases should be swapped and the velocity sign factors."""
         return image_orientation(self.is_avail)
 
-    def tags(self, dataset: str) -> OrderedDict:
+    def tags(self, dataset: str, var: Optional[str] = None) -> dict:
         """Dictionary with the tags available in the DICOM files."""
-        data_dict: OrderedDict = OrderedDict()
-        var = list(self.files[dataset].values())
-        if len(var) > 0 and len(var[0]) > 0:
-            data = pydicom.dcmread(var[0][0])
+        data_dict = dict()
+
+        if var is not None:
+            var = self.files[dataset].get(self.vars[var], [])
+        else:
+            var = list(self.files[dataset].values())
+            var = var[0] if len(var) > 0 else []
+
+        if len(var) > 0:
+            data = pydicom.dcmread(var[0])
 
             for i, d in enumerate(data.dir()):
                 data_dict[d] = getattr(data, d)
@@ -339,6 +364,11 @@ class DICOMReaderBase(ABC):
         The expected shape of the array is [3, frames, xpoints, ypoints]. The components
         should follow the order PhaseX -> PhaseY -> PhaseZ."""
 
+    def images(self, dataset: str, var: str) -> np.ndarray:
+        """Returns one specific component of all the image data."""
+        nvar = list(self.vars.keys()).index(var)
+        return self.mag(dataset) if nvar == 0 else self.phase(dataset)[nvar - 1]
+
 
 DICOM_READERS = []
 """List of available DICOM readers."""
@@ -346,29 +376,36 @@ DICOM_READERS = []
 
 def register_dicom_reader(reader_class):
     """Registers the reader_class in the list of available readers."""
-    if issubclass(reader_class, DICOMReaderBase):
+    if issubclass(reader_class, DICOMReaderBase) and set(reader_class.vars.keys()) == {
+        "Mag",
+        "PhaseX",
+        "PhaseY",
+        "PhaseZ",
+    }:
         DICOM_READERS.append(reader_class)
     return reader_class
+
+
+def read_folder(path: Union[Path, Text, None]) -> Optional[Type[DICOMReaderBase]]:
+    """Find a reader appropriate to read the contents of the given folder."""
+    for r in DICOM_READERS:
+        if r.belongs(path):
+            return r.factory(path)
 
 
 @register_dicom_reader
 class LegacyDICOM(DICOMReaderBase):
 
-    var_offset = {
-        "MagZ": 0,
-        "PhaseZ": 1,
-        "MagX": 2,
-        "PhaseX": 3,
-        "MagY": 4,
-        "PhaseY": 5,
-    }
+    offset = {"MagZ": 0, "PhaseZ": 1, "MagX": 2, "PhaseX": 3, "MagY": 4, "PhaseY": 5}
+
+    vars = {"Mag": "MagZ", "PhaseZ": "PhaseZ", "PhaseX": "PhaseX", "PhaseY": "PhaseY"}
 
     @staticmethod
     def belongs(path: Union[Path, Text]) -> bool:
         """Indicates if the input folder is compatible with this reader_class."""
         path = str(Path(path) / "*.dcm")
         filenames = sorted(glob.glob(path))
-        return all(
+        return len(filenames) > 0 and all(
             [len(Path(p).stem) == 11 and Path(p).stem[:2] == "MR" for p in filenames]
         )
 
@@ -390,9 +427,9 @@ class LegacyDICOM(DICOMReaderBase):
             if name not in data_files.keys():
                 data_files[name] = OrderedDict()
                 var_idx = {}
-                for var in cls.var_offset:
+                for var in cls.offset:
                     data_files[name][var] = []
-                    var_idx[int(Path(f).name[3:5]) + cls.var_offset[var]] = var
+                    var_idx[int(Path(f).name[3:5]) + cls.offset[var]] = var
 
             data_files[name][var_idx[int(Path(f).name[3:5])]] = sorted(
                 glob.glob(f.replace("00.dcm", "*.dcm"))

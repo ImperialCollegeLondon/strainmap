@@ -42,7 +42,7 @@ def test_get_data_to_segment(segmentation_view, strainmap_data):
     segmentation_view.update_widgets()
 
     dataset = list(strainmap_data.data_files.keys())[0]
-    expected_vel = strainmap_data.get_images(dataset, "PhaseZ")
+    expected_vel = strainmap_data.images(dataset, "PhaseZ")
 
     actual = segmentation_view.get_data_to_segment(dataset)
     assert expected_vel == approx(actual["vel"])
