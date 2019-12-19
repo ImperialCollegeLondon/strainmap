@@ -15,6 +15,8 @@ class StrainMapLoadError(Exception):
 
 def compare_dicts(one, two):
     """Recursive comparison of two (nested) dictionaries with lists and numpy arrays."""
+    if not isinstance(one, dict):
+        return True
     if one.keys() != two.keys():
         return False
 
@@ -206,7 +208,7 @@ class StrainMapData(object):
 
         The "strainmap_file" attribute is ignored as it might have different values."""
         equal = self.sign_reversal == other.sign_reversal
-        keys = set(self.__dict__.keys()) - {"sign_reversal", "strainmap_file"}
+        keys = set(self.__dict__.keys())
         for k in keys:
             equal = equal and compare_dicts(getattr(self, k), getattr(other, k))
         return equal

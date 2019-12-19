@@ -67,6 +67,7 @@ class StrainMap(object):
         """Creates a StrainMapData object."""
         self.data = StrainMapData.from_folder(data_files)
         self.lock_toggle(self.data.data_files, Requisites.DATALOADED)
+        self.lock(Requisites.SEGMENTED)
         return self.data is not None
 
     def load_data_from_file(self, strainmap_file):

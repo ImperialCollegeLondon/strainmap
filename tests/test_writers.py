@@ -5,7 +5,7 @@ def test_add_metadata(strainmap_data):
     from strainmap.models.writers import add_metadata
     import openpyxl as xlsx
 
-    dataset = list(strainmap_data.data_files.keys())[0]
+    dataset = strainmap_data.data_files.datasets[0]
 
     wb = xlsx.Workbook()
     ws = wb.create_sheet("Parameters")
@@ -118,24 +118,24 @@ def test_paths_to_hdf5(strainmap_data, tmpdir):
     from strainmap.models.writers import paths_to_hdf5, to_relative_paths
     import h5py
 
-    dataset_name = list(strainmap_data.data_files.keys())[0]
+    dataset_name = strainmap_data.data_files.datasets[0]
     filename = tmpdir / "strain_map_file.h5"
 
-    abs_paths = strainmap_data.data_files[dataset_name]["MagX"]
+    abs_paths = strainmap_data.data_files.files[dataset_name]["MagX"]
     rel_paths = to_relative_paths(filename, abs_paths)
 
     f = h5py.File(filename, "a")
-    paths_to_hdf5(f, filename, "data_files", strainmap_data.data_files)
+    paths_to_hdf5(f, filename, "data_files", strainmap_data.data_files.files)
 
     assert "data_files" in f
     assert dataset_name in f["data_files"]
     assert "MagX" in f["data_files"][dataset_name]
     assert rel_paths == f["data_files"][dataset_name]["MagX"][...].tolist()
 
-    strainmap_data.data_files[dataset_name]["MagX"][0] = "/my new path"
-    abs_paths = strainmap_data.data_files[dataset_name]["MagX"]
+    strainmap_data.data_files.files[dataset_name]["MagX"][0] = "/my new path"
+    abs_paths = strainmap_data.data_files.files[dataset_name]["MagX"]
     rel_paths = to_relative_paths(filename, abs_paths)
-    paths_to_hdf5(f, filename, "data_files", strainmap_data.data_files)
+    paths_to_hdf5(f, filename, "data_files", strainmap_data.data_files.files)
 
     if str(filename)[0] != abs_paths[0][0]:
         assert len(rel_paths) == 0

@@ -75,7 +75,7 @@ def parallel_spirals(dicom_data):
         return False
 
 
-def velocity_sensitivity(filename):
+def velocity_sensitivity(filename) -> np.ndarray:
     """Obtains the in-plane and out of plane velocity sensitivity (scale)."""
     dicom_data = pydicom.dcmread(filename)
     csa = csar.get_csa_header(dicom_data, "series")
@@ -88,7 +88,7 @@ def velocity_sensitivity(filename):
     return np.array((z, r, theta)) * 2
 
 
-def image_orientation(filename):
+def image_orientation(filename) -> tuple:
     """Indicates if X and Y Phases should be swapped and the velocity sign factors."""
     ds = pydicom.dcmread(filename)
     swap = ds.InPlanePhaseEncodingDirection == "ROW"
@@ -299,7 +299,7 @@ class DICOMReaderBase(ABC):
         self.files = files
 
     @property
-    def datasets(self) -> list:
+    def datasets(self) -> List[str]:
         """List of datasets available in the files."""
         return list(self.files.keys())
 
@@ -310,12 +310,12 @@ class DICOMReaderBase(ABC):
         return var[0][0] if len(var) > 0 and len(var[0]) > 0 else False
 
     @property
-    def sensitivity(self):
+    def sensitivity(self) -> np.ndarray:
         """Obtains the in-plane and out of plane velocity sensitivity (scale)."""
         return velocity_sensitivity(self.is_avail)
 
     @property
-    def orientation(self):
+    def orientation(self) -> tuple:
         """Indicates if X-Y Phases should be swapped and the velocity sign factors."""
         return image_orientation(self.is_avail)
 
@@ -324,13 +324,13 @@ class DICOMReaderBase(ABC):
         data_dict = dict()
 
         if var is not None:
-            var = self.files[dataset].get(self.vars[var], [])
+            files = self.files[dataset].get(self.vars[var], [])
         else:
-            var = list(self.files[dataset].values())
-            var = var[0] if len(var) > 0 else []
+            files = list(self.files[dataset].values())
+            files = files[0] if len(files) > 0 else []
 
-        if len(var) > 0:
-            data = pydicom.dcmread(var[0])
+        if len(files) > 0:
+            data = pydicom.dcmread(files[0])
 
             for i, d in enumerate(data.dir()):
                 data_dict[d] = getattr(data, d)
@@ -391,6 +391,7 @@ def read_folder(path: Union[Path, Text, None]) -> Optional[Type[DICOMReaderBase]
     for r in DICOM_READERS:
         if r.belongs(path):
             return r.factory(path)
+    return None
 
 
 @register_dicom_reader
@@ -456,7 +457,7 @@ class LegacyDICOM(DICOMReaderBase):
         magy = np.array(read_images(self.files, dataset, "MagY"))
         magz = np.array(read_images(self.files, dataset, "MagZ"))
 
-        return (magx + magy + magz) / 3
+        return (magx + magy + magz) // 3
 
     @lru_cache(1)
     def phase(self, dataset: str) -> np.ndarray:

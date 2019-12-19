@@ -160,19 +160,22 @@ def test_paths_from_hdf5(strainmap_data, tmpdir):
 
     import h5py
 
-    dataset_name = list(strainmap_data.data_files.keys())[0]
+    dataset_name = strainmap_data.data_files.datasets[0]
     filename = tmpdir / "strain_map_file.h5"
 
-    abs_paths = strainmap_data.data_files[dataset_name]["MagX"]
+    abs_paths = strainmap_data.data_files.files[dataset_name]["MagX"]
 
     f = h5py.File(filename, "a")
     d = defaultdict(dict)
-    paths_to_hdf5(f, filename, "data_files", strainmap_data.data_files)
+    paths_to_hdf5(f, filename, "data_files", strainmap_data.data_files.files)
     paths_from_hdf5(d, filename, f["data_files"])
 
     assert dataset_name in d
     assert all(
-        [key in d[dataset_name] for key in strainmap_data.data_files[dataset_name]]
+        [
+            key in d[dataset_name]
+            for key in strainmap_data.data_files.files[dataset_name]
+        ]
     )
     if str(filename)[0] != abs_paths[0][0]:
         assert d[dataset_name]["MagX"] == []
@@ -186,8 +189,8 @@ def test_read_h5_file(tmpdir, segmented_data):
     from strainmap.models.strainmap_data_model import StrainMapData
 
     filename = tmpdir / "strain_map_file.h5"
-    dataset_name = list(segmented_data.data_files.keys())[0]
-    abs_paths = segmented_data.data_files[dataset_name]["MagX"]
+    dataset_name = segmented_data.data_files.datasets[0]
+    abs_paths = segmented_data.data_files.files[dataset_name]["MagX"]
 
     write_hdf5_file(segmented_data, filename)
     new_data = read_h5_file(StrainMapData.from_folder(), filename)

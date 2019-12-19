@@ -12,8 +12,8 @@ def test_add_paths(dicom_data_path, dicom_bg_data_path):
 
     data = StrainMapData.from_folder(data_files=dicom_data_path)
     data.add_paths(bg_files=dicom_bg_data_path)
-    assert len(data.data_files) == 3
-    assert len(data.bg_files) == 3
+    assert len(data.data_files.files) == 3
+    assert len(data.bg_files.files) == 3
 
 
 def test_add_h5_file(dicom_data_path, tmpdir):

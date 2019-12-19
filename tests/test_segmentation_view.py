@@ -8,7 +8,7 @@ def test_update_and_clear_widgets(segmentation_view, strainmap_data):
     segmentation_view.controller.data = strainmap_data
     segmentation_view.update_widgets()
 
-    expected = list(strainmap_data.data_files.keys())[0]
+    expected = strainmap_data.data_files.datasets[0]
     assert segmentation_view.datasets_var.get() == expected
 
     segmentation_view.dataset_changed.assert_called_once()
@@ -41,8 +41,8 @@ def test_get_data_to_segment(segmentation_view, strainmap_data):
     segmentation_view.controller.data = strainmap_data
     segmentation_view.update_widgets()
 
-    dataset = list(strainmap_data.data_files.keys())[0]
-    expected_vel = strainmap_data.images(dataset, "PhaseZ")
+    dataset = strainmap_data.data_files.datasets[0]
+    expected_vel = strainmap_data.data_files.phase(dataset)[-1]
 
     actual = segmentation_view.get_data_to_segment(dataset)
     assert expected_vel == approx(actual["vel"])
@@ -145,7 +145,7 @@ def test_plot_segments(segmentation_view, strainmap_data):
     from copy import deepcopy
 
     contour = np.random.random((2, 5))
-    dataset = list(strainmap_data.data_files.keys())[0]
+    dataset = strainmap_data.data_files.datasets[0]
 
     segmentation_view.controller.data = deepcopy(strainmap_data)
     segmentation_view.update_widgets()
@@ -204,7 +204,7 @@ def test_contour_edited_and_undo(segmentation_view, strainmap_data):
     import numpy as np
 
     contour = np.random.random((2, 2, 5))
-    dataset = list(strainmap_data.data_files.keys())[0]
+    dataset = strainmap_data.data_files.datasets[0]
 
     segmentation_view.controller.data = strainmap_data
     segmentation_view.update_widgets()
@@ -243,7 +243,7 @@ def test_next_frames(segmentation_view, strainmap_data):
     import numpy as np
 
     contour = np.random.random((2, 2, 5))
-    dataset = list(strainmap_data.data_files.keys())[0]
+    dataset = strainmap_data.data_files.datasets[0]
 
     segmentation_view.controller.data = strainmap_data
     segmentation_view.update_widgets()

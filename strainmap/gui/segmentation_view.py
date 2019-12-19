@@ -631,14 +631,10 @@ class SegmentationTaskView(TaskViewBase):
 
     def get_data_to_segment(self, dataset):
         """Gets the data that will be segmented."""
-
-        magz = self.data.images(dataset, "MagZ")
-        magx = self.data.images(dataset, "MagX")
-        magy = self.data.images(dataset, "MagY")
-        mag = magx + magy + magz
-        vel = self.data.images(dataset, "PhaseZ")
-
-        return {"mag": mag, "vel": vel}
+        return {
+            "mag": self.data.data_files.mag(dataset),
+            "vel": self.data.data_files.phase(dataset)[-1],
+        }
 
     def set_initial_contour(self, side):
         """Enables the definition of the initial segment for the side."""

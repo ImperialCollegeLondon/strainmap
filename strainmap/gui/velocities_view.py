@@ -168,7 +168,7 @@ class VelocitiesTaskView(TaskViewBase):
     def dataset_changed(self, *args):
         """Updates the view when the selected dataset is changed."""
         current = self.datasets_var.get()
-        self.images = self.data.images(current, "MagZ")
+        self.images = self.data.data_files.mag(current)
         if self.data.velocities.get(current):
             self.update_velocities_list(current)
         else:
@@ -438,7 +438,9 @@ class VelocitiesTaskView(TaskViewBase):
 
     def populate_bg_box(self, dataset):
         """Populates the background box and try to match the bg choice by name."""
-        values = ["Estimated", "None"] + list(self.data.bg_files.keys())
+        values = ["Estimated", "None"] + (
+            self.data.bg_files.datasets if self.data.bg_files is not None else []
+        )
         self.bg_box.config(values=values)
         if dataset in values:
             self.bg_var.set(dataset)
