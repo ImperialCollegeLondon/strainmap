@@ -20,9 +20,9 @@ from typing import (
 from abc import ABC, abstractmethod
 from functools import lru_cache
 from collections import defaultdict
+from natsort import natsorted
 
 import pydicom
-from nibabel.nicom import csareader as csar
 import numpy as np
 import h5py
 
@@ -33,6 +33,7 @@ VAR_OFFSET = {"MagZ": 0, "PhaseZ": 1, "MagX": 2, "PhaseX": 3, "MagY": 4, "PhaseY
 def read_dicom_directory_tree(path: Union[Path, Text]) -> Mapping:
     """Creates a dictionary with the available series and associated
     filenames."""
+    from nibabel.nicom import csareader as csar
 
     path = str(Path(path) / "*01.dcm")
     filenames = sorted(glob.glob(path))
@@ -41,8 +42,9 @@ def read_dicom_directory_tree(path: Union[Path, Text]) -> Mapping:
     var_idx: Dict = {}
     for f in filenames:
         ds = pydicom.dcmread(f)
-
-        if not parallel_spirals(ds):
+        csa = csar.get_csa_header(ds, "series")
+        header = csa.get("tags", {}).get("MrPhoenixProtocol", {}).get("items", [])
+        if len(header) == 0 or not parallel_spirals(header[0]):
             continue
 
         name = ds.SeriesDescription
@@ -60,12 +62,18 @@ def read_dicom_directory_tree(path: Union[Path, Text]) -> Mapping:
     return data_files
 
 
-def parallel_spirals(dicom_data):
+def chunks(lst, n):
+    """Yield successive n-sized chunks from lst.
+
+    Function taken from https://stackoverflow.com/a/312464/3778792"""
+    for i in range(0, len(lst), n):
+        yield lst[i : i + n]
+
+
+def parallel_spirals(header):
     """Checks if ParallelSpirals is in the tSequenceFileName."""
-    csa = csar.get_csa_header(dicom_data, "series")
     try:
-        ascii_header = csa["tags"]["MrPhoenixProtocol"]["items"][0]
-        tSequenceFileName = re.search('tSequenceFileName\t = \t""(.*)""', ascii_header)
+        tSequenceFileName = re.search('tSequenceFileName\t = \t""(.*)""', header)
         if tSequenceFileName is None:
             return False
         return (
@@ -75,15 +83,11 @@ def parallel_spirals(dicom_data):
         return False
 
 
-def velocity_sensitivity(filename) -> np.ndarray:
+def velocity_sensitivity(header) -> np.ndarray:
     """Obtains the in-plane and out of plane velocity sensitivity (scale)."""
-    dicom_data = pydicom.dcmread(filename)
-    csa = csar.get_csa_header(dicom_data, "series")
-
-    ascii_header = csa["tags"]["MrPhoenixProtocol"]["items"][0]
-    z = float(re.search(r"asElm\[0\].nVelocity\t = \t(.*)", ascii_header)[1])
-    r = float(re.search(r"asElm\[1\].nVelocity\t = \t(.*)", ascii_header)[1])
-    theta = float(re.search(r"asElm\[2\].nVelocity\t = \t(.*)", ascii_header)[1])
+    z = float(re.search(r"asElm\[0\].nVelocity\t = \t(.*)", header)[1])
+    r = float(re.search(r"asElm\[1\].nVelocity\t = \t(.*)", header)[1])
+    theta = float(re.search(r"asElm\[2\].nVelocity\t = \t(.*)", header)[1])
 
     return np.array((z, r, theta)) * 2
 
@@ -295,7 +299,7 @@ class DICOMReaderBase(ABC):
     def factory(cls, path: Union[Path, Text]):
         """Reads the dicom files in the directory indicated in path."""
 
-    def __init__(self, files: OrderedDict):
+    def __init__(self, files: dict):
         self.files = files
 
     @property
@@ -310,9 +314,9 @@ class DICOMReaderBase(ABC):
         return var[0][0] if len(var) > 0 and len(var[0]) > 0 else False
 
     @property
+    @abstractmethod
     def sensitivity(self) -> np.ndarray:
         """Obtains the in-plane and out of plane velocity sensitivity (scale)."""
-        return velocity_sensitivity(self.is_avail)
 
     @property
     def orientation(self) -> tuple:
@@ -413,21 +417,25 @@ class LegacyDICOM(DICOMReaderBase):
     @classmethod
     def factory(cls, path: Union[Path, Text]):
         """Reads in the legacy Dicom data files."""
-        path = str(Path(path) / "*00.dcm")
-        filenames = sorted(glob.glob(path))
+        from nibabel.nicom import csareader as csar
 
-        data_files: OrderedDict = OrderedDict()
+        path = str(Path(path) / "*00.dcm")
+        filenames = natsorted(glob.glob(path))
+
+        data_files: dict = dict()
         var_idx: Dict = {}
         for f in filenames:
             ds = pydicom.dcmread(f)
 
-            if not parallel_spirals(ds):
+            csa = csar.get_csa_header(ds, "series")
+            header = csa.get("tags", {}).get("MrPhoenixProtocol", {}).get("items", [])
+            if len(header) == 0 or not parallel_spirals(header[0]):
                 continue
 
             name = ds.SeriesDescription
             if name not in data_files.keys():
-                data_files[name] = OrderedDict()
-                var_idx = {}
+                data_files[name] = dict()
+                var_idx = dict()
                 for var in cls.offset:
                     data_files[name][var] = []
                     var_idx[int(Path(f).name[3:5]) + cls.offset[var]] = var
@@ -437,6 +445,16 @@ class LegacyDICOM(DICOMReaderBase):
             )
 
         return cls(data_files)
+
+    @property
+    def sensitivity(self) -> np.ndarray:
+        """Obtains the in-plane and out of plane velocity sensitivity (scale)."""
+        from nibabel.nicom import csareader as csar
+
+        ds = pydicom.dcmread(self.is_avail)
+        csa = csar.get_csa_header(ds, "series")
+        header = csa.get("tags", {}).get("MrPhoenixProtocol", {}).get("items", [])[0]
+        return velocity_sensitivity(header)
 
     def slice_loc(self, dataset: str) -> NoReturn:
         """Returns the slice location in cm from the isocentre."""
@@ -467,3 +485,106 @@ class LegacyDICOM(DICOMReaderBase):
         phasez = np.array(read_images(self.files, dataset, "PhaseZ"))
 
         return np.stack((phasex, phasey, phasez))
+
+
+@register_dicom_reader
+class DICOM(DICOMReaderBase):
+
+    variables = ["MagAvg", "PhaseZ", "PhaseX", "PhaseY", "RefMag"]
+
+    vars = {"Mag": "MagAvg", "PhaseZ": "PhaseZ", "PhaseX": "PhaseX", "PhaseY": "PhaseY"}
+
+    @staticmethod
+    def belongs(path: Union[Path, Text]) -> bool:
+        """Indicates if the input folder is compatible with this reader_class."""
+        path = str(Path(path) / "*.dcm")
+        filenames = sorted(glob.glob(path))
+        return (
+            len(filenames) > 0
+            and all([len(Path(p).stem.split(".")) == 13 for p in filenames])
+            and "ImageComments" in pydicom.dcmread(filenames[0])
+        )
+
+    @classmethod
+    def factory(cls, path: Union[Path, Text]):
+        """Reads in the legacy Dicom data files."""
+        pattern = str(Path(path) / "*.*.*.*.1.*.*.*.*.*.*.*.*.dcm")
+        filenames = chunks(natsorted(glob.glob(pattern)), len(cls.variables))
+
+        data_files: dict = dict()
+        for f in filenames:
+            if len(f) != len(cls.variables):
+                continue
+
+            ds = pydicom.dcmread(f[0])
+            header = ds[("0021", "1019")].value.decode()
+            if not parallel_spirals(header):
+                continue
+
+            dataset_name = f"{ds.SeriesNumber} {ds.SeriesDescription}"
+            data_files[dataset_name] = dict()
+
+            for i, var in enumerate(cls.variables):
+                num = Path(f[i]).stem.split(".")[3]
+                data_files[dataset_name][var] = natsorted(
+                    glob.glob(str(Path(path) / f"*.*.*.{num}.*.*.*.*.*.*.*.*.*.dcm"))
+                )
+
+        return cls(data_files)
+
+    @property
+    def sensitivity(self) -> np.ndarray:
+        """Obtains the in-plane and out of plane velocity sensitivity (scale)."""
+        ds = pydicom.dcmread(self.is_avail)
+        header = ds[("0021", "1019")].value.decode()
+        return velocity_sensitivity(header)
+
+    def slice_loc(self, dataset: str) -> float:
+        """Returns the slice location in cm from the isocentre."""
+        return float(self.tags(dataset)["SliceLocation"]) / 10.0
+
+    def pixel_size(self, dataset: str) -> float:
+        """Returns the pixel size in cm."""
+        return float(self.tags(dataset)["PixelSpacing"][0]) / 10.0
+
+    def time_interval(self, dataset: str) -> float:
+        """Returns the frame time interval in seconds."""
+        return float(self.tags(dataset)["ImageComments"].split(" ")[1]) / 1000.0
+
+    @lru_cache(1)
+    def mag(self, dataset: str) -> np.ndarray:
+        """Provides the Magnitude data corresponding to the chosen dataset."""
+        return np.array(read_images(self.files, dataset, "MagAvg"))
+
+    @lru_cache(1)
+    def phase(self, dataset: str) -> np.ndarray:
+        """Provides the Phase data corresponding to the chosen dataset."""
+        phasex = np.array(read_images(self.files, dataset, "PhaseX"))
+        phasey = np.array(read_images(self.files, dataset, "PhaseY"))
+        phasez = np.array(read_images(self.files, dataset, "PhaseZ"))
+
+        return np.stack((phasex, phasey, phasez))
+
+
+@register_dicom_reader
+class DICOMNoTimeInterval(DICOM):
+    """TODO: Remove when final release. This subclass is necessary just because in the
+        initial new scanners the time interval was missing from the DICOM."""
+
+    @staticmethod
+    def belongs(path: Union[Path, Text]) -> bool:
+        """Indicates if the input folder is compatible with this reader_class."""
+        path = str(Path(path) / "*.dcm")
+        filenames = sorted(glob.glob(path))
+        return (
+            len(filenames) > 0
+            and all([len(Path(p).stem.split(".")) == 13 for p in filenames])
+            and "ImageComments" not in pydicom.dcmread(filenames[0])
+        )
+
+    def time_interval(self, dataset: str) -> float:
+        """Returns the frame time interval in seconds."""
+        if isinstance(self.is_avail, str):
+            return float(Path(self.is_avail).parent.name.split("RR")[-1]) / 1000.0
+        else:
+            raise AttributeError

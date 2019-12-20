@@ -107,10 +107,17 @@ def test_to_numpy(data_tree):
 def test_velocity_sensitivity(data_tree):
     from strainmap.models.readers import velocity_sensitivity
     import numpy as np
+    from nibabel.nicom import csareader as csar
+    import pydicom
 
     filename = list(data_tree.values())[0]["PhaseZ"][0]
+
     expected = np.array((60, 40, 40))
-    actual = velocity_sensitivity(filename)
+    ds = pydicom.dcmread(filename)
+    csa = csar.get_csa_header(ds, "series")
+    header = csa.get("tags", {}).get("MrPhoenixProtocol", {}).get("items", [])[0]
+
+    actual = velocity_sensitivity(header)
 
     assert expected == approx(actual)
 
