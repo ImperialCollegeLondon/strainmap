@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import copy
 from typing import Optional, Sequence, Tuple, Union
+from itertools import product
 
 import numpy as np
 from scipy import interpolate, ndimage
@@ -300,6 +301,48 @@ def radial_segments(
         result[(outer_pol - inner_pol) / nr * i + inner_pol >= r] = i
 
     return result
+
+
+def mosaic_mask(angular: np.ndarray, radial: np.ndarray) -> np.ndarray:
+    """Joins angular and radial masks to create a mosaic mask.
+
+    A mosaic mask gives a different index to each unique combination of the indices in
+    the angular and radial masks.
+
+    Example:
+        >>> from strainmap.models.contour_mask import Contour, radial_segments
+        >>> outer = Contour.circle(shape=(15, 15), radius=6)
+        >>> inner = Contour.circle(shape=(10, 10), center=(5.5, 6), radius=3)
+        >>> radial = radial_segments(outer, inner, nr=3)
+        >>> from strainmap.models.contour_mask import angular_segments
+        >>> angular = angular_segments(nsegments=4, shape=(15, 15))
+        >>> mosaic = mosaic_mask(angular, radial)
+        >>> print(mosaic)
+        [[ 0  0  0  0  0  0  0  0  0  0  0  0  0  0  0]
+         [ 0  0  0  0  0  0  0 11  0  0  0  0  0  0  0]
+         [ 0  0  0  0 11  7  7  7 12 12 12  0  0  0  0]
+         [ 0  0  0 11  3  3  3  3  8  8 12 12  0  0  0]
+         [ 0  0 11  3  0  0  0  0  4  4  8 12 12  0  0]
+         [ 0  0  7  0  0  0  0  0  0  4  8  8 12  0  0]
+         [ 0  0  7  0  0  0  0  0  0  4  8  8 12  0  0]
+         [ 0  0  7  0  0  0  0  0  0  4  8  8 12 12  0]
+         [ 0  0  6  2  0  0  0  0  1  1  5  5  9  0  0]
+         [ 0  0 10  6  2  2  2  2  1  5  5  9  9  0  0]
+         [ 0  0 10 10  6  6  2  2  5  5  5  9  9  0  0]
+         [ 0  0  0 10 10  6  6  6  5  9  9  9  0  0  0]
+         [ 0  0  0  0 10 10 10 10  9  9  9  0  0  0  0]
+         [ 0  0  0  0  0  0  0  0  0  0  0  0  0  0  0]
+         [ 0  0  0  0  0  0  0  0  0  0  0  0  0  0  0]]
+    """
+    assert angular.shape == radial.shape
+
+    aidx = set(angular.flatten()) - {0}
+    ridx = set(radial.flatten()) - {0}
+    mosaic = np.zeros_like(angular)
+    for i, (r, a) in enumerate(product(ridx, aidx)):
+        mosaic[np.nonzero(np.logical_and(radial == r, angular == a))] = i + 1
+
+    return mosaic
 
 
 def cart2pol(cart: np.ndarray) -> np.recarray:
