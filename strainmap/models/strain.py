@@ -1,4 +1,6 @@
 import numpy as np
+from itertools import product
+
 from typing import Tuple, Union
 
 
@@ -61,3 +63,25 @@ def validate_theta0(theta0: Union[float, np.ndarray], lenz: int):
         return theta0
     else:
         return np.array([theta0] * lenz)
+
+
+def reduce_array(
+    data: np.ndarray, angular: np.ndarray, radial: np.ndarray
+) -> np.ndarray:
+    from numpy.ma import MaskedArray
+
+    assert data.shape == angular.shape == radial.shape
+    assert len(data.shape) == 3
+
+    aidx = set(angular.flatten()) - {0}
+    ridx = set(radial.flatten()) - {0}
+
+    unfolded = np.zeros((data.shape[0], len(ridx), len(aidx)))
+    for i, (r, a) in enumerate(product(ridx, aidx)):
+        unfolded[:, r - 1, a - 1] = (
+            MaskedArray(data, ~np.logical_and(radial == r, angular == a))
+            .mean(axis=(1, 2))
+            .data
+        )
+
+    return unfolded
