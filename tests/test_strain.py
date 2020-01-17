@@ -1,29 +1,4 @@
-from pytest import approx, raises, fixture
-
-
-@fixture
-def shape():
-    return 50, 512, 512
-
-
-@fixture
-def ang_mask(shape):
-    from strainmap.models.contour_mask import angular_segments
-    import numpy as np
-
-    return np.tile(angular_segments(nsegments=24, shape=shape[1:]), (shape[0], 1, 1))
-
-
-@fixture
-def rad_mask(shape):
-    from strainmap.models.contour_mask import Contour, radial_segments
-    import numpy as np
-
-    outer = Contour.circle(shape=shape[1:], radius=shape[1] / 4)
-    inner = Contour.circle(
-        shape=shape[1:], center=(shape[1] / 2, shape[2] / 2), radius=shape[1] / 4.5
-    )
-    return np.tile(radial_segments(outer, inner, nr=3), (shape[0], 1, 1))
+from pytest import approx, raises
 
 
 def test_cartcoords():
@@ -93,10 +68,3 @@ def test_validate_theta0():
     assert validate_theta0(expected, lenz) == approx(expected)
     with raises(AssertionError):
         validate_theta0(expected, 100)
-
-
-def test_reduce_array(ang_mask, rad_mask):
-    from strainmap.models.strain import reduce_array
-
-    udata = reduce_array(ang_mask, ang_mask, rad_mask)
-    assert set(udata.flatten()) == set(ang_mask.flatten())
