@@ -71,9 +71,7 @@ def validate_theta0(theta0: Union[float, np.ndarray], lenz: int):
         return np.array([theta0] * lenz)
 
 
-def reduce_array(
-    data: np.ndarray, *masks: np.ndarray, axis: tuple = (1, 2)
-) -> np.ndarray:
+def reduce_array(data: np.ndarray, *masks: np.ndarray, axis: tuple) -> np.ndarray:
     """Reduces array in cylindrical coordinates to the non-zero elements in the masks.
 
     The masks must have the same shape than the input array.
@@ -91,7 +89,6 @@ def reduce_array(
         pixels in the 8 regions (2x4) defined by the angular and radial masks. There is
         no radial dependency in the reduced array (all rows are the same) because there
         is no radial dependency in the input array either.
-        >>> import numpy as np
         >>> radial = np.array([
         ...     [0, 0, 0, 0, 0, 0, 0, 0],
         ...     [0, 2, 2, 2, 2, 2, 2, 0],
@@ -114,15 +111,15 @@ def reduce_array(
         ... ])
         >>> reduced = reduce_array(angular, radial, angular, axis=(0, 1))
         >>> print(reduced)
-        [[1. 2. 3. 4.]
-         [1. 2. 3. 4.]]
+        [[1 2 3 4]
+         [1 2 3 4]]
 
         We can repeat this using the radial mask as input. In this case, there is no
         angular dependency, as expected.
         >>> reduced = reduce_array(radial, radial, angular, axis=(0, 1))
         >>> print(reduced)
-        [[1. 1. 1. 1.]
-         [2. 2. 2. 2.]]
+        [[1 1 1 1]
+         [2 2 2 2]]
 
         In general, if there are no symmetries in the input array, all elements of the
         reduced array will be different.
@@ -140,6 +137,7 @@ def reduce_array(
     """
     from numpy.ma import MaskedArray
 
+    assert len(masks) > 0
     assert all([data.shape == m.shape for m in masks])
     assert len(data.shape) > max(axis)
 
@@ -147,9 +145,72 @@ def reduce_array(
     shape = [s for i, s in enumerate(data.shape) if i not in axis] + [
         len(idx) for idx in indices
     ]
-    reduced = np.zeros(shape)
+    reduced = np.zeros(shape, dtype=data.dtype)
     for idx in product(*indices):
         elements = tuple([...] + [k - 1 for k in idx])
-        condition = ~np.logical_and(*[masks[i] == k for i, k in enumerate(idx)])
+        condition = ~np.all([masks[i] == k for i, k in enumerate(idx)], axis=0)
         reduced[elements] = MaskedArray(data, condition).mean(axis=axis).data
     return reduced
+
+
+def expand_array(reduced: np.ndarray, *masks: np.ndarray, axis: tuple) -> np.ndarray:
+    """Transforms a reduced array into a full array with the same shape as the masks.
+
+    This function, partially opposite to `reduce_array`, will recover a full size array
+    with the same shape as the masks and with the masked elements equal to the
+    corresponding entries of the reduced array. All other elements are masked.
+
+        >>> radial = np.array([
+        ...     [0, 0, 0, 0, 0, 0, 0, 0],
+        ...     [0, 2, 2, 2, 2, 2, 2, 0],
+        ...     [0, 2, 1, 1, 1, 1, 2, 0],
+        ...     [0, 2, 1, 0, 0, 1, 2, 0],
+        ...     [0, 2, 1, 0, 0, 1, 2, 0],
+        ...     [0, 2, 1, 1, 1, 1, 2, 0],
+        ...     [0, 2, 2, 2, 2, 2, 2, 0],
+        ...     [0, 0, 0, 0, 0, 0, 0, 0],
+        ... ])
+        >>> angular = np.array([
+        ...     [1, 1, 1, 1, 4, 4, 4, 4],
+        ...     [1, 1, 1, 1, 4, 4, 4, 4],
+        ...     [1, 1, 1, 1, 4, 4, 4, 4],
+        ...     [1, 1, 1, 1, 4, 4, 4, 4],
+        ...     [2, 2, 2, 2, 3, 3, 3, 3],
+        ...     [2, 2, 2, 2, 3, 3, 3, 3],
+        ...     [2, 2, 2, 2, 3, 3, 3, 3],
+        ...     [2, 2, 2, 2, 3, 3, 3, 3],
+        ... ])
+        >>> reduced = reduce_array(angular, radial, angular, axis=(0, 1))
+        >>> print(reduced)
+        [[1 2 3 4]
+         [1 2 3 4]]
+
+        Now we "recover" the original full size array:
+        >>> data = expand_array(reduced, radial, angular, axis=(0, 1))
+        >>> print(data)
+        [[-- -- -- -- -- -- -- --]
+         [-- 1 1 1 4 4 4 --]
+         [-- 1 1 1 4 4 4 --]
+         [-- 1 1 -- -- 4 4 --]
+         [-- 2 2 -- -- 3 3 --]
+         [-- 2 2 2 3 3 3 --]
+         [-- 2 2 2 3 3 3 --]
+         [-- -- -- -- -- -- -- --]]
+    """
+    from numpy.ma import MaskedArray
+
+    assert len(masks) > 0
+    assert all([masks[0].shape == m.shape for m in masks[1:]])
+    assert len(masks[0].shape) > max(axis)
+
+    indices = reduced.shape[-len(masks) :]
+    data = np.zeros_like(masks[0], dtype=reduced.dtype)
+
+    for idx in product(*[range(i) for i in indices]):
+        condition = np.all([masks[i] == k + 1 for i, k in enumerate(idx)], axis=0)
+        values = reduced[(...,) + idx]
+        for ax in axis:
+            values = np.expand_dims(values, ax)
+        data[condition] = (values * condition)[condition]
+
+    return MaskedArray(data, ~np.all(masks, axis=0))
