@@ -52,10 +52,10 @@ def validate_origin(origin: np.ndarray, lenz: int):
     """Validates the shape of the origin array."""
 
     msg = "Origin must be a 1D array of length 2 or a 2D array of shape (len(z), 2)"
-    if len(origin.shape) == 1:
+if origin.shape == (2, ):
         assert len(origin) == 2, msg
         return np.tile(origin, (lenz, 1))
-    elif len(origin.shape) == 2:
+elif origin.shape == (lenz, 2):
         assert origin.shape == (lenz, 2), msg
         return origin
     else:
