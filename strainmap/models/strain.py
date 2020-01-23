@@ -7,10 +7,9 @@ from typing import Tuple, Union
 def cartcoords(shape: tuple, *sizes: Union[float, np.ndarray]) -> Tuple:
     """Create cartesian coordinates of the given shape based on the pixel sizes.
 
-    sizes can be an scalar indicating the maximum value of the coordinate in the given
-    dimension, in which case the coordinates will be evenly spaced, or an array
-    already indicating the positions. In the later case, these are shifted so the
-    coordinate starts at 0.
+    sizes can be an scalar indicating the step value of the coordinate in the given
+    dimension, or an array already indicating the positions. In the later case,
+    these are shifted so the coordinate starts at 0.
     """
     assert len(shape) == len(sizes)
 
@@ -18,7 +17,7 @@ def cartcoords(shape: tuple, *sizes: Union[float, np.ndarray]) -> Tuple:
         if isinstance(value, np.ndarray):
             return value - value[0]
         else:
-            return np.linspace(0, value, length)
+            return np.linspace(0, value * length, length)
 
     return tuple(map(build_coordinate, shape, sizes))
 

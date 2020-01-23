@@ -10,7 +10,7 @@ def test_cartcoords():
     expected = cartcoords(shape, *size)
     for i, v in enumerate(expected):
         assert len(v) == shape[i]
-        assert max(v) == size[i]
+        assert max(v) == size[i] * shape[i]
 
     zsize = np.random.rand(shape[0])
     expected = cartcoords(shape, zsize, size[1], size[2])
