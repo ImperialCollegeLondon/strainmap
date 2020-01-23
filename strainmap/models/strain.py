@@ -52,11 +52,9 @@ def validate_origin(origin: np.ndarray, lenz: int):
     """Validates the shape of the origin array."""
 
     msg = "Origin must be a 1D array of length 2 or a 2D array of shape (len(z), 2)"
-if origin.shape == (2, ):
-        assert len(origin) == 2, msg
+    if origin.shape == (2,):
         return np.tile(origin, (lenz, 1))
-elif origin.shape == (lenz, 2):
-        assert origin.shape == (lenz, 2), msg
+    elif origin.shape == (lenz, 2):
         return origin
     else:
         raise ValueError(msg)
@@ -71,7 +69,7 @@ def validate_theta0(theta0: Union[float, np.ndarray], lenz: int):
         return np.array([theta0] * lenz)
 
 
-def reduce_array(data: np.ndarray, *masks: np.ndarray, axis: tuple) -> np.ndarray:
+def masked_reduction(data: np.ndarray, *masks: np.ndarray, axis: tuple) -> np.ndarray:
     """Reduces array in cylindrical coordinates to the non-zero elements in the masks.
 
     The masks must have the same shape than the input array.
@@ -109,14 +107,14 @@ def reduce_array(data: np.ndarray, *masks: np.ndarray, axis: tuple) -> np.ndarra
         ...     [2, 2, 2, 2, 3, 3, 3, 3],
         ...     [2, 2, 2, 2, 3, 3, 3, 3],
         ... ])
-        >>> reduced = reduce_array(angular, radial, angular, axis=(0, 1))
+        >>> reduced = masked_reduction(angular, radial, angular, axis=(0, 1))
         >>> print(reduced)
         [[1 2 3 4]
          [1 2 3 4]]
 
         We can repeat this using the radial mask as input. In this case, there is no
         angular dependency, as expected.
-        >>> reduced = reduce_array(radial, radial, angular, axis=(0, 1))
+        >>> reduced = masked_reduction(radial, radial, angular, axis=(0, 1))
         >>> print(reduced)
         [[1 1 1 1]
          [2 2 2 2]]
@@ -124,7 +122,7 @@ def reduce_array(data: np.ndarray, *masks: np.ndarray, axis: tuple) -> np.ndarra
         In general, if there are no symmetries in the input array, all elements of the
         reduced array will be different.
         >>> np.random.seed(12345)
-        >>> reduced = reduce_array(np.random.rand(*radial.shape), radial, angular,
+        >>> reduced = masked_reduction(np.random.rand(*radial.shape), radial, angular,
         ...     axis=(0, 1))
         >>> print(reduced)
         [[0.89411584 0.46596842 0.17654222 0.51028107]
@@ -153,11 +151,13 @@ def reduce_array(data: np.ndarray, *masks: np.ndarray, axis: tuple) -> np.ndarra
     return reduced
 
 
-def expand_array(reduced: np.ndarray, *masks: np.ndarray, axis: tuple) -> np.ndarray:
+def masked_expansion(
+    reduced: np.ndarray, *masks: np.ndarray, axis: tuple
+) -> np.ndarray:
     """Transforms a reduced array into a full array with the same shape as the masks.
 
-    This function, partially opposite to `reduce_array`, will recover a full size array
-    with the same shape as the masks and with the masked elements equal to the
+    This function, partially opposite to `masked_reduction`, will recover a full size
+    array with the same shape as the masks and with the masked elements equal to the
     corresponding entries of the reduced array. All other elements are masked.
 
         >>> radial = np.array([
@@ -180,13 +180,13 @@ def expand_array(reduced: np.ndarray, *masks: np.ndarray, axis: tuple) -> np.nda
         ...     [2, 2, 2, 2, 3, 3, 3, 3],
         ...     [2, 2, 2, 2, 3, 3, 3, 3],
         ... ])
-        >>> reduced = reduce_array(angular, radial, angular, axis=(0, 1))
+        >>> reduced = masked_reduction(angular, radial, angular, axis=(0, 1))
         >>> print(reduced)
         [[1 2 3 4]
          [1 2 3 4]]
 
         Now we "recover" the original full size array:
-        >>> data = expand_array(reduced, radial, angular, axis=(0, 1))
+        >>> data = masked_expansion(reduced, radial, angular, axis=(0, 1))
         >>> print(data)
         [[-- -- -- -- -- -- -- --]
          [-- 1 1 1 4 4 4 --]

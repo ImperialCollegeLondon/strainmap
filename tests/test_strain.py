@@ -48,9 +48,9 @@ def test_validate_origin():
 
     assert validate_origin(origin, lenz) == approx(expected)
     assert validate_origin(expected, lenz) == approx(expected)
-    with raises(AssertionError):
+    with raises(ValueError):
         validate_origin(origin[1:], lenz)
-    with raises(AssertionError):
+    with raises(ValueError):
         validate_origin(expected, 100)
     with raises(ValueError):
         validate_origin(np.zeros((1, 1, 1)), lenz)
