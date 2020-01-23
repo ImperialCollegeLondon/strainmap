@@ -4,22 +4,23 @@ from itertools import product
 from typing import Tuple, Union
 
 
-def cartcoords(
-    shape: tuple, zsize: Union[float, np.ndarray], xsize: float, ysize: float
-) -> Tuple:
+def cartcoords(shape: tuple, *sizes: Union[float, np.ndarray]) -> Tuple:
     """Create cartesian coordinates of the given shape based on the pixel sizes.
 
-    As slices can be separated by a different number, zsize can also be an array of
-    positions in the Z direction rather than an scalar.
+    sizes can be an scalar indicating the maximum value of the coordinate in the given
+    dimension, in which case the coordinates will be evenly spaced, or an array
+    already indicating the positions. In the later case, these are shifted so the
+    coordinate starts at 0.
     """
-    if isinstance(zsize, np.ndarray):
-        z = zsize - zsize[0]
-    else:
-        z = np.linspace(0, zsize, shape[0])
-    x = np.linspace(0, xsize, shape[1])
-    y = np.linspace(0, ysize, shape[2])
+    assert len(shape) == len(sizes)
 
-    return z, x, y
+    def build_coordinate(length, value):
+        if isinstance(value, np.ndarray):
+            return value - value[0]
+        else:
+            return np.linspace(0, value, length)
+
+    return tuple(map(build_coordinate, shape, sizes))
 
 
 def cylcoords(
