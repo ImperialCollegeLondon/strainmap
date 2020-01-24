@@ -137,6 +137,4 @@ def test_paths_to_hdf5(strainmap_data, tmpdir):
     rel_paths = to_relative_paths(filename, abs_paths)
     paths_to_hdf5(f, filename, "data_files", strainmap_data.data_files.files)
 
-    if str(filename)[0] != abs_paths[0][0]:
-        assert len(rel_paths) == 0
     assert rel_paths == f["data_files"][dataset_name]["MagX"][...].tolist()
