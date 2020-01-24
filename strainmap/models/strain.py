@@ -1,7 +1,9 @@
 import numpy as np
 from itertools import product
-
 from typing import Tuple, Union
+
+from .readers import DICOMReaderBase
+from .velocities import find_theta0
 
 
 def cartcoords(shape: tuple, *sizes: Union[float, np.ndarray]) -> Tuple:
@@ -17,7 +19,7 @@ def cartcoords(shape: tuple, *sizes: Union[float, np.ndarray]) -> Tuple:
         if isinstance(value, np.ndarray):
             return value - value[0]
         else:
-            return np.linspace(0, value * length, length)
+            return np.linspace(0, value * length, length, endpoint=False)
 
     return tuple(map(build_coordinate, shape, sizes))
 
@@ -28,6 +30,7 @@ def cylcoords(
     y: np.ndarray,
     origin: np.ndarray,
     theta0: Union[float, np.ndarray],
+    lent: int,
 ) -> Tuple:
     """Calculate the cylindrical coordinates out of X, Y, Z, an origin and theta0.
 
@@ -37,36 +40,54 @@ def cylcoords(
     In other words, these are the spacial coordinates for a specific time frame and all
     relevant short axis slices (typically there will be 8 of them)."""
 
-    org = validate_origin(origin, len(z))
-    th0 = validate_theta0(theta0, len(z))
+    org = validate_origin(origin, len(z), lent)
+    th0 = validate_theta0(theta0, len(z), lent)
 
-    zz, xx, yy = np.meshgrid(z, x, y, indexing="ij")
-    xx -= org[:, -2:-1, None]
-    yy -= org[:, -1:, None]
+    coords = np.meshgrid(z, x, y, indexing="ij")
+    zz, xx, yy = (np.tile(c, (lent, 1, 1, 1)) for c in coords)
+    xx -= org[:, :, -2:-1, None]
+    yy -= org[:, :, -1:, None]
     r = np.sqrt(xx ** 2 + yy ** 2)
-    theta = np.arctan2(yy, xx) - th0[:, None, None]
+    theta = np.arctan2(yy, xx) - th0[:, :, None, None]
     return zz, r, theta
 
 
-def validate_origin(origin: np.ndarray, lenz: int):
+def validate_origin(origin: np.ndarray, lenz: int, lent: int):
     """Validates the shape of the origin array."""
 
-    msg = "Origin must be a 1D array of length 2 or a 2D array of shape (len(z), 2)"
+    msg = (
+        f"Origin must be a 1D array of length 2, a 2D array of shape ({lenz}, 2) or"
+        f"({lent}, 2) or a 3D array of shape ({lent}, {lenz}, 2)"
+    )
     if origin.shape == (2,):
-        return np.tile(origin, (lenz, 1))
+        return np.tile(origin, (lent, lenz, 1))
     elif origin.shape == (lenz, 2):
+        return np.tile(origin, (lent, 1, 1))
+    elif origin.shape == (lent, 2):
+        return np.tile(origin, (lenz, 1, 1)).transpose((1, 0, 2))
+    elif origin.shape == (lent, lenz, 2):
         return origin
     else:
         raise ValueError(msg)
 
 
-def validate_theta0(theta0: Union[float, np.ndarray], lenz: int):
+def validate_theta0(theta0: Union[float, np.ndarray], lenz: int, lent: int):
     """Validates the shape of the theta0 array."""
     if isinstance(theta0, np.ndarray):
-        assert theta0.shape == (lenz,), f"If an array, theta0 must have shape {(lenz,)}"
-        return theta0
+        msg = (
+            f"If an array, theta0 must have shape ({lenz},), ({lent},) or "
+            f"({lent}, {lenz})"
+        )
+        if theta0.shape == (lenz,):
+            return np.tile(theta0, (lent, 1))
+        elif theta0.shape == (lent,):
+            return np.tile(theta0, (lenz, 1)).T
+        elif theta0.shape == (lent, lenz):
+            return theta0
+        else:
+            raise ValueError(msg)
     else:
-        return np.array([theta0] * lenz)
+        return np.full((lent, lenz), theta0)
 
 
 def masked_reduction(data: np.ndarray, *masks: np.ndarray, axis: tuple) -> np.ndarray:
@@ -214,3 +235,30 @@ def masked_expansion(
         data[condition] = (values * condition)[condition]
 
     return MaskedArray(data, ~np.all(masks, axis=0))
+
+
+def prepare_coordinates(
+    data: DICOMReaderBase, zero_angle: np.ndarray, datasets: Tuple[str]
+):
+    """Prepares the arrays to calculate the strain."""
+    lenz = len(datasets)
+    lent, lenx, leny = data.mag(datasets[0]).shape
+
+    z_location = np.zeros(lenz)
+    t_interval = np.zeros(lenz)
+    theta0 = np.zeros((lent, lenz))
+    origin = np.zeros((lent, lenz, 2))
+
+    for i, d in enumerate(datasets):
+        z_location[i] = data.slice_loc(d)
+        t_interval[i] = data.time_interval(d)
+
+        theta0[:, i] = find_theta0(zero_angle[d])
+        origin[:, i, :] = zero_angle[d][:, :, 1]
+
+    px_size = data.time_interval(datasets[0])
+    z, x, y = cartcoords((lenz, lenx, leny), z_location, px_size, px_size)
+    zz, r, theta = cylcoords(z, x, y, origin, theta0, lent)
+    time = np.linspace(0, t_interval * lent, lent)
+
+    return time, zz, r, theta

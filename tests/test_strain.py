@@ -10,7 +10,7 @@ def test_cartcoords():
     expected = cartcoords(shape, *size)
     for i, v in enumerate(expected):
         assert len(v) == shape[i]
-        assert max(v) == size[i] * shape[i]
+        assert np.diff(v) == approx(size[i])
 
     zsize = np.random.rand(shape[0])
     expected = cartcoords(shape, zsize, size[1], size[2])
@@ -23,19 +23,18 @@ def test_cylcoords():
     import numpy as np
 
     shape = tuple(np.random.randint(2, 6, 3))
+    shape = shape + (shape[-1],)
     size = np.random.rand(3) * 10
-    z, x, y = cartcoords(shape, *size)
+    z, x, y = cartcoords(shape[1:], *size)
     origin = np.array([x.mean(), y.mean()])
     theta0 = np.random.rand() * np.pi * 2
 
-    zz, r, theta = cylcoords(z, x, y, origin, theta0)
-    assert zz - z[:, None, None] == approx(np.zeros_like(zz))
+    zz, r, theta = cylcoords(z, x, y, origin, theta0, shape[0])
+    assert zz - z[None, :, None, None] == approx(np.zeros_like(zz))
     assert r * np.cos(theta + theta0) + origin[-2] == approx(
-        np.tile(x, (shape[0], shape[2], 1)).transpose((0, 2, 1))
+        np.broadcast_to(x, shape).transpose((0, 1, 3, 2))
     )
-    assert r * np.sin(theta + theta0) + origin[-1] == approx(
-        np.tile(y, (shape[0], shape[1], 1))
-    )
+    assert r * np.sin(theta + theta0) + origin[-1] == approx(np.broadcast_to(y, shape))
 
 
 def test_validate_origin():
@@ -44,16 +43,17 @@ def test_validate_origin():
 
     origin = np.random.rand(2)
     lenz = np.random.randint(10)
-    expected = np.tile(origin, (lenz, 1))
+    lent = np.random.randint(10)
+    expected = np.tile(origin, (lent, lenz, 1))
 
-    assert validate_origin(origin, lenz) == approx(expected)
-    assert validate_origin(expected, lenz) == approx(expected)
+    assert validate_origin(origin, lenz, lent) == approx(expected)
+    assert validate_origin(expected, lenz, lent) == approx(expected)
     with raises(ValueError):
-        validate_origin(origin[1:], lenz)
+        validate_origin(origin[1:], lenz, lent)
     with raises(ValueError):
-        validate_origin(expected, 100)
+        validate_origin(expected, 100, lent)
     with raises(ValueError):
-        validate_origin(np.zeros((1, 1, 1)), lenz)
+        validate_origin(np.zeros((1, 1, 1)), lenz, lent)
 
 
 def test_validate_theta0():
@@ -62,9 +62,12 @@ def test_validate_theta0():
 
     theta0 = np.random.rand()
     lenz = np.random.randint(10)
-    expected = np.array([theta0] * lenz)
+    lent = np.random.randint(10)
+    expected = np.full((lent, lenz), theta0)
 
-    assert validate_theta0(theta0, lenz) == approx(expected)
-    assert validate_theta0(expected, lenz) == approx(expected)
-    with raises(AssertionError):
-        validate_theta0(expected, 100)
+    assert validate_theta0(theta0, lenz, lent) == approx(expected)
+    assert validate_theta0(np.full(lenz, theta0), lenz, lent) == approx(expected)
+    assert validate_theta0(np.full(lent, theta0), lenz, lent) == approx(expected)
+    assert validate_theta0(expected, lenz, lent) == approx(expected)
+    with raises(ValueError):
+        validate_theta0(expected, 100, lent)
