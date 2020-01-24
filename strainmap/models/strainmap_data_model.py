@@ -119,7 +119,7 @@ class StrainMapData(object):
         from .velocities import calculate_velocities
 
         # If there is no data paths yet, we postpone the regeneration.
-        if self.data_files is None:
+        if self.data_files == ():
             return
 
         for dataset, markers in self.markers.items():
