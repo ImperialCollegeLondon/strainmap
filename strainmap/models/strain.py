@@ -1,6 +1,6 @@
 import numpy as np
 from itertools import product
-from typing import Tuple, Union
+from typing import Tuple, Union, Dict
 
 from .readers import DICOMReaderBase
 from .velocities import find_theta0
@@ -238,9 +238,14 @@ def masked_expansion(
 
 
 def prepare_coordinates(
-    data: DICOMReaderBase, zero_angle: np.ndarray, datasets: Tuple[str]
+    data: DICOMReaderBase, zero_angle: Dict[str, np.ndarray], datasets: Tuple[str]
 ):
-    """Prepares the arrays to calculate the strain."""
+    """Prepares the coordinate arrays to calculate the strain.
+
+    Returns:
+        - time - Array with shape (time, z)
+        - space - Array with shape (component, z, r, theta)
+    """
     lenz = len(datasets)
     lent, lenx, leny = data.mag(datasets[0]).shape
 
@@ -257,8 +262,44 @@ def prepare_coordinates(
         origin[:, i, :] = zero_angle[d][:, :, 1]
 
     px_size = data.time_interval(datasets[0])
-    z, x, y = cartcoords((lenz, lenx, leny), z_location, px_size, px_size)
+    z = z_location - z_location[0]
+    x = np.linspace(0, px_size * lenx, lenx, endpoint=False)
+    y = np.linspace(0, px_size * leny, leny, endpoint=False)
     zz, r, theta = cylcoords(z, x, y, origin, theta0, lent)
     time = np.linspace(0, t_interval * lent, lent)
 
-    return time, zz, r, theta
+    return time, np.array([zz, r, theta])
+
+
+def prepare_masks_and_velocities(
+    masks: Dict[str, Dict[str : np.ndarray]],
+    datasets: Tuple[str],
+    nrad: int = 3,
+    nang: int = 24,
+    background: str = "Estimated",
+):
+    """Prepare the masks and cylindrical velocities to be used in strain calculation.
+
+    Returns:
+        - velocities - Array with shape (component, time, z, r, theta)
+        - radial masks - Array with shape (time, z, r, theta)
+        - angular masks - Array with shape (time, z, r, theta)
+    """
+    vkey = f"cylindrical - {background}"
+    rkey = f"radial x{nrad} - {background}"
+    akey = f"angular x{nang} - {background}"
+
+    vel = []
+    radial = []
+    angular = []
+
+    for i, d in enumerate(datasets):
+        vel.append(masks[d][vkey])
+        radial.append(masks[d][rkey])
+        angular.append(masks[d][akey])
+
+    vel = np.array(vel).transpose((1, 2, 0, 3, 4))
+    radial = np.array(radial).transpose((1, 0, 2, 3))
+    angular = np.array(angular).transpose((1, 0, 2, 3))
+
+    return vel, radial, angular
