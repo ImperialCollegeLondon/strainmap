@@ -1,4 +1,5 @@
 from pytest import approx, raises
+from unittest.mock import MagicMock
 
 
 def test_cartcoords():
@@ -71,3 +72,44 @@ def test_validate_theta0():
     assert validate_theta0(expected, lenz, lent) == approx(expected)
     with raises(ValueError):
         validate_theta0(expected, 100, lent)
+
+
+def test_prepare_coordinates():
+    from strainmap.models.readers import DICOM
+    from strainmap.models.strain import prepare_coordinates
+    import numpy as np
+
+    datasets = ("Venus", "Earth", "Mars", "Jupyter")
+    lenz = len(datasets)
+    zval = np.arange(lenz) + np.random.randint(5, 10)
+    tval = np.random.random(lenz)
+    px_size = np.random.random()
+    lent, lenx, leny = np.random.randint(5, 10, 3)
+
+    data = DICOM(dict())
+    data.slice_loc = MagicMock(side_effect=zval)
+    data.time_interval = MagicMock(side_effect=tval)
+    data.pixel_size = MagicMock(return_value=px_size)
+    data.mag = MagicMock(return_value=np.zeros((lent, lenx, leny)))
+    zero_angle = {k: np.zeros((lent, 2, 2)) for k in datasets}
+
+    time, space = prepare_coordinates(data, zero_angle, datasets)
+
+    # Checks for the time array
+    assert time.shape == (lent, lenz)
+    assert np.gradient(time, axis=0) - tval == approx(np.zeros_like(time))
+
+    # Checks for the space
+    assert space.shape == (3, lent, lenz, lenx, leny)
+    for i in range(space.shape[0]):
+        assert space[i].min() == 0
+
+    for i, val in enumerate([0, 1, 0, 0]):
+        assert np.gradient(space[0], axis=i) == approx(val)
+
+    r, theta = space[1], space[2]
+    for i, val in enumerate([0, 0, px_size, 0]):
+        assert np.gradient(r * np.cos(theta), axis=i) == approx(val)
+
+    for i, val in enumerate([0, 0, 0, px_size]):
+        assert np.gradient(r * np.sin(theta), axis=i) == approx(val)

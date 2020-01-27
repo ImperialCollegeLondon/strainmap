@@ -238,7 +238,7 @@ def masked_expansion(
 
 
 def prepare_coordinates(
-    data: DICOMReaderBase, zero_angle: Dict[str, np.ndarray], datasets: Tuple[str]
+    data: DICOMReaderBase, zero_angle: Dict[str, np.ndarray], datasets: Tuple[str, ...]
 ):
     """Prepares the coordinate arrays to calculate the strain.
 
@@ -261,18 +261,18 @@ def prepare_coordinates(
         theta0[:, i] = find_theta0(zero_angle[d])
         origin[:, i, :] = zero_angle[d][:, :, 1]
 
-    px_size = data.time_interval(datasets[0])
+    px_size = data.pixel_size(datasets[0])
     z = z_location - z_location[0]
     x = np.linspace(0, px_size * lenx, lenx, endpoint=False)
     y = np.linspace(0, px_size * leny, leny, endpoint=False)
     zz, r, theta = cylcoords(z, x, y, origin, theta0, lent)
-    time = np.linspace(0, t_interval * lent, lent)
+    time = np.linspace(0, t_interval * lent, lent, endpoint=False)
 
     return time, np.array([zz, r, theta])
 
 
 def prepare_masks_and_velocities(
-    masks: Dict[str, Dict[str : np.ndarray]],
+    masks: Dict[str, Dict[str, np.ndarray]],
     datasets: Tuple[str],
     nrad: int = 3,
     nang: int = 24,
