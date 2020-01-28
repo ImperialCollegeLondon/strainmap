@@ -1,5 +1,6 @@
 from pytest import approx, raises
 from unittest.mock import MagicMock
+from typing import Dict
 
 
 def test_cartcoords():
@@ -113,3 +114,28 @@ def test_prepare_coordinates():
 
     for i, val in enumerate([0, 0, 0, px_size]):
         assert np.gradient(r * np.sin(theta), axis=i) == approx(val)
+
+
+def test_prepare_masks_and_velocities():
+    from strainmap.models.strain import prepare_masks_and_velocities
+    import numpy as np
+
+    background = "Estimated"
+    nrad = 3
+    nang = 24
+    masks: Dict[str, Dict] = {"Venus": {}, "Earth": {}, "Mars": {}, "Jupyter": {}}
+    keys = [
+        f"cylindrical - {background}",
+        f"radial x{nrad} - {background}",
+        f"angular x{nang} - {background}",
+    ]
+    shape = tuple(np.random.randint(5, 10, 3))
+    shapes = [(3,) + shape, shape, shape]
+
+    for d in masks.keys():
+        masks[d] = {k: np.random.rand(*s) for k, s in zip(keys, shapes)}
+
+    vel, radial, angular = prepare_masks_and_velocities(masks, tuple(masks.keys()))
+
+    assert vel.shape == (3, shape[0], len(masks), shape[1], shape[2])
+    assert radial.shape == angular.shape == (shape[0], len(masks), shape[1], shape[2])
