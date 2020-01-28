@@ -15,7 +15,6 @@ from typing import (
     Tuple,
     Union,
     NoReturn,
-    Type,
 )
 from abc import ABC, abstractmethod
 from functools import lru_cache
@@ -390,7 +389,7 @@ def register_dicom_reader(reader_class):
     return reader_class
 
 
-def read_folder(path: Union[Path, Text, None]) -> Optional[Type[DICOMReaderBase]]:
+def read_folder(path: Union[Path, Text, None]) -> Optional[DICOMReaderBase]:
     """Find a reader appropriate to read the contents of the given folder."""
     for r in DICOM_READERS:
         if r.belongs(path):

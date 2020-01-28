@@ -4,6 +4,7 @@ from typing import Tuple, Union, Dict
 
 from .readers import DICOMReaderBase
 from .velocities import find_theta0
+from .strainmap_data_model import StrainMapData
 
 
 def cartcoords(shape: tuple, *sizes: Union[float, np.ndarray]) -> Tuple:
@@ -273,7 +274,7 @@ def prepare_coordinates(
 
 def prepare_masks_and_velocities(
     masks: Dict[str, Dict[str, np.ndarray]],
-    datasets: Tuple[str],
+    datasets: Tuple[str, ...],
     nrad: int = 3,
     nang: int = 24,
     background: str = "Estimated",
@@ -303,3 +304,22 @@ def prepare_masks_and_velocities(
     angular = np.array(angular).transpose((1, 0, 2, 3))
 
     return vel, radial, angular
+
+
+def calculate_strain(data: StrainMapData, datasets: Tuple[str, ...]):
+    """Calculates the strain and updates the Data object with the result."""
+    time, space = prepare_coordinates(data.data_files, data.zero_angle, datasets)
+    vel, radial, angular = prepare_masks_and_velocities(data.masks, datasets)
+    reduced_vel = masked_reduction(vel, radial, angular, axis=vel.shape[-2:])
+    reduced_space = masked_reduction(space, radial, angular, axis=space.shape[-2:])
+    reduced_strain = differentiate(reduced_vel, reduced_space, time)
+    strain = masked_expansion(reduced_strain, radial, angular, axis=vel.shape[-2:])
+    data.strain = calculate_regional_strain(strain, data.masks, datasets)
+
+
+def differentiate(reduced_vel, reduced_space, time) -> np.ndarray:
+    """Calculate the strain out of the velocity data."""
+
+
+def calculate_regional_strain(strain, masks, datasets) -> Dict:
+    """Calculate the regional strains (1D curves)."""
