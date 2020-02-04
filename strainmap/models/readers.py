@@ -279,9 +279,8 @@ class DICOMReaderBase(ABC):
     """Base class for all the DICOM file readers"""
 
     @property
-    @classmethod
     @abstractmethod
-    def vars(cls) -> dict:
+    def vars(self) -> dict:
         """Equivalence between general var names and actual ones.
 
         eg. [Mag, PhaseX, PhaseY, PhaseZ] -> [MagZ, PhaseX, PhaseY, PhaseZ]"""
