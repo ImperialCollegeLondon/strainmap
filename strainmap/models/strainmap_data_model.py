@@ -63,7 +63,9 @@ class StrainMapData(object):
         """Creates a new StrainMap data object from a h5 file.
         TODO Adapt to the new DICOM reader."""
         assert Path(strainmap_file).is_file()
-        result = read_strainmap_file(cls.from_folder(), strainmap_file)
+        attributes = read_strainmap_file(cls.stored, strainmap_file)
+        result = cls.from_folder()
+        result.__dict__.update(attributes)
         result.regenerate()
         return result
 

@@ -200,7 +200,9 @@ def test_read_h5_file(tmpdir, segmented_data):
     abs_paths = segmented_data.data_files.files[dataset_name]["MagX"]
 
     write_hdf5_file(segmented_data, filename)
-    new_data = read_h5_file(StrainMapData.from_folder(), filename)
+    attributes = read_h5_file(StrainMapData.stored, filename)
+    new_data = StrainMapData.from_folder()
+    new_data.__dict__.update(attributes)
 
     if str(filename)[0] != abs_paths[0][0]:
         assert segmented_data != new_data
