@@ -1,5 +1,5 @@
 from itertools import product
-from typing import Dict, Sequence, Text, Tuple, Union
+from typing import Callable, Dict, Optional, Sequence, Text, Tuple, Union
 
 import numpy as np
 
@@ -337,13 +337,12 @@ def gridded_ring(
 
     Example:
 
-        >>> import numpy as np
-        >>> from pytest import approx
-        >>> from strainmap.models.strain import gridded_ring
-
         if ``mode=="cartesian"`` (default), then the points are returned in cartesian
         coordinates.
 
+        >>> import numpy as np
+        >>> from pytest import approx
+        >>> from strainmap.models.strain import gridded_ring
         >>> coords = gridded_ring((3, 4), ntheta=4, nr=3)
 
         The coordinates first iterate over the rods.
@@ -367,7 +366,7 @@ def gridded_ring(
         >>> assert coords[2] == approx([4, 0])
         >>> assert coords[3] == approx([3, 2 * np.pi / 4])
     """
-    if mode.lower() not in {"cartesian", "cylindrical"}:
+    if mode.lower() not in {"cartesian", "cylindrical", "ocylindrical"}:
         raise ValueError("Expected either 'cartesian' or 'cylindrical'")
     rs = np.linspace(start=min(*radii), stop=max(*radii), num=nr, endpoint=True,)
     thetas = np.linspace(start=0, stop=2 * np.pi, num=ntheta, endpoint=False) + theta0
@@ -382,6 +381,119 @@ def gridded_ring(
         ),
         axis=2,
     ).reshape(-1, 2)
+
+
+def inplane_strain_rate(
+    velocities: np.ndarray,
+    component_axis: int = 0,
+    spline: Optional[Callable] = None,
+    origin: Sequence[float] = (0, 0),
+    theta0: Optional[float] = None,
+    **kwargs,
+):
+    """Stain rate for a single image.
+
+    Computes the strain rate for a single MRI image. The image can be masked, in which
+    case velocities outside the mask are not taken into account.
+
+    The strain is obtained by first creating an interpolating spline and then taking
+    it's derivatives.
+
+    Parameters:
+        velocities: velocities with x and y components on the `component_axis`. Can also
+            be a masked array.
+        component_axis: axis of the x and y components of the velocities.
+        spline: Function from which to create an interpolation object. Defaults to
+            SmoothBivariateSpline for masked arrays and RectBivariateSpline otherwise.
+        origin: Origin of the cylindrical coordinate system. If `theta0` is not given,
+            then this parameter is ignored and the strain is returned in cartesian
+            coordinates.
+        theta0: If None, then the strain is returned in cartesian coordinates.
+            Otherwise, it is returned in cylindrical coordinates with this angle as the
+            reference.
+        **kwargs: passed on the spline function.
+
+
+    .. note::
+        In the context of the MRI velocities, the instantaneous strain and the strain
+        rate differ only by a factor equal to the time-step.
+
+    Example:
+
+        Let's first try without a mask and in cartesian coordinates. We create a linear
+        velocity field, i.e. a field with a constant strain.
+
+        >>> from pytest import approx
+        >>> import numpy as np
+        >>> from strainmap.models.strain import inplane_strain_rate
+        >>> velocities = np.array(
+        ...     [[[i * 0.1 + 0.2 * j, -0.4 * i] for i in range(10)] for j in range(12)]
+        ... )
+        >>> xx, yy = inplane_strain_rate(velocities, component_axis=-1)
+        >>> assert xx == approx(0.2)
+        >>> assert yy == approx(-0.4)
+
+        Now, lets add a mask and compute the strain in cylindrical coordinates. We
+        create a mask centered (arbitrarily) at (5, 5.1) which removes from
+        consideration anything outside a ring. We also create a simple velocity field
+        with a constant strain in cylindrical coordinates.
+
+        >>> cart_index = np.mgrid[:12,:10] - np.array((5, 5.1))[:, None, None]
+        >>> r = np.linalg.norm(cart_index, axis=0)
+        >>> theta = np.arctan2(*cart_index[::-1])
+        >>> v_r = velocities[..., 0]
+        >>> v_theta = velocities[..., 1]
+        >>> velocities = (
+        ...     v_r * np.cos(theta) - r * v_theta * np.sin(theta),
+        ...     v_r * np.sin(theta) + r * v_theta * np.cos(theta),
+        ... )
+        >>> mask = np.logical_and(r > 1.5, r < 5)
+        >>> rr, tt = inplane_strain_rate(velocities, theta0=0)
+
+        ?
+    """
+    from scipy.interpolate import SmoothBivariateSpline, RectBivariateSpline
+
+    vx = np.take(velocities, 0, component_axis)
+    vy = np.take(velocities, 1, component_axis)
+    is_masked = hasattr(velocities, "mask")
+    if not is_masked:
+        points = np.ogrid[range(vx.shape[0]), range(vx.shape[1])]
+        spline = spline or RectBivariateSpline
+    else:
+        points = velocities.nonzer()
+        vx = vx[points[0], points[1]]
+        vy = vx[points[0], points[1]]
+        spline = spline or SmoothBivariateSpline
+
+    spline_x = spline(*points, vx, **kwargs)
+    spline_y = spline(*points, vy, **kwargs)
+
+    gradxx = spline_x(*points, dx=1, grid=False)
+    gradyy = spline_y(*points, dy=1, grid=False)
+
+    if theta0 is not None:
+        gradxy = spline_x(*points, dy=1, grid=False) + spline_y(
+            *points, dx=1, grid=False
+        )
+        thetas = np.arctan2(*((points.T - origin).T[::-1])) - theta0
+        cthet = np.cos(thetas)
+        sthet = np.sin(thetas)
+        grad00 = (
+            gradxx * cthet * cthet + gradyy * sthet * sthet + gradxy * cthet * sthet
+        )
+        grad11 = gradxx + gradyy - grad00
+    else:
+        grad00 = gradxx
+        grad11 = gradyy
+
+    if is_masked:
+        withmask = np.zeros_like(vx)
+        withmask[~withmask.mask] = grad00
+        grad00 = withmask.copy()
+        withmask[~withmask.mask] = grad11
+        grad11 = withmask
+    return grad00, grad11
 
 
 def differentiate(reduced_vel, reduced_space, time) -> np.ndarray:
