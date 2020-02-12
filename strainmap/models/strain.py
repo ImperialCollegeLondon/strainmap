@@ -1,18 +1,19 @@
-import numpy as np
 from itertools import product
-from typing import Tuple, Union, Dict
+from typing import Dict, Sequence, Text, Tuple, Union
+
+import numpy as np
 
 from .readers import DICOMReaderBase
-from .velocities import find_theta0
 from .strainmap_data_model import StrainMapData
+from .velocities import find_theta0
 
 
 def cartcoords(shape: tuple, *sizes: Union[float, np.ndarray]) -> Tuple:
     """Create cartesian coordinates of the given shape based on the pixel sizes.
 
     sizes can be an scalar indicating the step value of the coordinate in the given
-    dimension, or an array already indicating the positions. In the later case,
-    these are shifted so the coordinate starts at 0.
+    dimension, or an array already indicating the positions. In the later case, these
+    are shifted so the coordinate starts at 0.
     """
     assert len(shape) == len(sizes)
 
@@ -39,7 +40,8 @@ def cylcoords(
     might depend on time (different frames/cines), not on Z (different heart slices).
 
     In other words, these are the spacial coordinates for a specific time frame and all
-    relevant short axis slices (typically there will be 8 of them)."""
+    relevant short axis slices (typically there will be 8 of them).
+    """
 
     org = validate_origin(origin, len(z), lent)
     th0 = validate_theta0(theta0, len(z), lent)
@@ -315,6 +317,71 @@ def calculate_strain(data: StrainMapData, datasets: Tuple[str, ...]):
     reduced_strain = differentiate(reduced_vel, reduced_space, time)
     strain = masked_expansion(reduced_strain, radial, angular, axis=vel.shape[-2:])
     data.strain = calculate_regional_strain(strain, data.masks, datasets)
+
+
+def gridded_ring(
+    radii: Union[Tuple[float, float], Sequence[float]],
+    ntheta: int = 50,
+    nr: int = 20,
+    origin: Sequence[float] = (0, 0),
+    theta0: float = 0,
+    mode: Text = "cartesian",
+) -> np.ndarray:
+    """Regular grid of a ring.
+
+    Returns a (n, 2) array of coordinates corresponding to the points of a cylindrical
+    grid within the given radii. The angular part of the grid starts at ``theta0``, so
+    that different slices with different ``theta0`` are aligned (e.g. the angle of point
+    0 on one slice corresponds
+    to theta0).
+
+    Example:
+
+        >>> import numpy as np
+        >>> from pytest import approx
+        >>> from strainmap.models.strain import gridded_ring
+
+        if ``mode=="cartesian"`` (default), then the points are returned in cartesian
+        coordinates.
+
+        >>> coords = gridded_ring((3, 4), ntheta=4, nr=3)
+
+        The coordinates first iterate over the rods.
+
+        >>> assert coords[0] == approx([3, 0])
+        >>> assert coords[1] == approx([3.5, 0])
+        >>> assert coords[2] == approx([4, 0])
+
+        Once a rod is done, the next one starts.
+
+        >>> coords[3] == approx([3 * np.cos(2 * np.pi / 4), 3 * np.sin(2 * np.pi / 4)])
+        True
+
+        If `mode=="cylindrical"`, then the points are returned in cylindrical
+        coordinates, with the radius corresponding to the first component, and the angle
+        to the second:
+
+        >>> coords = gridded_ring((3, 4), ntheta=4, nr=3, mode="cylindrical")
+        >>> assert coords[0] == approx([3, 0])
+        >>> assert coords[1] == approx([3.5, 0])
+        >>> assert coords[2] == approx([4, 0])
+        >>> assert coords[3] == approx([3, 2 * np.pi / 4])
+    """
+    if mode.lower() not in {"cartesian", "cylindrical"}:
+        raise ValueError("Expected either 'cartesian' or 'cylindrical'")
+    rs = np.linspace(start=min(*radii), stop=max(*radii), num=nr, endpoint=True,)
+    thetas = np.linspace(start=0, stop=2 * np.pi, num=ntheta, endpoint=False) + theta0
+    if mode.lower() == "cartesian":
+        x = (rs[None, :] * np.cos(thetas)[:, None]).reshape(-1, 1)
+        y = (rs[None, :] * np.sin(thetas)[:, None]).reshape(-1, 1)
+        return np.array(origin) + np.concatenate((x, y), axis=1)
+    return np.concatenate(
+        (
+            np.repeat(rs[None, :, None], len(thetas), axis=0),
+            np.repeat(thetas[:, None, None], len(rs), axis=1),
+        ),
+        axis=2,
+    ).reshape(-1, 2)
 
 
 def differentiate(reduced_vel, reduced_space, time) -> np.ndarray:
