@@ -429,28 +429,31 @@ def inplane_strain_rate(
         >>> velocities = np.array(
         ...     [[[i * 0.1 + 0.2 * j, -0.4 * i] for i in range(10)] for j in range(12)]
         ... )
-        >>> xx, yy = inplane_strain_rate(velocities, component_axis=-1)
-        >>> assert xx == approx(0.2)
-        >>> assert yy == approx(-0.4)
+        >>> strain = inplane_strain_rate(velocities, component_axis=-1)
+        >>> assert strain[..., 0] == approx(0.2)
+        >>> assert strain[..., 1] == approx(-0.4)
 
-        Now, lets add a mask and compute the strain in cylindrical coordinates. We
-        create a mask centered (arbitrarily) at (5, 5.1) which removes from
-        consideration anything outside a ring. We also create a simple velocity field
-        with a constant strain in cylindrical coordinates.
+        Now, lets add a mask and compute the strain in cylindrical coordinates. We also
+        create a simple vortex with no radial velocity and 1/r angular velocity. The
+        mask removes consideration outside of a ring centered on the vortex. It also
+        removes the vortex itself from consideration. We expect the diagonal strain
+        components to be almost zero (only the shear strain - which is not computed here
+        - is nonzero).
 
-        >>> cart_index = np.mgrid[:12,:10] - np.array((5, 5.1))[:, None, None]
+        >>> origin = np.array((60.5, 50.5))
+        >>> cart_index = np.mgrid[:120,:100] - origin[:, None, None]
         >>> r = np.linalg.norm(cart_index, axis=0)
         >>> theta = np.arctan2(*cart_index[::-1])
-        >>> v_r = velocities[..., 0]
-        >>> v_theta = velocities[..., 1]
-        >>> velocities = (
-        ...     v_r * np.cos(theta) - r * v_theta * np.sin(theta),
-        ...     v_r * np.sin(theta) + r * v_theta * np.cos(theta),
+        >>> v_theta = 1 / (r + 1)
+        >>> velocities = np.ma.array(
+        ...     (-v_theta * np.sin(theta), v_theta * np.cos(theta)),
+        ...     mask = np.repeat(np.logical_or(r < 15, r > 50)[None], 2, 0),
         ... )
-        >>> mask = np.logical_and(r > 1.5, r < 5)
-        >>> rr, tt = inplane_strain_rate(velocities, theta0=0)
+        >>> strain = inplane_strain_rate(velocities, theta0=0, origin=origin)
+        >>> assert np.abs(strain.max()) < 1e-3
 
-        ?
+        Increasing the size of the grid yields better results (e.g. the bound on the
+        strain is lower).
     """
     from scipy.interpolate import SmoothBivariateSpline, RectBivariateSpline
 
@@ -461,39 +464,43 @@ def inplane_strain_rate(
         points = np.ogrid[range(vx.shape[0]), range(vx.shape[1])]
         spline = spline or RectBivariateSpline
     else:
-        points = velocities.nonzer()
-        vx = vx[points[0], points[1]]
-        vy = vx[points[0], points[1]]
+        assert (vx.mask == vy.mask).all()
+        points = (~vx.mask).nonzero()
+        vx = vx[points[0], points[1]].data
+        vy = vy[points[0], points[1]].data
         spline = spline or SmoothBivariateSpline
 
     spline_x = spline(*points, vx, **kwargs)
     spline_y = spline(*points, vy, **kwargs)
 
-    gradxx = spline_x(*points, dx=1, grid=False)
-    gradyy = spline_y(*points, dy=1, grid=False)
+    grad00 = spline_x(*points, dx=1, grid=False)
+    grad11 = spline_y(*points, dy=1, grid=False)
 
+    # Transform to cartesian coordinates
     if theta0 is not None:
-        gradxy = spline_x(*points, dy=1, grid=False) + spline_y(
+        grad01 = spline_x(*points, dy=1, grid=False) + spline_y(
             *points, dx=1, grid=False
         )
-        thetas = np.arctan2(*((points.T - origin).T[::-1])) - theta0
+        thetas = np.arctan2(points[1] - origin[1], points[0] - origin[0]) - theta0
         cthet = np.cos(thetas)
         sthet = np.sin(thetas)
-        grad00 = (
-            gradxx * cthet * cthet + gradyy * sthet * sthet + gradxy * cthet * sthet
+        gradrr = (
+            grad00 * cthet * cthet + grad11 * sthet * sthet + grad01 * cthet * sthet
         )
-        grad11 = gradxx + gradyy - grad00
-    else:
-        grad00 = gradxx
-        grad11 = gradyy
+        gradtt = grad00 + grad11 - gradrr
+        grad00 = np.zeros_like(np.take(velocities, 0, component_axis))
+        grad00[points[0], points[1]] = gradrr
+        grad11 = np.zeros_like(grad00)
+        grad11[points[0], points[1]] = gradtt
 
-    if is_masked:
-        withmask = np.zeros_like(vx)
-        withmask[~withmask.mask] = grad00
-        grad00 = withmask.copy()
-        withmask[~withmask.mask] = grad11
-        grad11 = withmask
-    return grad00, grad11
+    # Creates an array similar to original with diagonal stress components
+    result = np.zeros_like(velocities)
+    indices = [slice(i) for i in result.shape]
+    indices[component_axis] = 0  # type: ignore
+    result[tuple(indices)] = grad00
+    indices[component_axis] = 1  # type: ignore
+    result[tuple(indices)] = grad11
+    return result
 
 
 def differentiate(reduced_vel, reduced_space, time) -> np.ndarray:
