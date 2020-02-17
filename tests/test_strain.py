@@ -1,6 +1,7 @@
-from pytest import approx, raises
-from unittest.mock import MagicMock
 from typing import Dict
+from unittest.mock import MagicMock
+
+from pytest import approx, raises
 
 
 def test_cartcoords():
@@ -88,9 +89,9 @@ def test_prepare_coordinates():
     lent, lenx, leny = np.random.randint(5, 10, 3)
 
     data = DICOM(dict())
-    data.slice_loc = MagicMock(side_effect=zval)
-    data.time_interval = MagicMock(side_effect=tval)
-    data.pixel_size = MagicMock(return_value=px_size)
+    data.slice_loc = MagicMock(side_effect=zval)  # type: ignore
+    data.time_interval = MagicMock(side_effect=tval)  # type: ignore
+    data.pixel_size = MagicMock(return_value=px_size)  # type: ignore
     data.mag = MagicMock(return_value=np.zeros((lent, lenx, leny)))
     zero_angle = {k: np.zeros((lent, 2, 2)) for k in datasets}
 
@@ -139,3 +140,13 @@ def test_prepare_masks_and_velocities():
 
     assert vel.shape == (3, shape[0], len(masks), shape[1], shape[2])
     assert radial.shape == angular.shape == (shape[0], len(masks), shape[1], shape[2])
+
+
+def test_inplane_computatins(segmented_data):
+    from strainmap.models.strain import calculate_inplane_strain
+
+    strain = calculate_inplane_strain(
+        segmented_data, datasets=segmented_data.data_files.datasets[:1]
+    )
+    assert set(strain) == set(segmented_data.data_files.datasets[:1])
+    assert strain[segmented_data.data_files.datasets[0]].shape == (2, 3, 512, 512)

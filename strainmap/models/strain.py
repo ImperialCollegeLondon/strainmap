@@ -1,5 +1,5 @@
 from itertools import product
-from typing import Callable, Dict, Optional, Sequence, Tuple, Union
+from typing import Callable, Dict, Optional, Sequence, Text, Tuple, Union
 
 import numpy as np
 
@@ -308,15 +308,50 @@ def prepare_masks_and_velocities(
     return vel, radial, angular
 
 
-def calculate_strain(data: StrainMapData, datasets: Tuple[str, ...]):
+def calculate_inplane_strain(
+    data: StrainMapData,
+    angular_regions: Sequence[int] = (),
+    radial_regions: Sequence[int] = (),
+    bg: str = "Estimated",
+    sign_reversal: Tuple[bool, ...] = (False, False, False),
+    datasets: Optional[Sequence[Text]] = None,
+) -> Dict[Text, np.ndarray]:
     """Calculates the strain and updates the Data object with the result."""
-    time, space = prepare_coordinates(data.data_files, data.zero_angle, datasets)
-    vel, radial, angular = prepare_masks_and_velocities(data.masks, datasets)
-    reduced_vel = masked_reduction(vel, radial, angular, axis=vel.shape[-2:])
-    reduced_space = masked_reduction(space, radial, angular, axis=space.shape[-2:])
-    reduced_strain = differentiate(reduced_vel, reduced_space, time)
-    strain = masked_expansion(reduced_strain, radial, angular, axis=vel.shape[-2:])
-    data.strain = calculate_regional_strain(strain, data.masks, datasets)
+    from strainmap.models.velocities import scale_phase, global_masks_and_origin
+
+    swap, signs = data.data_files.orientation
+    if datasets is None:
+        datasets = list(data.data_files.files)
+
+    result: Dict[Text, np.ndarray] = {}
+    for dataset in datasets:
+        phases = scale_phase(data, dataset, bg, swap, sign_reversal)
+        mask, origin = global_masks_and_origin(
+            outer=data.segments[dataset]["epicardium"],
+            inner=data.segments[dataset]["endocardium"],
+            img_shape=phases.shape[2:],
+        )
+        theta0 = find_theta0(data.zero_angle[dataset])
+
+        result[dataset] = np.zeros_like(phases[1:])
+        for t in range(phases.shape[1]):
+            result[dataset][:, t] = (
+                inplane_strain_rate(
+                    np.ma.array(
+                        phases[1:, t], mask=np.repeat(~mask[t : t + 1], 2, axis=0)
+                    ),
+                    origin=origin[t],
+                    theta0=theta0[t],
+                ).data
+                * mask[t : t + 1]
+            )
+
+        try:
+            result[dataset] *= data.data_files.time_interval(dataset)
+        except AttributeError:
+            pass
+
+    return result
 
 
 def inplane_strain_rate(
