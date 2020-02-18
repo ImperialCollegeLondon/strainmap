@@ -346,10 +346,16 @@ def calculate_inplane_strain(
                 * mask[t : t + 1]
             )
 
+        factor = 1.0
         try:
-            result[dataset] *= data.data_files.time_interval(dataset)
+            factor *= data.data_files.time_interval(dataset)
         except AttributeError:
             pass
+        try:
+            factor /= data.data_files.pixel_size(dataset)
+        except AttributeError:
+            pass
+        result[dataset] *= factor
 
     return result
 
