@@ -335,7 +335,6 @@ def calculate_inplane_strain(
 
         result[dataset] = np.zeros_like(phases[1:])
         for t in range(phases.shape[1]):
-
             result[dataset][:, t] = (
                 inplane_strain_rate(
                     np.ma.array(
@@ -359,36 +358,6 @@ def calculate_inplane_strain(
         result[dataset] *= factor
 
     return result
-
-
-def first_derivative(
-    data: np.ndarray, axis: int = 0, **kwargs,
-):
-    """Simple finite difference computation of the first derivative.
-
-    Example:
-
-        >>> from pytest import approx
-        >>> import numpy as np
-        >>> from strainmap.models.strain import first_derivative
-        >>> data = np.array([
-        ...    [2 * i for i in range(10)],
-        ...    [3.5 * i for i in range(10)],
-        ... ])
-        >>> result = first_derivative(data, 1)
-        >>> assert result.shape == data.shape
-        >>> assert result[0] == approx(2)
-        >>> assert result[1] == approx(3.5)
-    """
-    if axis != 0:
-        return np.rollaxis(first_derivative(np.rollaxis(data, axis)), 0, axis + 1)
-
-    derivative = np.pad(
-        (data[2:] - data[:-2]) / 2, [[1, 1]] + [[0, 0]] * (data.ndim - 1)
-    )
-    derivative[0] = data[1] - data[0]
-    derivative[-1] = data[-1] - data[-2]
-    return derivative
 
 
 def inplane_strain_rate(
