@@ -365,7 +365,6 @@ def inplane_strain_rate(
     component_axis: int = 0,
     spline: Optional[Callable] = None,
     origin: Sequence[float] = (0, 0),
-    theta0: Optional[float] = None,
     **kwargs,
 ):
     """Stain rate for a single image.
@@ -377,19 +376,14 @@ def inplane_strain_rate(
     it's derivatives.
 
     Parameters:
-        velocities: velocities with x and y components on the `component_axis`. Can also
-            be a masked array.
-        component_axis: axis of the x and y components of the velocities.
+        velocities: velocities with radial and azimutal components on the
+            `component_axis`. Can also be a masked array.
+        component_axis: axis of the radial and azimutal components of the velocities.
         spline: Function from which to create an interpolation object. Defaults to
             SmoothBivariateSpline for masked arrays and RectBivariateSpline otherwise.
-        origin: Origin of the cylindrical coordinate system. If `theta0` is not given,
-            then this parameter is ignored and the strain is returned in cartesian
-            coordinates.
-        theta0: If None, then the strain is returned in cartesian coordinates.
-            Otherwise, it is returned in cylindrical coordinates with this angle as the
-            reference.
+        origin: Origin of the cylindrical coordinate system. Because image vs array
+            issues, `origin[1]` correspond to `x` and  `origin[0]` to `y`.
         **kwargs: passed on the spline function.
-
 
     .. note::
         In the context of the MRI velocities, the instantaneous strain and the strain
@@ -397,36 +391,42 @@ def inplane_strain_rate(
 
     Example:
 
-        Let's first try without a mask and in cartesian coordinates. We create a linear
-        velocity field, i.e. a field with a constant strain.
+        We can create a velocity field with a linear radial component and no azimutal
+        component. It should yield equal radial and azimutal strain, at least outside of
+        a small region at the origin:
 
         >>> from pytest import approx
         >>> import numpy as np
         >>> from strainmap.models.strain import inplane_strain_rate
-        >>> velocities = np.array(
-        ...     [[[i * 0.1 + 0.2 * j, -0.4 * i] for i in range(10)] for j in range(12)]
-        ... )
-        >>> strain = inplane_strain_rate(velocities, component_axis=-1)
-        >>> assert strain[..., 0] == approx(0.2)
-        >>> assert strain[..., 1] == approx(-0.4)
+        >>> origin = np.array((50.5, 60.5))
+        >>> cart_index = np.mgrid[:120,:100] - origin[::-1, None, None]
+        >>> r = np.linalg.norm(cart_index, axis=0)
+        >>> strain = inplane_strain_rate((r, np.zeros_like(r)), origin=origin)
+        >>> np.max(np.abs(strain[0]))
+        >>> np.argmax(np.abs(strain[0])) // strain.shape[2]
+        60
+        >>> np.argmax(np.abs(strain[0])) % strain.shape[2]
+        49
+        >>> strain[0, 50:71, 40:61] = 1
+        >>> assert strain[0] == approx(1, rel=1e-4)
+        >>> assert strain[1] == approx(1)
 
-        Now, lets add a mask and compute the strain in cylindrical coordinates. We also
-        create a simple vortex with no radial velocity and 1/r angular velocity. The
-        mask removes consideration outside of a ring centered on the vortex. It also
-        removes the vortex itself from consideration. We expect the diagonal strain
-        components to be almost zero (only the shear strain - which is not computed here
+
+        To test the azimutal strain, we can create a simple vortex with no radial
+        velocity and 1/r angular velocity. The mask removes consideration outside of a
+        ring centered on the vortex. It also removes the vortex itself from
+        consideration. We expect the diagonal strain components to be almost zero (only
+        the shear strain - which is not computed here
         - is nonzero).
 
-        >>> origin = np.array((60.5, 50.5))
-        >>> cart_index = np.mgrid[:120,:100] - origin[:, None, None]
-        >>> r = np.linalg.norm(cart_index, axis=0)
-        >>> theta = np.arctan2(*cart_index[::-1])
+        >>> import numpy as np
+        >>> from strainmap.models.strain import inplane_strain_rate
         >>> v_theta = 1 / (r + 1)
         >>> velocities = np.ma.array(
-        ...     (-v_theta * np.sin(theta), v_theta * np.cos(theta)),
+        ...     (np.zeros_like(v_theta), v_theta),
         ...     mask = np.repeat(np.logical_or(r < 15, r > 50)[None], 2, 0),
         ... )
-        >>> strain = inplane_strain_rate(velocities, theta0=0, origin=origin)
+        >>> strain = inplane_strain_rate(velocities, origin=origin)
         >>> assert np.abs(strain.max()) < 1e-3
 
         Increasing the size of the grid yields better results (e.g. the bound on the
@@ -434,49 +434,56 @@ def inplane_strain_rate(
     """
     from scipy.interpolate import SmoothBivariateSpline, RectBivariateSpline
 
-    vx = np.take(velocities, 0, component_axis)
-    vy = np.take(velocities, 1, component_axis)
+    radial_velocity = np.take(velocities, 0, component_axis)
+    azimutal_velocity = np.take(velocities, 1, component_axis)
     is_masked = hasattr(velocities, "mask")
     if not is_masked:
-        points = np.ogrid[range(vx.shape[0]), range(vx.shape[1])]
+        points = np.ogrid[
+            range(radial_velocity.shape[0]), range(radial_velocity.shape[1])
+        ]
         spline = spline or RectBivariateSpline
     else:
-        assert (vx.mask == vy.mask).all()
-        points = (~vx.mask).nonzero()
-        vx = vx[points[0], points[1]].data
-        vy = vy[points[0], points[1]].data
+        assert (radial_velocity.mask == azimutal_velocity.mask).all()
+        points = (~radial_velocity.mask).nonzero()
+        radial_velocity = radial_velocity[points[0], points[1]].data
+        azimutal_velocity = azimutal_velocity[points[0], points[1]].data
         spline = spline or SmoothBivariateSpline
 
-    spline_x = spline(*points, vx, **kwargs)
-    spline_y = spline(*points, vy, **kwargs)
+    radial_spline = spline(*points, radial_velocity, **kwargs)
+    azimutal_spline = spline(*points, azimutal_velocity, **kwargs)
 
-    grad00 = spline_x(*points, dx=1, grid=False)
-    grad11 = spline_y(*points, dy=1, grid=False)
+    x = points[0] - origin[1]
+    y = points[1] - origin[0]
+    r = np.sqrt(x * x + y * y)
+    theta = np.arctan2(y, x)
+
+    # fmt: off
+    radial_strain = (
+        radial_spline(*points, dx=1, grid=False) * np.cos(theta)
+        + radial_spline(*points, dy=1, grid=False) * np.sin(theta)
+    )
+    azimutal_strain = (
+        radial_spline(*points, grid=False) / r
+        + azimutal_spline(*points, dy=1, grid=False) * np.cos(theta)
+        - azimutal_spline(*points, dx=1, grid=False) * np.sin(theta)
+    )
+    # fmt: on
+
+    def rhs(values):
+        if not is_masked:
+            return values
+
+        x = np.zeros_like(np.take(velocities, 0, component_axis))
+        x[points[0], points[1]] = values
+        return x
 
     # Transform to cartesian coordinates
-    if theta0 is not None:
-        grad01 = spline_x(*points, dy=1, grid=False) + spline_y(
-            *points, dx=1, grid=False
-        )
-        thetas = np.arctan2(points[1] - origin[1], points[0] - origin[0]) - theta0
-        cthet = np.cos(thetas)
-        sthet = np.sin(thetas)
-        gradrr = (
-            grad00 * cthet * cthet + grad11 * sthet * sthet + grad01 * cthet * sthet
-        )
-        gradtt = grad00 + grad11 - gradrr
-        grad00 = np.zeros_like(np.take(velocities, 0, component_axis))
-        grad00[points[0], points[1]] = gradrr
-        grad11 = np.zeros_like(grad00)
-        grad11[points[0], points[1]] = gradtt
-
-    # Creates an array similar to original with diagonal stress components
     result = np.zeros_like(velocities)
     indices = [slice(i) for i in result.shape]
     indices[component_axis] = 0  # type: ignore
-    result[tuple(indices)] = grad00
+    result[tuple(indices)] = rhs(radial_strain)
     indices[component_axis] = 1  # type: ignore
-    result[tuple(indices)] = grad11
+    result[tuple(indices)] = rhs(azimutal_strain)
     return result
 
 
