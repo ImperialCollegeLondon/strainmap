@@ -149,7 +149,11 @@ class MainWindow(tk.Tk):
 
         self.title("StrainMap")
         self.minsize(1280, 720)
-        self.geometry("{}x{}+0+0".format(*self.maxsize()))
+        self.geometry(
+            "{0}x{1}+0+0".format(
+                self.winfo_screenwidth() - 3, self.winfo_screenheight() - 3
+            )
+        )
         self.protocol("WM_DELETE_WINDOW", self.__quit)
         self.closed = False
 
