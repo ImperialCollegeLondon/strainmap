@@ -132,7 +132,8 @@ def write_hdf5_file(data, filename: Union[h5py.File, str]):
             else:
                 f.create_dataset(s, data=getattr(data, s))
         elif "files" in s:
-            paths_to_hdf5(f, f.filename, s, getattr(data, s))
+            if getattr(data, s) is not None:
+                paths_to_hdf5(f, f.filename, s, getattr(data, s).files)
         else:
             write_data_structure(f, s, getattr(data, s))
 
@@ -154,9 +155,9 @@ def write_data_structure(g, name, structure):
     for n, struct in structure.items():
         if isinstance(struct, dict):
             write_data_structure(group, n, struct)
-        elif n in group:
-            group[n][...] = struct
         else:
+            if n in group:
+                del group[n]
             group.create_dataset(n, data=struct, track_order=True)
 
 
@@ -186,9 +187,8 @@ def paths_to_hdf5(
     for n, struct in structure.items():
         if isinstance(struct, dict):
             paths_to_hdf5(group, master, n, struct)
-        elif n in group:
-            paths = to_relative_paths(master, struct)
-            group[n][...] = paths
         else:
+            if n in group:
+                del group[n]
             paths = to_relative_paths(master, struct)
             group.create_dataset(n, data=paths, track_order=True)

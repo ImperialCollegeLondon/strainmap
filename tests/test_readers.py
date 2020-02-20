@@ -1,6 +1,7 @@
 from pathlib import Path
 from typing import Mapping, Text, Tuple, Union
-from pytest import approx
+from pytest import approx, raises, mark
+import sys
 
 
 def search_in_tree(
@@ -107,10 +108,17 @@ def test_to_numpy(data_tree):
 def test_velocity_sensitivity(data_tree):
     from strainmap.models.readers import velocity_sensitivity
     import numpy as np
+    from nibabel.nicom import csareader as csar
+    import pydicom
 
     filename = list(data_tree.values())[0]["PhaseZ"][0]
+
     expected = np.array((60, 40, 40))
-    actual = velocity_sensitivity(filename)
+    ds = pydicom.dcmread(filename)
+    csa = csar.get_csa_header(ds, "series")
+    header = csa.get("tags", {}).get("MrPhoenixProtocol", {}).get("items", [])[0]
+
+    actual = velocity_sensitivity(header)
 
     assert expected == approx(actual)
 
@@ -153,6 +161,7 @@ def test_from_relative_paths(tmpdir):
     assert actual == expected
 
 
+@mark.skipif(sys.platform == "win32", reason="does not run on windows in Azure")
 def test_paths_from_hdf5(strainmap_data, tmpdir):
     from strainmap.models.writers import paths_to_hdf5
     from strainmap.models.readers import paths_from_hdf5
@@ -160,39 +169,78 @@ def test_paths_from_hdf5(strainmap_data, tmpdir):
 
     import h5py
 
-    dataset_name = list(strainmap_data.data_files.keys())[0]
+    dataset_name = strainmap_data.data_files.datasets[0]
     filename = tmpdir / "strain_map_file.h5"
 
-    abs_paths = strainmap_data.data_files[dataset_name]["MagX"]
+    abs_paths = strainmap_data.data_files.files[dataset_name]["MagX"]
 
     f = h5py.File(filename, "a")
     d = defaultdict(dict)
-    paths_to_hdf5(f, filename, "data_files", strainmap_data.data_files)
+    paths_to_hdf5(f, filename, "data_files", strainmap_data.data_files.files)
     paths_from_hdf5(d, filename, f["data_files"])
 
     assert dataset_name in d
     assert all(
-        [key in d[dataset_name] for key in strainmap_data.data_files[dataset_name]]
+        [
+            key in d[dataset_name]
+            for key in strainmap_data.data_files.files[dataset_name]
+        ]
     )
-    if str(filename)[0] != abs_paths[0][0]:
-        assert d[dataset_name]["MagX"] == []
-    else:
-        assert d[dataset_name]["MagX"] == abs_paths
+    assert d[dataset_name]["MagX"] == abs_paths
 
 
+@mark.skipif(sys.platform == "win32", reason="does not run on windows in Azure")
 def test_read_h5_file(tmpdir, segmented_data):
     from strainmap.models.readers import read_h5_file
     from strainmap.models.writers import write_hdf5_file
     from strainmap.models.strainmap_data_model import StrainMapData
 
     filename = tmpdir / "strain_map_file.h5"
-    dataset_name = list(segmented_data.data_files.keys())[0]
-    abs_paths = segmented_data.data_files[dataset_name]["MagX"]
 
     write_hdf5_file(segmented_data, filename)
-    new_data = read_h5_file(StrainMapData.from_folder(), filename)
+    attributes = read_h5_file(StrainMapData.stored, filename)
+    new_data = StrainMapData.from_folder()
+    new_data.__dict__.update(attributes)
 
-    if str(filename)[0] != abs_paths[0][0]:
-        assert segmented_data != new_data
-    else:
-        assert segmented_data == new_data
+    assert segmented_data == new_data
+
+
+def test_legacy_dicom():
+    from strainmap.models.readers import LegacyDICOM
+    from pathlib import Path
+
+    path = Path(__file__).parent / "data" / "SUB1"
+    assert LegacyDICOM.belongs(path)
+
+    files = LegacyDICOM.factory(path)
+    assert files.is_avail
+    assert len(files.datasets) == 3
+    assert list(files.sensitivity) == [60.0, 40.0, 40.0]
+    swap, signs = files.orientation
+    assert not swap
+    assert list(signs) == [1, -1, 1]
+    assert files.tags(files.datasets[0])["PatientName"] == "SUBJECT1"
+    assert files.mag(files.datasets[0]).shape == (3, 512, 512)
+    assert files.phase(files.datasets[0]).shape == (3, 3, 512, 512)
+    with raises(AttributeError):
+        assert files.slice_loc(files.datasets[0])
+    with raises(AttributeError):
+        assert files.pixel_size(files.datasets[0])
+    with raises(AttributeError):
+        files.time_interval(files.datasets[0])
+
+
+def test_readers_registry():
+    from strainmap.models.readers import (
+        DICOM_READERS,
+        register_dicom_reader,
+        DICOMReaderBase,
+    )
+
+    assert len(DICOM_READERS) > 0
+
+    class Dummy:
+        pass
+
+    register_dicom_reader(Dummy)
+    assert all([issubclass(c, DICOMReaderBase) for c in DICOM_READERS])

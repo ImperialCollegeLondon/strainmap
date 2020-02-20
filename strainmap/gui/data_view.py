@@ -38,7 +38,7 @@ class DataTaskView(TaskViewBase):
         self.phantoms_box = None
         self.fig = None
         self.datasets_var = tk.StringVar(value="")
-        self.maps_var = tk.StringVar(value="MagZ")
+        self.maps_var = tk.StringVar(value="Mag")
         self.bg_var = tk.StringVar(value="")
         self.anim = False
 
@@ -107,9 +107,9 @@ class DataTaskView(TaskViewBase):
         values, texts, var_values, patient_data = self.get_data_information()
         self.datasets_var.set(values[0])
 
-        patient_name = patient_data.get("PatientName", "")
-        patient_dob = patient_data.get("PatientBirthDate", "")
-        patient_study_date = patient_data.get("StudyDate", "")
+        patient_name = patient_data.get("Patient Name", "")
+        patient_dob = patient_data.get("Patient DOB", "")
+        patient_study_date = patient_data.get("Date of Scan", "")
 
         self.dataselector = ttk.Frame(self.control, name="dataSelector")
         self.dataselector.grid(row=40, columnspan=2, sticky=tk.NSEW, pady=5)
@@ -254,10 +254,12 @@ class DataTaskView(TaskViewBase):
 
         if path != "" and self.controller.load_data_from_file(strainmap_file=path):
             self.load_missing_data()
-            self.controller.review_mode = True
-            self.output_file.set(path)
-            self.current_dir = str(Path(path).parent)
-            self.nametowidget("control.chooseOutputFile")["state"] = "enable"
+            if self.data.data_files:
+                self.controller.review_mode = True
+                self.output_file.set(path)
+                self.data_folder.set(Path(self.data.data_files.is_avail).parent)
+                self.current_dir = str(Path(path).parent)
+                self.nametowidget("control.chooseOutputFile")["state"] = "enable"
             self.update_widgets()
             self.update_phantom_widgets()
 
@@ -282,17 +284,8 @@ class DataTaskView(TaskViewBase):
 
     def load_missing_data(self):
         """Adds missing data to StrainMap if data or phantom files not found."""
-        values = list(self.data.data_files.keys())
-        data_missing = (
-            len(values) > 0 and len(self.data.data_files[values[0]]["MagZ"]) == 0
-        )
-        values = list(self.data.bg_files.keys())
-        phantom_missing = (
-            len(values) > 0 and len(self.data.bg_files[values[0]]["MagZ"]) == 0
-        )
-
         data_path = phantom_path = None
-        if data_missing:
+        if self.data.data_files == ():
             data_path = tk.filedialog.askdirectory(
                 title="Select DATA directory", initialdir=self.current_dir
             )
@@ -300,7 +293,7 @@ class DataTaskView(TaskViewBase):
                 self.current_dir = data_path
                 self.data_folder.set(self.current_dir)
 
-        if phantom_missing:
+        if self.data.bg_files == ():
             phantom_path = tk.filedialog.askdirectory(
                 title="Select PHANTOM directory", initialdir=self.current_dir
             )
@@ -341,10 +334,15 @@ class DataTaskView(TaskViewBase):
 
     def get_data_information(self):
         """ Gets some information related to the available datasets, frames, etc. """
-        if self.controller.review_mode:
+        if self.controller.review_mode and len(self.data.segments) > 0:
             values = list(self.data.segments.keys())
         else:
-            values = list(self.data.data_files.keys())
+            self.controller.review_mode = False
+            values = (
+                self.data.data_files.datasets
+                if self.data.data_files is not None
+                else []
+            )
 
         if len(values) > 0:
             texts = [
@@ -353,8 +351,8 @@ class DataTaskView(TaskViewBase):
                 "In-plane velocity map (X)",
                 "In-plane velocity map (Y)",
             ]
-            var_values = ["MagZ", "PhaseZ", "PhaseX", "PhaseY"]
-            patient_data = self.data.read_dicom_file_tags(values[0], "MagZ", 0)
+            var_values = ["Mag", "PhaseZ", "PhaseX", "PhaseY"]
+            patient_data = self.data.metadata()
         else:
             values = ["No suitable datasets available."]
             texts = []
@@ -368,7 +366,7 @@ class DataTaskView(TaskViewBase):
         variable = self.maps_var.get()
 
         if phantom:
-            self.update_dicom_data_view(self.bg_var.get(), variable, phantom=True)
+            self.update_dicom_bg_view(self.bg_var.get(), variable)
             return
 
         series = self.datasets_var.get()
@@ -378,12 +376,12 @@ class DataTaskView(TaskViewBase):
             self.bg_var.set("")
 
         self.update_plot(series, variable)
-        self.update_dicom_data_view(self.bg_var.get(), variable, phantom=True)
+        self.update_dicom_bg_view(self.bg_var.get(), variable)
         self.update_dicom_data_view(series, variable)
 
     def update_plot(self, series, variable):
         """Updates the data contained in the plot."""
-        images = self.data.get_images(series, variable)
+        images = self.data.data_files.images(series, variable)
 
         self.fig.actions_manager.ScrollFrames.clear()
 
@@ -412,24 +410,33 @@ class DataTaskView(TaskViewBase):
         current_frame = frame % images.shape[0]
         return current_frame, images[current_frame], None
 
-    def update_dicom_data_view(self, series, variable, phantom=False):
+    def update_dicom_data_view(self, series, variable):
         """ Updates the treeview with data from the selected options.
 
         Only data for cine = 0 is loaded."""
-        if phantom:
-            treeview = self.treeview_bg
+        self.treeview.delete(*self.treeview.get_children())
+
+        if series != "":
+            data = self.data.data_files.tags(series, variable)
         else:
-            treeview = self.treeview
-
-        treeview.delete(*treeview.get_children())
-
-        if series == "":
             data = []
-        else:
-            data = self.data.read_dicom_file_tags(series, variable, 0, phantom=phantom)
 
         for d in data:
-            treeview.insert("", tk.END, values=(d, data.get(d)))
+            self.treeview.insert("", tk.END, values=(d, data.get(d)))
+
+    def update_dicom_bg_view(self, series, variable):
+        """ Updates the phantom treeview with data from the selected options.
+
+        Only data for cine = 0 is loaded."""
+        self.treeview_bg.delete(*self.treeview_bg.get_children())
+
+        if self.data.bg_files is not None and series in self.data.bg_files.datasets:
+            data = self.data.bg_files.tags(series, variable)
+        else:
+            data = []
+
+        for d in data:
+            self.treeview_bg.insert("", tk.END, values=(d, data.get(d)))
 
     def stop_animation(self):
         """Stops an animation, if there is one running."""
@@ -439,14 +446,15 @@ class DataTaskView(TaskViewBase):
             self.fig.actions_manager.ScrollFrames.stop_animation()
 
     def update_widgets(self):
-        """ Updates widgets after an update in the data variable. """
+        """ Updates widgets after an update in the data var. """
         self.create_data_selector()
         self.create_data_viewer()
-        self.update_visualization()
+        if self.data.data_files is not None:
+            self.update_visualization()
 
     def update_phantom_widgets(self):
         """Updates the widgets related to the Phantom"""
-        values = list(self.data.bg_files.keys())
+        values = self.data.bg_files.datasets if self.data.bg_files is not None else []
         if len(values) > 0:
             self.phantoms_box["values"] = values
             self.phantoms_box.current(0)

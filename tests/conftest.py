@@ -54,8 +54,8 @@ def segmented_data(strainmap_data):
     from strainmap.models.quick_segmentation import find_segmentation
     import numpy as np
 
-    dataset = list(strainmap_data.data_files.keys())[0]
-    image = strainmap_data.get_images(dataset, "MagZ")
+    dataset = strainmap_data.data_files.datasets[0]
+    image = strainmap_data.data_files.mag(dataset)
 
     # Create the initial contour
     init_epi = Contour.circle(center=(305, 275), radius=60, shape=image.shape).xy
@@ -136,6 +136,9 @@ def velocities_view(main_window):
 
 @fixture
 def actions_manager():
+    import matplotlib
+
+    matplotlib.use("Agg")
     from matplotlib.pyplot import figure
     from strainmap.gui.figure_actions_manager import FigureActionsManager
 
@@ -168,6 +171,9 @@ def action():
 
 @fixture
 def figure():
+    import matplotlib
+
+    matplotlib.use("Agg")
     import matplotlib.pyplot as plt
 
     fig = plt.figure()
@@ -224,7 +230,7 @@ def data_with_velocities(segmented_data):
     from strainmap.models.velocities import calculate_velocities
     from copy import deepcopy
 
-    dataset_name = list(segmented_data.segments.keys())[0]
+    dataset_name = segmented_data.data_files.datasets[0]
     output = deepcopy(segmented_data)
     calculate_velocities(
         output,

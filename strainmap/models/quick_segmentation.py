@@ -122,7 +122,7 @@ def centroid(segments, frame, shape):
 def initialize_data_segments(data, dataset_name, shape):
     """Initialises the StrainMap data object with empty segments."""
     if len(shape) == 2:
-        num_frames = len(data.data_files[dataset_name]["MagZ"])
+        num_frames = data.data_files.mag(dataset_name).shape[0]
         shape = (num_frames,) + shape
     else:
         num_frames = shape[0]

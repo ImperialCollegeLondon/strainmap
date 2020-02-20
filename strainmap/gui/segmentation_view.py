@@ -631,14 +631,10 @@ class SegmentationTaskView(TaskViewBase):
 
     def get_data_to_segment(self, dataset):
         """Gets the data that will be segmented."""
-
-        magz = self.data.get_images(dataset, "MagZ")
-        magx = self.data.get_images(dataset, "MagX")
-        magy = self.data.get_images(dataset, "MagY")
-        mag = magx + magy + magz
-        vel = self.data.get_images(dataset, "PhaseZ")
-
-        return {"mag": mag, "vel": vel}
+        return {
+            "mag": self.data.data_files.mag(dataset),
+            "vel": self.data.data_files.phase(dataset)[-1],
+        }
 
     def set_initial_contour(self, side):
         """Enables the definition of the initial segment for the side."""
@@ -818,11 +814,11 @@ class SegmentationTaskView(TaskViewBase):
         self.fig.actions_manager.ScrollFrames.stop_animation()
 
     def update_widgets(self):
-        """ Updates widgets after an update in the data variable. """
+        """ Updates widgets after an update in the data var. """
         if self.controller.review_mode:
             values = list(self.data.segments.keys())
         else:
-            values = list(self.data.data_files.keys())
+            values = self.data.data_files.datasets
         values_segments = list(self.data.segments.keys())
         current = self.datasets_var.get()
         self.datasets_box.config(values=values)

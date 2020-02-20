@@ -19,7 +19,7 @@ def test_find_theta0():
 def test_scale_phase(strainmap_data):
     from strainmap.models.velocities import scale_phase
 
-    dataset_name = list(strainmap_data.data_files.keys())[0]
+    dataset_name = strainmap_data.data_files.datasets[0]
     phase = scale_phase(strainmap_data, dataset_name)
 
     assert (phase >= -0.5).all()
@@ -265,7 +265,7 @@ def test_update_marker(strainmap_data, markers, velocity):
     import numpy as np
     from copy import deepcopy
 
-    dataset = list(strainmap_data.data_files.keys())[0]
+    dataset = strainmap_data.data_files.datasets[0]
     strainmap_data.velocities[dataset]["global"] = [velocity]
     strainmap_data.markers[dataset]["global"] = [deepcopy(markers)]
 

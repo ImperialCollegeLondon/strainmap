@@ -6,12 +6,6 @@ from strainmap.models.contour_mask import masked_means, cylindrical_projection
 from strainmap.models.readers import ImageTimeSeries
 
 from .strainmap_data_model import StrainMapData
-from .readers import (
-    read_all_images,
-    images_to_numpy,
-    velocity_sensitivity,
-    image_orientation,
-)
 from .contour_mask import contour_diff, angular_segments, radial_segments, Contour
 
 
@@ -35,21 +29,15 @@ def scale_phase(
     data: StrainMapData,
     dataset_name: Text,
     bg: str = "Estimated",
-    swap=False,
+    swap: bool = False,
     sign_reversal=(False, False, False),
     scale=1 / 4096,
 ):
     """Prepare the phases, scaling them and substracting the phantom, if needed."""
-    images = images_to_numpy(
-        read_all_images({dataset_name: data.data_files[dataset_name]})
-    )[dataset_name]
-    phase = images.phase * scale
+    phase = data.data_files.phase(dataset_name) * scale
 
-    if bg in data.bg_files:
-        phantom_phase = (
-            images_to_numpy(read_all_images({bg: data.bg_files[bg]}))[bg].phase * scale
-        )
-
+    if data.bg_files is not None and bg in data.bg_files.datasets:  # type: ignore
+        phantom_phase = data.bg_files.phase(bg) * scale
     else:
         phantom_phase = 0.5
 
@@ -188,17 +176,16 @@ def calculate_velocities(
     init_markers: bool = True,
 ):
     """Calculates the velocity of the chosen dataset and regions."""
-    swap, signs = image_orientation(data.data_files[dataset_name]["PhaseZ"][0])
-    phase = scale_phase(data, dataset_name, bg, swap, sign_reversal)
+    swap, signs = data.data_files.orientation  # type: ignore
+    phase = scale_phase(data, dataset_name, bg, swap, sign_reversal)  # type: ignore
     mask, origin = global_masks_and_origin(
         outer=data.segments[dataset_name]["epicardium"],
         inner=data.segments[dataset_name]["endocardium"],
         img_shape=phase.shape[2:],
     )
-    sensitivity = velocity_sensitivity(data.data_files[dataset_name]["PhaseZ"][0])
     cylindrical = (
         transform_to_cylindrical(phase, mask, origin)
-        * (sensitivity * signs)[:, None, None, None]
+        * (data.data_files.sensitivity * signs)[:, None, None, None]  # type: ignore
     )
     data.masks[dataset_name][f"cylindrical - {bg}"] = cylindrical
     data.sign_reversal = sign_reversal

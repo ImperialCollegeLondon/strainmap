@@ -1,16 +1,11 @@
 from pathlib import Path
-from typing import Mapping, Optional, Text, Union, Tuple
+from typing import Optional, Text, Union, Tuple, Type
 from collections import defaultdict
 import numpy as np
 import h5py
 from functools import reduce
 
-from .readers import (
-    read_dicom_directory_tree,
-    read_dicom_file_tags,
-    read_images,
-    read_strainmap_file,
-)
+from .readers import read_strainmap_file, DICOMReaderBase, read_folder
 from .writers import write_hdf5_file
 
 
@@ -20,6 +15,8 @@ class StrainMapLoadError(Exception):
 
 def compare_dicts(one, two):
     """Recursive comparison of two (nested) dictionaries with lists and numpy arrays."""
+    if not isinstance(one, dict):
+        return True
     if one.keys() != two.keys():
         return False
 
@@ -55,30 +52,32 @@ class StrainMapData(object):
     @classmethod
     def from_folder(cls, data_files: Union[Path, Text, None] = None):
         """Creates a new StrainMap data object from a folder containing DICOMs"""
-        if data_files is None:
-            data = cls(defaultdict(dict))
-        else:
-            data = cls(data_files=read_dicom_directory_tree(data_files))
+        data = cls()
+        if data_files is not None:
+            data = cls(data_files=read_folder(data_files))
             data.save_all()
         return data
 
     @classmethod
     def from_file(cls, strainmap_file: Union[Path, Text]):
-        """Creates a new StrainMap data object from a h5 file."""
+        """Creates a new StrainMap data object from a h5 file.
+        TODO Adapt to the new DICOM reader."""
         assert Path(strainmap_file).is_file()
-        result = read_strainmap_file(cls.from_folder(), strainmap_file)
+        attributes = read_strainmap_file(cls.stored, strainmap_file)
+        result = cls.from_folder()
+        result.__dict__.update(attributes)
         result.regenerate()
         return result
 
     def __init__(
         self,
-        data_files: Mapping,
-        bg_files: Optional[Mapping] = None,
+        data_files: Optional[Type[DICOMReaderBase]] = None,
+        bg_files: Optional[Type[DICOMReaderBase]] = None,
         strainmap_file: Optional[h5py.File] = None,
     ):
 
         self.data_files = data_files
-        self.bg_files = bg_files if bg_files else defaultdict(dict)
+        self.bg_files = bg_files
         self.strainmap_file = strainmap_file
         self.sign_reversal: Tuple[bool, ...] = (False, False, False)
         self.segments: dict = defaultdict(dict)
@@ -99,9 +98,9 @@ class StrainMapData(object):
     ):
         """Adds data and/or phantom paths to the object."""
         if data_files is not None:
-            self.data_files = read_dicom_directory_tree(data_files)
+            self.data_files = read_folder(data_files)
         if bg_files is not None:
-            self.bg_files = read_dicom_directory_tree(bg_files)
+            self.bg_files = read_folder(bg_files)
         if data_files is not None or bg_files is not None:
             if not self.rebuilt:
                 self.regenerate()
@@ -122,7 +121,7 @@ class StrainMapData(object):
         from .velocities import calculate_velocities
 
         # If there is no data paths yet, we postpone the regeneration.
-        if any([len(p) == 0 for p in list(self.data_files.values())[0].values()]):
+        if self.data_files == ():
             return
 
         for dataset, markers in self.markers.items():
@@ -151,11 +150,11 @@ class StrainMapData(object):
         """Retrieve the metadata from the DICOM files"""
         if dataset is None:
             output = dict()
-            dataset = list(self.data_files.keys())[0]
+            dataset = self.data_files.datasets[0]
         else:
             output = {"Dataset": dataset}
 
-        patient_data = self.read_dicom_file_tags(dataset, "MagZ", 0)
+        patient_data = self.data_files.tags(dataset)
         output.update(
             {
                 "Patient Name": str(patient_data.get("PatientName", "")),
@@ -165,20 +164,9 @@ class StrainMapData(object):
         )
         return output
 
-    def read_dicom_file_tags(self, series, variable, idx, phantom=False):
-        if phantom:
-            return read_dicom_file_tags(self.bg_files, series, variable, idx)
-        return read_dicom_file_tags(self.data_files, series, variable, idx)
-
-    def get_images(self, series, variable):
-        return np.array(read_images(self.data_files, series, variable))
-
-    def get_bg_images(self, series, variable):
-        return np.array(read_images(self.bg_files, series, variable))
-
     def save_all(self):
         """Saves the data to the hdf5 file, if present."""
-        if self.strainmap_file is None:
+        if self.strainmap_file is None or self.data_files is None:
             return
 
         write_hdf5_file(self, self.strainmap_file)
@@ -222,7 +210,7 @@ class StrainMapData(object):
 
         The "strainmap_file" attribute is ignored as it might have different values."""
         equal = self.sign_reversal == other.sign_reversal
-        keys = set(self.__dict__.keys()) - {"sign_reversal", "strainmap_file"}
+        keys = set(self.__dict__.keys())
         for k in keys:
             equal = equal and compare_dicts(getattr(self, k), getattr(other, k))
         return equal
