@@ -16,16 +16,16 @@ def search_in_tree(
     raise ValueError(f"Could not find file in tree {filename}")
 
 
-def test_read_dicom_directory_tree(dicom_data_path):
-    from strainmap.models.readers import read_dicom_directory_tree, VAR_OFFSET
+def test_read_dicom_directory_tree(old_dicom_data_path):
+    from strainmap.models.readers import read_dicom_directory_tree, LegacyDICOM
 
-    data = read_dicom_directory_tree(dicom_data_path)
+    data = read_dicom_directory_tree(old_dicom_data_path)
 
     assert isinstance(data, Mapping)
     assert len(data.keys()) == 3
 
     for k in data.keys():
-        assert set(data[k].keys()) == set(VAR_OFFSET.keys())
+        assert set(data[k].keys()) == set(LegacyDICOM.offset.keys())
 
         for v in data[k].keys():
             assert len(data[k][v]) == 3
@@ -50,10 +50,11 @@ def test_read_dicom_file_tags_from_dict(dicom_data_path):
     from glob import glob
     from random import choice
     import pydicom
-    from strainmap.models.readers import read_dicom_file_tags, read_dicom_directory_tree
+    from strainmap.models.readers import read_dicom_file_tags
+    from strainmap.models.strainmap_data_model import StrainMapData
 
+    data = StrainMapData.from_folder(data_files=dicom_data_path).data_files.files
     filename = choice(glob(str(dicom_data_path / "*.dcm")))
-    data = read_dicom_directory_tree(dicom_data_path)
 
     series, variable, idx = search_in_tree(data, filename)
 
@@ -94,8 +95,13 @@ def test_read_all_images(data_tree):
                 assert isinstance(i, np.ndarray)
 
 
-def test_to_numpy(data_tree):
+def test_to_numpy(old_dicom_data_path):
     from strainmap.models.readers import images_to_numpy, read_all_images
+    from strainmap.models.strainmap_data_model import StrainMapData
+
+    data_tree = StrainMapData.from_folder(
+        data_files=old_dicom_data_path
+    ).data_files.files
 
     data = images_to_numpy(read_all_images(data_tree))
     assert set(data.keys()) == set(data_tree.keys())
@@ -105,12 +111,16 @@ def test_to_numpy(data_tree):
     assert phase.shape == (3, 3, 512, 512)
 
 
-def test_velocity_sensitivity(data_tree):
+def test_velocity_sensitivity(old_dicom_data_path):
     from strainmap.models.readers import velocity_sensitivity
+    from strainmap.models.strainmap_data_model import StrainMapData
     import numpy as np
     from nibabel.nicom import csareader as csar
     import pydicom
 
+    data_tree = StrainMapData.from_folder(
+        data_files=old_dicom_data_path
+    ).data_files.files
     filename = list(data_tree.values())[0]["PhaseZ"][0]
 
     expected = np.array((60, 40, 40))
@@ -169,10 +179,11 @@ def test_paths_from_hdf5(strainmap_data, tmpdir):
 
     import h5py
 
+    mag = strainmap_data.data_files.vars["Mag"]
     dataset_name = strainmap_data.data_files.datasets[0]
     filename = tmpdir / "strain_map_file.h5"
 
-    abs_paths = strainmap_data.data_files.files[dataset_name]["MagX"]
+    abs_paths = strainmap_data.data_files.files[dataset_name][mag]
 
     f = h5py.File(filename, "a")
     d = defaultdict(dict)
@@ -186,7 +197,7 @@ def test_paths_from_hdf5(strainmap_data, tmpdir):
             for key in strainmap_data.data_files.files[dataset_name]
         ]
     )
-    assert d[dataset_name]["MagX"] == abs_paths
+    assert d[dataset_name][mag] == abs_paths
 
 
 @mark.skipif(sys.platform == "win32", reason="does not run on windows in Azure")

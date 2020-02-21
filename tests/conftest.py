@@ -20,9 +20,20 @@ def patch_dialogs(function):
     return decorated
 
 
-def _dicom_data_path():
+def _old_dicom_data_path():
     """Returns the DICOM data path."""
     return Path(__file__).parent / "data" / "SUB1"
+
+
+def _dicom_data_path():
+    """Returns the DICOM data path."""
+    return Path(__file__).parent / "data" / "CM1"
+
+
+@fixture(scope="session")
+def old_dicom_data_path():
+    """Returns the DICOM data path."""
+    return _old_dicom_data_path()
 
 
 @fixture(scope="session")
@@ -31,12 +42,10 @@ def dicom_data_path():
     return _dicom_data_path()
 
 
-@fixture(scope="session")
-def data_tree(dicom_data_path):
+@fixture
+def data_tree(strainmap_data):
     """Returns the DICOM directory data tree."""
-    from strainmap.models.readers import read_dicom_directory_tree
-
-    return read_dicom_directory_tree(dicom_data_path)
+    return strainmap_data.data_files.files
 
 
 @fixture
@@ -58,8 +67,8 @@ def segmented_data(strainmap_data):
     image = strainmap_data.data_files.mag(dataset)
 
     # Create the initial contour
-    init_epi = Contour.circle(center=(305, 275), radius=60, shape=image.shape).xy
-    init_endo = Contour.circle(center=(310, 280), radius=40, shape=image.shape).xy
+    init_epi = Contour.circle(center=(270, 308), radius=50, shape=image.shape).xy
+    init_endo = Contour.circle(center=(270, 308), radius=30, shape=image.shape).xy
 
     # Launch the segmentation process
     find_segmentation(
@@ -75,7 +84,7 @@ def segmented_data(strainmap_data):
 
 
 @fixture(scope="session")
-def dicom_bg_data_path():
+def old_dicom_bg_data_path():
     """Returns the DICOM background data path."""
     return Path(__file__).parent / "data" / "SUB1_BG"
 
