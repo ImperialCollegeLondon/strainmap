@@ -241,6 +241,28 @@ def test_legacy_dicom():
         files.time_interval(files.datasets[0])
 
 
+def test_dicom_reader():
+    from strainmap.models.readers import DICOM
+    from pathlib import Path
+
+    path = Path(__file__).parent / "data" / "CM1"
+    assert DICOM.belongs(path)
+
+    files = DICOM.factory(path)
+    assert files.is_avail
+    assert len(files.datasets) == 5
+    assert list(files.sensitivity) == [60.0, 40.0, 40.0]
+    swap, signs = files.orientation
+    assert swap
+    assert list(signs) == [-1, 1, -1]
+    assert files.tags(files.datasets[0])["PatientName"] == "CM"
+    assert files.mag(files.datasets[0]).shape == (3, 512, 512)
+    assert files.phase(files.datasets[0]).shape == (3, 3, 512, 512)
+    assert files.slice_loc(files.datasets[0])
+    assert files.pixel_size(files.datasets[0])
+    assert files.time_interval(files.datasets[0])
+
+
 def test_readers_registry():
     from strainmap.models.readers import (
         DICOM_READERS,
