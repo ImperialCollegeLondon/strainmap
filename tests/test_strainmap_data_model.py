@@ -37,3 +37,22 @@ def test_save(tmpdir, segmented_data):
     segmented_data.save(["segments", "my_data"])
     assert s in segmented_data.strainmap_file
     assert not all(segmented_data.strainmap_file[s].value == [1, 2, 3])
+
+
+def test_from_file(dicom_data_path, h5_file_path):
+    from strainmap.models.strainmap_data_model import StrainMapData
+    from strainmap.models.readers import from_relative_paths
+
+    data = StrainMapData.from_file(h5_file_path)
+    assert isinstance(data, StrainMapData)
+    assert data.data_files == ()
+
+    data.add_paths(data_files=dicom_data_path)
+    assert len(data.data_files.files) > 0
+
+    for d, dataset in data.data_files.files.items():
+        for v, variable in dataset.items():
+            paths = from_relative_paths(
+                h5_file_path, data.strainmap_file["data_files"][d][v][:]
+            )
+            assert variable == paths

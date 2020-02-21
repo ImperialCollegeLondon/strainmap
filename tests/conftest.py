@@ -21,7 +21,7 @@ def patch_dialogs(function):
 
 
 def _old_dicom_data_path():
-    """Returns the DICOM data path."""
+    """Returns the old DICOM data path."""
     return Path(__file__).parent / "data" / "SUB1"
 
 
@@ -32,7 +32,7 @@ def _dicom_data_path():
 
 @fixture(scope="session")
 def old_dicom_data_path():
-    """Returns the DICOM data path."""
+    """Returns the old DICOM data path."""
     return _old_dicom_data_path()
 
 
@@ -40,6 +40,16 @@ def old_dicom_data_path():
 def dicom_data_path():
     """Returns the DICOM data path."""
     return _dicom_data_path()
+
+
+@fixture
+def h5_file_path(tmpdir):
+    """Returns the DICOM data path."""
+    from shutil import copyfile
+
+    destination = tmpdir / "CM1_analysis.h5"
+    copyfile(Path(__file__).parent / "data" / "CM1_analysis.h5", destination)
+    return destination
 
 
 @fixture
