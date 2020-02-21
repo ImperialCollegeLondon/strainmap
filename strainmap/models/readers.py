@@ -539,6 +539,14 @@ class DICOM(DICOMReaderBase):
         header = ds[("0021", "1019")].value.decode()
         return velocity_sensitivity(header)
 
+    @property
+    def orientation(self) -> tuple:
+        """Indicates if X-Y Phases should be swapped and the velocity sign factors."""
+        ds = pydicom.dcmread(self.is_avail)
+        swap = ds.InPlanePhaseEncodingDirection != "ROW"
+        signs = np.array([1, -1, 1]) * (-1) ** swap
+        return swap, signs
+
     def slice_loc(self, dataset: str) -> float:
         """Returns the slice location in cm from the isocentre."""
         return float(self.tags(dataset)["SliceLocation"]) / 10.0
