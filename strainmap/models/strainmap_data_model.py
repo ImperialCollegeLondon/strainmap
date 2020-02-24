@@ -47,6 +47,7 @@ class StrainMapData(object):
         "segments",
         "zero_angle",
         "markers",
+        "strain_markers",
     )
 
     @classmethod
@@ -60,8 +61,7 @@ class StrainMapData(object):
 
     @classmethod
     def from_file(cls, strainmap_file: Union[Path, Text]):
-        """Creates a new StrainMap data object from a h5 file.
-        TODO Adapt to the new DICOM reader."""
+        """Creates a new StrainMap data object from a h5 file."""
         assert Path(strainmap_file).is_file()
         attributes = read_strainmap_file(cls.stored, strainmap_file)
         result = cls.from_folder()
@@ -85,6 +85,8 @@ class StrainMapData(object):
         self.velocities: dict = defaultdict(dict)
         self.masks: dict = defaultdict(dict)
         self.markers: dict = defaultdict(dict)
+        self.strain: dict = defaultdict(dict)
+        self.strain_markers: dict = defaultdict(dict)
 
     @property
     def rebuilt(self):

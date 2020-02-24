@@ -125,6 +125,8 @@ class StrainMap(object):
     def calculate_velocities(self, **kwargs):
         """Calculates the velocities based on a given segmentation."""
         calculate_velocities(data=self.data, **kwargs)
+        there_are_velocities = any(len(i) != 0 for i in self.data.velocities.values())
+        self.lock_toggle(there_are_velocities, Requisites.VELOCITIES)
 
     def update_marker(self, **kwargs):
         """Updates the markers information after moving one of them."""
@@ -133,3 +135,15 @@ class StrainMap(object):
     def export_velocity(self, **kwargs):
         """Exports velocity data to a XLSX file."""
         velocity_to_xlsx(data=self.data, **kwargs)
+
+    def calculate_strain(self, **kwargs):
+        """Calculates the strain based on the available velocities."""
+        pass
+
+    def update_strain_marker(self, **kwargs):
+        """Updates the strain markers information after moving one of them."""
+        pass
+
+    def export_strain(self, **kwargs):
+        """Exports strain data to a XLSX file."""
+        pass

@@ -22,6 +22,7 @@ class Requisites(Flag):
     NONE = auto()
     DATALOADED = auto()
     SEGMENTED = auto()
+    VELOCITIES = auto()
 
     @staticmethod
     def check(achieved, required):
