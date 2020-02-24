@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import copy
-from typing import Optional, Sequence, Tuple, Union
 from itertools import product
+from typing import Optional, Sequence, Tuple, Union
 
 import numpy as np
 from scipy import interpolate, ndimage
@@ -34,8 +34,7 @@ class Contour(object):
 
     @property
     def centroid(self):
-        """Centroid of the contour, calculated as the mean value of all
-        points."""
+        """Centroid of the contour, calculated as the mean value of all points."""
         return np.mean(self._xy, axis=0)
 
     @property
@@ -447,8 +446,7 @@ def cylindrical_projection(
     component_axis: int = 0,
     image_axes: Tuple[int, int] = (1, 2),
 ) -> np.ndarray:
-    """Project vector field on the local basis of a cylindrical coordinate
-    system.
+    """Project vector field on the local basis of a cylindrical coordinate system.
 
     Args:
         field: 2d or 3d vector field where the (x, y, [z]) components are on dimension
@@ -574,7 +572,7 @@ def masked_means(
         result = MaskedArray(data, mask).mean(axis=axes).data
         return result.reshape(1, *result.shape)
 
-    indices = set(labels.flat) - {0}
+    indices = sorted(set(labels.flat) - {0})
     return np.concatenate(list(_mean(data, blabels != l) for l in indices))
 
 
