@@ -1,3 +1,7 @@
+from pytest import mark
+import sys
+
+
 def test_from_folder(dicom_data_path):
     from strainmap.models.strainmap_data_model import StrainMapData
 
@@ -39,6 +43,7 @@ def test_save(tmpdir, segmented_data):
     assert not all(segmented_data.strainmap_file[s].value == [1, 2, 3])
 
 
+@mark.skipif(sys.platform == "win32", reason="does not run on windows in Azure")
 def test_from_file(dicom_data_path, h5_file_path):
     from strainmap.models.strainmap_data_model import StrainMapData
     from strainmap.models.readers import from_relative_paths
