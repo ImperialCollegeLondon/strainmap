@@ -553,27 +553,32 @@ def cylindrical_projection(
 
 
 def masked_means(
-    data: Union[np.ndarray], labels: np.ndarray, axes: Tuple[int, int] = (1, 2)
+    data: Union[np.ndarray],
+    masks: np.ndarray,
+    axes: Tuple[int, int] = (1, 2),
+    regions: Optional[Sequence[int]] = None,
 ) -> np.ndarray:
-    """Computes means for each separate region in labels.
+    """Computes means for each separate region in masks.
 
     Args:
         data: Data for which to compute the mean.
-        labels: integer array with dimensions matching at least the dimensions over
+        masks: integer array with dimensions matching at least the dimensions over
             which to compute the mean. Each integer value greater than 0 denotes a
             separate mask. For each mask, the mean is computed. 0 is ignored.
         axes: Axes over which to compute the mean.
+        regions: indices of the regions over which to compute the means
     """
     from numpy.ma import MaskedArray
 
-    blabels = np.broadcast_to(labels, data.shape)
+    if regions is None:
+        regions = sorted(set(masks.flat) - {0})
+    blabels = np.broadcast_to(masks, data.shape)
 
     def _mean(data, mask):
         result = MaskedArray(data, mask).mean(axis=axes).data
         return result.reshape(1, *result.shape)
 
-    indices = sorted(set(labels.flat) - {0})
-    return np.concatenate(list(_mean(data, blabels != l) for l in indices))
+    return np.concatenate(list(_mean(data, blabels != l) for l in regions))
 
 
 if __name__ == "__main__":
