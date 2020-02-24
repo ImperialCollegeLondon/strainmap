@@ -405,10 +405,10 @@ def inplane_strain_rate(
         >>> strain = inplane_strain_rate((r, np.zeros_like(r)), origin=origin)
         >>> np.max(np.abs(strain[0])).round(2)
         1.05
-        >>> np.argmax(np.abs(strain[0])) // strain.shape[2]
-        60
-        >>> np.argmax(np.abs(strain[0])) % strain.shape[2]
-        49
+        >>> (np.argmax(np.abs(strain[0])) // strain.shape[2]) in range(50, 71)
+        True
+        >>> (np.argmax(np.abs(strain[0])) % strain.shape[2]) in range(40, 61)
+        True
         >>> strain[0, 50:71, 40:61] = 1
         >>> assert strain[0] == approx(1, rel=1e-4)
         >>> assert strain[1] == approx(1)
