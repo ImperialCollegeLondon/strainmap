@@ -1,7 +1,8 @@
 from typing import Dict
 from unittest.mock import MagicMock
 
-from pytest import approx, raises
+import numpy as np
+from pytest import approx, mark, raises
 
 
 def test_cartcoords():
@@ -150,3 +151,38 @@ def test_inplane_strain(data_with_velocities):
     )
     assert set(strain) == set(data_with_velocities.data_files.datasets[:1])
     assert strain[data_with_velocities.data_files.datasets[0]].shape == (2, 3, 512, 512)
+
+
+@mark.parametrize("deltaz", [1, 1.2])
+def test_outofplane_strain(deltaz):
+    from strainmap.models.strain import calculate_outofplane_strain
+    from types import SimpleNamespace
+
+    def vel(x, y, z, t):
+        return [0, 0, x % 7 + 2 * y - 3 * z + 4 * t]
+
+    data = SimpleNamespace()
+    data.masks = {
+        f"dodo{z}": {
+            "cylindrical - Estimated": np.array(
+                [
+                    [[[vel(x, y, z, t) for y in range(100)] for x in range(100)]]
+                    for t in range(10)
+                ]
+            ),
+            "angular 6x - Estimated": np.repeat(
+                np.arange(100, dtype=int)[:, None] % 7, 100, 1,
+            ),
+        }
+        for z in range(8)
+    }
+    data.data_files = SimpleNamespace()
+    data.data_files.files = list(data.masks.keys())
+    data.data_files.slice_loc = lambda x: {
+        k: deltaz * i for i, k in enumerate(data.data_files.files)
+    }[x]
+
+    strain = calculate_outofplane_strain(
+        data, image_axes=(-3, -2), component_axis=-1  # type: ignore
+    )
+    assert strain == approx(-3 / deltaz)

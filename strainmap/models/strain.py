@@ -310,10 +310,7 @@ def prepare_masks_and_velocities(
 
 def calculate_inplane_strain(
     data: StrainMapData,
-    angular_regions: Sequence[int] = (),
-    radial_regions: Sequence[int] = (),
     bg: str = "Estimated",
-    sign_reversal: Tuple[bool, ...] = (False, False, False),
     datasets: Optional[Sequence[Text]] = None,
 ) -> Dict[Text, np.ndarray]:
     """Calculates the strain and updates the Data object with the result."""
@@ -361,13 +358,67 @@ def calculate_inplane_strain(
     return result
 
 
+def calculate_outofplane_strain(
+    data: StrainMapData,
+    bg: str = "Estimated",
+    nangular: int = 6,
+    datasets: Optional[Sequence[Text]] = None,
+    component_axis: int = 1,
+    image_axes: Tuple[int, int] = (2, 3),
+    regions: Optional[Sequence[int]] = None,
+) -> np.ndarray:
+    """Wrangles zz strain component from existing data."""
+    from operator import itemgetter
+    from strainmap.models.contour_mask import masked_means
+
+    if datasets is None:
+        datasets = list(data.data_files.files)
+    vzz = []
+    zs = []
+    for dataset in datasets:
+        phases = data.masks.get(dataset, {}).get(f"cylindrical - {bg}", None)
+        if phases is None:
+            msg = f"Phases from {dataset} with background {bg} are not available."
+            raise RuntimeError(msg)
+        masks = data.masks.get(dataset, {}).get(f"angular {nangular}x - {bg}", None)
+        if masks is None:
+            msg = (
+                f"{nangular}-fold angular masks from {dataset} "
+                f"with background {bg} are not available."
+            )
+            raise RuntimeError(msg)
+
+        factor = 1.0
+        try:
+            factor *= data.data_files.time_interval(dataset)
+        except AttributeError:
+            pass
+
+        iaxes = image_axes[0] % phases.ndim, image_axes[1] % phases.ndim
+        iaxes = (
+            image_axes[0] - int(iaxes[0] > (component_axis % phases.ndim)),
+            image_axes[1] - int(iaxes[1] > (component_axis % phases.ndim)),
+        )
+
+        vzz.append(
+            masked_means(
+                np.take(phases, -1, component_axis), masks, axes=iaxes, regions=regions,
+            )
+            * factor
+        )
+        zs.append(data.data_files.slice_loc(dataset))
+
+    levels = sorted(zip(vzz, zs), key=itemgetter(1))
+    return np.gradient([l[0] for l in levels], [l[1] for l in levels], axis=0)
+
+
 def inplane_strain_rate(
     velocities: np.ndarray,
     component_axis: int = 0,
     spline: Optional[Callable] = None,
     origin: Sequence[float] = (0, 0),
     **kwargs,
-):
+) -> np.ndarray:
     """Stain rate for a single image.
 
     Computes the strain rate for a single MRI image. The image can be masked, in which
@@ -489,9 +540,15 @@ def inplane_strain_rate(
     return result
 
 
-def differentiate(reduced_vel, reduced_space, time) -> np.ndarray:
-    """Calculate the strain out of the velocity data."""
+def outofplane_strain_rate(
+    velocity: np.ndarray,
+    masks: np.ndarray,
+    z_axis: int = 1,
+    image_axes: Tuple[int, int] = (1, 2),
+    regions: Optional[Sequence[int]] = None,
+    **kwargs,
+) -> np.ndarray:
+    from .contour_mask import masked_means
 
-
-def calculate_regional_strain(strain, masks, datasets) -> Dict:
-    """Calculate the regional strains (1D curves)."""
+    means = masked_means(velocity, masks, axes=image_axes, regions=regions)
+    return np.gradient(means, axis=z_axis, **kwargs)
