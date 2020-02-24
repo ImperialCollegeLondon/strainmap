@@ -317,7 +317,7 @@ def calculate_inplane_strain(
     datasets: Optional[Sequence[Text]] = None,
 ) -> Dict[Text, np.ndarray]:
     """Calculates the strain and updates the Data object with the result."""
-    from strainmap.models.velocities import scale_phase, global_masks_and_origin
+    from strainmap.models.velocities import global_masks_and_origin
 
     swap, signs = data.data_files.orientation
     if datasets is None:
@@ -325,23 +325,24 @@ def calculate_inplane_strain(
 
     result: Dict[Text, np.ndarray] = {}
     for dataset in datasets:
-        phases = scale_phase(data, dataset, bg, swap, sign_reversal)
+        phases = data.masks.get(dataset, {}).get(f"cylindrical - {bg}", None)
+        if phases is None:
+            msg = f"Phases from {dataset} with background {bg} are not available."
+            raise RuntimeError(msg)
         mask, origin = global_masks_and_origin(
             outer=data.segments[dataset]["epicardium"],
             inner=data.segments[dataset]["endocardium"],
-            img_shape=phases.shape[2:],
+            img_shape=phases.shape[-2:],
         )
-        theta0 = find_theta0(data.zero_angle[dataset])
 
         result[dataset] = np.zeros_like(phases[1:])
         for t in range(phases.shape[1]):
             result[dataset][:, t] = (
                 inplane_strain_rate(
                     np.ma.array(
-                        phases[1:, t], mask=np.repeat(~mask[t : t + 1], 2, axis=0)
+                        phases[:2, t], mask=np.repeat(~mask[t : t + 1], 2, axis=0)
                     ),
                     origin=origin[t],
-                    theta0=theta0[t],
                 ).data
                 * mask[t : t + 1]
             )
@@ -402,7 +403,8 @@ def inplane_strain_rate(
         >>> cart_index = np.mgrid[:120,:100] - origin[::-1, None, None]
         >>> r = np.linalg.norm(cart_index, axis=0)
         >>> strain = inplane_strain_rate((r, np.zeros_like(r)), origin=origin)
-        >>> np.max(np.abs(strain[0]))
+        >>> np.max(np.abs(strain[0])).round(2)
+        1.05
         >>> np.argmax(np.abs(strain[0])) // strain.shape[2]
         60
         >>> np.argmax(np.abs(strain[0])) % strain.shape[2]

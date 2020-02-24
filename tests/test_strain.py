@@ -142,11 +142,11 @@ def test_prepare_masks_and_velocities():
     assert radial.shape == angular.shape == (shape[0], len(masks), shape[1], shape[2])
 
 
-def test_inplane_computatins(segmented_data):
+def test_inplane_strain(data_with_velocities):
     from strainmap.models.strain import calculate_inplane_strain
 
     strain = calculate_inplane_strain(
-        segmented_data, datasets=segmented_data.data_files.datasets[:1]
+        data_with_velocities, datasets=data_with_velocities.data_files.datasets[:1]
     )
-    assert set(strain) == set(segmented_data.data_files.datasets[:1])
-    assert strain[segmented_data.data_files.datasets[0]].shape == (2, 3, 512, 512)
+    assert set(strain) == set(data_with_velocities.data_files.datasets[:1])
+    assert strain[data_with_velocities.data_files.datasets[0]].shape == (2, 3, 512, 512)
