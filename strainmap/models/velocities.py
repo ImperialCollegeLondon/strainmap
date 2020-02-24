@@ -1,12 +1,13 @@
-from typing import Text, Tuple, Optional, Sequence, Dict, Union, List
+from typing import Dict, List, Optional, Sequence, Text, Tuple, Union
+
 import numpy as np
 from scipy import ndimage
 
-from strainmap.models.contour_mask import masked_means, cylindrical_projection
+from strainmap.models.contour_mask import cylindrical_projection, masked_means
 from strainmap.models.readers import ImageTimeSeries
 
+from .contour_mask import Contour, angular_segments, contour_diff, radial_segments
 from .strainmap_data_model import StrainMapData
-from .contour_mask import contour_diff, angular_segments, radial_segments, Contour
 
 
 def find_theta0(zero_angle: np.ndarray):
@@ -66,7 +67,8 @@ def transform_to_cylindrical(phase: np.ndarray, masks: np.ndarray, origin: np.nd
     """Transform the velocities to cylindrical coordinates.
 
     It also accounts for the different origin of coordinates for each time step (frame),
-    and substracts for bulk movement of the heart in the plane."""
+    and substracts for bulk movement of the heart in the plane.
+    """
     num_frames = phase.shape[1]
     cylindrical = np.zeros_like(phase)
     for i in range(num_frames):
@@ -227,7 +229,7 @@ def calculate_velocities(
 
 def mean_velocities(
     velocities: np.ndarray,
-    labels: np.ndarray,
+    mask: np.ndarray,
     component_axis: int = ImageTimeSeries.component_axis,
     image_axes: Tuple[int, int] = ImageTimeSeries.image_axes,
     time_axis: Optional[int] = ImageTimeSeries.time_axis,
@@ -238,7 +240,7 @@ def mean_velocities(
 
     Args:
         velocities: phases in a cartesian basis
-        labels: regions for which to compute the mean
+        mask: regions for which to compute the mean
         component_axis: axis of the (x, y, z) components
         image_axes: axes corresponding to the image
         time_axis: axis corresponding to time
@@ -253,9 +255,9 @@ def mean_velocities(
     """
     assert velocities.ndim >= len(image_axes) + (1 if time_axis is None else 2)
     if origin is None:
-        origin = ndimage.measurements.center_of_mass(labels > 0)
+        origin = ndimage.measurements.center_of_mass(mask > 0)
 
-    bulk_velocity = masked_means(velocities, labels > 0, axes=image_axes).reshape(
+    bulk_velocity = masked_means(velocities, mask > 0, axes=image_axes).reshape(
         tuple(1 if i in image_axes else v for i, v in enumerate(velocities.shape))
     )
     cylindrical = cylindrical_projection(
@@ -264,8 +266,8 @@ def mean_velocities(
         component_axis=component_axis,
         image_axes=image_axes,
     )
-    local_means = masked_means(cylindrical, labels, axes=image_axes)
-    global_means = masked_means(cylindrical, labels > 0, axes=image_axes)
+    local_means = masked_means(cylindrical, mask, axes=image_axes)
+    global_means = masked_means(cylindrical, mask > 0, axes=image_axes)
 
     return np.rollaxis(
         np.concatenate([global_means, local_means], axis=0),
@@ -433,7 +435,8 @@ def _update_marker(
     """Updates the position of an existing marker in the data object.
 
     If the marker modified is "ES" (marker_idx = 3), then all markers are updated.
-    Otherwise just the chosen one is updated."""
+    Otherwise just the chosen one is updated.
+    """
     value = velocities[component, position]
     frames = len(velocities[component])
 
@@ -467,7 +470,8 @@ def update_marker(
     """Updates the position of an existing marker in the data object.
 
     If the marker modified is "ES" (marker_idx = 3), then all markers are updated.
-    Otherwise just the chosen one is updated."""
+    Otherwise just the chosen one is updated.
+    """
     data.markers[dataset][vel_label][region] = _update_marker(
         data.velocities[dataset][vel_label][region],
         data.markers[dataset][vel_label][region],
@@ -495,5 +499,4 @@ def initialise_markers(data: StrainMapData, dataset: str, vel_labels: list):
             data.velocities[dataset][vel_label],
             data.markers[dataset][global_vel][0][1, 3],
         )
-
     return data
