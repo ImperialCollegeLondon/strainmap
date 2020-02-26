@@ -29,7 +29,7 @@ def test_outofplane_strain(deltaz):
                     for t in range(10)
                 ]
             ),
-            "angular 6x - Estimated": np.repeat(
+            "angular x6 - Estimated": np.repeat(
                 np.arange(100, dtype=int)[:, None] % 7, 100, 1,
             ),
         }
