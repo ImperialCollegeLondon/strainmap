@@ -136,6 +136,9 @@ def velocities_view(main_window):
 
 @fixture
 def actions_manager():
+    import matplotlib
+
+    matplotlib.use("Agg")
     from matplotlib.pyplot import figure
     from strainmap.gui.figure_actions_manager import FigureActionsManager
 
@@ -168,6 +171,9 @@ def action():
 
 @fixture
 def figure():
+    import matplotlib
+
+    matplotlib.use("Agg")
     import matplotlib.pyplot as plt
 
     fig = plt.figure()

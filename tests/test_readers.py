@@ -1,6 +1,7 @@
 from pathlib import Path
 from typing import Mapping, Text, Tuple, Union
-from pytest import approx, raises
+from pytest import approx, raises, mark
+import sys
 
 
 def search_in_tree(
@@ -160,6 +161,7 @@ def test_from_relative_paths(tmpdir):
     assert actual == expected
 
 
+@mark.skipif(sys.platform == "win32", reason="does not run on windows in Azure")
 def test_paths_from_hdf5(strainmap_data, tmpdir):
     from strainmap.models.writers import paths_to_hdf5
     from strainmap.models.readers import paths_from_hdf5
@@ -184,28 +186,23 @@ def test_paths_from_hdf5(strainmap_data, tmpdir):
             for key in strainmap_data.data_files.files[dataset_name]
         ]
     )
-    if str(filename)[0] != abs_paths[0][0]:
-        assert d[dataset_name]["MagX"] == []
-    else:
-        assert d[dataset_name]["MagX"] == abs_paths
+    assert d[dataset_name]["MagX"] == abs_paths
 
 
+@mark.skipif(sys.platform == "win32", reason="does not run on windows in Azure")
 def test_read_h5_file(tmpdir, segmented_data):
     from strainmap.models.readers import read_h5_file
     from strainmap.models.writers import write_hdf5_file
     from strainmap.models.strainmap_data_model import StrainMapData
 
     filename = tmpdir / "strain_map_file.h5"
-    dataset_name = segmented_data.data_files.datasets[0]
-    abs_paths = segmented_data.data_files.files[dataset_name]["MagX"]
 
     write_hdf5_file(segmented_data, filename)
-    new_data = read_h5_file(StrainMapData.from_folder(), filename)
+    attributes = read_h5_file(StrainMapData.stored, filename)
+    new_data = StrainMapData.from_folder()
+    new_data.__dict__.update(attributes)
 
-    if str(filename)[0] != abs_paths[0][0]:
-        assert segmented_data != new_data
-    else:
-        assert segmented_data == new_data
+    assert segmented_data == new_data
 
 
 def test_legacy_dicom():

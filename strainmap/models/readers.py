@@ -196,32 +196,33 @@ def images_to_numpy(data: Mapping) -> Mapping[Text, ImageTimeSeries]:
     }
 
 
-def read_strainmap_file(data, filename: Union[Path, Text]):
+def read_strainmap_file(stored: Tuple, filename: Union[Path, Text]) -> dict:
     """Reads a StrainMap file with existing information on previous segmentations."""
     if str(filename).endswith(".h5"):
-        return read_h5_file(data, filename)
+        return read_h5_file(stored, filename)
     else:
         raise RuntimeError("File type not recognised by StrainMap.")
 
 
-def read_h5_file(data, filename: Union[Path, Text]):
+def read_h5_file(stored: Tuple, filename: Union[Path, Text]) -> dict:
     """Reads a HDF5 file."""
     sm_file = h5py.File(filename, "a")
-    data.strainmap_file = sm_file
+    attributes = dict(strainmap_file=sm_file)
 
-    for s in data.stored:
+    for s in stored:
         if s == "sign_reversal":
-            data.sign_reversal = tuple(sm_file[s][...])
+            attributes[s] = tuple(sm_file[s][...])
         elif "files" in s and s in sm_file:
             base_dir = paths_from_hdf5(defaultdict(dict), filename, sm_file[s])
             if base_dir is None:
-                setattr(data, s, ())
+                attributes[s] = ()
             else:
-                setattr(data, s, read_folder(base_dir))
+                attributes[s] = read_folder(base_dir)
         elif s in sm_file:
-            read_data_structure(getattr(data, s), sm_file[s])
+            attributes[s] = defaultdict(dict)
+            read_data_structure(attributes[s], sm_file[s])
 
-    return data
+    return attributes
 
 
 def read_data_structure(g, structure):
@@ -264,9 +265,8 @@ class DICOMReaderBase(ABC):
     """Base class for all the DICOM file readers."""
 
     @property
-    @classmethod
     @abstractmethod
-    def vars(cls) -> dict:
+    def vars(self) -> dict:
         """Equivalence between general var names and actual ones.
 
         eg. [Mag, PhaseX, PhaseY, PhaseZ] -> [MagZ, PhaseX, PhaseY, PhaseZ]
