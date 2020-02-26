@@ -77,7 +77,7 @@ def calculate_outofplane_strain(
         if phases is None:
             msg = f"Phases from {dataset} with background {bg} are not available."
             raise RuntimeError(msg)
-        masks = data.masks.get(dataset, {}).get(f"angular {nangular}x - {bg}", None)
+        masks = data.masks.get(dataset, {}).get(f"angular x{nangular} - {bg}", None)
         if masks is None:
             msg = (
                 f"{nangular}-fold angular masks from {dataset} "
