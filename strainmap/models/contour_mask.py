@@ -3,7 +3,6 @@ from __future__ import annotations
 import copy
 from itertools import product
 from typing import Optional, Sequence, Tuple, Union
-from itertools import product
 
 import numpy as np
 from scipy import interpolate, ndimage
