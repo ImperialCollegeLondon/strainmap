@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Optional, Text, Union, Tuple, Type
+from typing import Optional, Text, Union, Tuple
 from collections import defaultdict
 import numpy as np
 import h5py
@@ -71,8 +71,8 @@ class StrainMapData(object):
 
     def __init__(
         self,
-        data_files: Optional[Type[DICOMReaderBase]] = None,
-        bg_files: Optional[Type[DICOMReaderBase]] = None,
+        data_files: Optional[DICOMReaderBase] = None,
+        bg_files: Optional[DICOMReaderBase] = None,
         strainmap_file: Optional[h5py.File] = None,
     ):
 

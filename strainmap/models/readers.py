@@ -1,38 +1,24 @@
 import glob
-import re
 import os
-from collections import OrderedDict
-from dataclasses import dataclass
-from pathlib import Path, PurePosixPath, PurePath
-from typing import (
-    ClassVar,
-    Dict,
-    Iterable,
-    List,
-    Mapping,
-    Optional,
-    Text,
-    Tuple,
-    Union,
-    NoReturn,
-    Type,
-)
+import re
 from abc import ABC, abstractmethod
+from collections import OrderedDict, defaultdict
+from dataclasses import dataclass
 from functools import lru_cache
-from collections import defaultdict
-from natsort import natsorted
+from pathlib import Path, PurePath, PurePosixPath
+from typing import (ClassVar, Dict, Iterable, List, Mapping, Optional, Text,
+                    Tuple, Union)
 
-import pydicom
-import numpy as np
 import h5py
-
+import numpy as np
+import pydicom
+from natsort import natsorted
 
 VAR_OFFSET = {"MagZ": 0, "PhaseZ": 1, "MagX": 2, "PhaseX": 3, "MagY": 4, "PhaseY": 5}
 
 
 def read_dicom_directory_tree(path: Union[Path, Text]) -> Mapping:
-    """Creates a dictionary with the available series and associated
-    filenames."""
+    """Creates a dictionary with the available series and associated filenames."""
     from nibabel.nicom import csareader as csar
 
     path = str(Path(path) / "*01.dcm")
@@ -65,7 +51,8 @@ def read_dicom_directory_tree(path: Union[Path, Text]) -> Mapping:
 def chunks(lst, n):
     """Yield successive n-sized chunks from lst.
 
-    Function taken from https://stackoverflow.com/a/312464/3778792"""
+    Function taken from https://stackoverflow.com/a/312464/3778792
+    """
     for i in range(0, len(lst), n):
         yield lst[i : i + n]
 
@@ -106,8 +93,7 @@ def read_dicom_file_tags(
     variable: Optional[Text] = None,
     timestep: Optional[int] = None,
 ) -> Mapping:
-    """Returns a dictionary with the tags and values available in a DICOM
-    file."""
+    """Returns a dictionary with the tags and values available in a DICOM file."""
     if isinstance(origin, Mapping):
         if len(origin) == 0:
             return {}
@@ -240,8 +226,8 @@ def read_h5_file(stored: Tuple, filename: Union[Path, Text]) -> dict:
 
 
 def read_data_structure(g, structure):
-    """Recursively populates the StrainData object with the contents of the hdf5 file.
-    """
+    """Recursively populates the StrainData object with the contents of the hdf5
+    file."""
     for n, struct in structure.items():
         if isinstance(struct, h5py.Group):
             if len(struct.keys()) == 0:
@@ -261,8 +247,7 @@ def from_relative_paths(master: str, paths: List[bytes]) -> list:
 
 
 def paths_from_hdf5(g, master, structure):
-    """Populates the StrainData object with the paths contained in the hdf5 file.
-    """
+    """Populates the StrainData object with the paths contained in the hdf5 file."""
     base_dir = None
     for n, struct in structure.items():
         if isinstance(struct, h5py.Group):
@@ -277,22 +262,24 @@ def paths_from_hdf5(g, master, structure):
 
 
 class DICOMReaderBase(ABC):
-    """Base class for all the DICOM file readers"""
+    """Base class for all the DICOM file readers."""
 
     @property
     @abstractmethod
     def vars(self) -> dict:
         """Equivalence between general var names and actual ones.
 
-        eg. [Mag, PhaseX, PhaseY, PhaseZ] -> [MagZ, PhaseX, PhaseY, PhaseZ]"""
+        eg. [Mag, PhaseX, PhaseY, PhaseZ] -> [MagZ, PhaseX, PhaseY, PhaseZ]
+        """
 
     @staticmethod
     @abstractmethod
     def belongs(path: Union[Path, Text]) -> bool:
         """Indicates if the input file is compatible with this reader_class.
 
-        This could be by analysing the filename itself or some specific content
-        within the file."""
+        This could be by analysing the filename itself or some specific content within
+        the file.
+        """
 
     @classmethod
     @abstractmethod
@@ -358,7 +345,8 @@ class DICOMReaderBase(ABC):
     def mag(self, dataset: str) -> np.ndarray:
         """Provides the magnitude data corresponding to the chosen dataset.
 
-        The expected shape of the array is [frames, xpoints, ypoints]."""
+        The expected shape of the array is [frames, xpoints, ypoints].
+        """
 
     @lru_cache(1)
     @abstractmethod
@@ -366,7 +354,8 @@ class DICOMReaderBase(ABC):
         """Provides the Phase data corresponding to the chosen dataset.
 
         The expected shape of the array is [3, frames, xpoints, ypoints]. The components
-        should follow the order PhaseX -> PhaseY -> PhaseZ."""
+        should follow the order PhaseX -> PhaseY -> PhaseZ.
+        """
 
     def images(self, dataset: str, var: str) -> np.ndarray:
         """Returns one specific component of all the image data."""
@@ -390,7 +379,7 @@ def register_dicom_reader(reader_class):
     return reader_class
 
 
-def read_folder(path: Union[Path, Text, None]) -> Optional[Type[DICOMReaderBase]]:
+def read_folder(path: Union[Path, Text, None]) -> Optional[DICOMReaderBase]:
     """Find a reader appropriate to read the contents of the given folder."""
     for r in DICOM_READERS:
         if r.belongs(path):
@@ -456,15 +445,15 @@ class LegacyDICOM(DICOMReaderBase):
         header = csa.get("tags", {}).get("MrPhoenixProtocol", {}).get("items", [])[0]
         return velocity_sensitivity(header)
 
-    def slice_loc(self, dataset: str) -> NoReturn:
+    def slice_loc(self, dataset: str) -> None:
         """Returns the slice location in cm from the isocentre."""
         raise AttributeError("LegacyDICOM has no slice location defined.")
 
-    def pixel_size(self, dataset: str) -> NoReturn:
+    def pixel_size(self, dataset: str) -> None:
         """Returns the pixel size in cm."""
         raise AttributeError("LegacyDICOM has no pixel size defined.")
 
-    def time_interval(self, dataset: str) -> NoReturn:
+    def time_interval(self, dataset: str) -> None:
         """Returns the frame time interval in seconds."""
         raise AttributeError("LegacyDICOM has no time interval defined.")
 
@@ -538,6 +527,14 @@ class DICOM(DICOMReaderBase):
         ds = pydicom.dcmread(self.is_avail)
         header = ds[("0021", "1019")].value.decode()
         return velocity_sensitivity(header)
+
+    @property
+    def orientation(self) -> tuple:
+        """Indicates if X-Y Phases should be swapped and the velocity sign factors."""
+        ds = pydicom.dcmread(self.is_avail)
+        swap = ds.InPlanePhaseEncodingDirection != "ROW"
+        signs = np.array([1, -1, 1]) * (-1) ** swap
+        return swap, signs
 
     def slice_loc(self, dataset: str) -> float:
         """Returns the slice location in cm from the isocentre."""
