@@ -122,13 +122,16 @@ class StrainTaskView(TaskViewBase):
 
     def find_strain_limits(self, strain_label):
         """Finds suitable maximum and minimum for the strain plots."""
-        vel = self.data.strain[self.strain_var.get()][strain_label]
+        strain = self.data.strain[self.datasets_var.get()][strain_label]
         for i, label in enumerate(self.axes_lbl):
-            m = (vel[:, i, :].max() - vel[:, i, :].min()) * 0.10
-            self.strain_lim[label] = (vel[:, i, :].min() - m, vel[:, i, :].max() + m)
+            m = (strain[:, i, :].max() - strain[:, i, :].min()) * 0.10
+            self.strain_lim[label] = (
+                strain[:, i, :].min() - m,
+                strain[:, i, :].max() + m,
+            )
 
     def replot(self):
-        """Updates the plot to show the chosen velocity."""
+        """Updates the plot to show the chosen strain."""
         strain_label = self.strain_var.get()
         self.find_strain_limits(strain_label)
         if self.fig is None or self.current_region == -1:
@@ -139,12 +142,12 @@ class StrainTaskView(TaskViewBase):
                 self.images,
                 self.markers[self.current_region],
             )
-            self.populate_tables()
+            # self.populate_tables()
         else:
             self.current_region = -1
             self.scroll()
             self.draw()
-            self.populate_tables()
+            # self.populate_tables()
 
     def marker_moved(self, table, marker):
         """Updates plot and table after a marker has been moved."""
@@ -167,15 +170,15 @@ class StrainTaskView(TaskViewBase):
         if self.current_region != current_region:
             self.fig.actions_manager.SimpleScroller.disabled = True
             self.current_region = current_region
-            self.update_strain(self.strain, draw=False)
+            self.update_strains(self.strain, draw=False)
             self.update_maps(
                 self.strain_maps,
                 self.images,
                 self.markers[self.current_region],
                 draw=False,
             )
-            self.update_markers(self.markers[self.current_region], draw=False)
-            self.populate_tables()
+            # self.update_markers(self.markers[self.current_region], draw=False)
+            # self.populate_tables()
             self.fig.actions_manager.SimpleScroller.disabled = False
             for strain_label, ax in self.axes.items():
                 ax.set_ylim(*self.strain_lim[strain_label])
@@ -184,12 +187,12 @@ class StrainTaskView(TaskViewBase):
 
     @property
     def regions(self) -> int:
-        """Number of regions for the selected velocity."""
+        """Number of regions for the selected strain."""
         return len(self.data.strain[self.datasets_var.get()][self.strain_var.get()])
 
     @property
     def strain(self) -> np.ndarray:
-        """Velocities of the current region."""
+        """Strains of the current region."""
         return self.data.strain[self.datasets_var.get()][self.strain_var.get()][
             self.current_region
         ]
@@ -197,7 +200,7 @@ class StrainTaskView(TaskViewBase):
     @property
     def markers(self) -> np.ndarray:
         """Markers of the current region."""
-        return self.data.strain_markers[self.datasets_var.get()][self.strain_var.get()]
+        return self.data.markers[self.datasets_var.get()][self.strain_var.get()]
 
     @property
     def masks(self) -> np.ndarray:
@@ -243,7 +246,7 @@ class StrainTaskView(TaskViewBase):
                 t.insert(time, tk.END, text=labels[j], values=val, tags=(tag,))
 
     def update_table_one_marker(self, table, marker):
-        """Updates peak velocity and time table entry for a single marker."""
+        """Updates peak strain and time table entry for a single marker."""
         table = self.axes_lbl.index(table)
         idx = self.marker_idx[marker]
         t = self.param_tables[table]
@@ -274,29 +277,27 @@ class StrainTaskView(TaskViewBase):
             )
 
     def update_strain_list(self, dataset):
-        """Updates the list of radio buttons with the currently available velocities."""
+        """Updates the list of radio buttons with the currently available strains."""
         strain = self.data.strain[dataset]
 
         for v in self.strain_frame.winfo_children():
             v.grid_remove()
 
-        for i, v in enumerate(strain):
-            if "cylindrical" in v:
-                continue
+        for i, v in enumerate([v for v in strain if "cylindrical" not in v]):
             col, row = divmod(i, 3)
             ttk.Radiobutton(
-                self.velocities_frame,
+                self.strain_frame,
                 text=v,
                 value=v,
-                variable=self.velocities_var,
+                variable=self.strain_var,
                 command=self.replot,
             ).grid(row=row, column=col, sticky=tk.NSEW)
 
         if self.strain_var.get() not in strain and len(strain) > 0:
-            self.strain_var.set(list(strain.keys())[-1])
+            self.strain_var.set(list(strain.keys())[0])
 
     def calculate_strain(self):
-        """Calculate pre-defined velocities for the chosen dataset."""
+        """Calculate pre-defined strain for the chosen dataset."""
         self.controller.calculate_strain(dataset_name=self.datasets_var.get())
         self.update_strain_list(self.datasets_var.get())
 
@@ -360,10 +361,10 @@ class StrainTaskView(TaskViewBase):
         self.axes = self.add_strain_subplots(gs)
         self.maps = self.add_maps_subplots(gs)
         self.strain_lines = self.add_strain_lines(strain)
-        self.bg_images, self.strain_masks, self.cbar = self.images_and_velocity_masks(
+        self.bg_images, self.strain_masks, self.cbar = self.images_and_strain_masks(
             images, masks, markers
         )
-        self.marker_artists = self.add_markers(markers)
+        # self.marker_artists = self.add_markers(markers)
 
         self.draw()
 
@@ -382,7 +383,7 @@ class StrainTaskView(TaskViewBase):
         ax_circ.axhline(color="k", lw=1)
 
         ax_long.set_title("Longitudinal")
-        ax_long.set_ylabel("Velocity (cm/s)")
+        ax_long.set_ylabel("Strain (-)")
         ax_long.set_xlabel("Frame")
         ax_rad.set_title("Radial")
         ax_rad.set_xlabel("Frame")
@@ -394,13 +395,13 @@ class StrainTaskView(TaskViewBase):
     def add_strain_lines(self, strain):
         """Add lines to the strain plots.
 
-        strain - 2D array with the velocities with shape [components (3), frames]
+        strain - 2D array with the strains with shape [components (3), frames]
         """
         x = np.arange(strain.shape[-1])
         output = dict()
         for i, label in enumerate(self.axes_lbl):
             output[label] = self.axes[label].plot(x, strain[i], "k", label=label)[0]
-            self.axes[label].set_ylim(*self.vel_lim[label])
+            self.axes[label].set_ylim(*self.strain_lim[label])
             self.axes[label].autoscale(False)
         return output
 
@@ -418,13 +419,13 @@ class StrainTaskView(TaskViewBase):
 
         return maps
 
-    def images_and_velocity_masks(self, mag, strain_masks, markers):
+    def images_and_strain_masks(self, mag, strain_masks, markers):
         """Add bg and masks to the map subplots."""
         bg = {l: [] for l in self.axes_lbl}
         masks = {l: [] for l in self.axes_lbl}
 
-        if "global" in self.velocities_var.get():
-            self.limits = self.find_limits(strain_masks[0, 0])
+        if "global" in self.strain_var.get():
+            self.limits = self.find_limits(strain_masks[1, 0])
 
         rmin, rmax, cmin, cmax = self.limits
         vmin, vmax = strain_masks.min(), strain_masks.max()
@@ -470,12 +471,12 @@ class StrainTaskView(TaskViewBase):
         """
         add_marker = self.fig.actions_manager.Markers.add_marker
 
-        vel_lbl = ["_long"] * 3 + ["_rad"] * 3 + ["_circ"] * 3
+        comp_lbl = ["_long"] * 3 + ["_rad"] * 3 + ["_circ"] * 3
         colors = ["red", "green", "blue"] * 2 + ["orange", "darkblue", "purple"]
         marker_lbl = ("P", "S", "PSS") * 3
 
         markers_artists = []
-        for i, label in enumerate(vel_lbl):
+        for i, label in enumerate(comp_lbl):
             markers_artists.append(
                 add_marker(
                     self.strain_lines[label],
@@ -522,7 +523,7 @@ class StrainTaskView(TaskViewBase):
 
     def update_mask(self, label, idx, data, draw=False):
         """Updates the data of the chosen bg."""
-        self.update_data(self.vel_masks[label][idx], label, data, draw)
+        self.update_data(self.strain_masks[label][idx], label, data, draw)
 
     def update_data(self, subplot, label, data, draw=False):
         """Common data updating method."""
@@ -576,7 +577,7 @@ class StrainTaskView(TaskViewBase):
         self.draw()
 
     def update_strains(self, strain, draw=True):
-        """Updates all velocities."""
+        """Updates all strains."""
         x = np.arange(strain.shape[-1])
         for i, label in enumerate(self.axes_lbl):
             self.update_line(label, (x, strain[i]))
@@ -606,40 +607,3 @@ class StrainTaskView(TaskViewBase):
             position=position,
         )
         self.marker_moved(data.get_label(), marker.get_label())
-
-
-def colour_figure(
-    velocities: np.ndarray, labels: tuple, markers_idx: np.ndarray, master: ttk.Frame
-) -> Figure:
-    """Creates the color plots for the regional velocities."""
-    fig = Figure(constrained_layout=True)
-    canvas = FigureCanvasTkAgg(fig, master=master)
-    canvas.get_tk_widget().grid(row=0, column=0, sticky=tk.NSEW)
-    ax = fig.subplots(ncols=3, nrows=1)
-
-    space = velocities.shape[0] / len(labels)
-    lines_pos = np.arange(space, velocities.shape[0], space) - 0.5
-    labels_pos = np.arange(space // 2, velocities.shape[0], space) - 0.5
-    marker_lbl = ["PS", "PD", "PAS"] * 2 + ["PC1", "PC2", "PC3"]
-
-    for i, title in enumerate(("Longitudinal", "Radial", "Circumferential")):
-        ax[i].imshow(
-            velocities[:, i],
-            cmap=plt.get_cmap("jet"),
-            aspect="auto",
-            interpolation="bilinear",
-        )
-        ax[i].set_title(title)
-
-        ax[i].set_yticks(lines_pos, minor=True)
-        ax[i].set_yticks(labels_pos, minor=False)
-        ax[i].set_yticklabels(labels[::-1], minor=False)
-        ax[i].yaxis.grid(True, which="minor", color="k", linestyle="-")
-        ax[i].set_ylim((-0.5, velocities.shape[0] - 0.5))
-
-        ax[i].set_xticks(markers_idx[3 * i : 3 * i + 3], minor=False)
-        ax[i].set_xticklabels(marker_lbl[3 * i : 3 * i + 3], minor=False)
-
-        fig.colorbar(ax[i].images[0], ax=ax[i], orientation="horizontal")
-
-    return fig

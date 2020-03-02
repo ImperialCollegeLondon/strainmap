@@ -1,8 +1,54 @@
-from typing import Callable, Dict, Optional, Sequence, Text, Tuple
+from typing import Callable, Dict, Optional, Sequence, Text, Tuple, Union
 
 import numpy as np
 
 from .strainmap_data_model import StrainMapData
+
+
+def calculate_strain(
+    data: StrainMapData, dataset_name: Union[Sequence[Text], Text]
+) -> None:
+    """Calculate all components of the strain for the given datasets.
+
+    If there is only one dataset, the longitudinal strain is not calculated. In the end,
+    the StrainMapData object is updated with the new informatio."""
+
+    results_long: Optional[np.ndarray] = None
+    if isinstance(dataset_name, list):
+        datasets = dataset_name
+        results_long = calculate_outofplane_strain(
+            data, datasets=dataset_name, component_axis=0
+        )
+    else:
+        datasets = [dataset_name]
+
+    result = calculate_inplane_strain(data, datasets=datasets)
+
+    for d, cyl in result.items():
+        regional = calculate_regional_strain(cyl, data.masks[d])
+
+        if results_long is None:
+            for i, r in regional.items():
+                regional[i] = np.concatenate((np.zeros_like(r[:, :1, :]), r), axis=1)
+            cyl = np.concatenate((np.zeros_like(cyl[:1, ...]), cyl), axis=0)
+
+        data.strain[d].update(regional)
+        data.strain[d]["cylindrical - Estimated"] = cyl
+
+
+def calculate_regional_strain(
+    strain: np.ndarray, masks: Dict[Text, np.ndarray]
+) -> Dict[Text, np.ndarray]:
+    """Calculate the regional strains."""
+    from strainmap.models.contour_mask import masked_means
+
+    result: Dict[Text, np.ndarray] = {}
+    for k, mask in masks.items():
+        if "cylindrical" in k:
+            continue
+        result[k] = masked_means(strain, mask, axes=(2, 3))
+
+    return result
 
 
 def calculate_inplane_strain(
@@ -23,6 +69,7 @@ def calculate_inplane_strain(
         if phases is None:
             msg = f"Phases from {dataset} with background {bg} are not available."
             raise RuntimeError(msg)
+
         mask, origin = global_masks_and_origin(
             outer=data.segments[dataset]["epicardium"],
             inner=data.segments[dataset]["endocardium"],
@@ -60,8 +107,8 @@ def calculate_outofplane_strain(
     bg: str = "Estimated",
     nangular: int = 6,
     datasets: Optional[Sequence[Text]] = None,
-    component_axis: int = 1,
-    image_axes: Tuple[int, int] = (2, 3),
+    component_axis: int = 0,
+    image_axes: Tuple[int, int] = (-2, -1),
     regions: Optional[Sequence[int]] = None,
 ) -> np.ndarray:
     """Wrangles zz strain component from existing data."""
@@ -91,15 +138,12 @@ def calculate_outofplane_strain(
         except AttributeError:
             pass
 
-        iaxes = image_axes[0] % phases.ndim, image_axes[1] % phases.ndim
-        iaxes = (
-            image_axes[0] - int(iaxes[0] > (component_axis % phases.ndim)),
-            image_axes[1] - int(iaxes[1] > (component_axis % phases.ndim)),
-        )
-
         vzz.append(
             masked_means(
-                np.take(phases, -1, component_axis), masks, axes=iaxes, regions=regions,
+                np.take(phases, -1, component_axis),
+                masks,
+                axes=image_axes,
+                regions=regions,
             )
             * factor
         )

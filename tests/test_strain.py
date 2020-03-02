@@ -23,14 +23,15 @@ def test_outofplane_strain(deltaz):
     data = SimpleNamespace()
     data.masks = {
         f"dodo{z}": {
-            "cylindrical - Estimated": np.array(
+            "cylindrical - Estimated": np.transpose(
                 [
-                    [[[vel(x, y, z, t) for y in range(100)] for x in range(100)]]
+                    [[vel(x, y, z, t) for y in range(100)] for x in range(100)]
                     for t in range(10)
-                ]
+                ],
+                (3, 0, 1, 2),
             ),
             "angular x6 - Estimated": np.repeat(
-                np.arange(100, dtype=int)[:, None] % 7, 100, 1,
+                np.arange(100, dtype=int)[:, None] % 7, 100, 1
             ),
         }
         for z in range(8)
@@ -42,6 +43,6 @@ def test_outofplane_strain(deltaz):
     }[x]
 
     strain = calculate_outofplane_strain(
-        data, image_axes=(-3, -2), component_axis=-1  # type: ignore
+        data, image_axes=(-2, -1), component_axis=0  # type: ignore
     )
     assert strain == approx(-3 / deltaz)

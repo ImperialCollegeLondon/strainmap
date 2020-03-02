@@ -8,6 +8,7 @@ from .models.strainmap_data_model import StrainMapData
 from .models import quick_segmentation
 from .models.velocities import calculate_velocities, update_marker
 from .models.writers import velocity_to_xlsx
+from .models.strain import calculate_strain
 
 
 class StrainMap(object):
@@ -138,7 +139,7 @@ class StrainMap(object):
 
     def calculate_strain(self, **kwargs):
         """Calculates the strain based on the available velocities."""
-        pass
+        calculate_strain(data=self.data, **kwargs)
 
     def update_strain_marker(self, **kwargs):
         """Updates the strain markers information after moving one of them."""
