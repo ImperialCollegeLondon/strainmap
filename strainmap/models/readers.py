@@ -6,8 +6,7 @@ from collections import OrderedDict, defaultdict
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path, PurePath, PurePosixPath
-from typing import (ClassVar, Dict, Iterable, List, Mapping, Optional, Text,
-                    Tuple, Union)
+from typing import ClassVar, Dict, Iterable, List, Mapping, Optional, Text, Tuple, Union
 
 import h5py
 import numpy as np
@@ -527,14 +526,6 @@ class DICOM(DICOMReaderBase):
         ds = pydicom.dcmread(self.is_avail)
         header = ds[("0021", "1019")].value.decode()
         return velocity_sensitivity(header)
-
-    @property
-    def orientation(self) -> tuple:
-        """Indicates if X-Y Phases should be swapped and the velocity sign factors."""
-        ds = pydicom.dcmread(self.is_avail)
-        swap = ds.InPlanePhaseEncodingDirection != "ROW"
-        signs = np.array([1, -1, 1]) * (-1) ** swap
-        return swap, signs
 
     def slice_loc(self, dataset: str) -> float:
         """Returns the slice location in cm from the isocentre."""

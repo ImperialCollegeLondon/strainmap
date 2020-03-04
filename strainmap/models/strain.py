@@ -65,23 +65,23 @@ def calculate_inplane_strain(
 
     result: Dict[Text, np.ndarray] = {}
     for dataset in datasets:
-        phases = data.masks.get(dataset, {}).get(f"cylindrical - {bg}", None)
-        if phases is None:
-            msg = f"Phases from {dataset} with background {bg} are not available."
+        velocities = data.masks.get(dataset, {}).get(f"cylindrical - {bg}", None)
+        if velocities is None:
+            msg = f"Velocities from {dataset} with background {bg} are not available."
             raise RuntimeError(msg)
 
         mask, origin = global_masks_and_origin(
             outer=data.segments[dataset]["epicardium"],
             inner=data.segments[dataset]["endocardium"],
-            img_shape=phases.shape[-2:],
+            img_shape=velocities.shape[-2:],
         )
 
-        result[dataset] = np.zeros_like(phases[1:])
-        for t in range(phases.shape[1]):
+        result[dataset] = np.zeros_like(velocities[1:])
+        for t in range(velocities.shape[1]):
             result[dataset][:, t] = (
                 inplane_strain_rate(
                     np.ma.array(
-                        phases[:2, t], mask=np.repeat(~mask[t : t + 1], 2, axis=0)
+                        velocities[:2, t], mask=np.repeat(~mask[t : t + 1], 2, axis=0)
                     ),
                     origin=origin[t],
                 ).data
