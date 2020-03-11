@@ -226,25 +226,23 @@ def inplane_strain_rate(
         Increasing the size of the grid yields better results (e.g. the bound on the
         strain is lower).
     """
-    from scipy.interpolate import SmoothBivariateSpline, RectBivariateSpline
+    from scipy.interpolate import RectBivariateSpline
 
     radial_velocity = np.take(velocities, 0, component_axis)
     azimutal_velocity = np.take(velocities, 1, component_axis)
     is_masked = hasattr(velocities, "mask")
+    grid = np.ogrid[range(radial_velocity.shape[0]), range(radial_velocity.shape[1])]
+
     if not is_masked:
-        points = np.ogrid[
-            range(radial_velocity.shape[0]), range(radial_velocity.shape[1])
-        ]
-        spline = spline or RectBivariateSpline
+        points = grid
     else:
         assert (radial_velocity.mask == azimutal_velocity.mask).all()
         points = (~radial_velocity.mask).nonzero()
-        radial_velocity = radial_velocity[points[0], points[1]].data
-        azimutal_velocity = azimutal_velocity[points[0], points[1]].data
-        spline = spline or SmoothBivariateSpline
 
-    radial_spline = spline(*points, radial_velocity, **kwargs)
-    azimutal_spline = spline(*points, azimutal_velocity, **kwargs)
+    spline = spline or RectBivariateSpline
+
+    radial_spline = spline(*grid, radial_velocity, **kwargs)
+    azimutal_spline = spline(*grid, azimutal_velocity, **kwargs)
 
     x = points[0] - origin[1]
     y = points[1] - origin[0]
@@ -263,19 +261,9 @@ def inplane_strain_rate(
     )
     # fmt: on
 
-    def rhs(values):
-        if not is_masked:
-            return values
-
-        x = np.zeros_like(np.take(velocities, 0, component_axis))
-        x[points[0], points[1]] = values
-        return x
-
-    # Transform to cartesian coordinates
     result = np.zeros_like(velocities)
-    indices = [slice(i) for i in result.shape]
-    indices[component_axis] = 0  # type: ignore
-    result[tuple(indices)] = rhs(radial_strain)
-    indices[component_axis] = 1  # type: ignore
-    result[tuple(indices)] = rhs(azimutal_strain)
+    result[0, points[0], points[1]] = radial_strain
+    result[1, points[0], points[1]] = azimutal_strain
+    if not is_masked:
+        result[:, int(origin[1]), int(origin[0])] = np.mean(result, axis=(1, 2))
     return result
