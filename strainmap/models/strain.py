@@ -11,9 +11,9 @@ def calculate_strain(
     """Calculate all components of the strain for the given datasets.
 
     If there is only one dataset, the longitudinal strain is not calculated. In the end,
-    the StrainMapData object is updated with the new informatio."""
+    the StrainMapData object is updated with the new information."""
 
-    results_long: Optional[np.ndarray] = None
+    results_long: Optional[Dict[str, np.ndarray]] = None
     if isinstance(dataset_name, list):
         datasets = dataset_name
         results_long = calculate_outofplane_strain(
@@ -22,14 +22,32 @@ def calculate_strain(
     else:
         datasets = [dataset_name]
 
+    datasets = sorted(datasets, key=data.data_files.slice_loc)
     result = calculate_inplane_strain(data, datasets=datasets)
 
     for d, cyl in result.items():
         regional = calculate_regional_strain(cyl, data.masks[d])
 
         if results_long is None:
+            # If there are no longitudinal results, the needed arrays are filled with
+            # zeros
             for i, r in regional.items():
                 regional[i] = np.concatenate((np.zeros_like(r[:, :1, :]), r), axis=1)
+            cyl = np.concatenate((np.zeros_like(cyl[:1, ...]), cyl), axis=0)
+
+        else:
+            # Otherwise, the longitudinal data - only angular x6, for now - is
+            # incorporated.
+            j = datasets.index(d)
+            for i, r in regional.items():
+                lng = results_long.get(i, None)
+                if lng is None:
+                    regional[i] = np.concatenate(
+                        (np.zeros_like(r[:, :1, :]), r), axis=1
+                    )
+                else:
+                    regional[i] = np.concatenate((lng[j][:, None, :], r), axis=1)
+
             cyl = np.concatenate((np.zeros_like(cyl[:1, ...]), cyl), axis=0)
 
         data.strain[d].update(regional)
@@ -110,7 +128,7 @@ def calculate_outofplane_strain(
     component_axis: int = 0,
     image_axes: Tuple[int, int] = (-2, -1),
     regions: Optional[Sequence[int]] = None,
-) -> np.ndarray:
+) -> Dict[str, np.ndarray]:
     """Wrangles zz strain component from existing data."""
     from operator import itemgetter
     from strainmap.models.contour_mask import masked_means
@@ -118,7 +136,7 @@ def calculate_outofplane_strain(
     if datasets is None:
         datasets = list(data.data_files.files)
     vzz = []
-    zs = []
+
     for dataset in datasets:
         phases = data.masks.get(dataset, {}).get(f"cylindrical - {bg}", None)
         if phases is None:
@@ -147,10 +165,19 @@ def calculate_outofplane_strain(
             )
             * factor
         )
-        zs.append(data.data_files.slice_loc(dataset))
 
+    zs = [data.data_files.slice_loc(d) for d in datasets]
     levels = sorted(zip(vzz, zs), key=itemgetter(1))
-    return np.gradient([l[0] for l in levels], [l[1] for l in levels], axis=0)
+
+    result = {
+        f"angular x{nangular} - {bg}": np.gradient(
+            [l[0] for l in levels], [l[1] for l in levels], axis=0
+        )
+    }
+    result[f"global - {bg}"] = np.mean(result[f"angular x{nangular} - {bg}"], axis=1)[
+        :, None, :
+    ]
+    return result
 
 
 def inplane_strain_rate(
@@ -173,7 +200,7 @@ def inplane_strain_rate(
             `component_axis`. Can also be a masked array.
         component_axis: axis of the radial and azimutal components of the velocities.
         spline: Function from which to create an interpolation object. Defaults to
-            SmoothBivariateSpline for masked arrays and RectBivariateSpline otherwise.
+            RectBivariateSpline otherwise.
         origin: Origin of the cylindrical coordinate system. Because image vs array
             issues, `origin[1]` correspond to `x` and  `origin[0]` to `y`.
         **kwargs: passed on the spline function.
@@ -264,6 +291,7 @@ def inplane_strain_rate(
     result = np.zeros_like(velocities)
     result[0, points[0], points[1]] = radial_strain
     result[1, points[0], points[1]] = azimutal_strain
-    if not is_masked:
-        result[:, int(origin[1]), int(origin[0])] = np.mean(result, axis=(1, 2))
+    infs = np.isinf(result)
+    if infs.any():
+        result[infs] = np.mean(result[~infs])
     return result

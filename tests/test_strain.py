@@ -45,7 +45,10 @@ def test_outofplane_strain(deltaz):
     strain = calculate_outofplane_strain(
         data, image_axes=(-2, -1), component_axis=0  # type: ignore
     )
-    assert strain == approx(-3 / deltaz)
+    assert all([d in strain for d in ("global - Estimated", "angular x6 - Estimated")])
+    assert strain["global - Estimated"].shape[1] == 1
+    assert strain["angular x6 - Estimated"].shape[1] == 6
+    assert strain["angular x6 - Estimated"] == approx(-3 / deltaz)
 
 
 @mark.parametrize("masked", [False, True])

@@ -297,8 +297,8 @@ class StrainTaskView(TaskViewBase):
             self.strain_var.set(list(strain.keys())[0])
 
     def calculate_strain(self):
-        """Calculate pre-defined strain for the chosen dataset."""
-        self.controller.calculate_strain(dataset_name=self.datasets_var.get())
+        """Calculate  strain for the chosen dataset."""
+        self.controller.calculate_strain(dataset_name=list(self.data.velocities.keys()))
         self.update_strain_list(self.datasets_var.get())
 
     def export(self, *args):
