@@ -119,34 +119,16 @@ class StrainMapData(object):
         return True
 
     def regenerate(self):
-        """Regenerate velocities and masks information after loading from h5 file."""
-        from .velocities import calculate_velocities
+        """We create placeholders for the velocities that were expected.
 
+        The velocities and masks will be created at runtime, just when needed."""
         # If there is no data paths yet, we postpone the regeneration.
         if self.data_files == ():
             return
 
         for dataset, markers in self.markers.items():
-            regions = dict()
             for k in markers.keys():
-                info = k.split(" - ")
-                if info[-1] not in regions.keys():
-                    regions[info[-1]] = dict(angular_regions=[], radial_regions=[])
-                if "global" in info[0]:
-                    regions[info[-1]]["global_velocity"] = True
-                else:
-                    rtype, num = info[0].split(" x")
-                    regions[info[-1]][f"{rtype}_regions"].append(int(num))
-
-            for bg, region in regions.items():
-                calculate_velocities(
-                    data=self,
-                    dataset_name=dataset,
-                    bg=bg,
-                    sign_reversal=self.sign_reversal,
-                    init_markers=False,
-                    **region,
-                )
+                self.velocities[dataset][k] = None
 
     def metadata(self, dataset=None):
         """Retrieve the metadata from the DICOM files"""

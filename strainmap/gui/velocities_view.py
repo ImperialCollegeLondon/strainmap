@@ -174,6 +174,7 @@ class VelocitiesTaskView(TaskViewBase):
         else:
             self.populate_bg_box(current)
             self.calculate_velocities()
+
         self.replot()
 
     def bg_changed(self, *args):
@@ -213,6 +214,10 @@ class VelocitiesTaskView(TaskViewBase):
         """Updates the plot to show the chosen velocity."""
         dataset = self.datasets_var.get()
         vel_label = self.velocities_var.get()
+        bg = vel_label.split(" - ")[-1]
+        if not any([bg in k for k in self.data.masks[dataset]]):
+            self.calculate_velocities(bg, init_markers=False)
+
         self.find_velocity_limits(vel_label)
         if self.data.velocities[dataset][vel_label].shape[0] == 24:
             self.color_plots(dataset, vel_label)
@@ -399,7 +404,7 @@ class VelocitiesTaskView(TaskViewBase):
 
         self.bg_var.set(self.velocities_var.get().split(" - ")[-1])
 
-    def calculate_velocities(self, bg=None):
+    def calculate_velocities(self, bg=None, init_markers=True):
         """Calculate pre-defined velocities for the chosen dataset."""
         self.controller.calculate_velocities(
             dataset_name=self.datasets_var.get(),
@@ -407,6 +412,7 @@ class VelocitiesTaskView(TaskViewBase):
             angular_regions=[6, 24],
             bg=self.bg_var.get() if bg is None else bg,
             sign_reversal=tuple(var.get() for var in self.reverse_vel_var),
+            init_markers=init_markers,
         )
         self.update_velocities_list(self.datasets_var.get())
 
