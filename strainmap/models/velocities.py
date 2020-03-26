@@ -227,6 +227,34 @@ def calculate_velocities(
         )
 
 
+def regenerate(data, datasets):
+    """Regenerate velocities and masks information after loading from h5 file."""
+    for i, d in enumerate(datasets):
+        print(f"Regenerating velocities... {i+1}/{len(datasets)}")
+        vels = data.velocities[d]
+        regions = dict()
+        for k, v in vels.items():
+            info = k.split(" - ")
+            if info[-1] not in regions.keys():
+                regions[info[-1]] = dict(angular_regions=[], radial_regions=[])
+            if "global" in info[0]:
+                regions[info[-1]]["global_velocity"] = True
+            else:
+                rtype, num = info[0].split(" x")
+                regions[info[-1]][f"{rtype}_regions"].append(int(num))
+
+        for bg, region in regions.items():
+            calculate_velocities(
+                data=data,
+                dataset_name=d,
+                bg=bg,
+                sign_reversal=data.sign_reversal,
+                init_markers=False,
+                **region,
+            )
+    print("Regeneration complete!")
+
+
 def mean_velocities(
     velocities: np.ndarray,
     mask: np.ndarray,

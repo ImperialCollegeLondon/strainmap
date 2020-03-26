@@ -428,7 +428,7 @@ class StrainTaskView(TaskViewBase):
             self.limits = self.find_limits(strain_masks[1, 0])
 
         rmin, rmax, cmin, cmax = self.limits
-        vmin, vmax = strain_masks.min(), strain_masks.max()
+        vmin, vmax = -1, 1  # strain_masks.min(), strain_masks.max()
         for i in range(9):
             axes = self.axes_lbl[i // 3]
             frame = int(markers[i // 3, i % 3, 0])

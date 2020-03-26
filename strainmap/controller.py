@@ -75,8 +75,10 @@ class StrainMap(object):
         """Creates a StrainMapData object."""
         self.data = StrainMapData.from_file(strainmap_file)
         there_are_segments = any(len(i) != 0 for i in self.data.segments.values())
+        there_are_velocities = any(len(i) != 0 for i in self.data.velocities.values())
         self.lock_toggle(self.data.data_files, Requisites.DATALOADED)
         self.lock_toggle(there_are_segments, Requisites.SEGMENTED)
+        self.lock_toggle(there_are_velocities, Requisites.VELOCITIES)
         return self.data is not None
 
     def clear_data(self):

@@ -3,6 +3,7 @@ from typing import Callable, Dict, Optional, Sequence, Text, Tuple, Union
 import numpy as np
 
 from .strainmap_data_model import StrainMapData
+from .velocities import regenerate
 
 
 def calculate_strain(
@@ -13,16 +14,25 @@ def calculate_strain(
     If there is only one dataset, the longitudinal strain is not calculated. In the end,
     the StrainMapData object is updated with the new information."""
 
-    results_long: Optional[Dict[str, np.ndarray]] = None
-    if isinstance(dataset_name, list):
-        datasets = dataset_name
-        results_long = calculate_outofplane_strain(
-            data, datasets=dataset_name, component_axis=0
-        )
-    else:
-        datasets = [dataset_name]
-
+    datasets = dataset_name if isinstance(dataset_name, list) else [dataset_name]
     datasets = sorted(datasets, key=data.data_files.slice_loc)
+
+    # Do we need to calculate the strain?
+    if all([d in data.strain.keys() for d in datasets]):
+        return
+
+    # Do we need to regenerate the velocities?
+    to_regen = [d for d in datasets if list(data.velocities[d].values())[0] is None]
+    if len(to_regen) > 0:
+        regenerate(data, to_regen)
+
+    # Do we have enough slices to calculate out-of-plane strain?
+    results_long: Optional[Dict[str, np.ndarray]] = None
+    if len(datasets) > 1:
+        results_long = calculate_outofplane_strain(
+            data, datasets=datasets, component_axis=0
+        )
+
     result = calculate_inplane_strain(data, datasets=datasets)
 
     for d, cyl in result.items():
@@ -62,7 +72,7 @@ def calculate_regional_strain(
 
     result: Dict[Text, np.ndarray] = {}
     for k, mask in masks.items():
-        if "cylindrical" in k:
+        if "cylindrical" in k or "24" in k:
             continue
         result[k] = masked_means(strain, mask, axes=(2, 3))
 
@@ -77,29 +87,28 @@ def calculate_inplane_strain(
     """Calculates the strain and updates the Data object with the result."""
     from strainmap.models.velocities import global_masks_and_origin
 
-    swap, signs = data.data_files.orientation
     if datasets is None:
         datasets = list(data.data_files.files)
 
     result: Dict[Text, np.ndarray] = {}
     for dataset in datasets:
-        velocities = data.masks.get(dataset, {}).get(f"cylindrical - {bg}", None)
-        if velocities is None:
+        cylindrical = data.masks.get(dataset, {}).get(f"cylindrical - {bg}", None)
+        if cylindrical is None:
             msg = f"Velocities from {dataset} with background {bg} are not available."
             raise RuntimeError(msg)
 
         mask, origin = global_masks_and_origin(
             outer=data.segments[dataset]["epicardium"],
             inner=data.segments[dataset]["endocardium"],
-            img_shape=velocities.shape[-2:],
+            img_shape=cylindrical.shape[-2:],
         )
 
-        result[dataset] = np.zeros_like(velocities[1:])
-        for t in range(velocities.shape[1]):
+        result[dataset] = np.zeros_like(cylindrical[1:])
+        for t in range(cylindrical.shape[1]):
             result[dataset][:, t] = (
                 inplane_strain_rate(
                     np.ma.array(
-                        velocities[:2, t], mask=np.repeat(~mask[t : t + 1], 2, axis=0)
+                        cylindrical[:2, t], mask=np.repeat(~mask[t : t + 1], 2, axis=0)
                     ),
                     origin=origin[t],
                 ).data
@@ -136,6 +145,7 @@ def calculate_outofplane_strain(
     if datasets is None:
         datasets = list(data.data_files.files)
     vzz = []
+    vzz_global = []
 
     for dataset in datasets:
         phases = data.masks.get(dataset, {}).get(f"cylindrical - {bg}", None)
@@ -143,6 +153,7 @@ def calculate_outofplane_strain(
             msg = f"Phases from {dataset} with background {bg} are not available."
             raise RuntimeError(msg)
         masks = data.masks.get(dataset, {}).get(f"angular x{nangular} - {bg}", None)
+        masks_global = data.masks.get(dataset, {}).get(f"global - {bg}", None)
         if masks is None:
             msg = (
                 f"{nangular}-fold angular masks from {dataset} "
@@ -152,31 +163,39 @@ def calculate_outofplane_strain(
 
         factor = 1.0
         try:
-            factor *= data.data_files.time_interval(dataset)
+            factor *= data.data_files.time_interval(dataset) / 50
         except AttributeError:
             pass
 
+        zcomp = np.take(phases, 0, component_axis)
         vzz.append(
-            masked_means(
-                np.take(phases, -1, component_axis),
-                masks,
-                axes=image_axes,
-                regions=regions,
+            np.cumsum(
+                masked_means(zcomp, masks, axes=image_axes, regions=regions) * factor,
+                axis=-1,
             )
-            * factor
+        )
+        vzz_global.append(
+            np.cumsum(
+                np.mean(
+                    np.ma.masked_array(zcomp, mask=~masks_global) * factor,
+                    axis=image_axes,
+                ),
+                axis=-1,
+            )[None, :]
         )
 
     zs = [data.data_files.slice_loc(d) for d in datasets]
     levels = sorted(zip(vzz, zs), key=itemgetter(1))
+    levels_global = sorted(zip(vzz_global, zs), key=itemgetter(1))
 
     result = {
         f"angular x{nangular} - {bg}": np.gradient(
             [l[0] for l in levels], [l[1] for l in levels], axis=0
         )
     }
-    result[f"global - {bg}"] = np.mean(result[f"angular x{nangular} - {bg}"], axis=1)[
-        :, None, :
-    ]
+    result[f"global - {bg}"] = np.gradient(
+        [l[0] for l in levels_global], [l[1] for l in levels_global], axis=0
+    )
     return result
 
 
@@ -254,15 +273,24 @@ def inplane_strain_rate(
         strain is lower).
     """
     from scipy.interpolate import RectBivariateSpline
+    from scipy.ndimage import gaussian_filter
 
-    radial_velocity = np.take(velocities, 0, component_axis)
-    azimutal_velocity = np.take(velocities, 1, component_axis)
+    radial_velocity = gaussian_filter(np.take(velocities, 0, component_axis), (10, 10))
+    azimutal_velocity = gaussian_filter(
+        np.take(velocities, 1, component_axis), (10, 10)
+    )
     is_masked = hasattr(velocities, "mask")
     grid = np.ogrid[range(radial_velocity.shape[0]), range(radial_velocity.shape[1])]
 
     if not is_masked:
         points = grid
     else:
+        radial_velocity = np.ma.masked_array(
+            radial_velocity, mask=np.take(velocities, 0, component_axis).mask
+        )
+        azimutal_velocity = np.ma.masked_array(
+            azimutal_velocity, mask=np.take(velocities, 1, component_axis).mask
+        )
         assert (radial_velocity.mask == azimutal_velocity.mask).all()
         points = (~radial_velocity.mask).nonzero()
 
