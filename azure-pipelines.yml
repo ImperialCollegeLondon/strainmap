@@ -2,7 +2,7 @@ stages:
   - stage: testing
     jobs:
       - job: Linux
-        pool: {vmImage: ubuntu-16.04}
+        pool: {vmImage: ubuntu-latest}
         steps:
           - script: |
               docker build -t strainmap-test .
@@ -20,7 +20,7 @@ stages:
             condition: succeededOrFailed()
 
       - job: MacOS
-        pool: {vmImage: macos-10.13}
+        pool: {vmImage: macos-latest}
         steps:
           - task: UsePythonVersion@0
             inputs:
@@ -40,7 +40,7 @@ stages:
             condition: succeededOrFailed()
 
       - job: Windows
-        pool: {vmImage: windows-2019}
+        pool: {vmImage: windows-latest}
         steps:
           - task: UsePythonVersion@0
             inputs:
