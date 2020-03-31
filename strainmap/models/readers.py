@@ -6,8 +6,7 @@ from collections import OrderedDict, defaultdict
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path, PurePath, PurePosixPath
-from typing import (ClassVar, Dict, Iterable, List, Mapping, Optional, Text,
-                    Tuple, Union)
+from typing import ClassVar, Dict, Iterable, List, Mapping, Optional, Text, Tuple, Union
 
 import h5py
 import numpy as np
@@ -288,6 +287,7 @@ class DICOMReaderBase(ABC):
 
     def __init__(self, files: dict):
         self.files = files
+        self.frames = len(list(self.files[self.datasets[0]].values())[0])
 
     @property
     def datasets(self) -> List[str]:
@@ -546,7 +546,11 @@ class DICOM(DICOMReaderBase):
 
     def time_interval(self, dataset: str) -> float:
         """Returns the frame time interval in seconds."""
-        return float(self.tags(dataset)["ImageComments"].split(" ")[1]) / 1000.0
+        return (
+            float(self.tags(dataset)["ImageComments"].split(" ")[1])
+            / 1000.0
+            / self.frames
+        )
 
     @lru_cache(1)
     def mag(self, dataset: str) -> np.ndarray:
