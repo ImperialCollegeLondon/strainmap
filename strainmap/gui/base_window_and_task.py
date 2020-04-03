@@ -166,6 +166,25 @@ class MainWindow(tk.Tk):
         self.button_frame.columnconfigure(0, weight=1)
         self.button_frame.grid_propagate(flag=False)
 
+        self.bar_var = tk.DoubleVar(value=0)
+        self.msg_var = tk.StringVar(value="")
+        self.msg_frame = ttk.Frame(self)
+        self.msg = ttk.Label(
+            self.msg_frame, textvariable=self.msg_var, relief=tk.SUNKEN
+        )
+        self.bar = ttk.Progressbar(
+            self.msg_frame,
+            orient="horizontal",
+            mode="determinate",
+            variable=self.bar_var,
+            maximum=1,
+            length=300,
+        )
+        self.msg_frame.grid(column=0, row=99, columnspan=2, sticky=tk.EW)
+        self.bar.grid(column=1, row=0, sticky=tk.EW, padx=10, pady=5)
+        self.msg.grid(column=0, row=0, sticky=tk.EW, padx=10, pady=5)
+        self.msg_frame.columnconfigure(0, weight=1)
+
     @property
     def views(self) -> List[TaskViewBase]:
         return [v for v in self.winfo_children() if isinstance(v, TaskViewBase)]
@@ -217,3 +236,12 @@ class MainWindow(tk.Tk):
         for view in self.views:
             if hasattr(view, "stop_animation"):
                 view.stop_animation()
+
+    def progress(self, msg: str, value: float = 0):
+        """ Prints a message in the lower ribbon and moves the progress bar.
+
+        To actually make any changes, it forces an update of the GUI. """
+        self.msg_var.set(value=msg)
+        self.bar_var.set(value=min(1.0, value))
+        self.update_idletasks()
+        self.update()

@@ -1,4 +1,4 @@
-from typing import Dict, List, Optional, Sequence, Text, Tuple, Union
+from typing import Dict, List, Optional, Sequence, Text, Tuple, Union, Callable
 
 import numpy as np
 from scipy import ndimage
@@ -8,6 +8,7 @@ from strainmap.models.readers import ImageTimeSeries
 
 from .contour_mask import Contour, angular_segments, contour_diff, radial_segments
 from .strainmap_data_model import StrainMapData
+from .writers import terminal
 
 
 def find_theta0(zero_angle: np.ndarray):
@@ -263,10 +264,10 @@ def calculate_velocities(
         )
 
 
-def regenerate(data, datasets):
+def regenerate(data, datasets, callback: Callable = terminal):
     """Regenerate velocities and masks information after loading from h5 file."""
     for i, d in enumerate(datasets):
-        print(f"Regenerating velocities... {i+1}/{len(datasets)}")
+        callback(f"Regenerating velocities {i+1}/{len(datasets)}.", i/len(datasets))
         vels = data.velocities[d]
         regions = dict()
         for k, v in vels.items():
@@ -288,7 +289,7 @@ def regenerate(data, datasets):
                 init_markers=False,
                 **region,
             )
-    print("Regeneration complete!")
+    callback(f"Regeneration complete!", 1)
 
 
 def mean_velocities(

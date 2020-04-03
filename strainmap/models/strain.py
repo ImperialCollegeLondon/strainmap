@@ -1,4 +1,4 @@
-from typing import Dict, Text, Tuple, Union
+from typing import Dict, Text, Tuple, Union, Callable
 from itertools import product
 from collections import defaultdict
 
@@ -7,6 +7,7 @@ import numpy as np
 from .readers import DICOMReaderBase
 from .strainmap_data_model import StrainMapData
 from .velocities import find_theta0, regenerate
+from .writers import terminal
 
 
 def cartcoords(shape: tuple, *sizes: Union[float, np.ndarray]) -> Tuple:
@@ -348,7 +349,9 @@ def prepare_masks_and_velocities(
     return vel, msk
 
 
-def calculate_strain(data: StrainMapData, datasets: Tuple[str, ...]):
+def calculate_strain(
+    data: StrainMapData, datasets: Tuple[str, ...], callback: Callable = terminal
+):
     """Calculates the strain and updates the Data object with the result."""
 
     # Do we need to calculate the strain?
@@ -358,28 +361,30 @@ def calculate_strain(data: StrainMapData, datasets: Tuple[str, ...]):
     # Do we need to regenerate the velocities?
     to_regen = [d for d in datasets if list(data.velocities[d].values())[0] is None]
     if len(to_regen) > 0:
-        regenerate(data, to_regen)
+        regenerate(data, to_regen, callback=callback)
 
-    print("Sort datasets by slice location")
     sorted_datasets = tuple(sorted(datasets, key=data.data_files.slice_loc))
 
-    print("Prepare dependent and independent variables")
+    callback("Preparing dependent variables", 1 / 5.0)
     vel, masks = prepare_masks_and_velocities(data.masks, sorted_datasets)
     img_axis = tuple(range(len(vel.shape)))[-2:]
     reduced_vel = masked_reduction(vel, masks, axis=img_axis)
     del vel
 
+    callback("Preparing independent variables", 2 / 5.0)
     time, space = prepare_coordinates(data.data_files, data.zero_angle, sorted_datasets)
     reduced_space = masked_reduction(space, masks, axis=img_axis)
     del space
 
-    print("Calculate derivatives")
+    callback("Calculating derivatives", 3 / 5.0)
     reduced_strain = differentiate(reduced_vel, reduced_space, time)
     strain = masked_expansion(reduced_strain, masks, axis=img_axis)
     del masks
 
-    print("Calculate the regional strains")
+    callback("Calculating the regional strains", 4 / 5.0)
     data.strain = calculate_regional_strain(strain, data.masks, sorted_datasets)
+
+    callback("Done!", 1)
 
 
 def differentiate(vel, space, time) -> np.ndarray:

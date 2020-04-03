@@ -143,7 +143,7 @@ class StrainMap(object):
 
     def calculate_strain(self, **kwargs):
         """Calculates the strain based on the available velocities."""
-        calculate_strain(data=self.data, **kwargs)
+        calculate_strain(data=self.data, callback=self.window.progress, **kwargs)
 
     def update_strain_marker(self, **kwargs):
         """Updates the strain markers information after moving one of them."""

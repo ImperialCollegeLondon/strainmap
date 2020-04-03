@@ -1,7 +1,7 @@
 import openpyxl as xlsx
 import h5py
 import numpy as np
-from typing import List, Union
+from typing import List, Union, Optional
 import os
 from pathlib import PurePosixPath, PurePath, Path
 
@@ -225,3 +225,9 @@ def paths_to_hdf5(
                 del group[n]
             paths = to_relative_paths(master, struct)
             group.create_dataset(n, data=paths, track_order=True)
+
+
+def terminal(msg: str, value: Optional[float] = None):
+    if value is not None:
+        msg = f"{msg}. Progress: {min(1., value)*100}%"
+    print(msg)
