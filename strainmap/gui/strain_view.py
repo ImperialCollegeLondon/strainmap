@@ -97,7 +97,7 @@ class StrainTaskView(TaskViewBase):
                 self.param_tables[-1].heading(l, text=l)
                 self.param_tables[-1].column(l, width=80, stretch=tk.YES, anchor=tk.E)
 
-        export_btn = ttk.Button(control, text="Export to Excel")
+        export_btn = ttk.Button(control, text="Export to Excel", command=self.export)
 
         # Grid all the widgets
         control.grid(sticky=tk.NSEW, padx=10, pady=10)

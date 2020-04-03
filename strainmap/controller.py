@@ -7,7 +7,7 @@ from .gui.base_window_and_task import REGISTERED_VIEWS, Requisites
 from .models.strainmap_data_model import StrainMapData
 from .models import quick_segmentation
 from .models.velocities import calculate_velocities, update_marker
-from .models.writers import velocity_to_xlsx
+from .models.writers import velocity_to_xlsx, strain_to_xlsx
 from .models.strain import calculate_strain
 
 
@@ -151,4 +151,4 @@ class StrainMap(object):
 
     def export_strain(self, **kwargs):
         """Exports strain data to a XLSX file."""
-        pass
+        strain_to_xlsx(data=self.data, **kwargs)

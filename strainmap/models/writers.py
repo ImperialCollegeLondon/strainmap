@@ -35,6 +35,39 @@ def velocity_to_xlsx(filename, data, dataset, vel_label):
     wb.close()
 
 
+def strain_to_xlsx(filename, data, dataset, vel_label):
+    """Exports the chosen velocity to an Excel file.
+
+    It includes 2 or more sheets:
+
+    - Sheet 1 includes some metadata, like patient information, dataset, background
+    subtraction method, etc. and the table with the markers information.
+    - From sheet 2, includes all the velocities calculated with the same background
+        subtraciton method, one per sheet, with the 3 components of the velocity for
+        each of the regions.
+    """
+    wb = xlsx.Workbook()
+    background = vel_label.split(" - ")[-1]
+    labels = [
+        label
+        for label in data.strain[dataset]
+        if background in label and "cylindrical" not in label
+    ]
+
+    params_ws = wb.active
+    params_ws.title = "Parameters"
+    add_metadata(data.metadata(dataset), background, params_ws)
+    # add_sign_reversal(data.sign_reversal, params_ws)
+
+    for l in labels:
+        title = l.split(" - ")[0]
+        # add_markers(data.markers[dataset][l], params_ws, title=title)
+        add_velocity(data.strain[dataset][l], wb.create_sheet(title))
+
+    wb.save(filename)
+    wb.close()
+
+
 def add_metadata(metadata, background, ws):
     """Prepares the metadata of interest to be exported."""
     ws.column_dimensions["A"].width = 15
