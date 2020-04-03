@@ -1,5 +1,4 @@
-import numpy as np
-from pytest import approx, mark, raises
+from pytest import approx, raises
 from unittest.mock import MagicMock
 from typing import Dict
 
@@ -136,71 +135,7 @@ def test_prepare_masks_and_velocities():
     for d in masks.keys():
         masks[d] = {k: np.random.rand(*s) for k, s in zip(keys, shapes)}
 
-    vel, radial, angular = prepare_masks_and_velocities(masks, tuple(masks.keys()))
+    vel, mosaic = prepare_masks_and_velocities(masks, tuple(masks.keys()))
 
     assert vel.shape == (3, shape[0], len(masks), shape[1], shape[2])
-    assert radial.shape == angular.shape == (shape[0], len(masks), shape[1], shape[2])
-
-
-@mark.parametrize("period", [None, True])
-def test_finite_differences(period):
-    from strainmap.models.strain import finite_differences
-    import numpy as np
-
-    dims = np.random.randint(2, 5)
-    shape = tuple(np.random.randint(3, 20, dims))
-    axis = np.random.randint(dims)
-    expected = np.ones(shape)
-    f = x = np.cumsum(expected, axis)
-
-    if period:
-        period = shape[axis]
-        expected.swapaxes(0, axis)[[0, -1]] = (2 - period) / 2
-
-    df = finite_differences(f, x, axis=axis, period=period)
-    assert df == approx(expected)
-
-
-def test_inplane_strain(data_with_velocities):
-    from strainmap.models.strain import calculate_inplane_strain
-
-    strain = calculate_inplane_strain(
-        data_with_velocities, datasets=data_with_velocities.data_files.datasets[:1]
-    )
-    assert set(strain) == set(data_with_velocities.data_files.datasets[:1])
-    assert strain[data_with_velocities.data_files.datasets[0]].shape == (2, 3, 512, 512)
-
-
-@mark.parametrize("deltaz", [1, 1.2])
-def test_outofplane_strain(deltaz):
-    from strainmap.models.strain import calculate_outofplane_strain
-    from types import SimpleNamespace
-
-    def vel(x, y, z, t):
-        return [0, 0, x % 7 + 2 * y - 3 * z + 4 * t]
-
-    data = SimpleNamespace()
-    data.masks = {
-        f"dodo{z}": {
-            "cylindrical - Estimated": np.array(
-                [
-                    [[[vel(x, y, z, t) for y in range(100)] for x in range(100)]]
-                    for t in range(10)
-                ]
-            ),
-            "angular x6 - Estimated": np.repeat(
-                np.arange(100, dtype=int)[:, None] % 7, 100, 1
-            ),
-        }
-        for z in range(8)
-    }
-    data.data_files = SimpleNamespace()
-    data.data_files.files = list(data.masks.keys())
-    data.data_files.slice_loc = lambda x: {
-        k: deltaz * i for i, k in enumerate(data.data_files.files)
-    }[x]
-
-    strain = calculate_outofplane_strain(
-        data, image_axes=(-3, -2), component_axis=-1  # type: ignore
-    )
-    assert strain == approx(-3 / deltaz)
+    assert mosaic.shape == (shape[0], len(masks), shape[1], shape[2])

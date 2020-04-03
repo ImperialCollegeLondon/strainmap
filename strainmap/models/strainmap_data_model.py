@@ -47,6 +47,7 @@ class StrainMapData(object):
         "segments",
         "zero_angle",
         "markers",
+        "strain_markers",
     )
 
     @classmethod
@@ -60,8 +61,7 @@ class StrainMapData(object):
 
     @classmethod
     def from_file(cls, strainmap_file: Union[Path, Text]):
-        """Creates a new StrainMap data object from a h5 file.
-        TODO Adapt to the new DICOM reader."""
+        """Creates a new StrainMap data object from a h5 file."""
         assert Path(strainmap_file).is_file()
         attributes = read_strainmap_file(cls.stored, strainmap_file)
         result = cls.from_folder()
@@ -86,6 +86,7 @@ class StrainMapData(object):
         self.masks: dict = defaultdict(dict)
         self.markers: dict = defaultdict(dict)
         self.strain: dict = defaultdict(dict)
+        self.strain_markers: dict = defaultdict(dict)
 
     @property
     def rebuilt(self):
@@ -118,34 +119,19 @@ class StrainMapData(object):
         return True
 
     def regenerate(self):
-        """Regenerate velocities and masks information after loading from h5 file."""
-        from .velocities import calculate_velocities
+        """We create placeholders for the velocities that were expected.
 
+        The velocities and masks will be created at runtime, just when needed."""
         # If there is no data paths yet, we postpone the regeneration.
         if self.data_files == ():
             return
 
         for dataset, markers in self.markers.items():
-            regions = dict()
             for k in markers.keys():
-                info = k.split(" - ")
-                if info[-1] not in regions.keys():
-                    regions[info[-1]] = dict(angular_regions=[], radial_regions=[])
-                if "global" in info[0]:
-                    regions[info[-1]]["global_velocity"] = True
-                else:
-                    rtype, num = info[0].split(" x")
-                    regions[info[-1]][f"{rtype}_regions"].append(int(num))
+                self.velocities[dataset][k] = None
 
-            for bg, region in regions.items():
-                calculate_velocities(
-                    data=self,
-                    dataset_name=dataset,
-                    bg=bg,
-                    sign_reversal=self.sign_reversal,
-                    init_markers=False,
-                    **region,
-                )
+            # TODO To remove! Hack to add the radial data on legacy h5 files.
+            self.velocities[dataset]["radial x3 - Estimated"] = None
 
     def metadata(self, dataset=None):
         """Retrieve the metadata from the DICOM files"""

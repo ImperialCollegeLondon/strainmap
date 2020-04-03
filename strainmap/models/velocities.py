@@ -55,12 +55,18 @@ def scale_phase(
 
 def global_masks_and_origin(outer, inner, img_shape):
     """Finds the global masks and origin versus time frame."""
+    ymin, ymax = int(outer[:, 0].min()), int(outer[:, 0].max()) + 1
+    xmin, xmax = int(outer[:, 1].min()), int(outer[:, 1].max()) + 1
+    shift = np.array([ymin, xmin])
     masks = np.array(
-        [contour_diff(o.T, i.T, img_shape).T for o, i in zip(outer, inner)]
+        [
+            contour_diff(c1=o.T, c2=i.T, shape=(ymax - ymin, xmax - xmin)).T
+            for o, i in zip(outer - shift[None, :, None], inner - shift[None, :, None])
+        ]
     )
     origin = np.array([*map(ndimage.measurements.center_of_mass, masks)])
 
-    return masks, origin
+    return masks, origin, (xmin, xmax, ymin, ymax)
 
 
 def transform_to_cylindrical(phase: np.ndarray, masks: np.ndarray, origin: np.ndarray):
@@ -133,12 +139,14 @@ def velocities_radial(
     cylindrical: np.ndarray,
     segments: Dict[str, np.ndarray],
     origin: np.ndarray,
+    shift: np.ndarray,
+    mask: np.ndarray,
     bg: str,
     regions: Sequence[int] = (3,),
 ):
     """Calculates the regional velocities for radial regions."""
-    outer = segments["epicardium"]
-    inner = segments["endocardium"]
+    outer = segments["epicardium"] - shift[None, :, None]
+    inner = segments["endocardium"] - shift[None, :, None]
 
     velocities: Dict[str, np.ndarray] = dict()
     masks: Dict[str, Union[list, np.ndarray]] = dict()
@@ -152,6 +160,7 @@ def velocities_radial(
                 radial_segments(
                     outer=Contour(outer[i].T, shape=cylindrical.shape[2:]),
                     inner=Contour(inner[i].T, shape=cylindrical.shape[2:]),
+                    mask=mask[i],
                     nr=nr,
                     shape=cylindrical.shape[2:],
                     center=origin[i],
@@ -167,6 +176,12 @@ def velocities_radial(
     return velocities, masks
 
 
+def remap_array(data, new_shape, roi):
+    result = np.zeros(data.shape[:-2] + new_shape, dtype=data.dtype)
+    result[..., roi[0] : roi[1], roi[2] : roi[3]] = data
+    return result
+
+
 def calculate_velocities(
     data: StrainMapData,
     dataset_name: Text,
@@ -180,21 +195,28 @@ def calculate_velocities(
     """Calculates the velocity of the chosen dataset and regions."""
     swap, signs = data.data_files.orientation  # type: ignore
     phase = scale_phase(data, dataset_name, bg, swap, sign_reversal)  # type: ignore
-    mask, origin = global_masks_and_origin(
+    mask, origin, (xmin, xmax, ymin, ymax) = global_masks_and_origin(
         outer=data.segments[dataset_name]["epicardium"],
         inner=data.segments[dataset_name]["endocardium"],
         img_shape=phase.shape[2:],
     )
+    shift = np.array([ymin, xmin])
     cylindrical = (
-        transform_to_cylindrical(phase, mask, origin)
+        transform_to_cylindrical(phase[..., xmin:xmax, ymin:ymax], mask, origin)
         * (data.data_files.sensitivity * signs)[:, None, None, None]  # type: ignore
     )
-    data.masks[dataset_name][f"cylindrical - {bg}"] = cylindrical
+    data.masks[dataset_name][f"cylindrical - {bg}"] = remap_array(
+        cylindrical, phase.shape[-2:], (xmin, xmax, ymin, ymax)
+    )
     data.sign_reversal = sign_reversal
 
     vel_labels: List[str] = []
     if global_velocity:
         velocities, masks = velocity_global(cylindrical, mask, bg)
+        masks = {
+            k: remap_array(v, phase.shape[-2:], (xmin, xmax, ymin, ymax))
+            for k, v in masks.items()
+        }
         data.velocities[dataset_name].update(velocities)
         data.masks[dataset_name].update(masks)
         vel_labels += list(velocities.keys())
@@ -208,14 +230,28 @@ def calculate_velocities(
             bg,
             angular_regions,
         )
+        masks = {
+            k: remap_array(v, phase.shape[-2:], (xmin, xmax, ymin, ymax))
+            for k, v in masks.items()
+        }
         data.velocities[dataset_name].update(velocities)
         data.masks[dataset_name].update(masks)
         vel_labels += list(velocities.keys())
 
     if radial_regions:
         velocities, masks = velocities_radial(
-            cylindrical, data.segments[dataset_name], origin, bg, radial_regions
+            cylindrical,
+            data.segments[dataset_name],
+            origin,
+            shift,
+            mask,
+            bg,
+            radial_regions,
         )
+        masks = {
+            k: remap_array(v, phase.shape[-2:], (xmin, xmax, ymin, ymax))
+            for k, v in masks.items()
+        }
         data.velocities[dataset_name].update(velocities)
         data.masks[dataset_name].update(masks)
         vel_labels += list(velocities.keys())
@@ -225,6 +261,34 @@ def calculate_velocities(
         data.save(
             *[["markers", dataset_name, vel] for vel in vel_labels], ["sign_reversal"]
         )
+
+
+def regenerate(data, datasets):
+    """Regenerate velocities and masks information after loading from h5 file."""
+    for i, d in enumerate(datasets):
+        print(f"Regenerating velocities... {i+1}/{len(datasets)}")
+        vels = data.velocities[d]
+        regions = dict()
+        for k, v in vels.items():
+            info = k.split(" - ")
+            if info[-1] not in regions.keys():
+                regions[info[-1]] = dict(angular_regions=[], radial_regions=[])
+            if "global" in info[0]:
+                regions[info[-1]]["global_velocity"] = True
+            else:
+                rtype, num = info[0].split(" x")
+                regions[info[-1]][f"{rtype}_regions"].append(int(num))
+
+        for bg, region in regions.items():
+            calculate_velocities(
+                data=data,
+                dataset_name=d,
+                bg=bg,
+                sign_reversal=data.sign_reversal,
+                init_markers=False,
+                **region,
+            )
+    print("Regeneration complete!")
 
 
 def mean_velocities(

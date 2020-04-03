@@ -1,11 +1,12 @@
-from typing import Callable, Dict, Optional, Sequence, Text, Tuple, Union
+from typing import Dict, Text, Tuple, Union
 from itertools import product
+from collections import defaultdict
 
 import numpy as np
 
 from .readers import DICOMReaderBase
 from .strainmap_data_model import StrainMapData
-from .velocities import find_theta0
+from .velocities import find_theta0, regenerate
 
 
 def cartcoords(shape: tuple, *sizes: Union[float, np.ndarray]) -> Tuple:
@@ -48,10 +49,10 @@ def cylcoords(
 
     coords = np.meshgrid(z, x, y, indexing="ij")
     zz, xx, yy = (np.tile(c, (lent, 1, 1, 1)) for c in coords)
-    xx -= org[:, :, -2:-1, None]
-    yy -= org[:, :, -1:, None]
+    xx -= org[:, :, -1:, None]
+    yy -= org[:, :, -2:-1, None]
     r = np.sqrt(xx ** 2 + yy ** 2)
-    theta = np.arctan2(yy, xx) - th0[:, :, None, None]
+    theta = np.mod(np.arctan2(yy, xx) + th0[:, :, None, None], 2 * np.pi)
     return zz, r, theta
 
 
@@ -93,23 +94,28 @@ def validate_theta0(theta0: Union[float, np.ndarray], lenz: int, lent: int):
         return np.full((lent, lenz), theta0)
 
 
-def masked_reduction(data: np.ndarray, *masks: np.ndarray, axis: tuple) -> np.ndarray:
-    """Reduces array in cylindrical coordinates to the non-zero elements in the masks.
+def masked_reduction(data: np.ndarray, masks: np.ndarray, axis: tuple) -> np.ndarray:
+    """Reduces array in cylindrical coordinates to the non-zero elements in the
+    masks.
 
     The masks must have the same shape than the input array.
 
     In the case of interest of having two masks, the radial and angular masks,
     these define a region of interest in 2D space in the shape of
     a torus, with Na angular segments and Nr radial segments. The rest of the
-    space is not relevant. This means that a large 2D array with data can be reduced to
+    space is not relevant. This means that a large 2D array with data can be
+    reduced to
     a much smaller and easy to handle (Nr, Na) array, where the value of each entry
     is the mean values of the pixels in the regions defined by both masks.
 
     Examples:
-        This example reduces the (8, 8) angular array (serving also as input data) to an
+        This example reduces the (8, 8) angular array (serving also as input
+        data) to an
         array of shape (Nr=2, Na=4) where each element is the average of the input
-        pixels in the 8 regions (2x4) defined by the angular and radial masks. There is
-        no radial dependency in the reduced array (all rows are the same) because there
+        pixels in the 8 regions (2x4) defined by the angular and radial masks.
+        There is
+        no radial dependency in the reduced array (all rows are the same) because
+        there
         is no radial dependency in the input array either.
         >>> radial = np.array([
         ...     [0, 0, 0, 0, 0, 0, 0, 0],
@@ -143,41 +149,60 @@ def masked_reduction(data: np.ndarray, *masks: np.ndarray, axis: tuple) -> np.nd
         [[1 1 1 1]
          [2 2 2 2]]
 
-        In general, if there are no symmetries in the input array, all elements of the
+        In general, if there are no symmetries in the input array, all elements
+        of the
         reduced array will be different.
         >>> np.random.seed(12345)
-        >>> reduced = masked_reduction(np.random.rand(*radial.shape), radial, angular,
+        >>> reduced = masked_reduction(np.random.rand(*radial.shape), radial,
+        angular,
         ...     axis=(0, 1))
         >>> print(reduced)
         [[0.89411584 0.46596842 0.17654222 0.51028107]
          [0.79289128 0.28042882 0.73393468 0.18159693]]
 
     The reduced array has the dimensions defined in axis removed and the extra
-    dimensions (one per mask) added to the end. So if data shape is (N0, N1, N2, N3, N4)
-    and axis is (1, 2), then the reduced array in the case of having the above radial
+    dimensions (one per mask) added to the end. So if data shape is (N0, N1, N2,
+    N3, N4)
+    and axis is (1, 2), then the reduced array in the case of having the above
+    radial
     and angular masks will have shape (N0, N3, N4, Nr, Na)
     """
     from numpy.ma import MaskedArray
+    from functools import reduce
 
-    assert len(masks) > 0
-    assert all([data.shape == m.shape for m in masks])
-    assert len(data.shape) > max(axis)
+    assert data.shape[1:] == masks.shape
 
-    indices = [set(m.flatten()) - {0} for m in masks]
-    shape = [s for i, s in enumerate(data.shape) if i not in axis] + [
-        len(idx) for idx in indices
-    ]
+    mask_max = masks.max()
+    nrad, nang = mask_max % 100, mask_max // 100
+    nz = np.nonzero(masks)
+    xmin, xmax, ymin, ymax = (
+        nz[-2].min(),
+        nz[-2].max() + 1,
+        nz[-1].min(),
+        nz[-1].max() + 1,
+    )
+    sdata = data[..., xmin:xmax, ymin:ymax]
+    smasks = masks[..., xmin:xmax, ymin:ymax]
+
+    shape = [s for i, s in enumerate(data.shape) if i not in axis] + [nrad, nang]
     reduced = np.zeros(shape, dtype=data.dtype)
-    for idx in product(*indices):
+
+    def reduction(red, idx):
         elements = tuple([...] + [k - 1 for k in idx])
-        condition = ~np.all([masks[i] == k for i, k in enumerate(idx)], axis=0)
-        reduced[elements] = MaskedArray(data, condition).mean(axis=axis).data
-    return reduced
+        i = idx[0] + 100 * idx[1]
+        red[elements] = (
+            MaskedArray(
+                sdata, np.tile(smasks != i, (data.shape[0],) + (1,) * len(masks.shape))
+            )
+            .mean(axis=axis)
+            .data
+        )
+        return red
+
+    return reduce(reduction, product(range(1, nrad + 1), range(1, nang + 1)), reduced)
 
 
-def masked_expansion(
-    reduced: np.ndarray, *masks: np.ndarray, axis: tuple
-) -> np.ndarray:
+def masked_expansion(data: np.ndarray, masks: np.ndarray, axis: tuple) -> np.ndarray:
     """Transforms a reduced array into a full array with the same shape as the masks.
 
     This function, partially opposite to `masked_reduction`, will recover a full size
@@ -221,23 +246,39 @@ def masked_expansion(
          [-- 2 2 2 3 3 3 --]
          [-- -- -- -- -- -- -- --]]
     """
-    from numpy.ma import MaskedArray
+    from functools import reduce
+    from .velocities import remap_array
 
-    assert len(masks) > 0
-    assert all([masks[0].shape == m.shape for m in masks[1:]])
-    assert len(masks[0].shape) > max(axis)
+    assert len(data.shape) > max(axis)
 
-    indices = reduced.shape[-len(masks) :]
-    data = np.zeros_like(masks[0], dtype=reduced.dtype)
+    mask_max = masks.max()
+    nrad, nang = mask_max % 100, mask_max // 100
+    nz = np.nonzero(masks)
+    xmin, xmax, ymin, ymax = (
+        nz[-2].min(),
+        nz[-2].max() + 1,
+        nz[-1].min(),
+        nz[-1].max() + 1,
+    )
 
-    for idx in product(*[range(i) for i in indices]):
-        condition = np.all([masks[i] == k + 1 for i, k in enumerate(idx)], axis=0)
-        values = reduced[(...,) + idx]
-        for ax in axis:
-            values = np.expand_dims(values, ax)
-        data[condition] = (values * condition)[condition]
+    shape = (data.shape[0],) + masks[..., xmin:xmax, ymin:ymax].shape
+    expanded = np.zeros(shape, dtype=data.dtype)
+    exmasks = np.tile(
+        masks[..., xmin:xmax, ymin:ymax], (expanded.shape[0],) + (1,) * len(masks.shape)
+    )
 
-    return MaskedArray(data, ~np.all(masks, axis=0))
+    def expansion(exp, idx):
+        i = idx[0] + 100 * idx[1] + 101
+        condition = exmasks == i
+        values = data[(...,) + idx].reshape(data.shape[:-2] + (1, 1))
+        exp[condition] = (values * condition)[condition]
+        return exp
+
+    return remap_array(
+        reduce(expansion, product(range(nrad), range(nang)), expanded),
+        masks.shape[-2:],
+        (xmin, xmax, ymin, ymax),
+    )
 
 
 def prepare_coordinates(
@@ -267,6 +308,7 @@ def prepare_coordinates(
         origin[:, i, :] = zero_angle[d][:, :, 1]
 
     px_size = data.pixel_size(datasets[0])
+    origin *= px_size
     z = z_location - z_location[0]
     x = np.linspace(0, px_size * lenx, lenx, endpoint=False)
     y = np.linspace(0, px_size * leny, leny, endpoint=False)
@@ -294,34 +336,49 @@ def prepare_masks_and_velocities(
     akey = f"angular x{nang} - {background}"
 
     vel = []
-    radial = []
-    angular = []
+    msk = []
 
     for i, d in enumerate(datasets):
         vel.append(masks[d][vkey])
-        radial.append(masks[d][rkey])
-        angular.append(masks[d][akey])
+        msk.append(masks[d][rkey] + 100 * masks[d][akey])
 
     vel = np.array(vel).transpose((1, 2, 0, 3, 4))
-    radial = np.array(radial).transpose((1, 0, 2, 3))
-    angular = np.array(angular).transpose((1, 0, 2, 3))
+    msk = np.array(msk).transpose((1, 0, 2, 3))
 
-    return vel, radial, angular
+    return vel, msk
 
 
 def calculate_strain(data: StrainMapData, datasets: Tuple[str, ...]):
     """Calculates the strain and updates the Data object with the result."""
+
+    # Do we need to calculate the strain?
+    if all([d in data.strain.keys() for d in datasets]):
+        return
+
+    # Do we need to regenerate the velocities?
+    to_regen = [d for d in datasets if list(data.velocities[d].values())[0] is None]
+    if len(to_regen) > 0:
+        regenerate(data, to_regen)
+
+    print("Sort datasets by slice location")
     sorted_datasets = tuple(sorted(datasets, key=data.data_files.slice_loc))
 
+    print("Prepare dependent and independent variables")
+    vel, masks = prepare_masks_and_velocities(data.masks, sorted_datasets)
+    img_axis = tuple(range(len(vel.shape)))[-2:]
+    reduced_vel = masked_reduction(vel, masks, axis=img_axis)
+    del vel
+
     time, space = prepare_coordinates(data.data_files, data.zero_angle, sorted_datasets)
-    vel, radial, angular = prepare_masks_and_velocities(data.masks, sorted_datasets)
+    reduced_space = masked_reduction(space, masks, axis=img_axis)
+    del space
 
-    reduced_vel = masked_reduction(vel, radial, angular, axis=vel.shape[-2:])
-    reduced_space = masked_reduction(space, radial, angular, axis=space.shape[-2:])
-
+    print("Calculate derivatives")
     reduced_strain = differentiate(reduced_vel, reduced_space, time)
+    strain = masked_expansion(reduced_strain, masks, axis=img_axis)
+    del masks
 
-    strain = masked_expansion(reduced_strain, radial, angular, axis=vel.shape[-2:])
+    print("Calculate the regional strains")
     data.strain = calculate_regional_strain(strain, data.masks, sorted_datasets)
 
 
@@ -334,8 +391,17 @@ def differentiate(vel, space, time) -> np.ndarray:
         time: Array with shape (z)
 
     Returns:
-
+        Array with shape (3, frames, z, nrad, nang) containing the strain.
     """
+    disp = np.cumsum(vel * time[None, None, :, None, None], axis=1)
+
+    dvz = finite_differences(disp[0], space[0], axis=1)
+    dvr = finite_differences(disp[1], space[1], axis=2)
+    dvth = finite_differences(disp[2], space[2], axis=3, period=2 * np.pi)
+
+    dvth = dvth / space[1] + disp[1] / space[1]
+
+    return np.array([dvz, dvr, dvth])
 
 
 def finite_differences(f, x, axis=0, period=None):
@@ -384,235 +450,16 @@ def finite_differences(f, x, axis=0, period=None):
 
 def calculate_regional_strain(strain, masks, datasets) -> Dict:
     """Calculate the regional strains (1D curves)."""
-
-
-def calculate_inplane_strain(
-    data: StrainMapData,
-    bg: str = "Estimated",
-    datasets: Optional[Sequence[Text]] = None,
-) -> Dict[Text, np.ndarray]:
-    """Calculates the strain and updates the Data object with the result."""
-    from strainmap.models.velocities import global_masks_and_origin
-
-    swap, signs = data.data_files.orientation
-    if datasets is None:
-        datasets = list(data.data_files.files)
-
-    result: Dict[Text, np.ndarray] = {}
-    for dataset in datasets:
-        phases = data.masks.get(dataset, {}).get(f"cylindrical - {bg}", None)
-        if phases is None:
-            msg = f"Phases from {dataset} with background {bg} are not available."
-            raise RuntimeError(msg)
-        mask, origin = global_masks_and_origin(
-            outer=data.segments[dataset]["epicardium"],
-            inner=data.segments[dataset]["endocardium"],
-            img_shape=phases.shape[-2:],
-        )
-
-        result[dataset] = np.zeros_like(phases[1:])
-        for t in range(phases.shape[1]):
-            result[dataset][:, t] = (
-                inplane_strain_rate(
-                    np.ma.array(
-                        phases[:2, t], mask=np.repeat(~mask[t : t + 1], 2, axis=0)
-                    ),
-                    origin=origin[t],
-                ).data
-                * mask[t : t + 1]
-            )
-
-        factor = 1.0
-        try:
-            factor *= data.data_files.time_interval(dataset)
-        except AttributeError:
-            pass
-        try:
-            factor /= data.data_files.pixel_size(dataset)
-        except AttributeError:
-            pass
-        result[dataset] *= factor
-
-    return result
-
-
-def calculate_outofplane_strain(
-    data: StrainMapData,
-    bg: str = "Estimated",
-    nangular: int = 6,
-    datasets: Optional[Sequence[Text]] = None,
-    component_axis: int = 1,
-    image_axes: Tuple[int, int] = (2, 3),
-    regions: Optional[Sequence[int]] = None,
-) -> np.ndarray:
-    """Wrangles zz strain component from existing data."""
-    from operator import itemgetter
     from strainmap.models.contour_mask import masked_means
 
-    if datasets is None:
-        datasets = list(data.data_files.files)
-    vzz = []
-    zs = []
-    for dataset in datasets:
-        phases = data.masks.get(dataset, {}).get(f"cylindrical - {bg}", None)
-        if phases is None:
-            msg = f"Phases from {dataset} with background {bg} are not available."
-            raise RuntimeError(msg)
-        masks = data.masks.get(dataset, {}).get(f"angular x{nangular} - {bg}", None)
-        if masks is None:
-            msg = (
-                f"{nangular}-fold angular masks from {dataset} "
-                f"with background {bg} are not available."
-            )
-            raise RuntimeError(msg)
+    result: Dict[Text, Dict[str, np.ndarray]] = defaultdict(dict)
+    for i, d in enumerate(datasets):
+        for k, m in masks[d].items():
+            if "global" in k or "6" in k:
+                result[d][k] = masked_means(
+                    np.take(strain, indices=i, axis=2), m, axes=(2, 3)
+                )
+            elif "cylindrical" in k:
+                result[d][k] = np.take(strain, indices=i, axis=2)
 
-        factor = 1.0
-        try:
-            factor *= data.data_files.time_interval(dataset)
-        except AttributeError:
-            pass
-
-        iaxes = image_axes[0] % phases.ndim, image_axes[1] % phases.ndim
-        iaxes = (
-            image_axes[0] - int(iaxes[0] > (component_axis % phases.ndim)),
-            image_axes[1] - int(iaxes[1] > (component_axis % phases.ndim)),
-        )
-
-        vzz.append(
-            masked_means(
-                np.take(phases, -1, component_axis), masks, axes=iaxes, regions=regions
-            )
-            * factor
-        )
-        zs.append(data.data_files.slice_loc(dataset))
-
-    levels = sorted(zip(vzz, zs), key=itemgetter(1))
-    return np.gradient([l[0] for l in levels], [l[1] for l in levels], axis=0)
-
-
-def inplane_strain_rate(
-    velocities: np.ndarray,
-    component_axis: int = 0,
-    spline: Optional[Callable] = None,
-    origin: Sequence[float] = (0, 0),
-    **kwargs,
-) -> np.ndarray:
-    """Stain rate for a single image.
-
-    Computes the strain rate for a single MRI image. The image can be masked, in which
-    case velocities outside the mask are not taken into account.
-
-    The strain is obtained by first creating an interpolating spline and then taking
-    it's derivatives.
-
-    Parameters:
-        velocities: velocities with radial and azimutal components on the
-            `component_axis`. Can also be a masked array.
-        component_axis: axis of the radial and azimutal components of the velocities.
-        spline: Function from which to create an interpolation object. Defaults to
-            SmoothBivariateSpline for masked arrays and RectBivariateSpline otherwise.
-        origin: Origin of the cylindrical coordinate system. Because image vs array
-            issues, `origin[1]` correspond to `x` and  `origin[0]` to `y`.
-        **kwargs: passed on the spline function.
-
-    .. note::
-        In the context of the MRI velocities, the instantaneous strain and the strain
-        rate differ only by a factor equal to the time-step.
-
-    Example:
-
-        We can create a velocity field with a linear radial component and no azimutal
-        component. It should yield equal radial and azimutal strain, at least outside of
-        a small region at the origin:
-
-        >>> from pytest import approx
-        >>> import numpy as np
-        >>> from strainmap.models.strain import inplane_strain_rate
-        >>> origin = np.array((50.5, 60.5))
-        >>> cart_index = np.mgrid[:120,:100] - origin[::-1, None, None]
-        >>> r = np.linalg.norm(cart_index, axis=0)
-        >>> strain = inplane_strain_rate((r, np.zeros_like(r)), origin=origin)
-        >>> np.max(np.abs(strain[0])).round(2)
-        1.05
-        >>> (np.argmax(np.abs(strain[0])) // strain.shape[2]) in range(50, 71)
-        True
-        >>> (np.argmax(np.abs(strain[0])) % strain.shape[2]) in range(40, 61)
-        True
-        >>> strain[0, 50:71, 40:61] = 1
-        >>> assert strain[0] == approx(1, rel=1e-4)
-        >>> assert strain[1] == approx(1)
-
-
-        To test the azimutal strain, we can create a simple vortex with no radial
-        velocity and 1/r angular velocity. The mask removes consideration outside of a
-        ring centered on the vortex. It also removes the vortex itself from
-        consideration. We expect the diagonal strain components to be almost zero (only
-        the shear strain - which is not computed here
-        - is nonzero).
-
-        >>> import numpy as np
-        >>> from strainmap.models.strain import inplane_strain_rate
-        >>> v_theta = 1 / (r + 1)
-        >>> velocities = np.ma.array(
-        ...     (np.zeros_like(v_theta), v_theta),
-        ...     mask = np.repeat(np.logical_or(r < 15, r > 50)[None], 2, 0),
-        ... )
-        >>> strain = inplane_strain_rate(velocities, origin=origin)
-        >>> assert np.abs(strain.max()) < 1e-3
-
-        Increasing the size of the grid yields better results (e.g. the bound on the
-        strain is lower).
-    """
-    from scipy.interpolate import SmoothBivariateSpline, RectBivariateSpline
-
-    radial_velocity = np.take(velocities, 0, component_axis)
-    azimutal_velocity = np.take(velocities, 1, component_axis)
-    is_masked = hasattr(velocities, "mask")
-    if not is_masked:
-        points = np.ogrid[
-            range(radial_velocity.shape[0]), range(radial_velocity.shape[1])
-        ]
-        spline = spline or RectBivariateSpline
-    else:
-        assert (radial_velocity.mask == azimutal_velocity.mask).all()
-        points = (~radial_velocity.mask).nonzero()
-        radial_velocity = radial_velocity[points[0], points[1]].data
-        azimutal_velocity = azimutal_velocity[points[0], points[1]].data
-        spline = spline or SmoothBivariateSpline
-
-    radial_spline = spline(*points, radial_velocity, **kwargs)
-    azimutal_spline = spline(*points, azimutal_velocity, **kwargs)
-
-    x = points[0] - origin[1]
-    y = points[1] - origin[0]
-    r = np.sqrt(x * x + y * y)
-    theta = np.arctan2(y, x)
-
-    # fmt: off
-    radial_strain = (
-        radial_spline(*points, dx=1, grid=False) * np.cos(theta)
-        + radial_spline(*points, dy=1, grid=False) * np.sin(theta)
-    )
-    azimutal_strain = (
-        radial_spline(*points, grid=False) / r
-        + azimutal_spline(*points, dy=1, grid=False) * np.cos(theta)
-        - azimutal_spline(*points, dx=1, grid=False) * np.sin(theta)
-    )
-    # fmt: on
-
-    def rhs(values):
-        if not is_masked:
-            return values
-
-        x = np.zeros_like(np.take(velocities, 0, component_axis))
-        x[points[0], points[1]] = values
-        return x
-
-    # Transform to cartesian coordinates
-    result = np.zeros_like(velocities)
-    indices = [slice(i) for i in result.shape]
-    indices[component_axis] = 0  # type: ignore
-    result[tuple(indices)] = rhs(radial_strain)
-    indices[component_axis] = 1  # type: ignore
-    result[tuple(indices)] = rhs(azimutal_strain)
     return result

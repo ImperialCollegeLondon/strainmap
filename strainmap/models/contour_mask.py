@@ -215,6 +215,7 @@ def angular_segments(
 def radial_segments(
     outer: Contour,
     inner: Contour,
+    mask: np.ndarray,
     nr: int = 3,
     shape: Optional[Tuple[int, int]] = None,
     center: Optional[Tuple[float, float]] = None,
@@ -276,16 +277,15 @@ def radial_segments(
 
     if shape is None:
         shape = outer.shape[0], outer.shape[1]
-    nx, ny = shape
 
     x = np.arange(0, shape[1], dtype=int)[None, :] - origin[0]
     y = np.arange(0, shape[0], dtype=int)[:, None] - origin[1]
 
     thetas = np.arctan2(y, x)
     r = np.sqrt(x * x + y * y)
-    polar = cart2pol(outer.xy - origin[::-1])
+    polar = cart2pol(outer.xy - origin)
     outer_pol = np.interp(thetas, polar.theta, polar.r, period=2 * np.pi)
-    polar = cart2pol(inner.xy - origin[::-1])
+    polar = cart2pol(inner.xy - origin)
     inner_pol = np.interp(thetas, polar.theta, polar.r, period=2 * np.pi)
 
     # ensure numerical noise doesn't push the inner contour to the outside
@@ -295,7 +295,7 @@ def radial_segments(
     if (outer_pol < inner_pol).any():
         raise ValueError("Inner and outer boundaries cannot cross.")
 
-    result = np.zeros(shape, dtype=int)
+    result = mask * nr
     for i in range(nr, -1, -1):
         result[(outer_pol - inner_pol) / nr * i + inner_pol >= r] = i
 

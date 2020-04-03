@@ -212,11 +212,14 @@ def clear_segmentation(data: StrainMapData, dataset_name: str) -> None:
     data.velocities.pop(dataset_name, None)
     data.masks.pop(dataset_name, None)
     data.markers.pop(dataset_name, None)
+    data.strain.pop(dataset_name, None)
+    data.strain_markers.pop(dataset_name, None)
 
     data.delete(
         ["segments", dataset_name],
         ["zero_angle", dataset_name],
         ["markers", dataset_name],
+        ["strain_markers", dataset_name],
     )
 
 
