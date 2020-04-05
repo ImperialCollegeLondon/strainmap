@@ -142,12 +142,12 @@ class StrainTaskView(TaskViewBase):
                 self.images,
                 self.markers[self.current_region],
             )
-            # self.populate_tables()
+            self.populate_tables()
         else:
             self.current_region = -1
             self.scroll()
             self.draw()
-            # self.populate_tables()
+            self.populate_tables()
 
     def marker_moved(self, table, marker):
         """Updates plot and table after a marker has been moved."""
@@ -177,8 +177,8 @@ class StrainTaskView(TaskViewBase):
                 self.markers[self.current_region],
                 draw=False,
             )
-            # self.update_markers(self.markers[self.current_region], draw=False)
-            # self.populate_tables()
+            self.update_markers(self.markers[self.current_region], draw=False)
+            self.populate_tables()
             self.fig.actions_manager.SimpleScroller.disabled = False
             for strain_label, ax in self.axes.items():
                 ax.set_ylim(*self.strain_lim[strain_label])
@@ -200,7 +200,7 @@ class StrainTaskView(TaskViewBase):
     @property
     def markers(self) -> np.ndarray:
         """Markers of the current region."""
-        return self.data.markers[self.datasets_var.get()][self.strain_var.get()]
+        return self.data.strain_markers[self.datasets_var.get()][self.strain_var.get()]
 
     @property
     def masks(self) -> np.ndarray:
@@ -365,7 +365,7 @@ class StrainTaskView(TaskViewBase):
         self.bg_images, self.strain_masks, self.cbar = self.images_and_strain_masks(
             images, masks, markers
         )
-        # self.marker_artists = self.add_markers(markers)
+        self.marker_artists = self.add_markers(markers)
 
         self.draw()
 

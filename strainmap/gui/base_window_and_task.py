@@ -181,9 +181,9 @@ class MainWindow(tk.Tk):
             length=300,
         )
         self.msg_frame.grid(column=0, row=99, columnspan=2, sticky=tk.EW)
-        self.bar.grid(column=1, row=0, sticky=tk.EW, padx=10, pady=5)
-        self.msg.grid(column=0, row=0, sticky=tk.EW, padx=10, pady=5)
-        self.msg_frame.columnconfigure(0, weight=1)
+        self.bar.grid(column=0, row=0, sticky=tk.EW, padx=10, pady=5)
+        self.msg.grid(column=1, row=0, sticky=tk.EW, padx=10, pady=5)
+        self.msg_frame.columnconfigure(1, weight=1)
 
     @property
     def views(self) -> List[TaskViewBase]:

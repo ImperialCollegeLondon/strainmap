@@ -8,7 +8,7 @@ from .models.strainmap_data_model import StrainMapData
 from .models import quick_segmentation
 from .models.velocities import calculate_velocities, update_marker
 from .models.writers import velocity_to_xlsx, strain_to_xlsx
-from .models.strain import calculate_strain
+from .models.strain import calculate_strain, update_marker as update_strain_marker
 
 
 class StrainMap(object):
@@ -147,7 +147,7 @@ class StrainMap(object):
 
     def update_strain_marker(self, **kwargs):
         """Updates the strain markers information after moving one of them."""
-        pass
+        update_strain_marker(data=self.data, **kwargs)
 
     def export_strain(self, **kwargs):
         """Exports strain data to a XLSX file."""

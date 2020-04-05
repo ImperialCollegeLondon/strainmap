@@ -4,7 +4,6 @@ import numpy as np
 from scipy import ndimage
 
 from strainmap.models.contour_mask import cylindrical_projection, masked_means
-from strainmap.models.readers import ImageTimeSeries
 
 from .contour_mask import Contour, angular_segments, contour_diff, radial_segments
 from .strainmap_data_model import StrainMapData
@@ -290,54 +289,6 @@ def regenerate(data, datasets, callback: Callable = terminal):
                 **region,
             )
     callback(f"Regeneration complete!", 1)
-
-
-def mean_velocities(
-    velocities: np.ndarray,
-    mask: np.ndarray,
-    component_axis: int = ImageTimeSeries.component_axis,
-    image_axes: Tuple[int, int] = ImageTimeSeries.image_axes,
-    time_axis: Optional[int] = ImageTimeSeries.time_axis,
-    origin: Optional[np.ndarray] = None,
-    **kwargs,
-) -> np.ndarray:
-    """Global and masked mean velocities in cylindrical basis.
-
-    Args:
-        velocities: phases in a cartesian basis
-        mask: regions for which to compute the mean
-        component_axis: axis of the (x, y, z) components
-        image_axes: axes corresponding to the image
-        time_axis: axis corresponding to time
-        figure: the figure on which to plot
-        origin: origin of the cylindrical basis
-
-    Returns:
-        a numpy array where the first axis indicates the label, and the second axis
-        indicates the component (from `component_axis`). Subsequent axes are the extra
-        axes from `velocities` (other than component and image axes). Label 0 is the
-        global mean.
-    """
-    assert velocities.ndim >= len(image_axes) + (1 if time_axis is None else 2)
-    if origin is None:
-        origin = ndimage.measurements.center_of_mass(mask > 0)
-
-    bulk_velocity = masked_means(velocities, mask > 0, axes=image_axes).reshape(
-        tuple(1 if i in image_axes else v for i, v in enumerate(velocities.shape))
-    )
-    cylindrical = cylindrical_projection(
-        velocities - bulk_velocity,
-        origin,
-        component_axis=component_axis,
-        image_axes=image_axes,
-    )
-    local_means = masked_means(cylindrical, mask, axes=image_axes)
-    global_means = masked_means(cylindrical, mask > 0, axes=image_axes)
-
-    return np.rollaxis(
-        np.concatenate([global_means, local_means], axis=0),
-        component_axis - sum(i < component_axis for i in image_axes),
-    )
 
 
 markers_options = {

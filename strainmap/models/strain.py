@@ -350,10 +350,13 @@ def prepare_masks_and_velocities(
 
 
 def calculate_strain(
-    data: StrainMapData, datasets: Tuple[str, ...], callback: Callable = terminal
+    data: StrainMapData,
+    datasets: Tuple[str, ...],
+    callback: Callable = terminal,
+    init_markers=True,
 ):
     """Calculates the strain and updates the Data object with the result."""
-
+    steps = 6.0
     # Do we need to calculate the strain?
     if all([d in data.strain.keys() for d in datasets]):
         return
@@ -365,24 +368,31 @@ def calculate_strain(
 
     sorted_datasets = tuple(sorted(datasets, key=data.data_files.slice_loc))
 
-    callback("Preparing dependent variables", 1 / 5.0)
+    callback("Preparing dependent variables", 1 / steps)
     vel, masks = prepare_masks_and_velocities(data.masks, sorted_datasets)
     img_axis = tuple(range(len(vel.shape)))[-2:]
     reduced_vel = masked_reduction(vel, masks, axis=img_axis)
     del vel
 
-    callback("Preparing independent variables", 2 / 5.0)
+    callback("Preparing independent variables", 2 / steps)
     time, space = prepare_coordinates(data.data_files, data.zero_angle, sorted_datasets)
     reduced_space = masked_reduction(space, masks, axis=img_axis)
     del space
 
-    callback("Calculating derivatives", 3 / 5.0)
+    callback("Calculating derivatives", 3 / steps)
     reduced_strain = differentiate(reduced_vel, reduced_space, time)
     strain = masked_expansion(reduced_strain, masks, axis=img_axis)
     del masks
 
-    callback("Calculating the regional strains", 4 / 5.0)
+    callback("Calculating the regional strains", 4 / steps)
     data.strain = calculate_regional_strain(strain, data.masks, sorted_datasets)
+
+    if init_markers:
+        callback("Calculating markers", 5 / steps)
+        for d in datasets:
+            labels = list(data.strain[d].keys())
+            initialise_markers(data, d, labels)
+            # data.save(*[["markers", d, vel] for vel in labels])
 
     callback("Done!", 1)
 
@@ -468,3 +478,33 @@ def calculate_regional_strain(strain, masks, datasets) -> Dict:
                 result[d][k] = np.take(strain, indices=i, axis=2)
 
     return result
+
+
+def update_marker(
+    data: StrainMapData,
+    dataset: str,
+    label: str,
+    region: int,
+    component: int,
+    marker_idx: int,
+    position: int,
+):
+    """Updates the position of an existing marker in the data object.
+
+    If the marker modified is "ES" (marker_idx = 3), then all markers are updated.
+    Otherwise just the chosen one is updated.
+    """
+    value = data.strain[dataset][label][region][component, position]
+
+    data.strain_markers[dataset][label][region][component, marker_idx, :] = [
+        position,
+        value,
+        position * data.data_files.time_interval(dataset),
+    ]
+
+
+def initialise_markers(data: StrainMapData, dataset: str, str_labels: list):
+    """Initialises the markers for all the available strains."""
+    from copy import deepcopy
+
+    data.strain_markers[dataset] = deepcopy(data.markers[dataset])
