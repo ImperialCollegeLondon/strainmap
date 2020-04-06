@@ -26,9 +26,28 @@ def velocity_to_xlsx(filename, data, dataset, vel_label):
     add_metadata(data.metadata(dataset), background, params_ws)
     add_sign_reversal(data.sign_reversal, params_ws)
 
+    colnames = (
+        "Parameter",
+        "Region",
+        "PS",
+        "PD",
+        "PAS",
+        "PS",
+        "PD",
+        "PAS",
+        "ES",
+        "PC1",
+        "PC2",
+        "PC3",
+    )
+
+    p = ("Frame", "Velocity (cm/s)", "Norm. Time (s)")
+
     for l in labels:
         title = l.split(" - ")[0]
-        add_markers(data.markers[dataset][l], params_ws, title=title)
+        add_markers(
+            data.markers[dataset][l], params_ws, colnames=colnames, p=p, title=title
+        )
         add_velocity(data.velocities[dataset][l], wb.create_sheet(title))
 
     wb.save(filename)
@@ -57,11 +76,33 @@ def strain_to_xlsx(filename, data, dataset, vel_label):
     params_ws = wb.active
     params_ws.title = "Parameters"
     add_metadata(data.metadata(dataset), background, params_ws)
-    # add_sign_reversal(data.sign_reversal, params_ws)
+
+    colnames = (
+        "Parameter",
+        "Region",
+        "P",
+        "S",
+        "PSS",
+        "P",
+        "S",
+        "PSS",
+        "ES",
+        "P",
+        "S",
+        "PSS",
+    )
+
+    p = ("Frame", "Strain (%)", "Time (s)")
 
     for l in labels:
         title = l.split(" - ")[0]
-        # add_markers(data.markers[dataset][l], params_ws, title=title)
+        add_markers(
+            data.strain_markers[dataset][l],
+            params_ws,
+            colnames=colnames,
+            p=p,
+            title=title,
+        )
         add_velocity(data.strain[dataset][l], wb.create_sheet(title))
 
     wb.save(filename)
@@ -84,7 +125,7 @@ def add_sign_reversal(sign_reversal, ws):
         ws.append(("", key, str(sign_reversal[i])))
 
 
-def add_markers(markers, ws, title=None):
+def add_markers(markers, ws, colnames, p, title=None):
     """Adds the markers parameters to the sheet."""
     row = ws.max_row + 2
     ws.merge_cells(start_row=row, start_column=3, end_row=row, end_column=12)
@@ -98,28 +139,12 @@ def add_markers(markers, ws, title=None):
     ws.cell(column=6, row=row, value="Radial")
     ws.cell(column=10, row=row, value="Circumferential")
 
-    colnames = (
-        "Parameter",
-        "Region",
-        "PS",
-        "PD",
-        "PAS",
-        "PS",
-        "PD",
-        "PAS",
-        "ES",
-        "PC1",
-        "PC2",
-        "PC3",
-    )
-
     ws.append(colnames)
 
     mask = np.ones(12, dtype=bool)
     mask[[3, 11]] = False
     m = np.array(markers).transpose((3, 0, 1, 2)).reshape((-1, 12))[:, mask]
 
-    p = ("Frame", "Velocity (cm/s)", "Norm. Time (s)")
     reg = len(markers)
 
     for j in range(len(m)):

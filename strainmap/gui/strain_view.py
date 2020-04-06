@@ -306,7 +306,7 @@ class StrainTaskView(TaskViewBase):
         """Exports the current strain data to an XLSX file."""
         meta = self.data.metadata()
         name, date = [meta[key] for key in ["Patient Name", "Date of Scan"]]
-        init = f"{name}_{date}_{self.datasets_var.get()}.xlsx"
+        init = f"{name}_{date}_{self.datasets_var.get()}_strain.xlsx"
 
         filename = tk.filedialog.asksaveasfilename(
             initialfile=init,
