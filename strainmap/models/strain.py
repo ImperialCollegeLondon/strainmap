@@ -471,8 +471,9 @@ def calculate_regional_strain(strain, masks, datasets) -> Dict:
     for i, d in enumerate(datasets):
         for k, m in masks[d].items():
             if "global" in k or "6" in k:
-                result[d][k] = masked_means(
-                    np.take(strain, indices=i, axis=2), m, axes=(2, 3)
+                result[d][k] = (
+                    masked_means(np.take(strain, indices=i, axis=2), m, axes=(2, 3))
+                    * 100
                 )
             elif "cylindrical" in k:
                 result[d][k] = np.take(strain, indices=i, axis=2)
@@ -508,3 +509,17 @@ def initialise_markers(data: StrainMapData, dataset: str, str_labels: list):
     from copy import deepcopy
 
     data.strain_markers[dataset] = deepcopy(data.markers[dataset])
+    for r in list(data.strain_markers[dataset].keys()):
+        if r not in data.strain[dataset]:
+            del data.strain_markers[dataset][r]
+            continue
+        else:
+            regions = data.strain_markers[dataset][r]
+        for j in range(len(regions)):
+            for k in range(len(regions[j])):
+                for i in range(len(regions[j][k])):
+                    position = int(data.strain_markers[dataset][r][j, k, i, 0])
+                    data.strain_markers[dataset][r][j, k, i, 1:] = [
+                        data.strain[dataset][r][j, k, position],
+                        position * data.data_files.time_interval(dataset),
+                    ]

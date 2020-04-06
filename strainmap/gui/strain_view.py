@@ -236,13 +236,13 @@ class StrainTaskView(TaskViewBase):
 
         labels = self.region_labels(len(markers))
         for i, t in enumerate(self.param_tables):
-            strain = t.insert("", tk.END, text="Strain (-)", open=True)
-            time = t.insert("", tk.END, text="Norm. Time (ms)", open=True)
+            strain = t.insert("", tk.END, text="Strain (%)", open=True)
+            time = t.insert("", tk.END, text="Time (ms)", open=True)
             for j, marker in enumerate(markers):
                 tag = "current" if j == self.current_region else "others"
                 val = np.around(marker[i, :3, 1], decimals=2).tolist()
                 t.insert(strain, tk.END, text=labels[j], values=val, tags=(tag,))
-                val = np.around(marker[i, :3, 2], decimals=2).tolist()
+                val = np.around(marker[i, :3, 2] * 1000, decimals=0).tolist()
                 t.insert(time, tk.END, text=labels[j], values=val, tags=(tag,))
 
     def update_table_one_marker(self, table, marker):
@@ -384,7 +384,7 @@ class StrainTaskView(TaskViewBase):
         ax_circ.axhline(color="k", lw=1)
 
         ax_long.set_title("Longitudinal")
-        ax_long.set_ylabel("Strain (-)")
+        ax_long.set_ylabel("Strain (%)")
         ax_long.set_xlabel("Frame")
         ax_rad.set_title("Radial")
         ax_rad.set_xlabel("Frame")
