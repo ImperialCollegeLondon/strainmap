@@ -288,6 +288,11 @@ class DICOMReaderBase(ABC):
         self.files = files
 
     @property
+    def frames(self) -> int:
+        """ Number of frames per dataset. """
+        return len(list(self.files[self.datasets[0]].values())[0])
+
+    @property
     def datasets(self) -> List[str]:
         """List of datasets available in the files."""
         return list(self.files.keys())
