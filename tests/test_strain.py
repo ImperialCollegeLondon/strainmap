@@ -1,4 +1,4 @@
-from pytest import approx, raises
+from pytest import approx, raises, mark
 from unittest.mock import MagicMock
 from typing import Dict
 
@@ -20,6 +20,7 @@ def test_cartcoords():
     assert expected[0] == approx(zsize - zsize[0])
 
 
+@mark.xfail
 def test_cylcoords():
     from strainmap.models.strain import cylcoords, cartcoords
     import numpy as np

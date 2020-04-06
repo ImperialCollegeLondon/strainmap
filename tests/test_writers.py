@@ -24,7 +24,24 @@ def test_add_markers(markers):
     wb = xlsx.Workbook()
     ws = wb.create_sheet("Parameters")
 
-    add_markers(markers[None, :, :, :], ws, title="Global")
+    colnames = (
+        "Parameter",
+        "Region",
+        "P",
+        "S",
+        "PSS",
+        "P",
+        "S",
+        "PSS",
+        "ES",
+        "P",
+        "S",
+        "PSS",
+    )
+
+    p = ("Frame", "Strain (%)", "Time (s)")
+
+    add_markers(markers[None, :, :, :], ws, colnames=colnames, p=p, title="Global")
     m = markers[None, :, :, :].transpose((3, 0, 1, 2)).reshape((-1, 12))
     expected = 5 + len(m)
     assert ws.max_row == expected

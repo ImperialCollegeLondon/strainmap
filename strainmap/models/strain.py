@@ -138,25 +138,25 @@ def masked_reduction(data: np.ndarray, masks: np.ndarray, axis: tuple) -> np.nda
         ...     [2, 2, 2, 2, 3, 3, 3, 3],
         ...     [2, 2, 2, 2, 3, 3, 3, 3],
         ... ])
-        >>> reduced = masked_reduction(angular, radial, angular, axis=(0, 1))
+        >>> mask = angular * 100 + 1
+        >>> reduced = masked_reduction(angular, mask, axis=(0, 1))
         >>> print(reduced)
-        [[1 2 3 4]
-         [1 2 3 4]]
+        [[1 2 3 4]]
 
         We can repeat this using the radial mask as input. In this case, there is no
         angular dependency, as expected.
-        >>> reduced = masked_reduction(radial, radial, angular, axis=(0, 1))
+        >>> mask = radial + 100
+        >>> reduced = masked_reduction(radial, mask, axis=(0, 1))
         >>> print(reduced)
-        [[1 1 1 1]
-         [2 2 2 2]]
+        [[1]
+         [2]]
 
         In general, if there are no symmetries in the input array, all elements
         of the
         reduced array will be different.
         >>> np.random.seed(12345)
-        >>> reduced = masked_reduction(np.random.rand(*radial.shape), radial,
-        angular,
-        ...     axis=(0, 1))
+        >>> mask = radial + 100 * angular
+        >>> reduced = masked_reduction(np.random.rand(*radial.shape), mask, axis=(0, 1))
         >>> print(reduced)
         [[0.89411584 0.46596842 0.17654222 0.51028107]
          [0.79289128 0.28042882 0.73393468 0.18159693]]
@@ -171,7 +171,7 @@ def masked_reduction(data: np.ndarray, masks: np.ndarray, axis: tuple) -> np.nda
     from numpy.ma import MaskedArray
     from functools import reduce
 
-    assert data.shape[1:] == masks.shape
+    assert data.shape[-len(masks.shape) :] == masks.shape
 
     mask_max = masks.max()
     nrad, nang = mask_max % 100, mask_max // 100
@@ -188,15 +188,17 @@ def masked_reduction(data: np.ndarray, masks: np.ndarray, axis: tuple) -> np.nda
     shape = [s for i, s in enumerate(data.shape) if i not in axis] + [nrad, nang]
     reduced = np.zeros(shape, dtype=data.dtype)
 
+    tile_shape = (
+        (data.shape[0],) + (1,) * len(masks.shape)
+        if data.shape != masks.shape
+        else (1,) * len(masks.shape)
+    )
+
     def reduction(red, idx):
         elements = tuple([...] + [k - 1 for k in idx])
         i = idx[0] + 100 * idx[1]
         red[elements] = (
-            MaskedArray(
-                sdata, np.tile(smasks != i, (data.shape[0],) + (1,) * len(masks.shape))
-            )
-            .mean(axis=axis)
-            .data
+            MaskedArray(sdata, np.tile(smasks != i, tile_shape)).mean(axis=axis).data
         )
         return red
 
@@ -230,22 +232,22 @@ def masked_expansion(data: np.ndarray, masks: np.ndarray, axis: tuple) -> np.nda
         ...     [2, 2, 2, 2, 3, 3, 3, 3],
         ...     [2, 2, 2, 2, 3, 3, 3, 3],
         ... ])
-        >>> reduced = masked_reduction(angular, radial, angular, axis=(0, 1))
+        >>> mask = angular * 100 + 1
+        >>> reduced = masked_reduction(angular, mask, axis=(0, 1))
         >>> print(reduced)
-        [[1 2 3 4]
-         [1 2 3 4]]
+        [[1 2 3 4]]
 
         Now we "recover" the original full size array:
-        >>> data = masked_expansion(reduced, radial, angular, axis=(0, 1))
+        >>> data = masked_expansion(reduced, mask, axis=(0, 1))
         >>> print(data)
-        [[-- -- -- -- -- -- -- --]
-         [-- 1 1 1 4 4 4 --]
-         [-- 1 1 1 4 4 4 --]
-         [-- 1 1 -- -- 4 4 --]
-         [-- 2 2 -- -- 3 3 --]
-         [-- 2 2 2 3 3 3 --]
-         [-- 2 2 2 3 3 3 --]
-         [-- -- -- -- -- -- -- --]]
+        [[[1 1 1 1 4 4 4 4]
+          [1 1 1 1 4 4 4 4]
+          [1 1 1 1 4 4 4 4]
+          [1 1 1 1 4 4 4 4]
+          [2 2 2 2 3 3 3 3]
+          [2 2 2 2 3 3 3 3]
+          [2 2 2 2 3 3 3 3]
+          [2 2 2 2 3 3 3 3]]]
     """
     from functools import reduce
     from .velocities import remap_array
@@ -350,10 +352,7 @@ def prepare_masks_and_velocities(
 
 
 def calculate_strain(
-    data: StrainMapData,
-    datasets: Tuple[str, ...],
-    callback: Callable = terminal,
-    init_markers=True,
+    data: StrainMapData, datasets: Tuple[str, ...], callback: Callable = terminal
 ):
     """Calculates the strain and updates the Data object with the result."""
     steps = 6.0

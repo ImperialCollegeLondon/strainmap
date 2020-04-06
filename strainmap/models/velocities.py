@@ -53,7 +53,7 @@ def scale_phase(
     return phase
 
 
-def global_masks_and_origin(outer, inner, img_shape):
+def global_masks_and_origin(outer, inner):
     """Finds the global masks and origin versus time frame."""
     ymin, ymax = int(outer[:, 0].min()), int(outer[:, 0].max()) + 1
     xmin, xmax = int(outer[:, 1].min()), int(outer[:, 1].max()) + 1
@@ -198,7 +198,6 @@ def calculate_velocities(
     mask, origin, (xmin, xmax, ymin, ymax) = global_masks_and_origin(
         outer=data.segments[dataset_name]["epicardium"],
         inner=data.segments[dataset_name]["endocardium"],
-        img_shape=phase.shape[2:],
     )
     shift = np.array([ymin, xmin])
     cylindrical = (
@@ -271,7 +270,7 @@ def regenerate(data, datasets, callback: Callable = terminal):
             i / len(datasets),
         )
         vels = data.velocities[d]
-        regions = dict()
+        regions: Dict[str, dict] = {}
         for k, v in vels.items():
             info = k.split(" - ")
             if info[-1] not in regions.keys():
