@@ -387,12 +387,12 @@ def calculate_strain(
     callback("Calculating the regional strains", 4 / steps)
     data.strain = calculate_regional_strain(strain, data.masks, sorted_datasets)
 
-    if init_markers:
-        callback("Calculating markers", 5 / steps)
-        for d in datasets:
-            labels = list(data.strain[d].keys())
+    callback("Calculating markers", 5 / steps)
+    for d in datasets:
+        labels = [s for s in data.strain[d].keys() if "cylindrical" not in s]
+        if data.strain_markers.get(d, {}).get(labels[0], None) is None:
             initialise_markers(data, d, labels)
-            # data.save(*[["markers", d, vel] for vel in labels])
+            data.save(*[["strain_markers", d, vel] for vel in labels])
 
     callback("Done!", 1)
 
@@ -502,6 +502,7 @@ def update_marker(
         value,
         position * data.data_files.time_interval(dataset),
     ]
+    data.save(["strain_markers", dataset, label])
 
 
 def initialise_markers(data: StrainMapData, dataset: str, str_labels: list):
