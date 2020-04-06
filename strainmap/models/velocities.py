@@ -266,7 +266,10 @@ def calculate_velocities(
 def regenerate(data, datasets, callback: Callable = terminal):
     """Regenerate velocities and masks information after loading from h5 file."""
     for i, d in enumerate(datasets):
-        callback(f"Regenerating velocities {i+1}/{len(datasets)}.", i/len(datasets))
+        callback(
+            f"Regenerating existing velocities {i+1}/{len(datasets)}.",
+            i / len(datasets),
+        )
         vels = data.velocities[d]
         regions = dict()
         for k, v in vels.items():

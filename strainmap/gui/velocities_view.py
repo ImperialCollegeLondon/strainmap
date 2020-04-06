@@ -173,7 +173,7 @@ class VelocitiesTaskView(TaskViewBase):
             self.update_velocities_list(current)
         else:
             self.populate_bg_box(current)
-            self.calculate_velocities()
+            self.calculate_velocities(current)
 
         self.replot()
 
@@ -183,7 +183,7 @@ class VelocitiesTaskView(TaskViewBase):
         dataset = self.datasets_var.get()
         existing_vels = self.data.velocities[dataset].keys()
         if not any([bg in vel_label for vel_label in existing_vels]):
-            self.calculate_velocities()
+            self.calculate_velocities(dataset)
             self.replot()
 
     def recalculate_velocities(self):
@@ -193,7 +193,7 @@ class VelocitiesTaskView(TaskViewBase):
         existing_vels = self.data.velocities[dataset].keys()
         existing_bg = {vel_label.split(" - ")[-1] for vel_label in existing_vels}
         for bg in existing_bg:
-            self.calculate_velocities(bg=bg)
+            self.calculate_velocities(dataset, bg=bg)
             self.replot()
 
     def reversal_checked(self):
@@ -216,7 +216,7 @@ class VelocitiesTaskView(TaskViewBase):
         vel_label = self.velocities_var.get()
         bg = vel_label.split(" - ")[-1]
         if not any([bg in k for k in self.data.masks[dataset]]):
-            self.calculate_velocities(bg, init_markers=False)
+            self.calculate_velocities(dataset, bg, init_markers=False)
 
         self.find_velocity_limits(vel_label)
         if self.data.velocities[dataset][vel_label].shape[0] == 24:
@@ -405,10 +405,10 @@ class VelocitiesTaskView(TaskViewBase):
 
         self.bg_var.set(self.velocities_var.get().split(" - ")[-1])
 
-    def calculate_velocities(self, bg=None, init_markers=True):
+    def calculate_velocities(self, dataset, bg=None, init_markers=True):
         """Calculate pre-defined velocities for the chosen dataset."""
         self.controller.calculate_velocities(
-            dataset_name=self.datasets_var.get(),
+            dataset_name=dataset,
             global_velocity=True,
             angular_regions=[6, 24],
             radial_regions=[3],
@@ -465,7 +465,38 @@ class VelocitiesTaskView(TaskViewBase):
         self.populate_dataset_box()
         self.populate_bg_box(self.datasets_var.get())
         self.update_sign_reversal()
+        self.calculate_all()
         self.dataset_changed()
+
+    def calculate_all(self):
+        """ Calculates all velocities not already calculated. """
+        to_regenerate = [
+            k
+            for k in self.data.velocities.keys()
+            if len(self.data.velocities.get(k, {}).values()) > 0
+            and list(self.data.velocities.get(k, {}).values())[0] is None
+        ]
+        if len(to_regenerate) > 0:
+            self.controller.regenerate_velocities(
+                datasets=to_regenerate, callback=self.master.progress
+            )
+
+        existing = [
+            k
+            for k in self.data.velocities.keys()
+            if len(self.data.velocities.get(k, {}).values()) > 0
+            and list(self.data.velocities.get(k, {}).values())[0] is not None
+        ]
+
+        needed = list(self.data.segments.keys())
+        for i, d in enumerate(needed):
+            if d not in existing:
+                self.master.progress(
+                    f"Calculating velocities for dataset {d} - {i+1}/{len(needed)}",
+                    i / len(needed),
+                )
+                self.calculate_velocities(d)
+        self.master.progress(f"Done!", 1)
 
     def clear_widgets(self):
         """ Clear widgets after removing the data. """
