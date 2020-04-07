@@ -407,7 +407,11 @@ def differentiate(vel, space, time) -> np.ndarray:
     Returns:
         Array with shape (3, frames, z, nrad, nang) containing the strain.
     """
-    disp = np.cumsum(vel * time[None, None, :, None, None], axis=1)
+    disp = np.cumsum(
+        (vel - vel.mean(axis=(1, 3, 4))[:, None, :, None, None])
+        * time[None, None, :, None, None],
+        axis=1,
+    )
 
     dvz = finite_differences(disp[0], space[0], axis=1)
     dvr = finite_differences(disp[1], space[1], axis=2)
