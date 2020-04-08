@@ -264,10 +264,11 @@ def masked_expansion(data: np.ndarray, masks: np.ndarray, axis: tuple) -> np.nda
         nz[-1].max() + 1,
     )
 
-    shape = (data.shape[0],) + masks[..., xmin:xmax, ymin:ymax].shape
+    shape = (data.shape[0],) + masks[..., xmin : xmax + 1, ymin : ymax + 1].shape
     expanded = np.zeros(shape, dtype=data.dtype)
     exmasks = np.tile(
-        masks[..., xmin:xmax, ymin:ymax], (expanded.shape[0],) + (1,) * len(masks.shape)
+        masks[..., xmin : xmax + 1, ymin : ymax + 1],
+        (expanded.shape[0],) + (1,) * len(masks.shape),
     )
 
     def expansion(exp, idx):

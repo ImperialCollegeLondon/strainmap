@@ -60,7 +60,7 @@ def global_masks_and_origin(outer, inner):
     shift = np.array([ymin, xmin])
     masks = np.array(
         [
-            contour_diff(c1=o.T, c2=i.T, shape=(ymax - ymin, xmax - xmin)).T
+            contour_diff(c1=o.T, c2=i.T, shape=(ymax - ymin + 1, xmax - xmin + 1)).T
             for o, i in zip(outer - shift[None, :, None], inner - shift[None, :, None])
         ]
     )
@@ -145,8 +145,8 @@ def velocities_radial(
     regions: Sequence[int] = (3,),
 ):
     """Calculates the regional velocities for radial regions."""
-    outer = segments["epicardium"] - shift[None, :, None]
-    inner = segments["endocardium"] - shift[None, :, None]
+    outer = segments["epicardium"] - shift[None, ::-1, None]
+    inner = segments["endocardium"] - shift[None, ::-1, None]
 
     velocities: Dict[str, np.ndarray] = dict()
     masks: Dict[str, Union[list, np.ndarray]] = dict()
@@ -178,7 +178,7 @@ def velocities_radial(
 
 def remap_array(data, new_shape, roi):
     result = np.zeros(data.shape[:-2] + new_shape, dtype=data.dtype)
-    result[..., roi[0] : roi[1], roi[2] : roi[3]] = data
+    result[..., roi[0] : roi[1] + 1, roi[2] : roi[3] + 1] = data
     return result
 
 
@@ -199,19 +199,20 @@ def calculate_velocities(
         outer=data.segments[dataset_name]["epicardium"],
         inner=data.segments[dataset_name]["endocardium"],
     )
-    shift = np.array([ymin, xmin])
+    shift = np.array([xmin, ymin])
+    rm_mask = remap_array(mask, phase.shape[-2:], (xmin, xmax, ymin, ymax))
     cylindrical = (
-        transform_to_cylindrical(phase[..., xmin:xmax, ymin:ymax], mask, origin)
+        transform_to_cylindrical(phase, rm_mask, origin + shift[None, :])
         * (data.data_files.sensitivity * signs)[:, None, None, None]  # type: ignore
     )
-    data.masks[dataset_name][f"cylindrical - {bg}"] = remap_array(
-        cylindrical, phase.shape[-2:], (xmin, xmax, ymin, ymax)
-    )
+    data.masks[dataset_name][f"cylindrical - {bg}"] = cylindrical
     data.sign_reversal = sign_reversal
 
     vel_labels: List[str] = []
     if global_velocity:
-        velocities, masks = velocity_global(cylindrical, mask, bg)
+        velocities, masks = velocity_global(
+            cylindrical[..., xmin : xmax + 1, ymin : ymax + 1], mask, bg
+        )
         masks = {
             k: remap_array(v, phase.shape[-2:], (xmin, xmax, ymin, ymax))
             for k, v in masks.items()
@@ -222,7 +223,7 @@ def calculate_velocities(
 
     if angular_regions:
         velocities, masks = velocities_angular(
-            cylindrical,
+            cylindrical[..., xmin : xmax + 1, ymin : ymax + 1],
             data.zero_angle[dataset_name],
             origin,
             mask,
@@ -239,7 +240,7 @@ def calculate_velocities(
 
     if radial_regions:
         velocities, masks = velocities_radial(
-            cylindrical,
+            cylindrical[..., xmin : xmax + 1, ymin : ymax + 1],
             data.segments[dataset_name],
             origin,
             shift,

@@ -40,7 +40,7 @@ def test_global_masks_and_origin():
     mask, origin, roi = global_masks_and_origin(outer, inner)
 
     assert len(mask) == 1
-    assert mask[0].shape == approx((12, 12), abs=1)
+    assert mask[0].shape == approx((13, 13), abs=1)
     assert len(origin) == 1
     assert origin[0] == approx(np.array((12, 12))/2, abs=1)
     assert len(roi) == 4
