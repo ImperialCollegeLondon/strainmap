@@ -1,98 +1,13 @@
-from typing import Dict, Text, Tuple, Union, Callable
+from typing import Dict, Text, Tuple, Callable
 from itertools import product
+from functools import partial
 from collections import defaultdict
 
 import numpy as np
 
-from .readers import DICOMReaderBase
 from .strainmap_data_model import StrainMapData
 from .velocities import find_theta0, regenerate
 from .writers import terminal
-
-
-def cartcoords(shape: tuple, *sizes: Union[float, np.ndarray]) -> Tuple:
-    """Create cartesian coordinates of the given shape based on the pixel sizes.
-
-    sizes can be an scalar indicating the step value of the coordinate in the given
-    dimension, or an array already indicating the positions. In the later case, these
-    are shifted so the coordinate starts at 0.
-    """
-    assert len(shape) == len(sizes)
-
-    def build_coordinate(length, value):
-        if isinstance(value, np.ndarray):
-            return value - value[0]
-        else:
-            return np.linspace(0, value * length, length, endpoint=False)
-
-    return tuple(map(build_coordinate, shape, sizes))
-
-
-def cylcoords(
-    z: np.ndarray,
-    x: np.ndarray,
-    y: np.ndarray,
-    origin: np.ndarray,
-    theta0: Union[float, np.ndarray],
-    lent: int,
-) -> Tuple:
-    """Calculate the cylindrical coordinates out of X, Y, Z, an origin and theta0.
-
-    Notice that this is different from the velocity calculations where origin and theta0
-    might depend on time (different frames/cines), not on Z (different heart slices).
-
-    In other words, these are the spacial coordinates for a specific time frame and all
-    relevant short axis slices (typically there will be 8 of them).
-    """
-
-    org = validate_origin(origin, len(z), lent)
-    th0 = validate_theta0(theta0, len(z), lent)
-
-    coords = np.meshgrid(z, x, y, indexing="ij")
-    zz, xx, yy = (np.tile(c, (lent, 1, 1, 1)) for c in coords)
-    xx -= org[:, :, -1:, None]
-    yy -= org[:, :, -2:-1, None]
-    r = np.sqrt(xx ** 2 + yy ** 2)
-    theta = np.mod(np.arctan2(yy, xx) + th0[:, :, None, None], 2 * np.pi)
-    return zz, r, theta
-
-
-def validate_origin(origin: np.ndarray, lenz: int, lent: int):
-    """Validates the shape of the origin array."""
-
-    msg = (
-        f"Origin must be a 1D array of length 2, a 2D array of shape ({lenz}, 2) or"
-        f"({lent}, 2) or a 3D array of shape ({lent}, {lenz}, 2)"
-    )
-    if origin.shape == (2,):
-        return np.tile(origin, (lent, lenz, 1))
-    elif origin.shape == (lenz, 2):
-        return np.tile(origin, (lent, 1, 1))
-    elif origin.shape == (lent, 2):
-        return np.tile(origin, (lenz, 1, 1)).transpose((1, 0, 2))
-    elif origin.shape == (lent, lenz, 2):
-        return origin
-    else:
-        raise ValueError(msg)
-
-
-def validate_theta0(theta0: Union[float, np.ndarray], lenz: int, lent: int):
-    """Validates the shape of the theta0 array."""
-    if isinstance(theta0, np.ndarray):
-        msg = (
-            f"If an array, theta0 must have shape ({lenz},), ({lent},) or "
-            f"({lent}, {lenz})"
-        )
-        if theta0.shape == (lenz,):
-            return np.tile(theta0, (lent, 1))
-        elif theta0.shape == (lent,):
-            return np.tile(theta0, (lenz, 1)).T
-        elif theta0.shape == (lent, lenz):
-            return theta0
-        else:
-            raise ValueError(msg)
-    else:
-        return np.full((lent, lenz), theta0)
 
 
 def masked_reduction(data: np.ndarray, masks: np.ndarray, axis: tuple) -> np.ndarray:
@@ -182,8 +97,8 @@ def masked_reduction(data: np.ndarray, masks: np.ndarray, axis: tuple) -> np.nda
         nz[-1].min(),
         nz[-1].max() + 1,
     )
-    sdata = data[..., xmin:xmax, ymin:ymax]
-    smasks = masks[..., xmin:xmax, ymin:ymax]
+    sdata = data[..., xmin : xmax + 1, ymin : ymax + 1]
+    smasks = masks[..., xmin : xmax + 1, ymin : ymax + 1]
 
     shape = [s for i, s in enumerate(data.shape) if i not in axis] + [nrad, nang]
     reduced = np.zeros(shape, dtype=data.dtype)
@@ -285,71 +200,88 @@ def masked_expansion(data: np.ndarray, masks: np.ndarray, axis: tuple) -> np.nda
     )
 
 
-def prepare_coordinates(
-    data: DICOMReaderBase, zero_angle: Dict[str, np.ndarray], datasets: Tuple[str, ...]
-):
-    """Prepares the coordinate arrays to calculate the strain.
-
-    The time is the time interval between frames and it's defined per dataset.
-
-    Returns:
-        - time - Array with shape (z)
-        - space - Array with shape (3, frames, z, r, theta)
-    """
-    lenz = len(datasets)
-    lent, lenx, leny = data.mag(datasets[0]).shape
-
-    z_location = np.zeros(lenz)
-    t_interval = np.zeros(lenz)
-    theta0 = np.zeros((lent, lenz))
-    origin = np.zeros((lent, lenz, 2))
-
-    for i, d in enumerate(datasets):
-        z_location[i] = data.slice_loc(d)
-        t_interval[i] = data.time_interval(d)
-
-        theta0[:, i] = find_theta0(zero_angle[d])
-        origin[:, i, :] = zero_angle[d][:, :, 1]
-
-    px_size = data.pixel_size(datasets[0])
-    origin *= px_size
-    z = z_location - z_location[0]
-    x = np.linspace(0, px_size * lenx, lenx, endpoint=False)
-    y = np.linspace(0, px_size * leny, leny, endpoint=False)
-    zz, r, theta = cylcoords(z, x, y, origin, theta0, lent)
-
-    return t_interval, np.array([zz, r, theta])
-
-
-def prepare_masks_and_velocities(
-    masks: Dict[str, Dict[str, np.ndarray]],
+def coordinates(
+    data: StrainMapData,
     datasets: Tuple[str, ...],
     nrad: int = 3,
     nang: int = 24,
     background: str = "Estimated",
-):
-    """Prepare the masks and cylindrical velocities to be used in strain calculation.
+) -> np.ndarray:
+    from scipy.ndimage.measurements import center_of_mass
 
-    Returns:
-        - velocities - Array with shape (component, frames, z, r, theta)
-        - radial masks - Array with shape (frames, z, r, theta)
-        - angular masks - Array with shape (frames, z, r, theta)
-    """
-    vkey = f"cylindrical - {background}"
     rkey = f"radial x{nrad} - {background}"
     akey = f"angular x{nang} - {background}"
 
-    vel = []
-    msk = []
+    m_iter = (data.masks[d][rkey] + 100 * data.masks[d][akey] for d in datasets)
+    z_loc = np.array([data.data_files.slice_loc(d) for d in datasets])
+    theta0_iter = (find_theta0(data.zero_angle[d]) for d in datasets)
+    px_size = data.data_files.pixel_size(datasets[0])
 
-    for i, d in enumerate(datasets):
-        vel.append(masks[d][vkey])
-        msk.append(masks[d][rkey] + 100 * masks[d][akey])
+    def to_cylindrical(mask, theta0):
+        origin = np.array([*map(center_of_mass, mask > 0)])[..., ::-1]
+        t, x, y = mask.nonzero()
+        means = np.zeros((2,) + mask.shape)
 
-    vel = np.array(vel).transpose((1, 2, 0, 3, 4))
-    msk = np.array(msk).transpose((1, 0, 2, 3))
+        xx = x - origin[t, 1]
+        yy = y - origin[t, 0]
+        means[(0, t, x, y)] = np.sqrt(xx ** 2 + yy ** 2) * px_size
+        means[(1, t, x, y)] = np.mod(np.arctan2(yy, xx) + theta0[t], 2 * np.pi)
 
-    return vel, msk
+        return masked_reduction(means, mask, axis=(2, 3))
+
+    in_plane = np.array(
+        [r_theta for r_theta in map(to_cylindrical, m_iter, theta0_iter)]
+    )
+    out_plane = (
+        np.ones_like(in_plane[:, :1])
+        * (z_loc - z_loc.min())[(...,) + (None,) * (len(in_plane[:, :1].shape) - 1)]
+    )
+    return np.concatenate((out_plane, in_plane), axis=1).transpose((1, 2, 0, 3, 4))
+
+
+def displacement(
+    data: StrainMapData,
+    datasets: Tuple[str, ...],
+    nrad: int = 3,
+    nang: int = 24,
+    background: str = "Estimated",
+) -> np.ndarray:
+
+    vkey = f"cylindrical - {background}"
+    rkey = f"radial x{nrad} - {background}"
+    akey = f"angular x{nang} - {background}"
+    img_axis = tuple(range(len(data.masks[datasets[0]][vkey].shape)))[-2:]
+
+    cyl_iter = (data.masks[d][vkey] for d in datasets)
+    m_iter = (data.masks[d][rkey] + 100 * data.masks[d][akey] for d in datasets)
+    t_iter = (data.data_files.time_interval(d) for d in datasets)
+    reduced_vel_map = map(partial(masked_reduction, axis=img_axis), cyl_iter, m_iter)
+
+    return np.cumsum(
+        [
+            (r - r.mean(axis=(1, 2, 3))[..., None, None, None]) * t
+            for r, t in zip(reduced_vel_map, t_iter)
+        ],
+        axis=2,
+    ).transpose((1, 2, 0, 3, 4))
+
+
+def reconstruct_strain(
+    strain,
+    masks,
+    datasets,
+    nrad: int = 3,
+    nang: int = 24,
+    background: str = "Estimated",
+):
+    rkey = f"radial x{nrad} - {background}"
+    akey = f"angular x{nang} - {background}"
+    m_iter = (masks[d][rkey] + 100 * masks[d][akey] for d in datasets)
+
+    return (
+        masked_expansion(s, m, axis=(2, 3))
+        for s, m in zip(strain.transpose((2, 0, 1, 3, 4)), m_iter)
+    )
 
 
 def calculate_strain(
@@ -369,22 +301,16 @@ def calculate_strain(
     sorted_datasets = tuple(sorted(datasets, key=data.data_files.slice_loc))
 
     callback("Preparing dependent variables", 1 / steps)
-    vel, masks = prepare_masks_and_velocities(data.masks, sorted_datasets)
-    img_axis = tuple(range(len(vel.shape)))[-2:]
-    reduced_vel = masked_reduction(vel, masks, axis=img_axis)
-    del vel
+    disp = displacement(data, sorted_datasets)
 
     callback("Preparing independent variables", 2 / steps)
-    time, space = prepare_coordinates(data.data_files, data.zero_angle, sorted_datasets)
-    reduced_space = masked_reduction(space, masks, axis=img_axis)
-    del space
+    space = coordinates(data, sorted_datasets)
 
     callback("Calculating derivatives", 3 / steps)
-    reduced_strain = differentiate(reduced_vel, reduced_space, time)
-    strain = masked_expansion(reduced_strain, masks, axis=img_axis)
-    del masks
+    reduced_strain = differentiate(disp, space)
 
     callback("Calculating the regional strains", 4 / steps)
+    strain = reconstruct_strain(reduced_strain, data.masks, sorted_datasets)
     data.strain = calculate_regional_strain(strain, data.masks, sorted_datasets)
 
     callback("Calculating markers", 5 / steps)
@@ -397,23 +323,16 @@ def calculate_strain(
     callback("Done!", 1)
 
 
-def differentiate(vel, space, time) -> np.ndarray:
+def differentiate(disp, space) -> np.ndarray:
     """ Calculate the strain out of the velocity data.
 
     Args:
-        vel: Array of velocities with shape (3, frames, z, nrad, nang)
+        disp: Array of cumulative displacement with shape (3, frames, z, nrad, nang)
         space: Array of spatial locations with shape (3, frames, z, nrad, nang)
-        time: Array with shape (z)
 
     Returns:
         Array with shape (3, frames, z, nrad, nang) containing the strain.
     """
-    disp = np.cumsum(
-        (vel - vel.mean(axis=(1, 3, 4))[:, None, :, None, None])
-        * time[None, None, :, None, None],
-        axis=1,
-    )
-
     dvz = finite_differences(disp[0], space[0], axis=1)
     dvr = finite_differences(disp[1], space[1], axis=2)
     dvth = finite_differences(disp[2], space[2], axis=3, period=2 * np.pi)
@@ -471,16 +390,15 @@ def calculate_regional_strain(strain, masks, datasets) -> Dict:
     """Calculate the regional strains (1D curves)."""
     from strainmap.models.contour_mask import masked_means
 
+    vkey = "cylindrical - Estimated"
+    gkey = "global - Estimated"
+    akey = "angular x6 - Estimated"
+
     result: Dict[Text, Dict[str, np.ndarray]] = defaultdict(dict)
-    for i, d in enumerate(datasets):
-        for k, m in masks[d].items():
-            if "global" in k or "6" in k:
-                result[d][k] = (
-                    masked_means(np.take(strain, indices=i, axis=2), m, axes=(2, 3))
-                    * 100
-                )
-            elif "cylindrical" in k:
-                result[d][k] = np.take(strain, indices=i, axis=2)
+    for d, s in zip(datasets, strain):
+        result[d][gkey] = masked_means(s, masks[d][gkey], axes=(2, 3)) * 100
+        result[d][akey] = masked_means(s, masks[d][akey], axes=(2, 3)) * 100
+        result[d][vkey] = s
 
     return result
 
