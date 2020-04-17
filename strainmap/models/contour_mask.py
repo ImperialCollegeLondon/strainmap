@@ -531,15 +531,23 @@ def masked_means(
     """
     from numpy.ma import MaskedArray
 
-    if regions is None:
-        regions = sorted(set(masks.flat) - {0})
-    blabels = np.broadcast_to(masks, data.shape)
+    nz = np.nonzero(masks)
+    rmin, rmax, cmin, cmax = (nz[-2].min(), nz[-2].max(), nz[-1].min(), nz[-1].max())
+    rslice = slice(rmin, rmax + 1)
+    cslice = slice(cmin, cmax + 1)
 
-    def _mean(data, mask):
-        result = MaskedArray(data, mask).mean(axis=axes).data
+    sdata = data[..., rslice, cslice]
+    smasks = masks[..., rslice, cslice]
+
+    if regions is None:
+        regions = sorted(set(smasks.flat) - {0})
+    blabels = np.broadcast_to(smasks, sdata.shape)
+
+    def _mean(d, m):
+        result = MaskedArray(d, m).mean(axis=axes).data
         return result.reshape(1, *result.shape)
 
-    return np.concatenate(list(_mean(data, blabels != l) for l in regions))
+    return np.concatenate(list(_mean(sdata, blabels != l) for l in regions))
 
 
 if __name__ == "__main__":
