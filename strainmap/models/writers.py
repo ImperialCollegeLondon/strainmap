@@ -221,6 +221,11 @@ def write_data_structure(g, name, structure):
 
 def to_relative_paths(master: str, paths: List[str]) -> list:
     """Finds the relative paths of "paths" with respect to "master"."""
+    import sys
+
+    if sys.platform == "win32":
+        return []
+
     try:
         filenames = [
             str(
