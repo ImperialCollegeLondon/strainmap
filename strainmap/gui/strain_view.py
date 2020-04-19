@@ -391,6 +391,10 @@ class StrainTaskView(TaskViewBase):
         ax_circ.set_title("Circumferential")
         ax_circ.set_xlabel("Frame")
 
+        ax_long.set_xlim(0, self.data.data_files.frames)
+        ax_rad.set_xlim(0, self.data.data_files.frames)
+        ax_circ.set_xlim(0, self.data.data_files.frames)
+
         return {"_long": ax_long, "_rad": ax_rad, "_circ": ax_circ}
 
     def add_strain_lines(self, strain):
