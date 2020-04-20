@@ -133,6 +133,14 @@ class StrainMapData(object):
             # TODO To remove! Hack to add the radial data on legacy h5 files.
             self.velocities[dataset]["radial x3 - Estimated"] = None
 
+        default = None
+        for dataset, za in self.zero_angle.items():
+            if np.isnan(za[..., 0]).any():
+                za[..., 0] = default
+                self.save(["zero_angle", dataset])
+            else:
+                default = za[..., 0].copy()
+
     def metadata(self, dataset=None):
         """Retrieve the metadata from the DICOM files"""
         if dataset is None:
