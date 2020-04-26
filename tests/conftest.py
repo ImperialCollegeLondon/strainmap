@@ -259,3 +259,20 @@ def data_with_velocities(segmented_data):
         radial_regions=(4,),
     )
     return output
+
+
+@fixture(params=["np", "COO"])
+def larray(request):
+    from strainmap.models.sm_data import LabelledArray
+    import numpy as np
+    import sparse
+
+    dims = ("rows", "cols", "depth")
+    coords = {"cols": ["x", "y", "y"], "depth": ["shallow", "mid", "deep", "very deep"]}
+    values = np.random.random((3, 3, 4))
+    values[values < 0.5] = 0
+
+    if request.param == "COO":
+        values = sparse.COO.from_numpy(values)
+
+    return LabelledArray(dims, coords, values)
