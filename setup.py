@@ -21,6 +21,7 @@ setup(
         "openpyxl",
         "h5py",
         "natsort",
+        "sparse",
     ],
     package_data={"strainmap.gui": ["icons/*.gif", "icons/CREDITS.md"]},
     packages=find_packages("."),
