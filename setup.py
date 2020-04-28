@@ -1,11 +1,11 @@
 from setuptools import setup, find_packages
 
 tests_require = [
-    "pytest", 
-    "pytest-cov", 
-    "pytest-flake8", 
-    "pytest-mypy", 
-    "pytest-mock", 
+    "pytest",
+    "pytest-cov",
+    "pytest-flake8",
+    "pytest-mypy",
+    "pytest-mock",
     "flake8<3.8.0",
 ]
 pyinstaller = ["pyinstaller"]
