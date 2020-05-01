@@ -1,4 +1,5 @@
-from pytest import approx
+from pytest import approx, mark
+import sys
 
 
 def test_add_metadata(strainmap_data):
@@ -115,6 +116,7 @@ def test_write_hdf5_file(segmented_data, tmpdir):
     write_hdf5_file(segmented_data, filename)
 
 
+@mark.skipif(sys.platform == "win32", reason="does not run on windows in Azure")
 def test_to_relative_paths():
     from strainmap.models.writers import to_relative_paths
     from pathlib import Path
@@ -131,6 +133,7 @@ def test_to_relative_paths():
     assert actual == expected
 
 
+@mark.skipif(sys.platform == "win32", reason="does not run on windows in Azure")
 def test_paths_to_hdf5(strainmap_data, tmpdir):
     from strainmap.models.writers import paths_to_hdf5, to_relative_paths
     import h5py
