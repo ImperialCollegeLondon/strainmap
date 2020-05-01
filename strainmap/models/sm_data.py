@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from typing import Union, Dict, Sequence, Tuple, Optional, Callable, List
 from copy import deepcopy
 from enum import Enum, auto
@@ -55,9 +57,6 @@ class RegionalLabel:
         return hash(self.as_str)
 
 
-MODULE = {"<class 'numpy.ndarray'>": np, "<class 'sparse._coo.core.COO'>": sparse}
-
-
 class LabelledArray:
     """ Provides dimensions and coordinates accessibility by labels.
 
@@ -91,20 +90,25 @@ class LabelledArray:
         self.dims = tuple(dims)
         self.coords = {d: coords.get(d, None) for d in dims}
         self.values = values
-        self.module = MODULE[str(type(values))]
+        self.module = __import__(type(values).__module__.split(".")[0])
 
-    def __getitem__(
-        self, items
-    ) -> Union["LabelledArray", np.ndarray, sparse.DOK, sparse.COO]:
+    def __getitem__(self, items) -> Union[LabelledArray, np.ndarray, sparse.COO]:
         """ Gets items from 'values' using indices.
 
         If the result is an scalar, then this function returns an scalar, otherwise
         it will return a LabelArray object with the corresponding dimensions and
         coordinates.
         """
-        new_value = self.values.__getitem__(items)
-        drop_dims = [i for i, item in enumerate(items) if isinstance(item, int)]
-        new_dims = tuple([d for i, d in enumerate(self.dims) if i not in drop_dims])
+        assert not any(
+            isinstance(item, type(Ellipsis)) for item in items
+        ), NotImplementedError
+
+        new_value = self.values[items]
+        new_dims = [
+            d
+            for i, d in enumerate(self.dims)
+            if i >= len(items) or not isinstance(items[i], int)
+        ]
 
         if len(new_dims) == 0:
             return new_value
@@ -147,38 +151,38 @@ class LabelledArray:
     def shape(self) -> Tuple[int]:
         return self.values.shape
 
-    def sel(
-        self, **kwargs
-    ) -> Union["LabelledArray", np.ndarray, sparse.DOK, sparse.COO]:
+    def sel(self, **kwargs) -> Union[LabelledArray, np.ndarray, sparse.COO]:
         """ Gets items from 'values' using dimension and coordinate labels.
 
         For coordinates without labels or if the dimension name is followed by
         '__i' (double undescore + i) then regular indices are used for that dimension.
         """
-        keys = [self._process_keys(k, v) for k, v in kwargs.items()]
+        keys = (self._process_keys(k, v) for k, v in kwargs.items())
         filled: List[Union[int, slice]] = [slice(None)] * len(self.dims)
         for k in keys:
             filled[k[0]] = k[1]
-        return self.__getitem__(tuple(filled))
+        return self[tuple(filled)]
 
-    def _process_keys(self, dim, coord) -> Tuple[int, Union[int, slice]]:
+    def _process_keys(
+        self, dim: str, coord: Union[str, int]
+    ) -> Tuple[int, Union[int, slice]]:
         """ Transform a dimension and coordinate pair into indices.
 
         For coordinates, the indices can be an integer or a slice, if more than one
         element are equal to the coordinate string. In this case, it is assumed that
         the coordinates with the same labels are consecutive.
         """
-        d = dim.split("__")
-        didx = self.dims.index(d[0])
-        if (len(d) == 2 and d[1] == "i") or (self.coords.get(d[0], None) is None):
+        didx = self.dims.index(dim)
+        cidx: Union[int, slice]
+        if self.coords[dim] is None and isinstance(coord, int):
             cidx = coord
         else:
-            cidx = [i for i, c in enumerate(self.coords[d[0]]) if c == coord]
-            cidx = cidx[0] if len(cidx) == 1 else slice(cidx[0], cidx[-1] + 1)
+            ctemp = [i for i, c in enumerate(self.coords[dim]) if c == coord]
+            cidx = ctemp[0] if len(ctemp) == 1 else slice(ctemp[0], ctemp[-1] + 1)
 
         return didx, cidx
 
-    def transpose(self, *dims: str) -> "LabelledArray":
+    def transpose(self, *dims: str) -> LabelledArray:
         """ Transposes the dimensions of the LabelledArray.
 
         This function returns a new LabelledArray with the dimensions transposed.
@@ -188,7 +192,7 @@ class LabelledArray:
                 "The transposed dimensions must match the existing dimentions."
             )
 
-        axes = tuple([self.dims.index(d) for d in dims])
+        axes = tuple((self.dims.index(d) for d in dims))
         new_values = self.values.transpose(axes)
         return LabelledArray(dims, self.coords, new_values)
 

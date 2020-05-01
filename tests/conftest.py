@@ -239,7 +239,7 @@ def velocity(markers):
     idx = np.arange(0, 50)
     for i in range(3):
         for centre, amplitude, _ in markers[i]:
-            velocities[i] += amplitude * np.exp(-(idx - centre) ** 2 / 3)
+            velocities[i] += amplitude * np.exp(-((idx - centre) ** 2) / 3)
 
     return velocities
 
@@ -261,8 +261,21 @@ def data_with_velocities(segmented_data):
     return output
 
 
-@fixture(params=["np", "COO"])
-def larray(request):
+@fixture
+def larray_np():
+    from strainmap.models.sm_data import LabelledArray
+    import numpy as np
+
+    dims = ("rows", "cols", "depth")
+    coords = {"cols": ["x", "y", "y"], "depth": ["shallow", "mid", "deep", "very deep"]}
+    values = np.random.random((3, 3, 4))
+    values[values < 0.5] = 0
+
+    return LabelledArray(dims, coords, values)
+
+
+@fixture
+def larray_coo():
     from strainmap.models.sm_data import LabelledArray
     import numpy as np
     import sparse
@@ -271,8 +284,11 @@ def larray(request):
     coords = {"cols": ["x", "y", "y"], "depth": ["shallow", "mid", "deep", "very deep"]}
     values = np.random.random((3, 3, 4))
     values[values < 0.5] = 0
-
-    if request.param == "COO":
-        values = sparse.COO.from_numpy(values)
+    values = sparse.COO.from_numpy(values)
 
     return LabelledArray(dims, coords, values)
+
+
+@fixture(params=["np", "COO"])
+def larray(request, larray_np, larray_coo):
+    return larray_np if request.param == "np" else larray_coo

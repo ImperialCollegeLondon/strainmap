@@ -30,9 +30,7 @@ def test_labelled_array_selection(larray):
     assert small.shape == (larray.shape[0:3:2])
 
     small2 = larray.sel(cols="x")
-    small3 = larray.sel(cols__i=0)
     assert small == small2
-    assert small == small3
 
     small4 = larray.sel(cols="y")
     assert len(small4.dims) == 3
@@ -52,10 +50,13 @@ def test_sum(larray):
     assert isinstance(larray.sum(), float)
 
     dims = tuple(choice(larray.dims, size=2, replace=False))
+    didx = tuple((larray.dims.index(i) for i in dims))
     summed = larray.sum(dims=dims)
+    expected_values = larray.values.sum(axis=didx)
 
     assert not any([d in summed.dims for d in dims])
     assert not any([d in summed.coords for d in dims])
+    assert (summed.values == expected_values).any()
 
 
 def test_mean(larray):
@@ -70,21 +71,21 @@ def test_mean(larray):
     assert not any([d in summed.coords for d in dims])
 
 
-def test_cumsum(larray):
+def test_cumsum_coo(larray_coo):
+    with raises(NotImplementedError):
+        larray_coo.cumsum()
+
+
+def test_cumsum_np(larray_np):
     from numpy.random import choice
-    import sparse
 
-    if isinstance(larray.values, sparse.COO):
-        with raises(NotImplementedError):
-            larray.cumsum()
-    else:
-        assert isinstance(larray.cumsum(), type(larray.values))
+    assert isinstance(larray_np.cumsum(), type(larray_np.values))
 
-        dim = choice(larray.dims)
-        summed = larray.cumsum(dim=dim)
-        assert summed.dims == larray.dims
-        assert summed.coords == larray.coords
-        assert summed.shape == larray.shape
+    dim = choice(larray_np.dims)
+    summed = larray_np.cumsum(dim=dim)
+    assert summed.dims == larray_np.dims
+    assert summed.coords == larray_np.coords
+    assert summed.shape == larray_np.shape
 
 
 def test_concatenate(larray):
