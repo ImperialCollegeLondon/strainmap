@@ -46,6 +46,7 @@ stages:
             inputs:
               versionSpec: 3.8
           - script: |
+              pip install -U cython
               pip install -e .
               python setup.py -q test
           - task: PublishTestResults@2 
