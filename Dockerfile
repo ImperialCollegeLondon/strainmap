@@ -1,4 +1,4 @@
-FROM python:3.7-slim AS strainmap
+FROM python:3.8-slim AS strainmap
 RUN apt-get update \
     && apt-get -y install --no-install-recommends python3-tk \
     && rm -fr /var/lib/apt/lists/*

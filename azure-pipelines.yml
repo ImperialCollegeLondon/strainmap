@@ -24,7 +24,7 @@ stages:
         steps:
           - task: UsePythonVersion@0
             inputs:
-              versionSpec: 3.7
+              versionSpec: 3.8
           - script: |
               pip install -e .
               python setup.py -q test
@@ -44,7 +44,7 @@ stages:
         steps:
           - task: UsePythonVersion@0
             inputs:
-              versionSpec: 3.7
+              versionSpec: 3.8
           - script: |
               pip install -e .
               python setup.py -q test
@@ -66,7 +66,7 @@ stages:
         steps:
           - task: UsePythonVersion@0
             inputs:
-              versionSpec: 3.7
+              versionSpec: 3.8
           - script: pip install -e .[dev]
           - script: |
               pyinstaller strain.mac.spec
@@ -81,7 +81,7 @@ stages:
         steps:
           - task: UsePythonVersion@0
             inputs:
-              versionSpec: 3.7
+              versionSpec: 3.8
           - script: pip install -e .[dev]
           - script: pyinstaller strain.windows.spec
           - task: PublishBuildArtifacts@1
