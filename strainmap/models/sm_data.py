@@ -164,7 +164,7 @@ class LabelledArray:
         return self[tuple(filled)]
 
     def _process_keys(
-        self, dim: str, coord: Union[str, int]
+        self, dim: str, coord: Union[str, int, slice]
     ) -> Tuple[int, Union[int, slice]]:
         """ Transform a dimension and coordinate pair into indices.
 
@@ -174,11 +174,13 @@ class LabelledArray:
         """
         didx = self.dims.index(dim)
         cidx: Union[int, slice]
-        if self.coords[dim] is None and isinstance(coord, int):
-            cidx = coord
+        if isinstance(coord, str):
+            if self.coords[dim] is None:
+                raise ValueError(f"Dimension '{dim}' has no labelled coordinates.")
+            clist = [i for i, c in enumerate(self.coords[dim]) if c == coord]
+            cidx = clist[0] if len(clist) == 1 else slice(clist[0], clist[-1] + 1)
         else:
-            ctemp = [i for i, c in enumerate(self.coords[dim]) if c == coord]
-            cidx = ctemp[0] if len(ctemp) == 1 else slice(ctemp[0], ctemp[-1] + 1)
+            cidx = coord
 
         return didx, cidx
 
