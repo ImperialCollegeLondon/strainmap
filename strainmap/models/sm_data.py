@@ -153,9 +153,6 @@ class LabelledArray:
 
     def sel(self, **kwargs) -> Union[LabelledArray, np.ndarray, sparse.COO]:
         """ Gets items from 'values' using dimension and coordinate labels.
-
-        For coordinates without labels or if the dimension name is followed by
-        '__i' (double undescore + i) then regular indices are used for that dimension.
         """
         keys = (self._process_keys(k, v) for k, v in kwargs.items())
         filled: List[Union[int, slice]] = [slice(None)] * len(self.dims)
