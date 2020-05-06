@@ -197,7 +197,7 @@ class LabelledArray:
 
     def _reduction(
         self, operation: Callable, dims: Optional[Sequence[str]] = None, **kwargs
-    ) -> Union[int, "LabelledArray"]:
+    ) -> Union[int, LabelledArray]:
         """ Common method for dimension-reducing operations.
         """
         if dims is None:
@@ -212,21 +212,19 @@ class LabelledArray:
 
     def mean(
         self, dims: Optional[Sequence[str]] = None, **kwargs
-    ) -> Union[int, "LabelledArray"]:
+    ) -> Union[int, LabelledArray]:
         """ Calculates the mean of the array across the chosen dimensions.
         """
         return self._reduction(self.values.mean, dims=dims, **kwargs)
 
     def sum(
         self, dims: Optional[Sequence[str]] = None, **kwargs
-    ) -> Union[int, "LabelledArray"]:
+    ) -> Union[int, LabelledArray]:
         """ Calculates the sum of the array across the chosen dimensions.
         """
         return self._reduction(self.values.sum, dims=dims, **kwargs)
 
-    def cumsum(
-        self, dim: Optional[str] = None, **kwargs
-    ) -> Union[int, "LabelledArray"]:
+    def cumsum(self, dim: Optional[str] = None, **kwargs) -> Union[int, LabelledArray]:
         """ Calculates the cumulative sum of the array along the given dimension.
         """
         if isinstance(self.values, sparse.COO):
@@ -241,8 +239,8 @@ class LabelledArray:
         return LabelledArray(self.dims, deepcopy(self.coords), new_values)
 
     def concatenate(
-        self, args: Sequence["LabelledArray"], dim: str, **kwargs
-    ) -> Union[int, "LabelledArray"]:
+        self, args: Sequence[LabelledArray], dim: str, **kwargs
+    ) -> Union[int, LabelledArray]:
         """ Concatenate any number of LabelledArrays along the given dimension.
 
         Coordinates along that dimension are joined together, so they must be of the
@@ -272,11 +270,11 @@ class LabelledArray:
 
     def stack(
         self,
-        args: Sequence["LabelledArray"],
+        args: Sequence[LabelledArray],
         dim: str,
         coords: Optional[Sequence[str]] = None,
         **kwargs,
-    ) -> Union[int, "LabelledArray"]:
+    ) -> Union[int, LabelledArray]:
         """ Stacks any number of LabelledArrays along a new dimension.
 
         All LabelledArrays to be stacked must have the same dimensions coordinates and
