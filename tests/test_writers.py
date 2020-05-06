@@ -139,3 +139,48 @@ def test_paths_to_hdf5(strainmap_data, tmpdir):
     paths_to_hdf5(f, filename, "data_files", strainmap_data.data_files.files)
 
     assert rel_paths == f["data_files"][dataset_name][mag][...].tolist()
+
+
+def test_labels_to_group(larray, tmpdir):
+    from strainmap.models.writers import labels_to_group
+    import numpy as np
+    import h5py
+
+    filename = tmpdir / "strainmap_file.h5"
+    f = h5py.File(filename, "a")
+    labels_to_group(
+        f.create_group("labels", track_order=True), larray.dims, larray.coords
+    )
+
+    assert tuple(f["labels"].keys()) == larray.dims
+    for d in larray.dims:
+        if larray.coords[d] is None:
+            assert f["labels"][d].shape is None
+        else:
+            assert list(f["labels"][d][...].astype(np.str)) == larray.coords[d]
+
+
+def test_labelled_array_to_group(larray, tmpdir):
+    from strainmap.models.writers import labelled_array_to_group
+    import numpy as np
+    import sparse
+    import h5py
+
+    filename = tmpdir / "strainmap_file.h5"
+    f = h5py.File(filename, "a")
+    labelled_array_to_group(f.create_group("array"), larray)
+
+    assert tuple(f["array"]["labels"].keys()) == larray.dims
+    for d in larray.dims:
+        if larray.coords[d] is None:
+            assert f["array"]["labels"][d].shape is None
+        else:
+            assert list(f["array"]["labels"][d][...].astype(np.str)) == larray.coords[d]
+
+    if isinstance(larray.values, sparse.COO):
+        assert f["array"]["values"][...] == approx(larray.values.data)
+        assert f["array"]["coords"][...] == approx(larray.values.coords)
+        assert f["array"].attrs["shape"] == approx(larray.values.shape)
+        assert f["array"].attrs["fill_value"] == larray.values.fill_value
+    else:
+        assert f["array"]["values"][...] == approx(larray.values)
