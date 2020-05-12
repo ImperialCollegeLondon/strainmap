@@ -547,6 +547,11 @@ class SegmentationTaskView(TaskViewBase):
         """Provides the next images and lines to plot when scrolling."""
         self.current_frame = frame % self.num_frames
 
+        if self.current_frame != self.working_frame_var.get():
+            self.next_btn.state(["disabled"])
+        else:
+            self.next_btn.state(["!disabled"])
+
         img = endo = epi = zero_angle = marker = None
 
         if image in ["mag", "vel"]:
