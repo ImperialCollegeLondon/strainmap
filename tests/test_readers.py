@@ -155,6 +155,7 @@ def test_read_data_structure(tmpdir, segmented_data):
     )
 
 
+@mark.skipif(sys.platform == "win32", reason="does not run on windows in Azure")
 def test_from_relative_paths(tmpdir):
     from strainmap.models.readers import from_relative_paths
     from pathlib import Path

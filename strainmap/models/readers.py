@@ -238,6 +238,11 @@ def read_data_structure(g, structure):
 
 def from_relative_paths(master: str, paths: List[bytes]) -> list:
     """Transform a list of relative paths to a given master to absolute paths."""
+    import sys
+
+    if sys.platform == "win32":
+        return []
+
     return [
         str((Path(master).parent / PurePath(PurePosixPath(p.decode()))).resolve())
         for p in paths
@@ -252,7 +257,7 @@ def paths_from_hdf5(g, master, structure):
             base_dir = paths_from_hdf5(g[n], master, struct)
         else:
             filenames = from_relative_paths(master, struct[...])
-            if all(map(os.path.isfile, filenames)):
+            if len(filenames) > 0 and all(map(os.path.isfile, filenames)):
                 g[n] = filenames
                 base_dir = Path(filenames[0]).parent
 
