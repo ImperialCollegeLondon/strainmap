@@ -4,6 +4,7 @@ from functools import partial
 from collections import defaultdict
 
 import numpy as np
+from scipy import interpolate
 
 from .strainmap_data_model import StrainMapData
 from .velocities import find_theta0, regenerate
@@ -254,7 +255,7 @@ def displacement(
 
     cyl_iter = (data.masks[d][vkey] for d in datasets)
     m_iter = (data.masks[d][rkey] + 100 * data.masks[d][akey] for d in datasets)
-    t_iter = (data.data_files.time_interval(d) for d in datasets)
+    t_iter = tuple((data.data_files.time_interval(d) for d in datasets))
     reduced_vel_map = map(partial(masked_reduction, axis=img_axis), cyl_iter, m_iter)
 
     vels = np.array(
@@ -270,7 +271,30 @@ def displacement(
     weight = np.arange(0, forward.shape[1])[None, :, None, None, None] / (
         forward.shape[1] - 1
     )
-    return forward * (1 - weight) - backward * weight
+    return resample(forward * (1 - weight) - backward * weight, t_iter)
+
+
+def resample(disp: np.ndarray, interval: Tuple[float, ...]) -> np.ndarray:
+    """ Re-samples the displacement to the same time interval.
+
+    Total number of frames is kept constant.
+
+    Args:
+        disp: Array of shape [components, frames, z, radial, angular]
+        interval: Tuple of len Z with the time interval of each slice.
+
+    Returns:
+        The re-sampled displacement.
+    """
+    nframes = disp.shape[1]
+    teff = np.linspace(0, min(interval) * nframes, nframes, endpoint=False)
+    t = (
+        np.linspace(0, interv * nframes, nframes, endpoint=False) for interv in interval
+    )
+    fdisp = (
+        interpolate.interp1d(tt, d, axis=1) for tt, d in zip(t, np.moveaxis(disp, 2, 0))
+    )
+    return np.moveaxis(np.array([f(teff) for f in fdisp]), 0, 2)
 
 
 def reconstruct_strain(
