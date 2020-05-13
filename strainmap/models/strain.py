@@ -257,30 +257,20 @@ def displacement(
     t_iter = (data.data_files.time_interval(d) for d in datasets)
     reduced_vel_map = map(partial(masked_reduction, axis=img_axis), cyl_iter, m_iter)
 
-    forward = np.cumsum(
+    vels = np.array(
         [
             (r - r.mean(axis=(1, 2, 3), keepdims=True)) * t
             for r, t in zip(reduced_vel_map, t_iter)
-        ],
-        axis=2,
-    ).transpose((1, 2, 0, 3, 4))
-
-    cyl_iter = (data.masks[d][vkey] for d in datasets)
-    m_iter = (data.masks[d][rkey] + 100 * data.masks[d][akey] for d in datasets)
-    t_iter = (data.data_files.time_interval(d) for d in datasets)
-    reduced_vel_map = map(partial(masked_reduction, axis=img_axis), cyl_iter, m_iter)
-    backward = np.flip(
-        np.cumsum(
-            [
-                np.flip(r - r.mean(axis=(1, 2, 3), keepdims=True), axis=2) * t
-                for r, t in zip(reduced_vel_map, t_iter)
-            ],
-            axis=2,
-        ),
-        axis=2,
-    ).transpose((1, 2, 0, 3, 4))
-    weight = np.arange(0, forward.shape(1)) / (forward.shape(1) - 1)
-    return forward * (1 - weight) + backward * weight
+        ]
+    )
+    forward = np.cumsum(vels, axis=2).transpose((1, 2, 0, 3, 4))
+    backward = np.flip(np.flip(vels, axis=2).cumsum(axis=2), axis=2).transpose(
+        (1, 2, 0, 3, 4)
+    )
+    weight = np.arange(0, forward.shape[1])[None, :, None, None, None] / (
+        forward.shape[1] - 1
+    )
+    return forward * (1 - weight) - backward * weight
 
 
 def reconstruct_strain(
