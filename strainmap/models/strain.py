@@ -346,7 +346,11 @@ def calculate_strain(
 
     callback("Calculating markers", 5 / steps)
     for d in datasets:
-        labels = [s for s in data.strain[d].keys() if "cylindrical" not in s]
+        labels = [
+            s
+            for s in data.strain[d].keys()
+            if "cylindrical" not in s and "radial" not in s
+        ]
         if data.strain_markers.get(d, {}).get(labels[0], None) is None:
             initialise_markers(data, d, labels)
             data.save(*[["strain_markers", d, vel] for vel in labels])
@@ -424,11 +428,13 @@ def calculate_regional_strain(strain, masks, datasets) -> Dict:
     vkey = "cylindrical - Estimated"
     gkey = "global - Estimated"
     akey = "angular x6 - Estimated"
+    rkey = "radial x3 - Estimated"
 
     result: Dict[Text, Dict[str, np.ndarray]] = defaultdict(dict)
     for d, s in zip(datasets, strain):
         result[d][gkey] = masked_means(s, masks[d][gkey], axes=(2, 3)) * 100
         result[d][akey] = masked_means(s, masks[d][akey], axes=(2, 3)) * 100
+        result[d][rkey] = masked_means(s, masks[d][rkey], axes=(2, 3)) * 100
         result[d][vkey] = s
 
     return result
@@ -459,7 +465,11 @@ def update_marker(
 
 
 def initialise_markers(data: StrainMapData, dataset: str, str_labels: list):
-    """Initialises the markers for all the available strains."""
+    """Initialises the markers for all the available strains.
+
+    TODO This function needs to be updated when the proper strain markers location
+    TODO is implemented.
+    """
     from copy import deepcopy
 
     data.strain_markers[dataset] = deepcopy(data.markers[dataset])
