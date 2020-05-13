@@ -255,7 +255,7 @@ class DataTaskView(TaskViewBase):
         if path != "" and self.controller.load_data_from_file(strainmap_file=path):
             self.load_missing_data()
             if self.data.data_files:
-                self.controller.review_mode = True
+                self.controller.review_mode = False
                 self.output_file.set(path)
                 self.data_folder.set(Path(self.data.data_files.is_avail).parent)
                 self.current_dir = str(Path(path).parent)
