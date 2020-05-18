@@ -87,6 +87,7 @@ class StrainMapData(object):
         self.markers: dict = defaultdict(dict)
         self.strain: dict = defaultdict(dict)
         self.strain_markers: dict = defaultdict(dict)
+        self.gls: tuple = ()
 
     @property
     def rebuilt(self):

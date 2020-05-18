@@ -374,6 +374,8 @@ def calculate_strain(
             initialise_markers(data, d, labels)
             data.save(*[["strain_markers", d, vel] for vel in labels])
 
+    data.gls = global_longitudinal_strain(data.strain, data.strain_markers)
+
     callback("Done!", 1)
 
 
@@ -506,3 +508,20 @@ def initialise_markers(data: StrainMapData, dataset: str, str_labels: list):
                         data.strain[dataset][r][j, k, position],
                         position * data.data_files.time_interval(dataset),
                     ]
+
+
+def global_longitudinal_strain(strain, markers):
+    """Calculates the global longitudinal strain.
+
+    This is calculated as the average of the longitudinal strain at the end sistole
+    position across all datasets. Both the average value and the std are provided."""
+
+    gls = []
+    for dataset, markers in markers.items():
+        pos = int(markers["global - Estimated"][0, 1, 3, 0])
+        if "global - Estimated" not in strain[dataset]:
+            del strain[dataset]
+        else:
+            gls.append(strain[dataset]["global - Estimated"][0, 0, pos])
+
+    return np.mean(gls), np.std(gls)

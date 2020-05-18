@@ -40,6 +40,7 @@ class StrainTaskView(TaskViewBase):
         self.exclude = (tk.BooleanVar(value=False), tk.BooleanVar(value=False))
         self.effective_disp = tk.BooleanVar(value=True)
         self.resample = tk.BooleanVar(value=True)
+        self.gls = tk.StringVar()
 
         # Figure-related variables
         self.fig = None
@@ -52,6 +53,7 @@ class StrainTaskView(TaskViewBase):
         self.limits = None
         self.marker_artists = None
         self.strain_lim = dict()
+        self.gls_lbl = None
 
         self.create_controls()
 
@@ -59,7 +61,7 @@ class StrainTaskView(TaskViewBase):
         """ Creates all the widgets of the view. """
         # Top frames
         control = ttk.Frame(master=self)
-        control.columnconfigure(49, weight=1)
+        control.columnconfigure(2, weight=1)
         self.visualise_frame = ttk.Frame(master=self)
         self.visualise_frame.columnconfigure(0, weight=1)
         self.visualise_frame.rowconfigure(0, weight=1)
@@ -103,6 +105,8 @@ class StrainTaskView(TaskViewBase):
 
         # Strain frame
         self.output_frame = ttk.Labelframe(control, text="Output:")
+        self.output_frame.columnconfigure(50, weight=1)
+        self.gls_lbl = ttk.Label(master=self.output_frame, textvariable=self.gls)
 
         # Information frame
         marker_lbl = (("P", "S", "PSS"),) * 3
@@ -133,6 +137,7 @@ class StrainTaskView(TaskViewBase):
         resample.grid(row=1, column=1, sticky=tk.NSEW, padx=5)
         recalc.grid(row=2, column=0, columnspan=2, sticky=tk.NSEW, padx=5)
         self.output_frame.grid(row=0, column=2, rowspan=3, sticky=tk.NSEW, padx=5)
+        self.gls_lbl.grid(row=0, column=99, sticky=tk.NSEW, padx=5)
         for i, table in enumerate(self.param_tables):
             table.grid(row=0, column=i, sticky=tk.NSEW, padx=5)
         export_btn.grid(row=0, column=99, sticky=tk.NSEW, padx=5)
@@ -321,6 +326,8 @@ class StrainTaskView(TaskViewBase):
                 command=self.replot,
             ).grid(row=row, column=col, sticky=tk.NSEW)
 
+        self.gls_lbl.grid(row=0, column=99, sticky=tk.NSEW, padx=5)
+
         if self.strain_var.get() not in strain and len(strain) > 0:
             self.strain_var.set(vel_list[0])
 
@@ -339,6 +346,10 @@ class StrainTaskView(TaskViewBase):
             effective_displacement=self.effective_disp.get(),
             resample=self.resample.get(),
             recalculate=recalculate,
+        )
+        self.gls.set(
+            value=f"Global longitudinal strain (%): "
+            f"{round(self.data.gls[0], 2)}±{round(self.data.gls[1], 2)}"
         )
         self.populate_dataset_box(datasets)
         self.update_strain_list(self.datasets_var.get())
