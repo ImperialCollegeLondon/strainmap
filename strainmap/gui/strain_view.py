@@ -340,6 +340,7 @@ class StrainTaskView(TaskViewBase):
             resample=self.resample.get(),
             recalculate=recalculate,
         )
+        self.populate_dataset_box(datasets)
         self.update_strain_list(self.datasets_var.get())
 
     def recalculate(self, *args):
@@ -365,9 +366,12 @@ class StrainTaskView(TaskViewBase):
                 vel_label=self.strain_var.get(),
             )
 
-    def populate_dataset_box(self):
+    def populate_dataset_box(self, datasets=None):
         """Populate the dataset box with the datasets that have velocities."""
-        values = list(self.data.velocities.keys())
+        vdatasets = sorted(
+            self.data.velocities.keys(), key=self.data.data_files.slice_loc
+        )
+        values = vdatasets if datasets is None else datasets
         current = self.datasets_var.get()
         self.datasets_box.config(values=values)
         if current not in values:
