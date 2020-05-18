@@ -20,7 +20,7 @@ setup(
     install_requires=[
         "pillow",
         "pydicom",
-        "scikit-image",
+        "scikit-image<=0.15",
         "matplotlib",
         "numpy",
         "scipy<=1.3.1",
