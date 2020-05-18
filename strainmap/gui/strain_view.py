@@ -30,13 +30,16 @@ class StrainTaskView(TaskViewBase):
         self.visualise_frame = None
         self.datasets_box = None
         self.datasets_var = tk.StringVar(value="")
-        self.strain_frame = None
+        self.output_frame = None
         self.strain_var = tk.StringVar(value="")
         self.plot = None
         self.regional_fig = None
         self.param_tables = []
         self.current_region = 0
         self.images = None
+        self.exclude = (tk.BooleanVar(value=False), tk.BooleanVar(value=False))
+        self.effective_disp = tk.BooleanVar(value=True)
+        self.resample = tk.BooleanVar(value=True)
 
         # Figure-related variables
         self.fig = None
@@ -68,7 +71,6 @@ class StrainTaskView(TaskViewBase):
         # Dataset frame
         dataset_frame = ttk.Labelframe(control, text="Datasets:", borderwidth=0)
         dataset_frame.columnconfigure(0, weight=1)
-        dataset_frame.rowconfigure(0, weight=1)
 
         self.datasets_box = ttk.Combobox(
             master=dataset_frame,
@@ -79,9 +81,28 @@ class StrainTaskView(TaskViewBase):
         self.datasets_box.bind("<<ComboboxSelected>>", self.dataset_changed)
 
         # Strain frame
-        self.strain_frame = ttk.Labelframe(control, text="Strain:")
-        self.strain_frame.rowconfigure(0, weight=1)
-        self.strain_frame.rowconfigure(1, weight=1)
+        strain_frame = ttk.Labelframe(control, text="Strain control:")
+
+        ex_first = ttk.Checkbutton(
+            master=strain_frame, text="Exclude first", variable=self.exclude[0]
+        )
+        ex_last = ttk.Checkbutton(
+            master=strain_frame, text="Exclude last", variable=self.exclude[1]
+        )
+        effective = ttk.Checkbutton(
+            master=strain_frame,
+            text="Effective displacement",
+            variable=self.effective_disp,
+        )
+        resample = ttk.Checkbutton(
+            master=strain_frame, text="Resample RR", variable=self.resample
+        )
+        recalc = ttk.Button(
+            master=strain_frame, text="Recalculate strain", command=self.recalculate
+        )
+
+        # Strain frame
+        self.output_frame = ttk.Labelframe(control, text="Output:")
 
         # Information frame
         marker_lbl = (("P", "S", "PSS"),) * 3
@@ -103,9 +124,15 @@ class StrainTaskView(TaskViewBase):
         control.grid(sticky=tk.NSEW, padx=10, pady=10)
         self.visualise_frame.grid(sticky=tk.NSEW, padx=10, pady=5)
         info.grid(sticky=tk.NSEW, padx=10, pady=10)
-        dataset_frame.grid(row=0, column=0, sticky=tk.NSEW, padx=5)
+        dataset_frame.grid(row=0, column=0, rowspan=3, sticky=tk.NSEW, padx=5)
         self.datasets_box.grid(row=0, column=0, sticky=tk.NSEW)
-        self.strain_frame.grid(row=0, column=1, rowspan=2, sticky=tk.NSEW, padx=5)
+        strain_frame.grid(row=0, column=1, rowspan=3, sticky=tk.NSEW, padx=5)
+        ex_first.grid(row=0, column=0, sticky=tk.NSEW, padx=5)
+        ex_last.grid(row=1, column=0, sticky=tk.NSEW, padx=5)
+        effective.grid(row=0, column=1, sticky=tk.NSEW, padx=5)
+        resample.grid(row=1, column=1, sticky=tk.NSEW, padx=5)
+        recalc.grid(row=2, column=0, columnspan=2, sticky=tk.NSEW, padx=5)
+        self.output_frame.grid(row=0, column=2, rowspan=3, sticky=tk.NSEW, padx=5)
         for i, table in enumerate(self.param_tables):
             table.grid(row=0, column=i, sticky=tk.NSEW, padx=5)
         export_btn.grid(row=0, column=99, sticky=tk.NSEW, padx=5)
@@ -280,14 +307,14 @@ class StrainTaskView(TaskViewBase):
         """Updates the list of radio buttons with the currently available strains."""
         strain = self.data.strain[dataset]
 
-        for v in self.strain_frame.winfo_children():
+        for v in self.output_frame.winfo_children():
             v.grid_remove()
 
         vel_list = [v for v in strain if "global" in v or "6" in v]
         for i, v in enumerate(vel_list):
             col, row = divmod(i, 3)
             ttk.Radiobutton(
-                self.strain_frame,
+                self.output_frame,
                 text=v,
                 value=v,
                 variable=self.strain_var,
@@ -297,10 +324,28 @@ class StrainTaskView(TaskViewBase):
         if self.strain_var.get() not in strain and len(strain) > 0:
             self.strain_var.set(vel_list[0])
 
-    def calculate_strain(self):
+    def calculate_strain(self, recalculate=False):
         """Calculate  strain for the chosen dataset."""
-        self.controller.calculate_strain(datasets=list(self.data.velocities.keys()))
+        datasets = sorted(
+            self.data.velocities.keys(), key=self.data.data_files.slice_loc
+        )
+        if self.exclude[0].get():
+            datasets.pop(0)
+        if self.exclude[1].get():
+            datasets.pop(-1)
+
+        self.controller.calculate_strain(
+            datasets=datasets,
+            effective_displacement=self.effective_disp.get(),
+            resample=self.resample.get(),
+            recalculate=recalculate,
+        )
         self.update_strain_list(self.datasets_var.get())
+
+    def recalculate(self, *args):
+        """Re-calculate strain after changing any of the conditions."""
+        self.calculate_strain(recalculate=True)
+        self.replot()
 
     def export(self, *args):
         """Exports the current strain data to an XLSX file."""

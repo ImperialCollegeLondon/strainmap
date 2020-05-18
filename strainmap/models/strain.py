@@ -246,6 +246,8 @@ def displacement(
     nrad: int = 3,
     nang: int = 24,
     background: str = "Estimated",
+    effective_displacement=True,
+    resample=True,
 ) -> np.ndarray:
 
     vkey = f"cylindrical - {background}"
@@ -264,17 +266,21 @@ def displacement(
             for r, t in zip(reduced_vel_map, t_iter)
         ]
     )
-    forward = np.cumsum(vels, axis=2).transpose((1, 2, 0, 3, 4))
-    backward = np.flip(np.flip(vels, axis=2).cumsum(axis=2), axis=2).transpose(
-        (1, 2, 0, 3, 4)
-    )
-    weight = np.arange(0, forward.shape[1])[None, :, None, None, None] / (
-        forward.shape[1] - 1
-    )
-    return resample(forward * (1 - weight) - backward * weight, t_iter)
+
+    result = np.cumsum(vels, axis=2).transpose((1, 2, 0, 3, 4))
+    if effective_displacement:
+        backward = np.flip(np.flip(vels, axis=2).cumsum(axis=2), axis=2).transpose(
+            (1, 2, 0, 3, 4)
+        )
+        weight = np.arange(0, result.shape[1])[None, :, None, None, None] / (
+            result.shape[1] - 1
+        )
+        result = result * (1 - weight) - backward * weight
+
+    return resample_interval(result, t_iter) if resample else result
 
 
-def resample(disp: np.ndarray, interval: Tuple[float, ...]) -> np.ndarray:
+def resample_interval(disp: np.ndarray, interval: Tuple[float, ...]) -> np.ndarray:
     """ Re-samples the displacement to the same time interval.
 
     Total number of frames is kept constant.
@@ -316,12 +322,17 @@ def reconstruct_strain(
 
 
 def calculate_strain(
-    data: StrainMapData, datasets: Tuple[str, ...], callback: Callable = terminal
+    data: StrainMapData,
+    datasets: Tuple[str, ...],
+    callback: Callable = terminal,
+    effective_displacement=True,
+    resample=True,
+    recalculate=False,
 ):
     """Calculates the strain and updates the Data object with the result."""
     steps = 6.0
     # Do we need to calculate the strain?
-    if all([d in data.strain.keys() for d in datasets]):
+    if all([d in data.strain.keys() for d in datasets]) and not recalculate:
         return
 
     # Do we need to regenerate the velocities?
@@ -330,9 +341,17 @@ def calculate_strain(
         regenerate(data, to_regen, callback=callback)
 
     sorted_datasets = tuple(sorted(datasets, key=data.data_files.slice_loc))
+    if len(sorted_datasets) < 2:
+        callback("Insufficient datasets to calculate strain. At least 2 are needed.")
+        return
 
     callback("Preparing dependent variables", 1 / steps)
-    disp = displacement(data, sorted_datasets)
+    disp = displacement(
+        data,
+        sorted_datasets,
+        effective_displacement=effective_displacement,
+        resample=resample,
+    )
 
     callback("Preparing independent variables", 2 / steps)
     space = coordinates(data, sorted_datasets)

@@ -2,7 +2,7 @@ from pytest import approx
 
 
 def test_resample():
-    from strainmap.models.strain import resample
+    from strainmap.models.strain import resample_interval
     import numpy as np
 
     interval = (0.02, 0.03, 0.04)
@@ -14,7 +14,7 @@ def test_resample():
         (0, 1),
         (2, 1),
     )
-    actual = resample(disp, interval)
+    actual = resample_interval(disp, interval)
 
     assert disp.shape == actual.shape
     assert np.squeeze(actual) == approx(np.tile(expected, (3, 1)).T, abs=1e-2)
