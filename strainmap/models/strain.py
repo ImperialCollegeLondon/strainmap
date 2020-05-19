@@ -335,6 +335,9 @@ def calculate_strain(
     if all([d in data.strain.keys() for d in datasets]) and not recalculate:
         return
 
+    data.strain = defaultdict(dict)
+    data.strain_markers = defaultdict(dict)
+
     # Do we need to regenerate the velocities?
     to_regen = [d for d in datasets if list(data.velocities[d].values())[0] is None]
     if len(to_regen) > 0:

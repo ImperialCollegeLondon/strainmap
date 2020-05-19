@@ -332,7 +332,7 @@ class StrainTaskView(TaskViewBase):
             self.strain_var.set(vel_list[0])
 
     def calculate_strain(self, recalculate=False):
-        """Calculate  strain for the chosen dataset."""
+        """Calculate strain for the chosen dataset."""
         datasets = sorted(
             self.data.velocities.keys(), key=self.data.data_files.slice_loc
         )
