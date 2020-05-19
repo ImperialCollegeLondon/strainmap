@@ -337,9 +337,9 @@ class StrainTaskView(TaskViewBase):
             self.data.velocities.keys(), key=self.data.data_files.slice_loc
         )
         if self.exclude[0].get():
-            datasets.pop(0)
-        if self.exclude[1].get():
             datasets.pop(-1)
+        if self.exclude[1].get():
+            datasets.pop(0)
 
         self.controller.calculate_strain(
             datasets=datasets,
