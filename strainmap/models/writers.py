@@ -45,9 +45,12 @@ def velocity_to_xlsx(filename, data, dataset, vel_label):
 
     for l in labels:
         title = l.split(" - ")[0]
-        add_markers(
-            data.markers[dataset][l], params_ws, colnames=colnames, p=p, title=title
-        )
+        try:
+            add_markers(
+                data.markers[dataset][l], params_ws, colnames=colnames, p=p, title=title
+            )
+        except KeyError:
+            print(f"Ignoring key '{l}' when exporting velocity markers.")
         add_velocity(data.velocities[dataset][l], wb.create_sheet(title))
 
     wb.save(filename)
