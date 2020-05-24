@@ -207,6 +207,7 @@ def coordinates(
     nrad: int = 3,
     nang: int = 24,
     background: str = "Estimated",
+    resample=True,
 ) -> np.ndarray:
     from scipy.ndimage.measurements import center_of_mass
 
@@ -217,6 +218,7 @@ def coordinates(
     z_loc = np.array([data.data_files.slice_loc(d) for d in datasets])
     theta0_iter = (find_theta0(data.zero_angle[d]) for d in datasets)
     px_size = data.data_files.pixel_size(datasets[0])
+    t_iter = tuple((data.data_files.time_interval(d) for d in datasets))
 
     def to_cylindrical(mask, theta0):
         origin = np.array([*map(center_of_mass, mask > 0)])[..., ::-1]
@@ -237,7 +239,8 @@ def coordinates(
         np.ones_like(in_plane[:, :1])
         * (z_loc - z_loc.min())[(...,) + (None,) * (len(in_plane[:, :1].shape) - 1)]
     )
-    return np.concatenate((out_plane, in_plane), axis=1).transpose((1, 2, 0, 3, 4))
+    result = np.concatenate((out_plane, in_plane), axis=1).transpose((1, 2, 0, 3, 4))
+    return resample_interval(result, t_iter) if resample else result
 
 
 def displacement(
@@ -292,15 +295,36 @@ def resample_interval(disp: np.ndarray, interval: Tuple[float, ...]) -> np.ndarr
     Returns:
         The re-sampled displacement.
     """
-    nframes = disp.shape[1]
-    teff = np.linspace(0, min(interval) * nframes, nframes, endpoint=False)
-    t = (
-        np.linspace(0, interv * nframes, nframes, endpoint=False) for interv in interval
-    )
+    frames = disp.shape[1]
+    teff = np.arange(0, max(interval) * frames, min(interval))
+    t = (np.arange(0, max(interval) * (frames + 1), rr) for rr in interval)
     fdisp = (
-        interpolate.interp1d(tt, d, axis=1) for tt, d in zip(t, np.moveaxis(disp, 2, 0))
+        interpolate.interp1d(tt, d[:, : len(tt)], axis=1)
+        for tt, d in zip(t, np.moveaxis(np.concatenate([disp, disp], axis=1), 2, 0))
     )
     return np.moveaxis(np.array([f(teff) for f in fdisp]), 0, 2)
+
+
+def unresample_interval(disp: np.ndarray, interval: Tuple[float, ...]) -> np.ndarray:
+    """ Un-do rhe resample done before to return to the original interval.
+
+    Total number of frames is kept constant.
+
+    Args:
+        disp: Array of shape [components, frames, z, radial, angular]
+        interval: Tuple of len Z with the time interval of each slice.
+
+    Returns:
+        The un-resampled displacement.
+    """
+    frames = np.round(disp.shape[1] * min(interval) / max(interval)).astype(int)
+    teff = np.linspace(0, min(interval) * disp.shape[1], disp.shape[1], endpoint=False)
+    t = np.linspace(0, np.array(interval) * frames, frames, endpoint=False).T
+    fdisp = (
+        interpolate.interp1d(teff, d, axis=1, fill_value="extrapolate")
+        for d in np.moveaxis(disp, 2, 0)
+    )
+    return np.moveaxis(np.array([f(tt) for tt, f in zip(t, fdisp)]), 0, 2)
 
 
 def reconstruct_strain(
