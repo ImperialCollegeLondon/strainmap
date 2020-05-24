@@ -286,7 +286,7 @@ def displacement(
 def resample_interval(disp: np.ndarray, interval: Tuple[float, ...]) -> np.ndarray:
     """ Re-samples the displacement to the same time interval.
 
-    Total number of frames is kept constant.
+    Total number of frames will increase, in general.
 
     Args:
         disp: Array of shape [components, frames, z, radial, angular]
@@ -306,9 +306,9 @@ def resample_interval(disp: np.ndarray, interval: Tuple[float, ...]) -> np.ndarr
 
 
 def unresample_interval(disp: np.ndarray, interval: Tuple[float, ...]) -> np.ndarray:
-    """ Un-do rhe resample done before to return to the original interval.
+    """ Un-do the re-sample done before to return to the original interval.
 
-    Total number of frames is kept constant.
+    Total number of frames will decrease, in general.
 
     Args:
         disp: Array of shape [components, frames, z, radial, angular]
@@ -331,6 +331,8 @@ def reconstruct_strain(
     strain,
     masks,
     datasets,
+    resample: bool,
+    interval: tuple,
     nrad: int = 3,
     nang: int = 24,
     background: str = "Estimated",
@@ -339,6 +341,7 @@ def reconstruct_strain(
     akey = f"angular x{nang} - {background}"
     m_iter = (masks[d][rkey] + 100 * masks[d][akey] for d in datasets)
 
+    strain = unresample_interval(strain, interval) if resample else strain
     return (
         masked_expansion(s, m, axis=(2, 3))
         for s, m in zip(strain.transpose((2, 0, 1, 3, 4)), m_iter)
@@ -381,13 +384,19 @@ def calculate_strain(
     )
 
     callback("Preparing independent variables", 2 / steps)
-    space = coordinates(data, sorted_datasets)
+    space = coordinates(data, sorted_datasets, resample=resample)
 
     callback("Calculating derivatives", 3 / steps)
     reduced_strain = differentiate(disp, space)
 
     callback("Calculating the regional strains", 4 / steps)
-    strain = reconstruct_strain(reduced_strain, data.masks, sorted_datasets)
+    strain = reconstruct_strain(
+        reduced_strain,
+        data.masks,
+        sorted_datasets,
+        resample=resample,
+        interval=tuple((data.data_files.time_interval(d) for d in datasets)),
+    )
     data.strain = calculate_regional_strain(strain, data.masks, sorted_datasets)
 
     callback("Calculating markers", 5 / steps)
