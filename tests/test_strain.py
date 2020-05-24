@@ -30,7 +30,7 @@ def test_unresample():
 
     frames = 50
     interval = np.random.randint(10, 15, 3) / 100
-    nframes = np.round(interval / min(interval) * frames).astype(int)
+    nframes = np.ceil(interval / min(interval) * frames).astype(int)
 
     exframes = nframes.max() - nframes
     disp = (np.sin(np.pi * np.linspace(0, 1, n, endpoint=False)) for n in nframes)
@@ -44,7 +44,7 @@ def test_unresample():
 
     t = np.linspace(0, np.ones_like(interval), frames, endpoint=False)
     expected = np.sin(np.pi * t)
-    actual = unresample_interval(disp, interval)
+    actual = unresample_interval(disp, interval, frames)
 
     assert actual.shape == disp[:, :frames].shape
     assert np.squeeze(actual) == approx(expected, abs=1e-1)

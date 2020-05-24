@@ -305,7 +305,9 @@ def resample_interval(disp: np.ndarray, interval: Tuple[float, ...]) -> np.ndarr
     return np.moveaxis(np.array([f(teff) for f in fdisp]), 0, 2)
 
 
-def unresample_interval(disp: np.ndarray, interval: Tuple[float, ...]) -> np.ndarray:
+def unresample_interval(
+    disp: np.ndarray, interval: Tuple[float, ...], frames: int
+) -> np.ndarray:
     """ Un-do the re-sample done before to return to the original interval.
 
     Total number of frames will decrease, in general.
@@ -313,11 +315,11 @@ def unresample_interval(disp: np.ndarray, interval: Tuple[float, ...]) -> np.nda
     Args:
         disp: Array of shape [components, frames, z, radial, angular]
         interval: Tuple of len Z with the time interval of each slice.
+        frames: Number of frames of the output array.
 
     Returns:
         The un-resampled displacement.
     """
-    frames = np.round(disp.shape[1] * min(interval) / max(interval)).astype(int)
     teff = np.linspace(0, min(interval) * disp.shape[1], disp.shape[1], endpoint=False)
     t = np.linspace(0, np.array(interval) * frames, frames, endpoint=False).T
     fdisp = (
@@ -340,8 +342,9 @@ def reconstruct_strain(
     rkey = f"radial x{nrad} - {background}"
     akey = f"angular x{nang} - {background}"
     m_iter = (masks[d][rkey] + 100 * masks[d][akey] for d in datasets)
+    frames = masks[datasets[0]][rkey].shape[0]
 
-    strain = unresample_interval(strain, interval) if resample else strain
+    strain = unresample_interval(strain, interval, frames) if resample else strain
     return (
         masked_expansion(s, m, axis=(2, 3))
         for s, m in zip(strain.transpose((2, 0, 1, 3, 4)), m_iter)
