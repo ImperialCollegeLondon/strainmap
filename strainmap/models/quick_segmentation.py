@@ -96,6 +96,11 @@ def find_segmentation(
     if zero_angle is not None:
         data.zero_angle[dataset_name][frame, :, 0] = copy(zero_angle)
 
+    if frame == slice(None):
+        data.zero_angle[dataset_name][..., 1] = effective_centroid(
+            data.zero_angle[dataset_name][..., 1], window=3
+        )
+
     if save:
         data.save(
             ["segments", dataset_name, "endocardium"],
@@ -117,6 +122,23 @@ def centroid(segments, frame, shape):
         ]
     )
     return mask
+
+
+def effective_centroid(centroid: np.ndarray, window: int = 3) -> np.ndarray:
+    """ Returns the rolling average of the centroid for the chosen window.
+
+    The rolling average is wrapped at the edges of the array.
+
+    Args:
+        centroid: Array with the current centroids.
+        window: Width of the window at each side. eg, 3 means rolling average of ±3
+
+    Returns:
+        An array with the new centroid positions.
+    """
+    axis = np.argmax(centroid.shape)
+    weights = np.full((2 * window + 1), 1 / (2 * window + 1))
+    return ndimage.convolve1d(centroid, weights, axis=axis, mode="wrap")
 
 
 def initialize_data_segments(data, dataset_name, shape):
@@ -195,6 +217,15 @@ def update_segmentation(
         segments["epicardium"][frame]
     )
     data.zero_angle[dataset_name][frame] = copy(zero_angle[frame])
+
+    if isinstance(frame, slice) and (
+        frame == slice(None) or frame.stop - frame.start >= data.data_files.frames
+    ):
+        img_shape = data.data_files.mag(dataset_name).shape[1:]
+        raw_centroids = centroid(data.segments[dataset_name], frame, img_shape)
+        data.zero_angle[dataset_name][..., 1] = effective_centroid(
+            raw_centroids, window=3
+        )
 
     data.velocities.pop(dataset_name, None)
 
