@@ -218,9 +218,7 @@ def update_segmentation(
     )
     data.zero_angle[dataset_name][frame] = copy(zero_angle[frame])
 
-    if isinstance(frame, slice) and (
-        frame == slice(None) or frame.stop - frame.start >= data.data_files.frames
-    ):
+    if frame == slice(None):
         img_shape = data.data_files.mag(dataset_name).shape[1:]
         raw_centroids = centroid(data.segments[dataset_name], frame, img_shape)
         data.zero_angle[dataset_name][..., 1] = effective_centroid(

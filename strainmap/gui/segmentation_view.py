@@ -535,7 +535,7 @@ class SegmentationTaskView(TaskViewBase):
                 dataset_name=self.datasets_var.get(),
                 segments=self.final_segments,
                 zero_angle=self.zero_angle,
-                frame=slice(0, self.working_frame_var.get() + 1),
+                frame=slice(None),
             )
         self.next_btn.config(text="Done!")
         self.next_btn.state(["disabled"])
@@ -562,7 +562,10 @@ class SegmentationTaskView(TaskViewBase):
         if self.final_segments["endocardium"] is not None:
             endo = self.final_segments["endocardium"][self.current_frame]
             epi = self.final_segments["epicardium"][self.current_frame]
-            zero_angle = self.zero_angle[self.current_frame]
+            zero_angle = self.data.zero_angle[self.datasets_var.get()][
+                self.current_frame
+            ]
+            # zero_angle = self.zero_angle[self.current_frame]
             marker = zero_angle[:, 0]
 
         self.update_undo_state()
