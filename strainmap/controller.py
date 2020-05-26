@@ -128,13 +128,17 @@ class StrainMap(object):
     def calculate_velocities(self, **kwargs):
         """Calculates the velocities based on a given segmentation."""
         calculate_velocities(data=self.data, **kwargs)
-        there_are_velocities = any(len(i) != 0 for i in self.data.velocities.values())
+        there_are_velocities = (
+            sum(len(i) != 0 for i in self.data.velocities.values()) > 1
+        )
         self.lock_toggle(there_are_velocities, Requisites.VELOCITIES)
 
     def regenerate_velocities(self, **kwargs):
         """Calculates the velocities based on a given segmentation."""
         regenerate(data=self.data, **kwargs)
-        there_are_velocities = any(len(i) != 0 for i in self.data.velocities.values())
+        there_are_velocities = (
+            sum(len(i) != 0 for i in self.data.velocities.values()) > 1
+        )
         self.lock_toggle(there_are_velocities, Requisites.VELOCITIES)
 
     def update_marker(self, **kwargs):
@@ -147,7 +151,7 @@ class StrainMap(object):
 
     def calculate_strain(self, **kwargs):
         """Calculates the strain based on the available velocities."""
-        calculate_strain(data=self.data, callback=self.window.progress, **kwargs)
+        return calculate_strain(data=self.data, callback=self.window.progress, **kwargs)
 
     def update_strain_marker(self, **kwargs):
         """Updates the strain markers information after moving one of them."""

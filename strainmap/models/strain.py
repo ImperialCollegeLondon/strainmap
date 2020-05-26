@@ -209,7 +209,6 @@ def coordinates(
     background: str = "Estimated",
     resample=True,
 ) -> np.ndarray:
-    from scipy.ndimage.measurements import center_of_mass
 
     rkey = f"radial x{nrad} - {background}"
     akey = f"angular x{nang} - {background}"
@@ -217,11 +216,11 @@ def coordinates(
     m_iter = (data.masks[d][rkey] + 100 * data.masks[d][akey] for d in datasets)
     z_loc = np.array([data.data_files.slice_loc(d) for d in datasets])
     theta0_iter = (find_theta0(data.zero_angle[d]) for d in datasets)
+    origin_iter = (data.zero_angle[d][..., 1] for d in datasets)
     px_size = data.data_files.pixel_size(datasets[0])
     t_iter = tuple((data.data_files.time_interval(d) for d in datasets))
 
-    def to_cylindrical(mask, theta0):
-        origin = np.array([*map(center_of_mass, mask > 0)])[..., ::-1]
+    def to_cylindrical(mask, theta0, origin):
         t, x, y = mask.nonzero()
         means = np.zeros((2,) + mask.shape)
 
@@ -233,7 +232,7 @@ def coordinates(
         return masked_reduction(means, mask, axis=(2, 3))
 
     in_plane = np.array(
-        [r_theta for r_theta in map(to_cylindrical, m_iter, theta0_iter)]
+        [r_theta for r_theta in map(to_cylindrical, m_iter, theta0_iter, origin_iter)]
     )
     out_plane = (
         np.ones_like(in_plane[:, :1])
@@ -376,7 +375,7 @@ def calculate_strain(
     sorted_datasets = tuple(sorted(datasets, key=data.data_files.slice_loc))
     if len(sorted_datasets) < 2:
         callback("Insufficient datasets to calculate strain. At least 2 are needed.")
-        return
+        return 1
 
     callback("Preparing dependent variables", 1 / steps)
     disp = displacement(
@@ -416,6 +415,7 @@ def calculate_strain(
     data.gls = global_longitudinal_strain(data.strain, data.strain_markers)
 
     callback("Done!", 1)
+    return 0
 
 
 def differentiate(disp, space) -> np.ndarray:

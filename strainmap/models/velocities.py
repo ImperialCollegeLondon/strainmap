@@ -195,14 +195,15 @@ def calculate_velocities(
     """Calculates the velocity of the chosen dataset and regions."""
     swap, signs = data.data_files.orientation  # type: ignore
     phase = scale_phase(data, dataset_name, bg, swap, sign_reversal)  # type: ignore
-    mask, origin, (xmin, xmax, ymin, ymax) = global_masks_and_origin(
+    mask, orig, (xmin, xmax, ymin, ymax) = global_masks_and_origin(
         outer=data.segments[dataset_name]["epicardium"],
         inner=data.segments[dataset_name]["endocardium"],
     )
+    origin = data.zero_angle[dataset_name][..., 1][:, ::-1]
     shift = np.array([xmin, ymin])
     rm_mask = remap_array(mask, phase.shape[-2:], (xmin, xmax, ymin, ymax))
     cylindrical = (
-        transform_to_cylindrical(phase, rm_mask, origin + shift[None, :])
+        transform_to_cylindrical(phase, rm_mask, origin)
         * (data.data_files.sensitivity * signs)[:, None, None, None]  # type: ignore
     )
     data.masks[dataset_name][f"cylindrical - {bg}"] = cylindrical
@@ -225,7 +226,7 @@ def calculate_velocities(
         velocities, masks = velocities_angular(
             cylindrical[..., xmin : xmax + 1, ymin : ymax + 1],
             data.zero_angle[dataset_name],
-            origin,
+            origin - shift[None, :],
             mask,
             bg,
             angular_regions,
@@ -242,7 +243,7 @@ def calculate_velocities(
         velocities, masks = velocities_radial(
             cylindrical[..., xmin : xmax + 1, ymin : ymax + 1],
             data.segments[dataset_name],
-            origin,
+            origin - shift[None, :],
             shift,
             mask,
             bg,

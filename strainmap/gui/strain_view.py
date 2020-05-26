@@ -349,6 +349,7 @@ class StrainTaskView(TaskViewBase):
             resample=self.resample.get(),
             recalculate=recalculate,
         )
+
         self.gls.set(
             value=f"Global longitudinal strain (%): "
             f"{round(self.data.gls[0], 2)}±{round(self.data.gls[1], 2)}"

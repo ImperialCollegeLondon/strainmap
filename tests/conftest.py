@@ -89,7 +89,7 @@ def segmented_data(strainmap_data):
         initials={"epicardium": init_epi, "endocardium": init_endo},
     )
 
-    strainmap_data.zero_angle[dataset] = np.tile([[260, 230], [310, 280]], (3, 2, 2))
+    strainmap_data.zero_angle[dataset][..., 0] = np.array([260, 230])
     return strainmap_data
 
 
