@@ -123,9 +123,17 @@ class StrainMapData(object):
         """We create placeholders for the velocities that were expected.
 
         The velocities and masks will be created at runtime, just when needed."""
+        from .quick_segmentation import effective_centroid, centroid
+
         # If there is no data paths yet, we postpone the regeneration.
         if self.data_files == ():
             return
+
+        # TODO: Remove when consolidated. Regenerate the centroid
+        for d in self.zero_angle:
+            img_shape = self.data_files.mag(d).shape[1:]
+            raw_centroids = centroid(self.segments[d], slice(None), img_shape)
+            self.zero_angle[d][..., 1] = effective_centroid(raw_centroids, window=3)
 
         for dataset, markers in self.markers.items():
             for k in markers.keys():
@@ -134,6 +142,7 @@ class StrainMapData(object):
             # TODO To remove! Hack to add the radial data on legacy h5 files.
             self.velocities[dataset]["radial x3 - Estimated"] = None
 
+        # TODO: Remove when consolidated. Heal the septum mid-point
         default = None
         for dataset, za in self.zero_angle.items():
             if np.isnan(za[..., 0]).any():
