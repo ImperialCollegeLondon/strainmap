@@ -183,6 +183,62 @@ def add_velocity(velocity, ws):
             row = row + reg + 1
 
 
+def export_superpixel(data, dataset, filename):
+    """ Export superpixel velocity data.
+
+    TODO: Remove in final version.
+    """
+    from .velocities import px_velocity_curves
+
+    vels = px_velocity_curves(data, dataset)
+    rad = ["endo", "mid", "epi"]
+    label = "{} {}"
+
+    wb = xlsx.Workbook()
+    ws = wb.active
+    ws.title = "Radial"
+    ws.append(
+        [
+            label.format(rad[r], a + 1)
+            for r in range(vels.shape[2])
+            for a in range(vels.shape[3])
+        ]
+    )
+    for f in range(vels.shape[1]):
+        ws.append(
+            [
+                vels[1, f, r, a]
+                for r in range(vels.shape[2])
+                for a in range(vels.shape[3])
+            ]
+        )
+    for i in range(vels.shape[2]):
+        ws.insert_cols((i + 1) * (vels.shape[3] + 1))
+
+    ws = wb.create_sheet("Circumferential")
+    ws.append(
+        [
+            label.format(rad[r], a + 1)
+            for r in range(vels.shape[2])
+            for a in range(vels.shape[3])
+        ]
+    )
+
+    for f in range(vels.shape[1]):
+        ws.append(
+            [
+                vels[2, f, r, a]
+                for r in range(vels.shape[2])
+                for a in range(vels.shape[3])
+            ]
+        )
+    for i in range(vels.shape[2]):
+        ws.insert_cols((i + 1) * (vels.shape[3] + 1))
+
+    wb.save(filename)
+    wb.close()
+
+
 def write_hdf5_file(data, filename: Union[h5py.File, str]):
     """Writes the contents of the StrainMap data object to a HDF5 file."""
     f = filename if isinstance(filename, h5py.File) else h5py.File(filename, "a")

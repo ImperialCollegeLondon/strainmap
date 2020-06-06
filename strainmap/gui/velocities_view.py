@@ -146,6 +146,9 @@ class VelocitiesTaskView(TaskViewBase):
             state="disabled",
         )
         export_btn = ttk.Button(control, text="Export to Excel", command=self.export)
+        export_super_btn = ttk.Button(
+            control, text="Export superpixels", command=self.export_superpixel
+        )
 
         # Grid all the widgets
         control.grid(sticky=tk.NSEW, padx=10, pady=10)
@@ -164,6 +167,7 @@ class VelocitiesTaskView(TaskViewBase):
         z.grid(row=0, column=2, sticky=tk.NSEW, padx=5)
         self.update_vel_btn.grid(row=1, column=0, columnspan=3, sticky=tk.NSEW, padx=5)
         export_btn.grid(row=0, column=99, sticky=tk.NSEW, padx=5)
+        export_super_btn.grid(row=1, column=99, sticky=tk.NSEW, padx=5)
 
     def dataset_changed(self, *args):
         """Updates the view when the selected dataset is changed."""
@@ -434,6 +438,27 @@ class VelocitiesTaskView(TaskViewBase):
                 filename=filename,
                 dataset=self.datasets_var.get(),
                 vel_label=self.velocities_var.get(),
+            )
+
+    def export_superpixel(self, *args):
+        """ Exports the current superpixel velocity data to an XLSX file.
+
+        TODO: Remove in final version
+        """
+        from ..models.writers import export_superpixel
+
+        meta = self.data.metadata()
+        name, date = [meta[key] for key in ["Patient Name", "Date of Scan"]]
+        init = f"{name}_{date}_{self.datasets_var.get()}_velocity_super.xlsx"
+
+        filename = tk.filedialog.asksaveasfilename(
+            initialfile=init,
+            defaultextension="xlsx",
+            filetypes=[("Excel files", "*.xlsx")],
+        )
+        if filename != "":
+            export_superpixel(
+                data=self.data, dataset=self.datasets_var.get(), filename=filename
             )
 
     def populate_dataset_box(self):

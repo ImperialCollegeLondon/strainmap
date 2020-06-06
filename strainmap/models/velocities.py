@@ -305,6 +305,29 @@ markers_options = {
 }
 
 
+def px_velocity_curves(
+    data: StrainMapData,
+    dataset: str,
+    nrad: int = 3,
+    nang: int = 24,
+    background: str = "Estimated",
+) -> np.ndarray:
+    """ TODO: Remove in the final version. """
+    from .strain import masked_reduction
+
+    vkey = f"cylindrical - {background}"
+    rkey = f"radial x{nrad} - {background}"
+    akey = f"angular x{nang} - {background}"
+    img_axis = tuple(range(len(data.masks[dataset][vkey].shape)))[-2:]
+
+    cyl = data.masks[dataset][vkey]
+    m = data.masks[dataset][rkey] + 100 * data.masks[dataset][akey]
+    t = data.data_files.time_interval(dataset)
+    r = masked_reduction(cyl, m, axis=img_axis)
+
+    return (r - r.mean(axis=(1, 2, 3), keepdims=True)) * t
+
+
 def marker(comp, low=1, high=49, maximum=True):
     """Finds the index and value of the marker position within the given range."""
     low = min(low, len(comp) - 1)
