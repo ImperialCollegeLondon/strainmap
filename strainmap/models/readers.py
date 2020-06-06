@@ -81,7 +81,7 @@ def image_orientation(filename) -> tuple:
     """Indicates if X and Y Phases should be swapped and the velocity sign factors."""
     ds = pydicom.dcmread(filename)
     swap = ds.InPlanePhaseEncodingDirection == "ROW"
-    signs = np.array([1, -1, 1]) * (-1) ** swap
+    signs = np.array([-1, 1, -1]) if swap else np.array([1, -1, 1])
     return swap, signs
 
 
@@ -313,10 +313,9 @@ class DICOMReaderBase(ABC):
     def sensitivity(self) -> np.ndarray:
         """Obtains the in-plane and out of plane velocity sensitivity (scale)."""
 
-    @property
-    def orientation(self) -> tuple:
+    def orientation(self, dataset: str) -> tuple:
         """Indicates if X-Y Phases should be swapped and the velocity sign factors."""
-        return image_orientation(self.is_avail)
+        return image_orientation(list(self.files[dataset].values())[0][0])
 
     def tags(self, dataset: str, var: Optional[str] = None) -> dict:
         """Dictionary with the tags available in the DICOM files."""
