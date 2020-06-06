@@ -247,6 +247,7 @@ def displacement(
     datasets: Tuple[str, ...],
     nrad: int = 3,
     nang: int = 24,
+    lreg: int = 6,
     background: str = "Estimated",
     effective_displacement=True,
     resample=True,
@@ -262,12 +263,28 @@ def displacement(
     t_iter = tuple((data.data_files.time_interval(d) for d in datasets))
     reduced_vel_map = map(partial(masked_reduction, axis=img_axis), cyl_iter, m_iter)
 
-    vels = np.array(
-        [
-            (r - r.mean(axis=(1, 2, 3), keepdims=True)) * t
-            for r, t in zip(reduced_vel_map, t_iter)
-        ]
-    )
+    # Create a mask to define the regions over which to calculate the background
+    # for the longitudinal case
+    treg = nrad * nang
+    lmask = np.ceil(np.arange(1, treg + 1) / treg * lreg).reshape((nang, nrad)).T
+    lmask = np.tile(lmask, (data.data_files.frames, 1, 1))
+
+    vels = []
+    for r, t in zip(reduced_vel_map, t_iter):
+        # Radial and circumferential subtract the average of all slices and frames
+        vels.append((r[1:] - r[1:].mean(axis=(1, 2, 3), keepdims=True)) * t)
+
+        # Longitudinal subtract by lreg (=6) angular sectors
+        vlong = (
+            np.sum(
+                np.where(lmask == i, r[0] - r[0][lmask == i].mean(keepdims=True), 0)
+                for i in range(1, lreg + 1)
+            )
+            * t
+        )
+        vels[-1] = np.concatenate((vlong[None, ...], vels[-1]), axis=0)
+
+    vels = np.asarray(vels)
 
     result = np.cumsum(vels, axis=2).transpose((1, 2, 0, 3, 4))
     if effective_displacement:
