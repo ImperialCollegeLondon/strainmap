@@ -10,6 +10,7 @@ from matplotlib.figure import Figure
 from .base_window_and_task import Requisites, TaskViewBase, register_view
 from .figure_actions_manager import FigureActionsManager
 from .figure_actions import Markers, SimpleScroller
+from .velocities_view import get_sa_location
 
 
 @register_view
@@ -333,11 +334,7 @@ class StrainTaskView(TaskViewBase):
 
     def calculate_strain(self, recalculate=False):
         """Calculate strain for the chosen dataset."""
-        datasets = sorted(
-            self.data.velocities.keys(),
-            key=self.data.data_files.slice_loc,
-            reverse=True,
-        )
+        datasets = sorted(self.data.velocities.keys(), key=get_sa_location)
         if self.exclude[0].get():
             datasets.pop(0)
         if self.exclude[1].get():
@@ -382,11 +379,7 @@ class StrainTaskView(TaskViewBase):
 
     def populate_dataset_box(self, datasets=None):
         """Populate the dataset box with the datasets that have velocities."""
-        vdatasets = sorted(
-            self.data.velocities.keys(),
-            key=self.data.data_files.slice_loc,
-            reverse=True,
-        )
+        vdatasets = sorted(self.data.velocities.keys(), key=get_sa_location)
         values = vdatasets if datasets is None else datasets
         current = self.datasets_var.get()
         self.datasets_box.config(values=values)

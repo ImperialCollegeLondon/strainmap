@@ -1,6 +1,7 @@
 import tkinter as tk
 from tkinter import ttk
 import tkinter.filedialog
+import re
 
 import numpy as np
 from matplotlib import pyplot as plt
@@ -10,6 +11,12 @@ from matplotlib.figure import Figure
 from .base_window_and_task import Requisites, TaskViewBase, register_view
 from .figure_actions_manager import FigureActionsManager
 from .figure_actions import Markers, SimpleScroller
+
+
+def get_sa_location(dataset):
+    pattern = r"[sS][aA]([0-9])"
+    m = re.search(pattern, dataset)
+    return int(m.group(1)) if hasattr(m, "group") else 99
 
 
 @register_view
@@ -463,7 +470,7 @@ class VelocitiesTaskView(TaskViewBase):
 
     def populate_dataset_box(self):
         """Populate the dataset box with available segmentations."""
-        values = list(self.data.segments.keys())
+        values = sorted(self.data.segments.keys(), key=get_sa_location)
         current = self.datasets_var.get()
         self.datasets_box.config(values=values)
         if current not in values:

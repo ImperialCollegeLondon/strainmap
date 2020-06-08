@@ -236,7 +236,7 @@ def coordinates(
     )
     out_plane = (
         np.ones_like(in_plane[:, :1])
-        * (z_loc - z_loc.min())[(...,) + (None,) * (len(in_plane[:, :1].shape) - 1)]
+        * z_loc[(...,) + (None,) * (len(in_plane[:, :1].shape) - 1)]
     )
     result = np.concatenate((out_plane, in_plane), axis=1).transpose((1, 2, 0, 3, 4))
     return resample_interval(result, t_iter) if resample else result
@@ -269,10 +269,10 @@ def displacement(
     lmask = np.ceil(np.arange(1, treg + 1) / treg * lreg).reshape((nang, nrad)).T
     lmask = np.tile(lmask, (data.data_files.frames, 1, 1))
 
-    vels = []
+    disp = []
     for r, t in zip(reduced_vel_map, t_iter):
         # Radial and circumferential subtract the average of all slices and frames
-        vels.append((r[1:] - r[1:].mean(axis=(1, 2, 3), keepdims=True)) * t)
+        disp.append((r[1:] - r[1:].mean(axis=(1, 2, 3), keepdims=True)) * t)
 
         # Longitudinal subtract by lreg (=6) angular sectors
         vlong = (
@@ -282,13 +282,15 @@ def displacement(
             )
             * t
         )
-        vels[-1] = np.concatenate((vlong[None, ...], vels[-1]), axis=0)
 
-    vels = np.asarray(vels)
+        # The signs of the in-plane displacement are reversed to be consistent with ECHO
+        disp[-1] = np.concatenate((vlong[None, ...], -disp[-1]), axis=0)
 
-    result = np.cumsum(vels, axis=2).transpose((1, 2, 0, 3, 4))
+    disp = np.asarray(disp)
+
+    result = np.cumsum(disp, axis=2).transpose((1, 2, 0, 3, 4))
     if effective_displacement:
-        backward = np.flip(np.flip(vels, axis=2).cumsum(axis=2), axis=2).transpose(
+        backward = np.flip(np.flip(disp, axis=2).cumsum(axis=2), axis=2).transpose(
             (1, 2, 0, 3, 4)
         )
         weight = np.arange(0, result.shape[1])[None, :, None, None, None] / (
@@ -389,7 +391,8 @@ def calculate_strain(
     if len(to_regen) > 0:
         regenerate(data, to_regen, callback=callback)
 
-    sorted_datasets = tuple(sorted(datasets, key=data.data_files.slice_loc))
+    sorted_datasets = tuple(datasets)
+
     if len(sorted_datasets) < 2:
         callback("Insufficient datasets to calculate strain. At least 2 are needed.")
         return 1
