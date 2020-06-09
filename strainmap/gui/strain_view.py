@@ -347,10 +347,7 @@ class StrainTaskView(TaskViewBase):
             recalculate=recalculate,
         )
 
-        self.gls.set(
-            value=f"Global longitudinal strain (%): "
-            f"{round(self.data.gls[0], 2)}±{round(self.data.gls[1], 2)}"
-        )
+        self.gls.set(value=f"GLS: {round(self.data.gls * 100, 1)}%")
         self.populate_dataset_box(datasets)
         self.update_strain_list(self.datasets_var.get())
 

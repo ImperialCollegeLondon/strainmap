@@ -432,7 +432,13 @@ def calculate_strain(
             initialise_markers(data, d, labels)
             data.save(*[["strain_markers", d, vel] for vel in labels])
 
-    data.gls = global_longitudinal_strain(data.strain, data.strain_markers)
+    data.gls = global_longitudinal_strain(
+        disp=disp,
+        markers=tuple(data.markers[d] for d in datasets),
+        times=tuple(data.data_files.time_interval(d) for d in datasets),
+        locations=tuple(data.data_files.slice_loc(d) for d in datasets),
+        resample=resample,
+    )
 
     callback("Done!", 1)
     return 0
@@ -569,18 +575,26 @@ def initialise_markers(data: StrainMapData, dataset: str, str_labels: list):
                     ]
 
 
-def global_longitudinal_strain(strain, markers):
-    """Calculates the global longitudinal strain.
+def global_longitudinal_strain(
+    disp: np.ndarray,
+    markers: Tuple[Dict, ...],
+    times: Tuple[float, ...],
+    locations: Tuple[float, ...],
+    resample=True,
+):
+    """ Calculates the global longitudinal strain by a line fitting of the displacement.
 
-    This is calculated as the average of the longitudinal strain at the end sistole
-    position across all datasets. Both the average value and the std are provided."""
+    It takes into account if the data has been resampled, to pick the correct resampled
+    frame from the displacement."""
 
-    gls = []
-    for dataset, markers in markers.items():
-        pos = int(markers["global - Estimated"][0, 1, 3, 0])
-        if "global - Estimated" not in strain[dataset]:
-            del strain[dataset]
-        else:
-            gls.append(strain[dataset]["global - Estimated"][0, 0, pos])
+    ldisp = disp[0].mean(axis=(-2, -1))
+    tmin = min(times)
+    gls = np.zeros(len(locations))
+    for i, m in enumerate(markers):
+        pos = int(m["global - Estimated"][0, 1, 3, 0])
+        corrected = int(round(times[i] / tmin * pos)) if resample else pos
+        gls[i] = ldisp[corrected, i]
 
-    return np.mean(gls), np.std(gls)
+    return abs(
+        np.polynomial.polynomial.Polynomial.fit(locations, gls, 1).deriv().coef[0]
+    )
