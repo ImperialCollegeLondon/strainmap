@@ -220,6 +220,9 @@ def coordinates(
     px_size = data.data_files.pixel_size(datasets[0])
     t_iter = tuple((data.data_files.time_interval(d) for d in datasets))
 
+    # z_loc should be increasing with the dataset
+    z_loc = -z_loc if all(np.diff(z_loc) < 0) else z_loc
+
     def to_cylindrical(mask, theta0, origin):
         t, x, y = mask.nonzero()
         means = np.zeros((2,) + mask.shape)
@@ -487,20 +490,26 @@ def finite_differences(f, x, axis=0, period=None):
     result = np.zeros_like(f0)
 
     # Interior points
-    b = abs(x0[2:] - x0[1:-1])
-    c = abs(x0[:-2] - x0[1:-1])
-    result[1:-1] = ((f0[2:] - f0[1:-1]) / c + (f0[1:-1] - f0[:-2]) / b) / 2
+    b = x0[2:] - x0[1:-1]
+    c = x0[1:-1] - x0[:-2]
+    result[1:-1] = (
+        c ** 2 * f0[2:] + (b ** 2 - c ** 2) * f0[1:-1] - b ** 2 * f0[:-2]
+    ) / (b * c * (b + c))
 
     # Boundaries
     if period:
-        a = abs(x0[-1] - x0[0] - period)
-        b = abs(x0[1] - x0[0])
-        c = abs(x0[-2] - x0[-1])
-        result[0] = ((f0[1] - f0[0]) / b + (f0[0] - f0[-1]) / a) / 2
-        result[-1] = ((f0[-1] - f0[-2]) / c + (f0[0] - f0[-1]) / a) / 2
+        a = x0[0] - x0[-1] + period
+        b = x0[1] - x0[0]
+        c = x0[-2] - x0[-1]
+        result[0] = (a ** 2 * f0[1] + (b ** 2 - a ** 2) * f0[0] - b ** 2 * f0[-1]) / (
+            a * b * (a + b)
+        )
+        result[-1] = (c ** 2 * f0[0] + (a ** 2 - c ** 2) * f0[-1] - a ** 2 * f0[-2]) / (
+            a * c * (a + c)
+        )
     else:
-        b = abs(x0[1] - x0[0])
-        c = abs(x0[-2] - x0[-1])
+        b = x0[1] - x0[0]
+        c = x0[-1] - x0[-2]
         result[0] = (f0[1] - f0[0]) / b
         result[-1] = (f0[-1] - f0[-2]) / c
 
