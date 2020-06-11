@@ -703,7 +703,12 @@ class Markers(ActionBase):
             marker.set_data([new_x], [new_y if new_y is not None else y])
         else:
             x, y, idx = self.get_closest(line, new_x)
-            marker.set_data([x], [y])
+            old_x = marker.get_xdata()
+            if isinstance(old_x, list):
+                if x != old_x[0]:
+                    marker.set_xdata([x, x])
+            elif x != old_x:
+                marker.set_data([x], [y])
 
     def drag_marker(self, event, last_event, *args):
         """Drags a marker to a new position of the data."""
@@ -729,10 +734,36 @@ class Markers(ActionBase):
         else:
             x, y, idx = self.get_closest(self._current_data, ev.xdata)
 
-        if x != old_x:
-            self._current_marker.set_data([x], [y])
+        if x != old_x[0]:
+            if len(old_x) == 2:
+                self._current_marker.set_xdata([x, x])
+            else:
+                self._current_marker.set_data([x], [y])
 
         return event
+
+    def add_line_marker(self, line=None, axes=None, xy=None, **kwargs):
+        """Adds a vertical line marker to the axis of the linked data."""
+        if line is not None:
+            axes = line.axes
+            x, y = line.get_data()
+            x = x[0]
+        elif axes is not None:
+            xlim = axes.get_xlim()
+            x = (xlim[0] + xlim[1]) / 2
+        else:
+            raise ValueError("At least one of 'lines' or 'axes' must be defined.")
+
+        options = dict(picker=6, linewidth=3, linestyle="--")
+        options.update(kwargs)
+
+        if xy is not None:
+            x = xy
+
+        marker = axes.axvline(x, **options)
+        self._linked_data[marker] = line
+
+        return marker
 
     def move_finish(self, event, last_event, *args):
         """Executes marker move after mouse release."""
