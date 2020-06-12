@@ -694,10 +694,10 @@ class VelocitiesTaskView(TaskViewBase):
             add_marker(
                 self.vel_lines["_rad"],
                 xy=markers[1, 3, :2],
+                vline=True,
                 label="ES",
                 color="black",
-                marker="+",
-                markeredgewidth=2,
+                linewidth=2,
             )
         )
 

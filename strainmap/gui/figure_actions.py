@@ -668,7 +668,7 @@ class Markers(ActionBase):
         """Sets the function to be called when the contour is updated."""
         self._marker_moved = marker_moved
 
-    def add_marker(self, line=None, axes=None, xy=None, **kwargs):
+    def add_marker(self, line=None, axes=None, xy=None, vline=False, **kwargs):
         """Adds a marker to the axis of the linked data."""
         if line is not None:
             axes = line.axes
@@ -681,13 +681,18 @@ class Markers(ActionBase):
         else:
             raise ValueError("At least one of 'lines' or 'axes' must be defined.")
 
-        options = dict(picker=6, marker="x", markersize=20, linestyle="None")
-        options.update(kwargs)
-
         if xy is not None:
             x, y = xy[0], xy[1]
 
-        marker = axes.plot(x, y, **options)[0]
+        if vline:
+            options = dict(picker=6, linewidth=3, linestyle="--")
+            options.update(kwargs)
+            marker = axes.axvline(x, **options)
+        else:
+            options = dict(picker=6, marker="x", markersize=20, linestyle="None")
+            options.update(kwargs)
+            marker = axes.plot(x, y, **options)[0]
+
         self._linked_data[marker] = line
 
         return marker
@@ -741,29 +746,6 @@ class Markers(ActionBase):
                 self._current_marker.set_data([x], [y])
 
         return event
-
-    def add_line_marker(self, line=None, axes=None, xy=None, **kwargs):
-        """Adds a vertical line marker to the axis of the linked data."""
-        if line is not None:
-            axes = line.axes
-            x, y = line.get_data()
-            x = x[0]
-        elif axes is not None:
-            xlim = axes.get_xlim()
-            x = (xlim[0] + xlim[1]) / 2
-        else:
-            raise ValueError("At least one of 'lines' or 'axes' must be defined.")
-
-        options = dict(picker=6, linewidth=3, linestyle="--")
-        options.update(kwargs)
-
-        if xy is not None:
-            x = xy
-
-        marker = axes.axvline(x, **options)
-        self._linked_data[marker] = line
-
-        return marker
 
     def move_finish(self, event, last_event, *args):
         """Executes marker move after mouse release."""
