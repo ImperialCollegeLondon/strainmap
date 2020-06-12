@@ -1,7 +1,6 @@
 import tkinter as tk
 from tkinter import ttk
 import tkinter.filedialog
-import re
 
 import numpy as np
 from matplotlib import pyplot as plt
@@ -11,25 +10,20 @@ from matplotlib.figure import Figure
 from .base_window_and_task import Requisites, TaskViewBase, register_view
 from .figure_actions_manager import FigureActionsManager
 from .figure_actions import Markers, SimpleScroller
-
-
-def get_sa_location(dataset):
-    pattern = r"[sS][aA]([0-9])"
-    m = re.search(pattern, dataset)
-    return int(m.group(1)) if hasattr(m, "group") else 99
+from .velocities_view import get_sa_location
 
 
 @register_view
-class VelocitiesTaskView(TaskViewBase):
+class StrainTaskView(TaskViewBase):
 
-    requisites = Requisites.SEGMENTED
+    requisites = Requisites.VELOCITIES
     axes_lbl = ("_long", "_rad", "_circ")
-    marker_idx = {"PS": 0, "PD": 1, "PAS": 2, "PC1": 0, "PC2": 1, "PC3": 2, "ES": 3}
+    marker_idx = {"P": 0, "S": 1, "PSS": 2, "ES": 3}
 
     def __init__(self, root, controller):
 
         super().__init__(
-            root, controller, button_text="Velocities", button_image="speed.gif"
+            root, controller, button_text="Strain", button_image="strain.gif"
         )
         self.rowconfigure(1, weight=1)
         self.columnconfigure(0, weight=1)
@@ -37,34 +31,30 @@ class VelocitiesTaskView(TaskViewBase):
         self.visualise_frame = None
         self.datasets_box = None
         self.datasets_var = tk.StringVar(value="")
-        self.velocities_frame = None
-        self.velocities_var = tk.StringVar(value="")
-        self.bg_box = None
-        self.bg_var = tk.StringVar(value="Estimated")
+        self.output_frame = None
+        self.strain_var = tk.StringVar(value="")
         self.plot = None
         self.regional_fig = None
         self.param_tables = []
         self.current_region = 0
         self.images = None
-        self.update_vel_btn = None
-        self.reverse_vel_var = (
-            tk.BooleanVar(value=False),
-            tk.BooleanVar(value=False),
-            tk.BooleanVar(value=False),
-        )
-        self.reverse_status = (False, False, False)
+        self.exclude = (tk.BooleanVar(value=False), tk.BooleanVar(value=False))
+        self.effective_disp = tk.BooleanVar(value=True)
+        self.resample = tk.BooleanVar(value=True)
+        self.gls = tk.StringVar()
 
         # Figure-related variables
         self.fig = None
         self.axes = None
         self.maps = None
-        self.vel_lines = None
         self.bg_images = None
-        self.vel_masks = None
+        self.strain_lines = None
+        self.strain_masks = None
         self.cbar = None
         self.limits = None
         self.marker_artists = None
-        self.vel_lim = dict()
+        self.strain_lim = dict()
+        self.gls_lbl = None
 
         self.create_controls()
 
@@ -72,7 +62,7 @@ class VelocitiesTaskView(TaskViewBase):
         """ Creates all the widgets of the view. """
         # Top frames
         control = ttk.Frame(master=self)
-        control.columnconfigure(49, weight=1)
+        control.columnconfigure(2, weight=1)
         self.visualise_frame = ttk.Frame(master=self)
         self.visualise_frame.columnconfigure(0, weight=1)
         self.visualise_frame.rowconfigure(0, weight=1)
@@ -84,7 +74,6 @@ class VelocitiesTaskView(TaskViewBase):
         # Dataset frame
         dataset_frame = ttk.Labelframe(control, text="Datasets:", borderwidth=0)
         dataset_frame.columnconfigure(0, weight=1)
-        dataset_frame.rowconfigure(0, weight=1)
 
         self.datasets_box = ttk.Combobox(
             master=dataset_frame,
@@ -94,25 +83,34 @@ class VelocitiesTaskView(TaskViewBase):
         )
         self.datasets_box.bind("<<ComboboxSelected>>", self.dataset_changed)
 
-        # Background frame
-        bg_frame = ttk.Labelframe(control, text="Background:")
-        bg_frame.columnconfigure(0, weight=1)
-        bg_frame.rowconfigure(0, weight=1)
-        self.bg_box = ttk.Combobox(
-            master=bg_frame,
-            textvariable=self.bg_var,
-            values=["Estimated"],
-            state="readonly",
-        )
-        self.bg_box.bind("<<ComboboxSelected>>", self.bg_changed)
+        # Strain frame
+        strain_frame = ttk.Labelframe(control, text="Strain control:")
 
-        # Velocities frame
-        self.velocities_frame = ttk.Labelframe(control, text="Velocities:")
-        for i in range(3):
-            self.velocities_frame.rowconfigure(i, weight=1)
+        ex_first = ttk.Checkbutton(
+            master=strain_frame, text="Exclude first", variable=self.exclude[0]
+        )
+        ex_last = ttk.Checkbutton(
+            master=strain_frame, text="Exclude last", variable=self.exclude[1]
+        )
+        effective = ttk.Checkbutton(
+            master=strain_frame,
+            text="Effective displacement",
+            variable=self.effective_disp,
+        )
+        resample = ttk.Checkbutton(
+            master=strain_frame, text="Resample RR", variable=self.resample
+        )
+        recalc = ttk.Button(
+            master=strain_frame, text="Recalculate strain", command=self.recalculate
+        )
+
+        # Strain frame
+        self.output_frame = ttk.Labelframe(control, text="Output:")
+        self.output_frame.columnconfigure(50, weight=1)
+        self.gls_lbl = ttk.Label(master=self.output_frame, textvariable=self.gls)
 
         # Information frame
-        marker_lbl = (("PS", "PD", "PAS"), ("PS", "PD", "PAS"), ("PC1", "PC2", "PC3"))
+        marker_lbl = (("P", "S", "PSS"),) * 3
         for labels in marker_lbl:
             self.param_tables.append(ttk.Treeview(info, height=14))
             self.param_tables[-1].tag_configure("current", background="#f8d568")
@@ -125,118 +123,55 @@ class VelocitiesTaskView(TaskViewBase):
                 self.param_tables[-1].heading(l, text=l)
                 self.param_tables[-1].column(l, width=80, stretch=tk.YES, anchor=tk.E)
 
-        # Sign reversal frame
-        reversal_frame = ttk.Labelframe(control, text="Reverse sign:")
-        reversal_frame.rowconfigure(0, weight=1)
-        x = ttk.Checkbutton(
-            reversal_frame,
-            text="X",
-            variable=self.reverse_vel_var[0],
-            command=self.reversal_checked,
-        )
-        y = ttk.Checkbutton(
-            reversal_frame,
-            text="Y",
-            variable=self.reverse_vel_var[1],
-            command=self.reversal_checked,
-        )
-        z = ttk.Checkbutton(
-            reversal_frame,
-            text="Z",
-            variable=self.reverse_vel_var[2],
-            command=self.reversal_checked,
-        )
-        self.update_vel_btn = ttk.Button(
-            reversal_frame,
-            text="Update velocities",
-            command=self.recalculate_velocities,
-            state="disabled",
-        )
         export_btn = ttk.Button(control, text="Export to Excel", command=self.export)
-        export_super_btn = ttk.Button(
-            control, text="Export superpixels", command=self.export_superpixel
-        )
 
         # Grid all the widgets
         control.grid(sticky=tk.NSEW, padx=10, pady=10)
         self.visualise_frame.grid(sticky=tk.NSEW, padx=10, pady=5)
         info.grid(sticky=tk.NSEW, padx=10, pady=10)
-        dataset_frame.grid(row=0, column=0, sticky=tk.NSEW, padx=5)
+        dataset_frame.grid(row=0, column=0, rowspan=3, sticky=tk.NSEW, padx=5)
         self.datasets_box.grid(row=0, column=0, sticky=tk.NSEW)
-        bg_frame.grid(row=1, column=0, sticky=tk.NSEW, padx=5)
-        self.bg_box.grid(row=0, column=0, sticky=tk.NSEW)
-        self.velocities_frame.grid(row=0, column=3, rowspan=3, sticky=tk.NSEW, padx=5)
+        strain_frame.grid(row=0, column=1, rowspan=3, sticky=tk.NSEW, padx=5)
+        ex_first.grid(row=0, column=0, sticky=tk.NSEW, padx=5)
+        ex_last.grid(row=1, column=0, sticky=tk.NSEW, padx=5)
+        effective.grid(row=0, column=1, sticky=tk.NSEW, padx=5)
+        resample.grid(row=1, column=1, sticky=tk.NSEW, padx=5)
+        recalc.grid(row=2, column=0, columnspan=2, sticky=tk.NSEW, padx=5)
+        self.output_frame.grid(row=0, column=2, rowspan=3, sticky=tk.NSEW, padx=5)
+        self.gls_lbl.grid(row=0, column=99, sticky=tk.NSEW, padx=5)
         for i, table in enumerate(self.param_tables):
             table.grid(row=0, column=i, sticky=tk.NSEW, padx=5)
-        reversal_frame.grid(row=0, column=98, rowspan=2, sticky=tk.NSEW, padx=5)
-        x.grid(row=0, column=0, sticky=tk.NSEW, padx=5)
-        y.grid(row=0, column=1, sticky=tk.NSEW, padx=5)
-        z.grid(row=0, column=2, sticky=tk.NSEW, padx=5)
-        self.update_vel_btn.grid(row=1, column=0, columnspan=3, sticky=tk.NSEW, padx=5)
         export_btn.grid(row=0, column=99, sticky=tk.NSEW, padx=5)
-        export_super_btn.grid(row=1, column=99, sticky=tk.NSEW, padx=5)
 
     def dataset_changed(self, *args):
         """Updates the view when the selected dataset is changed."""
         current = self.datasets_var.get()
         self.images = self.data.data_files.mag(current)
-        if self.data.velocities.get(current):
-            self.update_velocities_list(current)
+        if self.data.strain.get(current):
+            self.update_strain_list(current)
         else:
-            self.populate_bg_box(current)
-            self.calculate_velocities(current)
-
+            self.calculate_strain()
         self.replot()
 
-    def bg_changed(self, *args):
-        """When the background is changed, new velocities need to be calculated."""
-        bg = self.bg_var.get()
-        dataset = self.datasets_var.get()
-        existing_vels = self.data.velocities[dataset].keys()
-        if not any([bg in vel_label for vel_label in existing_vels]):
-            self.calculate_velocities(dataset)
-            self.replot()
-
-    def recalculate_velocities(self):
-        """Recalculate velocities after a sign reversal."""
-        self.update_vel_btn.state(["disabled"])
-        dataset = self.datasets_var.get()
-        existing_vels = self.data.velocities[dataset].keys()
-        existing_bg = {vel_label.split(" - ")[-1] for vel_label in existing_vels}
-        for bg in existing_bg:
-            self.calculate_velocities(dataset, bg=bg)
-            self.replot()
-
-    def reversal_checked(self):
-        """Enables/disables de update velocities button if amy sign reversal changes."""
-        if tuple(var.get() for var in self.reverse_vel_var) != self.data.sign_reversal:
-            self.update_vel_btn.state(["!disabled"])
-        else:
-            self.update_vel_btn.state(["disabled"])
-
-    def find_velocity_limits(self, vel_label):
-        """Finds suitable maximum and minimum for the velocity plots."""
-        vel = self.data.velocities[self.datasets_var.get()][vel_label]
+    def find_strain_limits(self, strain_label):
+        """Finds suitable maximum and minimum for the strain plots."""
+        strain = self.data.strain[self.datasets_var.get()][strain_label]
         for i, label in enumerate(self.axes_lbl):
-            m = (vel[:, i, :].max() - vel[:, i, :].min()) * 0.10
-            self.vel_lim[label] = (vel[:, i, :].min() - m, vel[:, i, :].max() + m)
+            m = (strain[:, i, :].max() - strain[:, i, :].min()) * 0.10
+            self.strain_lim[label] = (
+                strain[:, i, :].min() - m,
+                strain[:, i, :].max() + m,
+            )
 
     def replot(self):
-        """Updates the plot to show the chosen velocity."""
-        dataset = self.datasets_var.get()
-        vel_label = self.velocities_var.get()
-        bg = vel_label.split(" - ")[-1]
-        if not any([bg in k for k in self.data.masks[dataset]]):
-            self.calculate_velocities(dataset, bg, init_markers=False)
-
-        self.find_velocity_limits(vel_label)
-        if self.data.velocities[dataset][vel_label].shape[0] == 24:
-            self.color_plots(dataset, vel_label)
-        elif self.fig is None or self.current_region == -1:
+        """Updates the plot to show the chosen strain."""
+        strain_label = self.strain_var.get()
+        self.find_strain_limits(strain_label)
+        if self.fig is None or self.current_region == -1:
             self.current_region = 0
             self.markers_figure(
-                self.velocities,
-                self.velocity_maps,
+                self.strain,
+                self.strain_maps,
                 self.images,
                 self.markers[self.current_region],
             )
@@ -247,23 +182,6 @@ class VelocitiesTaskView(TaskViewBase):
             self.draw()
             self.populate_tables()
 
-        self.bg_var.set(self.velocities_var.get().split(" - ")[-1])
-
-    def color_plots(self, dataset, vel_label):
-        """Creates the color plots for the case of 24 angular regions."""
-        gmark = self.data.markers[dataset][f"global - {vel_label.split(' - ')[-1]}"][0]
-        markers_idx = gmark[:, :3, 0].flatten()
-        self.fig = colour_figure(
-            self.data.velocities[dataset][vel_label],
-            self.region_labels(6),
-            markers_idx,
-            self.visualise_frame,
-        )
-        self.fig.canvas.draw_idle()
-        self.current_region = -1
-        markers = self.data.markers[dataset][vel_label.replace("24", "6")]
-        self.populate_tables(markers)
-
     def marker_moved(self, table, marker):
         """Updates plot and table after a marker has been moved."""
         if marker == "ES":
@@ -271,7 +189,7 @@ class VelocitiesTaskView(TaskViewBase):
         else:
             self.update_table_one_marker(table, marker)
             self.update_one_map(
-                self.velocity_maps,
+                self.strain_maps,
                 self.images,
                 self.markers[self.current_region],
                 table,
@@ -285,9 +203,9 @@ class VelocitiesTaskView(TaskViewBase):
         if self.current_region != current_region:
             self.fig.actions_manager.SimpleScroller.disabled = True
             self.current_region = current_region
-            self.update_velocities(self.velocities, draw=False)
+            self.update_strains(self.strain, draw=False)
             self.update_maps(
-                self.velocity_maps,
+                self.strain_maps,
                 self.images,
                 self.markers[self.current_region],
                 draw=False,
@@ -295,43 +213,41 @@ class VelocitiesTaskView(TaskViewBase):
             self.update_markers(self.markers[self.current_region], draw=False)
             self.populate_tables()
             self.fig.actions_manager.SimpleScroller.disabled = False
-            for vel_label, ax in self.axes.items():
-                ax.set_ylim(*self.vel_lim[vel_label])
+            for strain_label, ax in self.axes.items():
+                ax.set_ylim(*self.strain_lim[strain_label])
 
         return self.current_region, None, None
 
     @property
     def regions(self) -> int:
-        """Number of regions for the selected velocity."""
-        return len(
-            self.data.velocities[self.datasets_var.get()][self.velocities_var.get()]
-        )
+        """Number of regions for the selected strain."""
+        return len(self.data.strain[self.datasets_var.get()][self.strain_var.get()])
 
     @property
-    def velocities(self) -> np.ndarray:
-        """Velocities of the current region."""
-        return self.data.velocities[self.datasets_var.get()][self.velocities_var.get()][
+    def strain(self) -> np.ndarray:
+        """Strains of the current region."""
+        return self.data.strain[self.datasets_var.get()][self.strain_var.get()][
             self.current_region
         ]
 
     @property
     def markers(self) -> np.ndarray:
         """Markers of the current region."""
-        return self.data.markers[self.datasets_var.get()][self.velocities_var.get()]
+        return self.data.strain_markers[self.datasets_var.get()][self.strain_var.get()]
 
     @property
     def masks(self) -> np.ndarray:
         """Masks for the current region"""
         return (
-            self.data.masks[self.datasets_var.get()][self.velocities_var.get()]
+            self.data.masks[self.datasets_var.get()][self.strain_var.get()]
             != self.current_region + 1
         )
 
     @property
-    def velocity_maps(self):
-        """Calculate velocity maps out of the masks and cylindrical velocities."""
-        cyl_label = f"cylindrical -{self.velocities_var.get().split('-')[-1]}"
-        cylindrical = self.data.masks[self.datasets_var.get()][cyl_label]
+    def strain_maps(self):
+        """Calculate strain maps out of the masks and cylindrical strain."""
+        cyl_label = f"cylindrical -{self.strain_var.get().split('-')[-1]}"
+        cylindrical = self.data.strain[self.datasets_var.get()][cyl_label]
         bmask = np.broadcast_to(self.masks, cylindrical.shape)
         return np.ma.masked_where(bmask, cylindrical)
 
@@ -353,25 +269,25 @@ class VelocitiesTaskView(TaskViewBase):
 
         labels = self.region_labels(len(markers))
         for i, t in enumerate(self.param_tables):
-            vel = t.insert("", tk.END, text="Velocity (cm/s)", open=True)
-            time = t.insert("", tk.END, text="Norm. Time (ms)", open=True)
+            strain = t.insert("", tk.END, text="Strain (%)", open=True)
+            time = t.insert("", tk.END, text="Time (ms)", open=True)
             for j, marker in enumerate(markers):
                 tag = "current" if j == self.current_region else "others"
                 val = np.around(marker[i, :3, 1], decimals=2).tolist()
-                t.insert(vel, tk.END, text=labels[j], values=val, tags=(tag,))
-                val = np.around(marker[i, :3, 2], decimals=2).tolist()
+                t.insert(strain, tk.END, text=labels[j], values=val, tags=(tag,))
+                val = np.around(marker[i, :3, 2] * 1000, decimals=0).tolist()
                 t.insert(time, tk.END, text=labels[j], values=val, tags=(tag,))
 
     def update_table_one_marker(self, table, marker):
-        """Updates peak velocity and time table entry for a single marker."""
+        """Updates peak strain and time table entry for a single marker."""
         table = self.axes_lbl.index(table)
         idx = self.marker_idx[marker]
         t = self.param_tables[table]
-        velitem = t.get_children(t.get_children()[0])[self.current_region]
+        strainitem = t.get_children(t.get_children()[0])[self.current_region]
         timeitem = t.get_children(t.get_children()[1])[self.current_region]
 
         t.set(
-            velitem,
+            strainitem,
             column=marker,
             value=round(self.markers[self.current_region, table, idx, 1], 2),
         )
@@ -393,47 +309,58 @@ class VelocitiesTaskView(TaskViewBase):
                 ).tolist(),
             )
 
-    def update_velocities_list(self, dataset):
-        """Updates the list of radio buttons with the currently available velocities."""
-        velocities = self.data.velocities[dataset]
+    def update_strain_list(self, dataset):
+        """Updates the list of radio buttons with the currently available strains."""
+        strain = self.data.strain[dataset]
 
-        for v in self.velocities_frame.winfo_children():
+        for v in self.output_frame.winfo_children():
             v.grid_remove()
 
-        vel_list = [v for v in velocities if "global" in v or "6" in v or "24" in v]
+        vel_list = [v for v in strain if "global" in v or "6" in v]
         for i, v in enumerate(vel_list):
             col, row = divmod(i, 3)
             ttk.Radiobutton(
-                self.velocities_frame,
+                self.output_frame,
                 text=v,
                 value=v,
-                variable=self.velocities_var,
+                variable=self.strain_var,
                 command=self.replot,
             ).grid(row=row, column=col, sticky=tk.NSEW)
 
-        if self.velocities_var.get() not in velocities and len(velocities) > 0:
-            self.velocities_var.set(vel_list[0])
+        self.gls_lbl.grid(row=0, column=99, sticky=tk.NSEW, padx=5)
 
-        self.bg_var.set(self.velocities_var.get().split(" - ")[-1])
+        if self.strain_var.get() not in strain and len(strain) > 0:
+            self.strain_var.set(vel_list[0])
 
-    def calculate_velocities(self, dataset, bg=None, init_markers=True):
-        """Calculate pre-defined velocities for the chosen dataset."""
-        self.controller.calculate_velocities(
-            dataset_name=dataset,
-            global_velocity=True,
-            angular_regions=[6, 24],
-            radial_regions=[3],
-            bg=self.bg_var.get() if bg is None else bg,
-            sign_reversal=tuple(var.get() for var in self.reverse_vel_var),
-            init_markers=init_markers,
+    def calculate_strain(self, recalculate=False):
+        """Calculate strain for the chosen dataset."""
+        datasets = sorted(self.data.velocities.keys(), key=get_sa_location)
+        if self.exclude[0].get():
+            datasets.pop(0)
+        if self.exclude[1].get():
+            datasets.pop(-1)
+
+        self.controller.calculate_strain(
+            datasets=datasets,
+            effective_displacement=self.effective_disp.get(),
+            resample=self.resample.get(),
+            recalculate=recalculate,
         )
-        self.update_velocities_list(self.datasets_var.get())
+
+        self.gls.set(value=f"GLS: {round(self.data.gls * 100, 1)}%")
+        self.populate_dataset_box(datasets)
+        self.update_strain_list(self.datasets_var.get())
+
+    def recalculate(self, *args):
+        """Re-calculate strain after changing any of the conditions."""
+        self.calculate_strain(recalculate=True)
+        self.replot()
 
     def export(self, *args):
-        """Exports the current velocity data to an XLSX file."""
+        """Exports the current strain data to an XLSX file."""
         meta = self.data.metadata()
         name, date = [meta[key] for key in ["Patient Name", "Date of Scan"]]
-        init = f"{name}_{date}_{self.datasets_var.get()}_velocity.xlsx"
+        init = f"{name}_{date}_{self.datasets_var.get()}_strain.xlsx"
 
         filename = tk.filedialog.asksaveasfilename(
             initialfile=init,
@@ -441,94 +368,25 @@ class VelocitiesTaskView(TaskViewBase):
             filetypes=[("Excel files", "*.xlsx")],
         )
         if filename != "":
-            self.controller.export_velocity(
+            self.controller.export_strain(
                 filename=filename,
                 dataset=self.datasets_var.get(),
-                vel_label=self.velocities_var.get(),
+                vel_label=self.strain_var.get(),
             )
 
-    def export_superpixel(self, *args):
-        """ Exports the current superpixel velocity data to an XLSX file.
-
-        TODO: Remove in final version
-        """
-        from ..models.writers import export_superpixel
-
-        meta = self.data.metadata()
-        name, date = [meta[key] for key in ["Patient Name", "Date of Scan"]]
-        init = f"{name}_{date}_{self.datasets_var.get()}_velocity_super.xlsx"
-
-        filename = tk.filedialog.asksaveasfilename(
-            initialfile=init,
-            defaultextension="xlsx",
-            filetypes=[("Excel files", "*.xlsx")],
-        )
-        if filename != "":
-            export_superpixel(
-                data=self.data, dataset=self.datasets_var.get(), filename=filename
-            )
-
-    def populate_dataset_box(self):
-        """Populate the dataset box with available segmentations."""
-        values = sorted(self.data.segments.keys(), key=get_sa_location)
+    def populate_dataset_box(self, datasets=None):
+        """Populate the dataset box with the datasets that have velocities."""
+        vdatasets = sorted(self.data.velocities.keys(), key=get_sa_location)
+        values = vdatasets if datasets is None else datasets
         current = self.datasets_var.get()
         self.datasets_box.config(values=values)
         if current not in values:
             self.datasets_var.set(values[0])
 
-    def populate_bg_box(self, dataset):
-        """Populates the background box and try to match the bg choice by name."""
-        values = ["Estimated", "None"] + (
-            self.data.bg_files.datasets if self.data.bg_files is not None else []
-        )
-        self.bg_box.config(values=values)
-        if dataset in values:
-            self.bg_var.set(dataset)
-        else:
-            self.bg_var.set(values[0])
-
-    def update_sign_reversal(self):
-        """Updates the sign reversal information with data.sign_reversal info."""
-        for i, var in enumerate(self.data.sign_reversal):
-            self.reverse_vel_var[i].set(bool(var))
-
     def update_widgets(self):
         """ Updates widgets after an update in the data var. """
         self.populate_dataset_box()
-        self.populate_bg_box(self.datasets_var.get())
-        self.update_sign_reversal()
-        self.calculate_all()
         self.dataset_changed()
-
-    def calculate_all(self):
-        """ Calculates all velocities not already calculated. """
-        to_regenerate = [
-            k
-            for k in self.data.velocities.keys()
-            if len(self.data.velocities.get(k, {}).values()) > 0
-            and list(self.data.velocities.get(k, {}).values())[0] is None
-        ]
-        if len(to_regenerate) > 0:
-            self.controller.regenerate_velocities(
-                datasets=to_regenerate, callback=self.master.progress
-            )
-
-        existing = [
-            k
-            for k in self.data.velocities.keys()
-            if len(self.data.velocities.get(k, {}).values()) > 0
-            and list(self.data.velocities.get(k, {}).values())[0] is not None
-        ]
-
-        needed = list(self.data.segments.keys())
-        for i, d in enumerate(needed):
-            if d not in existing:
-                self.master.progress(
-                    f"Calculating velocities for dataset {d} - {i+1}/{len(needed)}",
-                    i / len(needed),
-                )
-                self.calculate_velocities(d)
-        self.master.progress(f"Done!", 1)
 
     def clear_widgets(self):
         """ Clear widgets after removing the data. """
@@ -536,8 +394,8 @@ class VelocitiesTaskView(TaskViewBase):
 
     def markers_figure(
         self,
-        velocities: np.ndarray,
-        vel_masks: np.ndarray,
+        strain: np.ndarray,
+        masks: np.ndarray,
         images: np.ndarray,
         markers: np.ndarray,
     ):
@@ -556,11 +414,11 @@ class VelocitiesTaskView(TaskViewBase):
         )
 
         gs = self.fig.add_gridspec(2, 9, height_ratios=[6, 2])
-        self.axes = self.add_velocity_subplots(gs)
+        self.axes = self.add_strain_subplots(gs)
         self.maps = self.add_maps_subplots(gs)
-        self.vel_lines = self.add_velocity_lines(velocities)
-        self.bg_images, self.vel_masks, self.cbar = self.images_and_velocity_masks(
-            images, vel_masks, markers
+        self.strain_lines = self.add_strain_lines(strain)
+        self.bg_images, self.strain_masks, self.cbar = self.images_and_strain_masks(
+            images, masks, markers
         )
         self.marker_artists = self.add_markers(markers)
 
@@ -570,8 +428,8 @@ class VelocitiesTaskView(TaskViewBase):
         """Convenience method for re-drawing the figure."""
         self.fig.canvas.draw_idle()
 
-    def add_velocity_subplots(self, gs):
-        """Adds the velocity subplots."""
+    def add_strain_subplots(self, gs):
+        """Adds the strain subplots."""
         ax_long = self.fig.add_subplot(gs[0, :3])
         ax_rad = self.fig.add_subplot(gs[0, 3:6])
         ax_circ = self.fig.add_subplot(gs[0, 6:])
@@ -581,7 +439,7 @@ class VelocitiesTaskView(TaskViewBase):
         ax_circ.axhline(color="k", lw=1)
 
         ax_long.set_title("Longitudinal")
-        ax_long.set_ylabel("Velocity (cm/s)")
+        ax_long.set_ylabel("Strain (%)")
         ax_long.set_xlabel("Frame")
         ax_rad.set_title("Radial")
         ax_rad.set_xlabel("Frame")
@@ -594,16 +452,16 @@ class VelocitiesTaskView(TaskViewBase):
 
         return {"_long": ax_long, "_rad": ax_rad, "_circ": ax_circ}
 
-    def add_velocity_lines(self, vels):
-        """Add lines to the velocity plots.
+    def add_strain_lines(self, strain):
+        """Add lines to the strain plots.
 
-        vels - 2D array with the velocities with shape [components (3), frames]
+        strain - 2D array with the strains with shape [components (3), frames]
         """
-        x = np.arange(vels.shape[-1])
+        x = np.arange(strain.shape[-1])
         output = dict()
         for i, label in enumerate(self.axes_lbl):
-            output[label] = self.axes[label].plot(x, vels[i], "k", label=label)[0]
-            self.axes[label].set_ylim(*self.vel_lim[label])
+            output[label] = self.axes[label].plot(x, strain[i], "k", label=label)[0]
+            self.axes[label].set_ylim(*self.strain_lim[label])
             self.axes[label].autoscale(False)
         return output
 
@@ -621,16 +479,16 @@ class VelocitiesTaskView(TaskViewBase):
 
         return maps
 
-    def images_and_velocity_masks(self, mag, vel_masks, markers):
+    def images_and_strain_masks(self, mag, strain_masks, markers):
         """Add bg and masks to the map subplots."""
         bg = {l: [] for l in self.axes_lbl}
         masks = {l: [] for l in self.axes_lbl}
 
-        if "global" in self.velocities_var.get():
-            self.limits = self.find_limits(vel_masks[0, 0])
+        if "global" in self.strain_var.get():
+            self.limits = self.find_limits(strain_masks[1, 0])
 
         rmin, rmax, cmin, cmax = self.limits
-        vmin, vmax = vel_masks.min(), vel_masks.max()
+        vmin, vmax = -1, 1  # strain_masks.min(), strain_masks.max()
         for i in range(9):
             axes = self.axes_lbl[i // 3]
             frame = int(markers[i // 3, i % 3, 0])
@@ -642,7 +500,7 @@ class VelocitiesTaskView(TaskViewBase):
             )
             masks[axes].append(
                 self.maps[i].imshow(
-                    vel_masks[i // 3, frame, rmin : rmax + 1, cmin : cmax + 1],
+                    strain_masks[i // 3, frame, rmin : rmax + 1, cmin : cmax + 1],
                     cmap=plt.get_cmap("seismic"),
                     vmin=vmin,
                     vmax=vmax,
@@ -673,15 +531,15 @@ class VelocitiesTaskView(TaskViewBase):
         """
         add_marker = self.fig.actions_manager.Markers.add_marker
 
-        vel_lbl = ["_long"] * 3 + ["_rad"] * 3 + ["_circ"] * 3
+        comp_lbl = ["_long"] * 3 + ["_rad"] * 3 + ["_circ"] * 3
         colors = ["red", "green", "blue"] * 2 + ["orange", "darkblue", "purple"]
-        marker_lbl = ["PS", "PD", "PAS"] * 2 + ["PC1", "PC2", "PC3"]
+        marker_lbl = ("P", "S", "PSS") * 3
 
         markers_artists = []
-        for i, label in enumerate(vel_lbl):
+        for i, label in enumerate(comp_lbl):
             markers_artists.append(
                 add_marker(
-                    self.vel_lines[label],
+                    self.strain_lines[label],
                     xy=markers[i // 3, i % 3, :2],
                     label=marker_lbl[i],
                     color=colors[i],
@@ -692,7 +550,7 @@ class VelocitiesTaskView(TaskViewBase):
 
         markers_artists.append(
             add_marker(
-                self.vel_lines["_rad"],
+                self.strain_lines["_rad"],
                 xy=markers[1, 3, :2],
                 label="ES",
                 color="black",
@@ -713,31 +571,35 @@ class VelocitiesTaskView(TaskViewBase):
             marker_label, data_label, new_x
         )
 
-    def update_line(self, vel_label, data, draw=False):
+    def update_line(self, label, data, draw=False):
         """Updates the data of the chosen line."""
-        self.vel_lines[vel_label].set_data(data)
+        self.strain_lines[label].set_data(data)
         if draw:
             self.draw()
 
-    def update_bg(self, vel_label, idx, data, draw=False):
+    def update_bg(self, label, idx, data, draw=False):
         """Updates the data of the chosen bg."""
-        self.update_data(self.bg_images[vel_label][idx], vel_label, data, draw)
+        self.update_data(self.bg_images[label][idx], label, data, draw)
 
-    def update_mask(self, vel_label, idx, data, draw=False):
+    def update_mask(self, label, idx, data, draw=False):
         """Updates the data of the chosen bg."""
-        self.update_data(self.vel_masks[vel_label][idx], vel_label, data, draw)
+        self.update_data(self.strain_masks[label][idx], label, data, draw)
 
-    def update_data(self, subplot, vel_label, data, draw=False):
+    def update_data(self, subplot, label, data, draw=False):
         """Common data updating method."""
         subplot.set_data(data)
-        self.axes[vel_label].relim()
-        self.axes[vel_label].autoscale()
+        self.axes[label].relim()
+        self.axes[label].autoscale()
 
         if draw:
             self.draw()
 
     def update_maps(
-        self, vel_masks: np.ndarray, images: np.ndarray, markers: np.ndarray, draw=True
+        self,
+        strain_masks: np.ndarray,
+        images: np.ndarray,
+        markers: np.ndarray,
+        draw=True,
     ):
         """Updates the maps (masks and background data)."""
         rmin, rmax, cmin, cmax = self.limits
@@ -745,7 +607,9 @@ class VelocitiesTaskView(TaskViewBase):
             axes = self.axes_lbl[i // 3]
             frame = int(markers[i // 3, i % 3, 0])
             self.update_mask(
-                axes, i % 3, vel_masks[i // 3, frame, rmin : rmax + 1, cmin : cmax + 1]
+                axes,
+                i % 3,
+                strain_masks[i // 3, frame, rmin : rmax + 1, cmin : cmax + 1],
             )
             self.update_bg(axes, i % 3, images[frame, rmin : rmax + 1, cmin : cmax + 1])
 
@@ -754,7 +618,7 @@ class VelocitiesTaskView(TaskViewBase):
 
     def update_one_map(
         self,
-        vel_masks: np.ndarray,
+        strain_masks: np.ndarray,
         images: np.ndarray,
         markers: np.ndarray,
         axes: str,
@@ -766,17 +630,17 @@ class VelocitiesTaskView(TaskViewBase):
         idx = self.marker_idx[marker_lbl]
         frame = int(markers[component, idx, 0])
         self.update_mask(
-            axes, idx, vel_masks[component, frame, rmin : rmax + 1, cmin : cmax + 1]
+            axes, idx, strain_masks[component, frame, rmin : rmax + 1, cmin : cmax + 1]
         )
         self.update_bg(axes, idx, images[frame, rmin : rmax + 1, cmin : cmax + 1])
-        self.axes[axes].set_ylim(*self.vel_lim[axes])
+        self.axes[axes].set_ylim(*self.strain_lim[axes])
         self.draw()
 
-    def update_velocities(self, vels, draw=True):
-        """Updates all velocities."""
-        x = np.arange(vels.shape[-1])
+    def update_strains(self, strain, draw=True):
+        """Updates all strains."""
+        x = np.arange(strain.shape[-1])
         for i, label in enumerate(self.axes_lbl):
-            self.update_line(label, (x, vels[i]))
+            self.update_line(label, (x, strain[i]))
         if draw:
             self.draw()
 
@@ -794,49 +658,12 @@ class VelocitiesTaskView(TaskViewBase):
 
     def update_marker(self, marker, data, x, y, position):
         """When a marker moves, mask data should be updated."""
-        self.controller.update_marker(
+        self.controller.update_strain_marker(
             dataset=self.datasets_var.get(),
-            vel_label=self.velocities_var.get(),
+            label=self.strain_var.get(),
             region=self.current_region,
             component=self.axes_lbl.index(data.get_label()),
             marker_idx=self.marker_idx[marker.get_label()],
             position=position,
         )
         self.marker_moved(data.get_label(), marker.get_label())
-
-
-def colour_figure(
-    velocities: np.ndarray, labels: tuple, markers_idx: np.ndarray, master: ttk.Frame
-) -> Figure:
-    """Creates the color plots for the regional velocities."""
-    fig = Figure(constrained_layout=True)
-    canvas = FigureCanvasTkAgg(fig, master=master)
-    canvas.get_tk_widget().grid(row=0, column=0, sticky=tk.NSEW)
-    ax = fig.subplots(ncols=3, nrows=1)
-
-    space = velocities.shape[0] / len(labels)
-    lines_pos = np.arange(space, velocities.shape[0], space) - 0.5
-    labels_pos = np.arange(space // 2, velocities.shape[0], space) - 0.5
-    marker_lbl = ["PS", "PD", "PAS"] * 2 + ["PC1", "PC2", "PC3"]
-
-    for i, title in enumerate(("Longitudinal", "Radial", "Circumferential")):
-        ax[i].imshow(
-            velocities[:, i],
-            cmap=plt.get_cmap("jet"),
-            aspect="auto",
-            interpolation="bilinear",
-        )
-        ax[i].set_title(title)
-
-        ax[i].set_yticks(lines_pos, minor=True)
-        ax[i].set_yticks(labels_pos, minor=False)
-        ax[i].set_yticklabels(labels[::-1], minor=False)
-        ax[i].yaxis.grid(True, which="minor", color="k", linestyle="-")
-        ax[i].set_ylim((-0.5, velocities.shape[0] - 0.5))
-
-        ax[i].set_xticks(markers_idx[3 * i : 3 * i + 3], minor=False)
-        ax[i].set_xticklabels(marker_lbl[3 * i : 3 * i + 3], minor=False)
-
-        fig.colorbar(ax[i].images[0], ax=ax[i], orientation="horizontal")
-
-    return fig

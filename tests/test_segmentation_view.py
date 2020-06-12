@@ -179,12 +179,15 @@ def test_clear_segments(segmentation_view):
     segmentation_view.clear_segmentation.assert_called_once()
 
 
-def test_scroll(segmentation_view):
+def test_scroll(segmentation_view, strainmap_data):
     import numpy as np
 
-    segmentation_view.images["mag"] = np.random.random((5, 5, 2))
-    segmentation_view.zero_angle = np.random.random((2, 2, 2))
+    dataset = strainmap_data.data_files.datasets[0]
+    segmentation_view.controller.data = strainmap_data
+    segmentation_view.update_widgets()
 
+    segmentation_view.images["mag"] = np.random.random((5, 5, 2))
+    segmentation_view.data.zero_angle[dataset] = np.random.random((2, 2, 2))
     contour = np.random.random((2, 2, 5))
 
     segmentation_view.final_segments["endocardium"] = contour
@@ -196,8 +199,8 @@ def test_scroll(segmentation_view):
     assert img == approx(segmentation_view.images["mag"][1])
     assert endo == approx(contour[1])
     assert epi == approx(contour[1])
-    assert zero_angle == approx(segmentation_view.zero_angle[1])
-    assert marker == approx(segmentation_view.zero_angle[1, :, 0])
+    assert zero_angle == approx(segmentation_view.data.zero_angle[dataset][1])
+    assert marker == approx(segmentation_view.data.zero_angle[dataset][1, :, 0])
 
 
 def test_contour_edited_and_undo(segmentation_view, strainmap_data):

@@ -6,8 +6,9 @@ from .gui import *  # noqa: F403,F401
 from .gui.base_window_and_task import REGISTERED_VIEWS, Requisites
 from .models.strainmap_data_model import StrainMapData
 from .models import quick_segmentation
-from .models.velocities import calculate_velocities, update_marker
-from .models.writers import velocity_to_xlsx
+from .models.velocities import calculate_velocities, update_marker, regenerate
+from .models.writers import velocity_to_xlsx, strain_to_xlsx
+from .models.strain import calculate_strain, update_marker as update_strain_marker
 
 
 class StrainMap(object):
@@ -83,6 +84,7 @@ class StrainMap(object):
         self.data = None
         self.lock(Requisites.DATALOADED)
         self.lock(Requisites.SEGMENTED)
+        self.lock(Requisites.VELOCITIES)
 
     def add_paths(self, data_files=None, bg_files=None):
         self.data.add_paths(data_files, bg_files)
@@ -121,10 +123,23 @@ class StrainMap(object):
         there_are_segments = any(len(i) != 0 for i in self.data.segments.values())
         if not there_are_segments:
             self.lock(Requisites.SEGMENTED)
+            self.lock(Requisites.VELOCITIES)
 
     def calculate_velocities(self, **kwargs):
         """Calculates the velocities based on a given segmentation."""
         calculate_velocities(data=self.data, **kwargs)
+        there_are_velocities = (
+            sum(len(i) != 0 for i in self.data.velocities.values()) > 1
+        )
+        self.lock_toggle(there_are_velocities, Requisites.VELOCITIES)
+
+    def regenerate_velocities(self, **kwargs):
+        """Calculates the velocities based on a given segmentation."""
+        regenerate(data=self.data, **kwargs)
+        there_are_velocities = (
+            sum(len(i) != 0 for i in self.data.velocities.values()) > 1
+        )
+        self.lock_toggle(there_are_velocities, Requisites.VELOCITIES)
 
     def update_marker(self, **kwargs):
         """Updates the markers information after moving one of them."""
@@ -133,3 +148,15 @@ class StrainMap(object):
     def export_velocity(self, **kwargs):
         """Exports velocity data to a XLSX file."""
         velocity_to_xlsx(data=self.data, **kwargs)
+
+    def calculate_strain(self, **kwargs):
+        """Calculates the strain based on the available velocities."""
+        return calculate_strain(data=self.data, callback=self.window.progress, **kwargs)
+
+    def update_strain_marker(self, **kwargs):
+        """Updates the strain markers information after moving one of them."""
+        update_strain_marker(data=self.data, **kwargs)
+
+    def export_strain(self, **kwargs):
+        """Exports strain data to a XLSX file."""
+        strain_to_xlsx(data=self.data, **kwargs)

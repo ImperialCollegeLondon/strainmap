@@ -135,3 +135,6 @@ dmypy.json
 coverage.xml
 htmlcov/
 junit/
+
+# MacOS stuff
+**/.DS_Store

@@ -35,13 +35,15 @@ def test_global_masks_and_origin():
     shape = (21, 21)
     c1 = Contour.circle(centre, 6, shape=shape)
     c2 = Contour.circle(centre, 4, shape=shape)
-
-    mask, origin = global_masks_and_origin([c1.xy.T], [c2.xy.T], shape)
+    outer = np.array([c1.xy.T])
+    inner = np.array([c2.xy.T])
+    mask, origin, roi = global_masks_and_origin(outer, inner)
 
     assert len(mask) == 1
-    assert mask[0].shape == shape
+    assert mask[0].shape == approx((13, 13), abs=1)
     assert len(origin) == 1
-    assert origin[0] == approx(np.array(centre), abs=0.5)
+    assert origin[0] == approx(np.array((12, 12))/2, abs=1)
+    assert len(roi) == 4
 
 
 def test_transform_to_cylindrical():
@@ -118,25 +120,34 @@ def test_velocities_angular():
 
 
 def test_velocities_radial():
-    from strainmap.models.velocities import velocities_radial
+    from strainmap.models.velocities import velocities_radial, global_masks_and_origin
     from strainmap.models.contour_mask import Contour
     import numpy as np
 
     N = 5
-    cylindrical = np.random.random((3, N, 48, 58))
-    origin = np.ones((N, 2)) * 20
     s = Contour.circle((20, 20), 5, shape=(48, 58))
     segments = {
         "endocardium": np.tile(s.xy.T, (N, 1, 1)),
         "epicardium": np.tile(s.dilate(2).xy.T, (N, 1, 1)),
     }
+    masks, origin, roi = global_masks_and_origin(
+        segments["epicardium"], segments["endocardium"]
+    )
+    shift = np.array([roi[2], roi[0]])
+    cylindrical = np.random.random((3,) + masks.shape)
 
     actual_v, actual_m = velocities_radial(
-        cylindrical, segments, origin, "Estimated", regions=(4,)
+        cylindrical,
+        segments,
+        origin,
+        mask=masks,
+        shift=shift,
+        bg="Estimated",
+        regions=(4,),
     )
     assert len(list(actual_v.keys())) == len(list(actual_m.keys())) == 1
     assert list(actual_v.values())[0].shape == (4, 3, 5)
-    assert list(actual_m.values())[0].shape == (5, 48, 58)
+    assert list(actual_m.values())[0].shape == masks.shape
     assert set(list(actual_m.values())[0].flatten()) == set(range(5))
 
 
@@ -161,40 +172,6 @@ def test_calculate_velocities(segmented_data):
     assert velocities[dataset_name]["angular x6 - Estimated"].shape == (6, 3, 3)
     assert "radial x4 - Estimated" in velocities[dataset_name]
     assert velocities[dataset_name]["radial x4 - Estimated"].shape == (4, 3, 3)
-
-
-def test_mean_velocities():
-    from numpy import array, sum
-    from numpy.random import randint, random
-    from strainmap.models.contour_mask import cylindrical_projection
-    from strainmap.models.velocities import mean_velocities
-
-    N = 3
-    cartvel = random((3, 5, 512, 512))
-    labels = randint(0, N, (5, 512, 512))
-
-    origin = array((256, 256))
-
-    velocities = mean_velocities(
-        cartvel, labels, origin=origin, component_axis=0, image_axes=(2, 3)
-    )
-
-    assert velocities.shape == (len(set(labels.flat)), 3, 5)
-
-    nribbon = sum(labels > 0, axis=(1, 2))
-    bulk = sum(cartvel * (labels > 0)[None, :, :, :], axis=(2, 3)) / nribbon
-    cylvel = cylindrical_projection(
-        cartvel - bulk[:, :, None, None],
-        origin=origin,
-        component_axis=0,
-        image_axes=(2, 3),
-    )
-    global_mean = (cylvel * (labels > 0)[None, :, :, :]).sum(axis=(2, 3)) / nribbon
-    assert velocities[0, :, :] == approx(global_mean)
-
-    nmeans = (labels == 1).sum(axis=(1, 2))
-    region1_mean = (cylvel * (labels == 1)[None, :, :, :]).sum(axis=(2, 3)) / nmeans
-    assert velocities[1, :, :] == approx(region1_mean)
 
 
 def test_marker():

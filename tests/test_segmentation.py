@@ -30,3 +30,18 @@ def test_replace_in_list():
     actual = replace_in_list(contours, frame_threshold=2)
     for ex, ac in zip(expected, actual):
         assert ac.xy == approx(ex.xy)
+
+
+def test_effective_centroid():
+    import numpy as np
+    from scipy import ndimage
+    from strainmap.models.quick_segmentation import effective_centroid
+
+    centroid = np.random.random((10, 2))
+    n = np.random.randint(1, len(centroid) - 1)
+    weights = np.ones((2 * n + 1))
+    expected = ndimage.convolve1d(centroid, weights, axis=0, mode="wrap") / (2 * n + 1)
+    actual = effective_centroid(centroid, n)
+
+    assert actual.shape == centroid.shape
+    assert actual == approx(expected)

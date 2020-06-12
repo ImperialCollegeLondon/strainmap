@@ -1,13 +1,13 @@
-from typing import Dict, List, Optional, Sequence, Text, Tuple, Union
+from typing import Dict, List, Optional, Sequence, Text, Tuple, Union, Callable
 
 import numpy as np
 from scipy import ndimage
 
 from strainmap.models.contour_mask import cylindrical_projection, masked_means
-from strainmap.models.readers import ImageTimeSeries
 
 from .contour_mask import Contour, angular_segments, contour_diff, radial_segments
 from .strainmap_data_model import StrainMapData
+from .writers import terminal
 
 
 def find_theta0(zero_angle: np.ndarray):
@@ -53,14 +53,20 @@ def scale_phase(
     return phase
 
 
-def global_masks_and_origin(outer, inner, img_shape):
+def global_masks_and_origin(outer, inner):
     """Finds the global masks and origin versus time frame."""
+    ymin, ymax = int(outer[:, 0].min()), int(outer[:, 0].max()) + 1
+    xmin, xmax = int(outer[:, 1].min()), int(outer[:, 1].max()) + 1
+    shift = np.array([ymin, xmin])
     masks = np.array(
-        [contour_diff(o.T, i.T, img_shape).T for o, i in zip(outer, inner)]
+        [
+            contour_diff(c1=o.T, c2=i.T, shape=(ymax - ymin + 1, xmax - xmin + 1)).T
+            for o, i in zip(outer - shift[None, :, None], inner - shift[None, :, None])
+        ]
     )
     origin = np.array([*map(ndimage.measurements.center_of_mass, masks)])
 
-    return masks, origin
+    return masks, origin, (xmin, xmax, ymin, ymax)
 
 
 def transform_to_cylindrical(phase: np.ndarray, masks: np.ndarray, origin: np.ndarray):
@@ -133,12 +139,14 @@ def velocities_radial(
     cylindrical: np.ndarray,
     segments: Dict[str, np.ndarray],
     origin: np.ndarray,
+    shift: np.ndarray,
+    mask: np.ndarray,
     bg: str,
     regions: Sequence[int] = (3,),
 ):
     """Calculates the regional velocities for radial regions."""
-    outer = segments["epicardium"]
-    inner = segments["endocardium"]
+    outer = segments["epicardium"] - shift[None, ::-1, None]
+    inner = segments["endocardium"] - shift[None, ::-1, None]
 
     velocities: Dict[str, np.ndarray] = dict()
     masks: Dict[str, Union[list, np.ndarray]] = dict()
@@ -152,6 +160,7 @@ def velocities_radial(
                 radial_segments(
                     outer=Contour(outer[i].T, shape=cylindrical.shape[2:]),
                     inner=Contour(inner[i].T, shape=cylindrical.shape[2:]),
+                    mask=mask[i],
                     nr=nr,
                     shape=cylindrical.shape[2:],
                     center=origin[i],
@@ -167,6 +176,12 @@ def velocities_radial(
     return velocities, masks
 
 
+def remap_array(data, new_shape, roi):
+    result = np.zeros(data.shape[:-2] + new_shape, dtype=data.dtype)
+    result[..., roi[0] : roi[1] + 1, roi[2] : roi[3] + 1] = data
+    return result
+
+
 def calculate_velocities(
     data: StrainMapData,
     dataset_name: Text,
@@ -178,15 +193,17 @@ def calculate_velocities(
     init_markers: bool = True,
 ):
     """Calculates the velocity of the chosen dataset and regions."""
-    swap, signs = data.data_files.orientation  # type: ignore
+    swap, signs = data.data_files.orientation(dataset_name)  # type: ignore
     phase = scale_phase(data, dataset_name, bg, swap, sign_reversal)  # type: ignore
-    mask, origin = global_masks_and_origin(
+    mask, orig, (xmin, xmax, ymin, ymax) = global_masks_and_origin(
         outer=data.segments[dataset_name]["epicardium"],
         inner=data.segments[dataset_name]["endocardium"],
-        img_shape=phase.shape[2:],
     )
+    origin = data.zero_angle[dataset_name][..., 1][:, ::-1]
+    shift = np.array([xmin, ymin])
+    rm_mask = remap_array(mask, phase.shape[-2:], (xmin, xmax, ymin, ymax))
     cylindrical = (
-        transform_to_cylindrical(phase, mask, origin)
+        transform_to_cylindrical(phase, rm_mask, origin)
         * (data.data_files.sensitivity * signs)[:, None, None, None]  # type: ignore
     )
     data.masks[dataset_name][f"cylindrical - {bg}"] = cylindrical
@@ -194,28 +211,48 @@ def calculate_velocities(
 
     vel_labels: List[str] = []
     if global_velocity:
-        velocities, masks = velocity_global(cylindrical, mask, bg)
+        velocities, masks = velocity_global(
+            cylindrical[..., xmin : xmax + 1, ymin : ymax + 1], mask, bg
+        )
+        masks = {
+            k: remap_array(v, phase.shape[-2:], (xmin, xmax, ymin, ymax))
+            for k, v in masks.items()
+        }
         data.velocities[dataset_name].update(velocities)
         data.masks[dataset_name].update(masks)
         vel_labels += list(velocities.keys())
 
     if angular_regions:
         velocities, masks = velocities_angular(
-            cylindrical,
+            cylindrical[..., xmin : xmax + 1, ymin : ymax + 1],
             data.zero_angle[dataset_name],
-            origin,
+            origin - shift[None, :],
             mask,
             bg,
             angular_regions,
         )
+        masks = {
+            k: remap_array(v, phase.shape[-2:], (xmin, xmax, ymin, ymax))
+            for k, v in masks.items()
+        }
         data.velocities[dataset_name].update(velocities)
         data.masks[dataset_name].update(masks)
         vel_labels += list(velocities.keys())
 
     if radial_regions:
         velocities, masks = velocities_radial(
-            cylindrical, data.segments[dataset_name], origin, bg, radial_regions
+            cylindrical[..., xmin : xmax + 1, ymin : ymax + 1],
+            data.segments[dataset_name],
+            origin - shift[None, :],
+            shift,
+            mask,
+            bg,
+            radial_regions,
         )
+        masks = {
+            k: remap_array(v, phase.shape[-2:], (xmin, xmax, ymin, ymax))
+            for k, v in masks.items()
+        }
         data.velocities[dataset_name].update(velocities)
         data.masks[dataset_name].update(masks)
         vel_labels += list(velocities.keys())
@@ -227,52 +264,35 @@ def calculate_velocities(
         )
 
 
-def mean_velocities(
-    velocities: np.ndarray,
-    mask: np.ndarray,
-    component_axis: int = ImageTimeSeries.component_axis,
-    image_axes: Tuple[int, int] = ImageTimeSeries.image_axes,
-    time_axis: Optional[int] = ImageTimeSeries.time_axis,
-    origin: Optional[np.ndarray] = None,
-    **kwargs,
-) -> np.ndarray:
-    """Global and masked mean velocities in cylindrical basis.
+def regenerate(data, datasets, callback: Callable = terminal):
+    """Regenerate velocities and masks information after loading from h5 file."""
+    for i, d in enumerate(datasets):
+        callback(
+            f"Regenerating existing velocities {i+1}/{len(datasets)}.",
+            i / len(datasets),
+        )
+        vels = data.velocities[d]
+        regions: Dict[str, dict] = {}
+        for k, v in vels.items():
+            info = k.split(" - ")
+            if info[-1] not in regions.keys():
+                regions[info[-1]] = dict(angular_regions=[], radial_regions=[])
+            if "global" in info[0]:
+                regions[info[-1]]["global_velocity"] = True
+            else:
+                rtype, num = info[0].split(" x")
+                regions[info[-1]][f"{rtype}_regions"].append(int(num))
 
-    Args:
-        velocities: phases in a cartesian basis
-        mask: regions for which to compute the mean
-        component_axis: axis of the (x, y, z) components
-        image_axes: axes corresponding to the image
-        time_axis: axis corresponding to time
-        figure: the figure on which to plot
-        origin: origin of the cylindrical basis
-
-    Returns:
-        a numpy array where the first axis indicates the label, and the second axis
-        indicates the component (from `component_axis`). Subsequent axes are the extra
-        axes from `velocities` (other than component and image axes). Label 0 is the
-        global mean.
-    """
-    assert velocities.ndim >= len(image_axes) + (1 if time_axis is None else 2)
-    if origin is None:
-        origin = ndimage.measurements.center_of_mass(mask > 0)
-
-    bulk_velocity = masked_means(velocities, mask > 0, axes=image_axes).reshape(
-        tuple(1 if i in image_axes else v for i, v in enumerate(velocities.shape))
-    )
-    cylindrical = cylindrical_projection(
-        velocities - bulk_velocity,
-        origin,
-        component_axis=component_axis,
-        image_axes=image_axes,
-    )
-    local_means = masked_means(cylindrical, mask, axes=image_axes)
-    global_means = masked_means(cylindrical, mask > 0, axes=image_axes)
-
-    return np.rollaxis(
-        np.concatenate([global_means, local_means], axis=0),
-        component_axis - sum(i < component_axis for i in image_axes),
-    )
+        for bg, region in regions.items():
+            calculate_velocities(
+                data=data,
+                dataset_name=d,
+                bg=bg,
+                sign_reversal=data.sign_reversal,
+                init_markers=False,
+                **region,
+            )
+    callback(f"Regeneration complete!", 1)
 
 
 markers_options = {
@@ -283,6 +303,29 @@ markers_options = {
     "PC2": dict(low=6, high=12, maximum=True),
     "ES": dict(low=14, high=21),
 }
+
+
+def px_velocity_curves(
+    data: StrainMapData,
+    dataset: str,
+    nrad: int = 3,
+    nang: int = 24,
+    background: str = "Estimated",
+) -> np.ndarray:
+    """ TODO: Remove in the final version. """
+    from .strain import masked_reduction
+
+    vkey = f"cylindrical - {background}"
+    rkey = f"radial x{nrad} - {background}"
+    akey = f"angular x{nang} - {background}"
+    img_axis = tuple(range(len(data.masks[dataset][vkey].shape)))[-2:]
+
+    cyl = data.masks[dataset][vkey]
+    m = data.masks[dataset][rkey] + 100 * data.masks[dataset][akey]
+    t = data.data_files.time_interval(dataset)
+    r = masked_reduction(cyl, m, axis=img_axis)
+
+    return (r - r.mean(axis=(1, 2, 3), keepdims=True)) * t
 
 
 def marker(comp, low=1, high=49, maximum=True):

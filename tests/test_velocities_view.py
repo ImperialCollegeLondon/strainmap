@@ -12,7 +12,7 @@ def test_update_widgets(velocities_view, segmented_data, data_with_velocities):
 
     expected = segmented_data.data_files.datasets[0]
     assert velocities_view.datasets_var.get() == expected
-    velocities_view.calculate_velocities.assert_called_once()
+    assert velocities_view.calculate_velocities.call_count == 2
     assert velocities_view.replot.call_count == 1
 
     velocities_view.controller.data = data_with_velocities
