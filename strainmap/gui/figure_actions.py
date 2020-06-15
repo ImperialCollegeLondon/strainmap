@@ -709,11 +709,11 @@ class Markers(ActionBase):
         else:
             x, y, idx = self.get_closest(line, new_x)
             old_x = marker.get_xdata()
-            if isinstance(old_x, list):
-                if x != old_x[0]:
+            if x != old_x[0]:
+                if len(old_x) == 2:
                     marker.set_xdata([x, x])
-            elif x != old_x:
-                marker.set_data([x], [y])
+                if len(old_x) == 1:
+                    marker.set_data([x], [y])
 
     def drag_marker(self, event, last_event, *args):
         """Drags a marker to a new position of the data."""

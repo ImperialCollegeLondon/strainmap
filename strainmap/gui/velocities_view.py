@@ -65,6 +65,7 @@ class VelocitiesTaskView(TaskViewBase):
         self.limits = None
         self.marker_artists = None
         self.vel_lim = dict()
+        self.fixed_markers = []
 
         self.create_controls()
 
@@ -268,6 +269,8 @@ class VelocitiesTaskView(TaskViewBase):
         """Updates plot and table after a marker has been moved."""
         if marker == "ES":
             self.update_table_es()
+            for f in self.fixed_markers:
+                f.set_xdata([self.es_marker[0]] * 2)
         else:
             self.update_table_one_marker(table, marker)
             self.update_one_map(
@@ -384,14 +387,13 @@ class VelocitiesTaskView(TaskViewBase):
     def update_table_es(self):
         """Updates a row of the markers table after ES has moved."""
         for i, t in enumerate(self.param_tables):
-            timeitem = t.get_children(t.get_children()[1])[self.current_region]
+            for r in range(len(self.markers)):
+                timeitem = t.get_children(t.get_children()[1])[r]
 
-            t.item(
-                timeitem,
-                values=np.around(
-                    self.markers[self.current_region, i, :3, 2], decimals=2
-                ).tolist(),
-            )
+                t.item(
+                    timeitem,
+                    values=np.around(self.markers[r, i, :3, 2], decimals=2).tolist(),
+                )
 
     def update_velocities_list(self, dataset):
         """Updates the list of radio buttons with the currently available velocities."""
@@ -533,6 +535,13 @@ class VelocitiesTaskView(TaskViewBase):
     def clear_widgets(self):
         """ Clear widgets after removing the data. """
         pass
+
+    @property
+    def es_marker(self):
+        """ ES marker position. """
+        return self.data.markers[self.datasets_var.get()]["global - Estimated"][
+            0, 1, 3, :2
+        ]
 
     def markers_figure(
         self,
@@ -690,10 +699,17 @@ class VelocitiesTaskView(TaskViewBase):
                 )
             )
 
+        for label in ("_long", "_rad", "_circ"):
+            self.fixed_markers.append(
+                self.vel_lines[label].axes.axvline(
+                    self.es_marker[0], color="grey", linewidth=2, linestyle="--"
+                )
+            )
+
         markers_artists.append(
             add_marker(
                 self.vel_lines["_rad"],
-                xy=markers[1, 3, :2],
+                xy=self.es_marker,
                 vline=True,
                 label="ES",
                 color="black",
@@ -787,7 +803,10 @@ class VelocitiesTaskView(TaskViewBase):
         for i, artist in enumerate(self.marker_artists[:-1]):
             update_position(artist, int(markers[i // 3, i % 3, 0]))
 
-        update_position(self.marker_artists[-1], int(markers[1, 3, 0]))
+        update_position(self.marker_artists[-1], self.es_marker[0])
+
+        for f in self.fixed_markers:
+            f.set_xdata([self.es_marker[0]] * 2)
 
         if draw:
             self.draw()

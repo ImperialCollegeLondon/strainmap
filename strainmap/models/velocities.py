@@ -515,13 +515,24 @@ def update_marker(
     If the marker modified is "ES" (marker_idx = 3), then all markers are updated.
     Otherwise just the chosen one is updated.
     """
-    data.markers[dataset][vel_label][region] = _update_marker(
-        data.velocities[dataset][vel_label][region],
-        data.markers[dataset][vel_label][region],
-        component,
-        marker_idx,
-        position,
-    )
+    if marker_idx == 3:
+        for l in data.markers[dataset]:
+            for r in range(len(data.markers[dataset][l])):
+                data.markers[dataset][l][r] = _update_marker(
+                    data.velocities[dataset][l][r],
+                    data.markers[dataset][l][r],
+                    component,
+                    marker_idx,
+                    position,
+                )
+    else:
+        data.markers[dataset][vel_label][region] = _update_marker(
+            data.velocities[dataset][vel_label][region],
+            data.markers[dataset][vel_label][region],
+            component,
+            marker_idx,
+            position,
+        )
     data.save(["markers", dataset, vel_label])
 
 
