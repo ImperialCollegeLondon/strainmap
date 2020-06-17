@@ -559,6 +559,25 @@ def update_marker(
     data.save(["strain_markers", dataset, label])
 
 
+def update_strain_es_marker(data: StrainMapData, dataset: str, **kwargs):
+    """ Updates the strain markers after the ES marker is updated in the velocities.
+
+    The ES marker set in the global radial velocity affects the location of the strain
+    markers, so when it is updated, so must be the strain markers."""
+
+    if data.strain.get(dataset, None) is None:
+        return
+
+    for d in data.strain.keys():
+        labels = [
+            s
+            for s in data.strain[d].keys()
+            if "cylindrical" not in s and "radial" not in s
+        ]
+        initialise_markers(data, d, labels)
+        data.save(*[["strain_markers", d, vel] for vel in labels])
+
+
 def initialise_markers(data: StrainMapData, dataset: str, str_labels: list):
     """Initialises the markers for all the available strains.
 

@@ -645,6 +645,7 @@ class StrainTaskView(TaskViewBase):
         for i in range(len(self.axes_lbl)):
             update_position(self.marker_artists[2 * i], int(markers[i, 0, 0]))
             update_position(self.marker_artists[2 * i + 1], int(markers[i, 2, 0]))
+            self.fixed_markers[i].set_xdata([markers[i, 1, 0], markers[i, 1, 0]])
 
         if draw:
             self.draw()
