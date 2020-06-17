@@ -189,51 +189,41 @@ def export_superpixel(data, dataset, filename):
     TODO: Remove in final version.
     """
     from .velocities import px_velocity_curves
+    from .strain import coordinates
 
     vels = px_velocity_curves(data, dataset)
+    loc = np.take(coordinates(data, (dataset,), resample=False), 0, axis=2)
+
     rad = ["endo", "mid", "epi"]
     label = "{} {}"
+
+    def add_superpixel_data(values, ws):
+
+        ws.append(
+            [
+                label.format(rad[r], a + 1)
+                for r in range(values.shape[1])
+                for a in range(values.shape[2])
+            ]
+        )
+        for f in range(values.shape[0]):
+            ws.append(
+                [
+                    values[f, r, a]
+                    for r in range(values.shape[1])
+                    for a in range(values.shape[2])
+                ]
+            )
+        for i in range(values.shape[1]):
+            ws.insert_cols((i + 1) * (values.shape[2] + 1))
 
     wb = xlsx.Workbook()
     ws = wb.active
     ws.title = "Radial"
-    ws.append(
-        [
-            label.format(rad[r], a + 1)
-            for r in range(vels.shape[2])
-            for a in range(vels.shape[3])
-        ]
-    )
-    for f in range(vels.shape[1]):
-        ws.append(
-            [
-                vels[1, f, r, a]
-                for r in range(vels.shape[2])
-                for a in range(vels.shape[3])
-            ]
-        )
-    for i in range(vels.shape[2]):
-        ws.insert_cols((i + 1) * (vels.shape[3] + 1))
-
-    ws = wb.create_sheet("Circumferential")
-    ws.append(
-        [
-            label.format(rad[r], a + 1)
-            for r in range(vels.shape[2])
-            for a in range(vels.shape[3])
-        ]
-    )
-
-    for f in range(vels.shape[1]):
-        ws.append(
-            [
-                vels[2, f, r, a]
-                for r in range(vels.shape[2])
-                for a in range(vels.shape[3])
-            ]
-        )
-    for i in range(vels.shape[2]):
-        ws.insert_cols((i + 1) * (vels.shape[3] + 1))
+    add_superpixel_data(vels[1], ws)
+    add_superpixel_data(vels[2], wb.create_sheet("Circumferential"))
+    add_superpixel_data(loc[1], wb.create_sheet("Loc. radial"))
+    add_superpixel_data(loc[2], wb.create_sheet("Loc. angular"))
 
     wb.save(filename)
     wb.close()

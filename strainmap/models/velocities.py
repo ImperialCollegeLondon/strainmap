@@ -322,10 +322,9 @@ def px_velocity_curves(
 
     cyl = data.masks[dataset][vkey]
     m = data.masks[dataset][rkey] + 100 * data.masks[dataset][akey]
-    t = data.data_files.time_interval(dataset)
     r = masked_reduction(cyl, m, axis=img_axis)
 
-    return (r - r.mean(axis=(1, 2, 3), keepdims=True)) * t
+    return r - r.mean(axis=(1, 2, 3), keepdims=True)
 
 
 def marker(comp, low=1, high=49, maximum=True):
