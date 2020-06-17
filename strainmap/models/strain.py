@@ -431,13 +431,13 @@ def calculate_strain(
             for s in data.strain[d].keys()
             if "cylindrical" not in s and "radial" not in s
         ]
-        if data.strain_markers.get(d, {}).get(labels[0], None) is None:
+        if data.strain_markers.get(d, {}).get(labels[0], None) is None or recalculate:
             initialise_markers(data, d, labels)
             data.save(*[["strain_markers", d, vel] for vel in labels])
 
     data.gls = global_longitudinal_strain(
         disp=disp,
-        markers=tuple(data.markers[d] for d in datasets),
+        markers=tuple(data.strain_markers[d] for d in datasets),
         times=tuple(data.data_files.time_interval(d) for d in datasets),
         locations=tuple(data.data_files.slice_loc(d) for d in datasets),
         resample=resample,
@@ -562,25 +562,40 @@ def update_marker(
 def initialise_markers(data: StrainMapData, dataset: str, str_labels: list):
     """Initialises the markers for all the available strains.
 
-    TODO This function needs to be updated when the proper strain markers location
-    TODO is implemented.
-    """
-    from copy import deepcopy
+    The positions of the markers are given by:
+        - Peak systole strain: max/min systole
+        - End systole strain: defined with the global radial velocity.
+        - Peak strain: max/min of strain during the whole cardiac cycle
 
-    data.strain_markers[dataset] = deepcopy(data.markers[dataset])
-    for r in list(data.strain_markers[dataset].keys()):
-        if r not in data.strain[dataset]:
-            del data.strain_markers[dataset][r]
+    In a healthy patient, the three markers should be roughly at the same position.
+    """
+    pos_es = int(data.markers[dataset]["global - Estimated"][0, 1, 3, 0])
+
+    # Loop over the region types (global, angular, etc)
+    for r in data.strain[dataset].keys():
+        if r not in str_labels:
             continue
         else:
-            regions = data.strain_markers[dataset][r]
+            regions = data.strain[dataset][r]
+
+        data.strain_markers[dataset][r] = np.zeros((len(regions), 3, 3, 3), dtype=float)
+
+        # Loop over the individual regions (1 global region, 6 angular regions, etc.)
         for j in range(len(regions)):
+
+            # Loop over the components: longitudinal, radial and circumferential
             for k in range(len(regions[j])):
-                for i in range(len(regions[j][k])):
-                    position = int(data.strain_markers[dataset][r][j, k, i, 0])
-                    data.strain_markers[dataset][r][j, k, i, 1:] = [
-                        data.strain[dataset][r][j, k, position],
-                        position * data.data_files.time_interval(dataset),
+                s = data.strain[dataset][r][j, k]
+
+                # Frame location for peak systole strain, end systole and peak strain
+                loc = (np.argmax(np.abs(s[: pos_es + 1])), pos_es, np.argmax(np.abs(s)))
+
+                # Loop over the markers
+                for i, pos in enumerate(loc):
+                    data.strain_markers[dataset][r][j, k, i, :] = [
+                        pos,
+                        s[pos],
+                        pos * data.data_files.time_interval(dataset),
                     ]
 
 
@@ -598,12 +613,14 @@ def global_longitudinal_strain(
 
     ldisp = disp[0].mean(axis=(-2, -1))
     tmin = min(times)
-    gls = np.zeros(len(locations))
+    gls = np.zeros((len(locations), 3))
     for i, m in enumerate(markers):
-        pos = int(m["global - Estimated"][0, 1, 3, 0])
-        corrected = int(round(times[i] / tmin * pos)) if resample else pos
-        gls[i] = ldisp[corrected, i]
 
-    return abs(
-        np.polynomial.polynomial.Polynomial.fit(locations, gls, 1).deriv().coef[0]
-    )
+        # Loop over the markers: PS, ES, P
+        # The markers of interest are those corresponding to the longitudinal component
+        for j in range(gls.shape[1]):
+            pos = int(m["global - Estimated"][0, 0, j, 0])
+            corrected = int(round(times[i] / tmin * pos)) if resample else pos
+            gls[i, j] = ldisp[corrected, i]
+
+    return abs(np.polynomial.polynomial.polyfit(locations, gls, 1)[1])

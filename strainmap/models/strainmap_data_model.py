@@ -87,7 +87,7 @@ class StrainMapData(object):
         self.markers: dict = defaultdict(dict)
         self.strain: dict = defaultdict(dict)
         self.strain_markers: dict = defaultdict(dict)
-        self.gls: tuple = ()
+        self.gls: np.ndarray = np.array([])
 
     @property
     def rebuilt(self):

@@ -18,7 +18,7 @@ class StrainTaskView(TaskViewBase):
 
     requisites = Requisites.VELOCITIES
     axes_lbl = ("_long", "_rad", "_circ")
-    marker_idx = {"P": 0, "S": 1, "PSS": 2, "ES": 3}
+    marker_idx = {"PS": 0, "P": 2}
 
     def __init__(self, root, controller):
 
@@ -41,7 +41,7 @@ class StrainTaskView(TaskViewBase):
         self.exclude = (tk.BooleanVar(value=False), tk.BooleanVar(value=False))
         self.effective_disp = tk.BooleanVar(value=True)
         self.resample = tk.BooleanVar(value=True)
-        self.gls = tk.StringVar()
+        self.gls = (tk.StringVar(), tk.StringVar(), tk.StringVar())
 
         # Figure-related variables
         self.fig = None
@@ -54,7 +54,8 @@ class StrainTaskView(TaskViewBase):
         self.limits = None
         self.marker_artists = None
         self.strain_lim = dict()
-        self.gls_lbl = None
+        self.gls_lbl = []
+        self.fixed_markers = []
 
         self.create_controls()
 
@@ -107,10 +108,11 @@ class StrainTaskView(TaskViewBase):
         # Strain frame
         self.output_frame = ttk.Labelframe(control, text="Output:")
         self.output_frame.columnconfigure(50, weight=1)
-        self.gls_lbl = ttk.Label(master=self.output_frame, textvariable=self.gls)
+        for v in self.gls:
+            self.gls_lbl.append(ttk.Label(master=self.output_frame, textvariable=v))
 
         # Information frame
-        marker_lbl = (("P", "S", "PSS"),) * 3
+        marker_lbl = (("PS", "ES", "P"),) * 3
         for labels in marker_lbl:
             self.param_tables.append(ttk.Treeview(info, height=14))
             self.param_tables[-1].tag_configure("current", background="#f8d568")
@@ -138,7 +140,8 @@ class StrainTaskView(TaskViewBase):
         resample.grid(row=1, column=1, sticky=tk.NSEW, padx=5)
         recalc.grid(row=2, column=0, columnspan=2, sticky=tk.NSEW, padx=5)
         self.output_frame.grid(row=0, column=2, rowspan=3, sticky=tk.NSEW, padx=5)
-        self.gls_lbl.grid(row=0, column=99, sticky=tk.NSEW, padx=5)
+        for i, l in enumerate(self.gls_lbl):
+            l.grid(row=i, column=99, sticky=tk.NSEW, padx=5)
         for i, table in enumerate(self.param_tables):
             table.grid(row=0, column=i, sticky=tk.NSEW, padx=5)
         export_btn.grid(row=0, column=99, sticky=tk.NSEW, padx=5)
@@ -273,9 +276,9 @@ class StrainTaskView(TaskViewBase):
             time = t.insert("", tk.END, text="Time (ms)", open=True)
             for j, marker in enumerate(markers):
                 tag = "current" if j == self.current_region else "others"
-                val = np.around(marker[i, :3, 1], decimals=2).tolist()
+                val = np.around(marker[i, :, 1], decimals=2).tolist()
                 t.insert(strain, tk.END, text=labels[j], values=val, tags=(tag,))
-                val = np.around(marker[i, :3, 2] * 1000, decimals=0).tolist()
+                val = np.around(marker[i, :, 2] * 1000, decimals=0).tolist()
                 t.insert(time, tk.END, text=labels[j], values=val, tags=(tag,))
 
     def update_table_one_marker(self, table, marker):
@@ -297,18 +300,6 @@ class StrainTaskView(TaskViewBase):
             value=round(self.markers[self.current_region, table, idx, 2], 2),
         )
 
-    def update_table_es(self):
-        """Updates a row of the markers table after ES has moved."""
-        for i, t in enumerate(self.param_tables):
-            timeitem = t.get_children(t.get_children()[1])[self.current_region]
-
-            t.item(
-                timeitem,
-                values=np.around(
-                    self.markers[self.current_region, i, :3, 2], decimals=2
-                ).tolist(),
-            )
-
     def update_strain_list(self, dataset):
         """Updates the list of radio buttons with the currently available strains."""
         strain = self.data.strain[dataset]
@@ -327,7 +318,8 @@ class StrainTaskView(TaskViewBase):
                 command=self.replot,
             ).grid(row=row, column=col, sticky=tk.NSEW)
 
-        self.gls_lbl.grid(row=0, column=99, sticky=tk.NSEW, padx=5)
+        for i, l in enumerate(self.gls_lbl):
+            l.grid(row=i, column=99, sticky=tk.NSEW, padx=5)
 
         if self.strain_var.get() not in strain and len(strain) > 0:
             self.strain_var.set(vel_list[0])
@@ -346,8 +338,9 @@ class StrainTaskView(TaskViewBase):
             resample=self.resample.get(),
             recalculate=recalculate,
         )
-
-        self.gls.set(value=f"GLS: {round(self.data.gls * 100, 1)}%")
+        lbl = ("psGLS", "esGLS", "pGLS")
+        for i, v in enumerate(self.gls):
+            v.set(value=f"{lbl[i]}: {round(self.data.gls[i] * 100, 1)}%")
         self.populate_dataset_box(datasets)
         self.update_strain_list(self.datasets_var.get())
 
@@ -468,7 +461,7 @@ class StrainTaskView(TaskViewBase):
     def add_maps_subplots(self, gs):
         """Adds the maps subplots."""
         maps = []
-        colours = ["red", "green", "blue"] * 2 + ["orange", "darkblue", "purple"]
+        colours = ["red", "grey", "blue"] * 3
         for i, color in enumerate(colours):
             maps.append(self.fig.add_subplot(gs[1, i]))
             maps[-1].get_xaxis().set_visible(False)
@@ -531,33 +524,34 @@ class StrainTaskView(TaskViewBase):
         """
         add_marker = self.fig.actions_manager.Markers.add_marker
 
-        comp_lbl = ["_long"] * 3 + ["_rad"] * 3 + ["_circ"] * 3
-        colors = ["red", "green", "blue"] * 2 + ["orange", "darkblue", "purple"]
-        marker_lbl = ("P", "S", "PSS") * 3
+        comp_lbl = ["_long", "_rad", "_circ"]
+        colors = ["red", "grey", "blue"]
+        marker_lbl = ("PS", "ES", "P")
 
         markers_artists = []
-        for i, label in enumerate(comp_lbl):
-            markers_artists.append(
-                add_marker(
-                    self.strain_lines[label],
-                    xy=markers[i // 3, i % 3, :2],
-                    label=marker_lbl[i],
-                    color=colors[i],
-                    marker=str(i % 3 + 1),
-                    markeredgewidth=2,
+        for i, clbl in enumerate(comp_lbl):
+            for j, mlbl in enumerate(marker_lbl):
+                if mlbl == "ES":
+                    self.fixed_markers.append(
+                        self.strain_lines[clbl].axes.axvline(
+                            markers[i, j, 0],
+                            label=mlbl,
+                            color="grey",
+                            linewidth=2,
+                            linestyle="--",
+                        )
+                    )
+                    continue
+                markers_artists.append(
+                    add_marker(
+                        self.strain_lines[clbl],
+                        xy=markers[i, j, :2],
+                        label=mlbl,
+                        color=colors[j],
+                        marker=str(j + 1),
+                        markeredgewidth=2,
+                    )
                 )
-            )
-
-        markers_artists.append(
-            add_marker(
-                self.strain_lines["_rad"],
-                xy=markers[1, 3, :2],
-                label="ES",
-                color="black",
-                marker="+",
-                markeredgewidth=2,
-            )
-        )
 
         self.axes["_long"].legend(frameon=False, markerscale=0.5)
         self.axes["_rad"].legend(frameon=False, markerscale=0.5)
@@ -648,10 +642,9 @@ class StrainTaskView(TaskViewBase):
         """Updates the position of all markers in a figure."""
         update_position = self.fig.actions_manager.Markers.update_marker_position
 
-        for i, artist in enumerate(self.marker_artists[:-1]):
-            update_position(artist, int(markers[i // 3, i % 3, 0]))
-
-        update_position(self.marker_artists[-1], int(markers[1, 3, 0]))
+        for i in range(len(self.axes_lbl)):
+            update_position(self.marker_artists[2 * i], int(markers[i, 0, 0]))
+            update_position(self.marker_artists[2 * i + 1], int(markers[i, 2, 0]))
 
         if draw:
             self.draw()
