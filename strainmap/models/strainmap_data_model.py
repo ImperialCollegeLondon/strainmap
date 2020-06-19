@@ -190,11 +190,10 @@ class StrainMapData(object):
             s = "/".join(keys)
             keys[0] = getattr(self, keys[0])
             if s in self.strainmap_file:
-                self.strainmap_file[s][...] = reduce(lambda x, y: x[y], keys)
-            else:
-                self.strainmap_file.create_dataset(
-                    s, data=reduce(lambda x, y: x[y], keys), track_order=True
-                )
+                del self.strainmap_file[s]
+            self.strainmap_file.create_dataset(
+                s, data=reduce(lambda x, y: x[y], keys), track_order=True
+            )
 
     def delete(self, *args):
         """ Deletes the chosen dataset or group from the hdf5 file.
