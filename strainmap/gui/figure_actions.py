@@ -634,7 +634,7 @@ class DragContours(ActionBase):
         distance -= distance[self._drag_handle]
 
         sigma = posdir.max() * self.contour_fraction
-        shift = np.exp(-(distance / sigma) ** 2)
+        shift = np.exp(-((distance / sigma) ** 2))
 
         return deltax * shift, deltay * shift
 
