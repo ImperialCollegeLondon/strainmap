@@ -188,11 +188,11 @@ class StrainMapData(object):
         for keys in args:
             assert keys[0] in self.stored, f"{keys[0]} is not storable."
             s = "/".join(keys)
-            keys[0] = getattr(self, keys[0])
+            names = [getattr(self, keys[0])] + keys[1:]
             if s in self.strainmap_file:
                 del self.strainmap_file[s]
             self.strainmap_file.create_dataset(
-                s, data=reduce(lambda x, y: x[y], keys), track_order=True
+                s, data=reduce(lambda x, y: x[y], names), track_order=True
             )
 
     def delete(self, *args):
