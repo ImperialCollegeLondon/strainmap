@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import copy
-from itertools import product
 from typing import Optional, Sequence, Tuple, Union
 
 import numpy as np
@@ -215,6 +214,7 @@ def angular_segments(
 def radial_segments(
     outer: Contour,
     inner: Contour,
+    mask: Optional[np.ndarray] = None,
     nr: int = 3,
     shape: Optional[Tuple[int, int]] = None,
     center: Optional[Tuple[float, float]] = None,
@@ -229,6 +229,7 @@ def radial_segments(
     Args:
         outer: Contour delineating the outer boundary of the segmented ribbon.
         inner: Contour delineating the inner boundary of the segmented ribbon.
+        mask: Mask of the outer
         nr: Number of segments.
         shape: Size of the returned image. Defaults to `outer.shape`.
         center: Origin of the cylindrical coordinate system used to split the ribbons.
@@ -247,19 +248,19 @@ def radial_segments(
         >>> regions = radial_segments(outer, inner, nr=3)
         >>> print(regions)
         [[0 0 0 0 0 0 0 0 0 0 0 0 0 0 0]
-         [0 0 0 0 0 0 0 3 0 0 0 0 0 0 0]
-         [0 0 0 0 3 2 2 2 3 3 3 0 0 0 0]
-         [0 0 0 3 1 1 1 1 2 2 3 3 0 0 0]
-         [0 0 3 1 0 0 0 0 1 1 2 3 3 0 0]
-         [0 0 2 0 0 0 0 0 0 1 2 2 3 0 0]
-         [0 0 2 0 0 0 0 0 0 1 2 2 3 0 0]
-         [0 0 2 0 0 0 0 0 0 1 2 2 3 3 0]
-         [0 0 2 1 0 0 0 0 1 1 2 2 3 0 0]
-         [0 0 3 2 1 1 1 1 1 2 2 3 3 0 0]
-         [0 0 3 3 2 2 1 1 2 2 2 3 3 0 0]
-         [0 0 0 3 3 2 2 2 2 3 3 3 0 0 0]
-         [0 0 0 0 3 3 3 3 3 3 3 0 0 0 0]
-         [0 0 0 0 0 0 0 0 0 0 0 0 0 0 0]
+         [0 0 0 0 0 3 3 3 3 3 0 0 0 0 0]
+         [0 0 0 3 3 2 2 2 3 3 3 3 0 0 0]
+         [0 0 3 3 1 1 1 1 2 2 3 3 0 0 0]
+         [0 0 3 1 0 0 0 0 1 2 2 3 3 0 0]
+         [0 3 2 0 0 0 0 0 0 1 2 2 3 3 0]
+         [0 3 2 0 0 0 0 0 0 1 2 2 3 3 0]
+         [0 3 2 0 0 0 0 0 0 1 2 2 3 3 0]
+         [0 3 2 1 0 0 0 0 1 1 2 2 3 3 0]
+         [0 3 3 2 1 1 1 1 1 2 2 3 3 0 0]
+         [0 0 3 2 2 2 1 1 2 2 2 3 3 0 0]
+         [0 0 3 3 3 2 2 2 2 3 3 3 0 0 0]
+         [0 0 0 3 3 3 3 3 3 3 3 0 0 0 0]
+         [0 0 0 0 0 3 3 3 3 3 0 0 0 0 0]
          [0 0 0 0 0 0 0 0 0 0 0 0 0 0 0]]
 
         Note that it is an error if the outer and inner boundaries are swapped:
@@ -276,16 +277,18 @@ def radial_segments(
 
     if shape is None:
         shape = outer.shape[0], outer.shape[1]
-    nx, ny = shape
+
+    if mask is None:
+        mask = outer.mask
 
     x = np.arange(0, shape[1], dtype=int)[None, :] - origin[0]
     y = np.arange(0, shape[0], dtype=int)[:, None] - origin[1]
 
     thetas = np.arctan2(y, x)
     r = np.sqrt(x * x + y * y)
-    polar = cart2pol(outer.xy - origin[::-1])
+    polar = cart2pol(outer.xy - origin)
     outer_pol = np.interp(thetas, polar.theta, polar.r, period=2 * np.pi)
-    polar = cart2pol(inner.xy - origin[::-1])
+    polar = cart2pol(inner.xy - origin)
     inner_pol = np.interp(thetas, polar.theta, polar.r, period=2 * np.pi)
 
     # ensure numerical noise doesn't push the inner contour to the outside
@@ -295,53 +298,11 @@ def radial_segments(
     if (outer_pol < inner_pol).any():
         raise ValueError("Inner and outer boundaries cannot cross.")
 
-    result = np.zeros(shape, dtype=int)
+    result = mask * nr
     for i in range(nr, -1, -1):
         result[(outer_pol - inner_pol) / nr * i + inner_pol >= r] = i
 
     return result
-
-
-def mosaic_mask(angular: np.ndarray, radial: np.ndarray) -> np.ndarray:
-    """Joins angular and radial masks to create a mosaic mask.
-
-    A mosaic mask gives a different index to each unique combination of the indices in
-    the angular and radial masks.
-
-    Example:
-        >>> from strainmap.models.contour_mask import Contour, radial_segments
-        >>> outer = Contour.circle(shape=(15, 15), radius=6)
-        >>> inner = Contour.circle(shape=(10, 10), center=(5.5, 6), radius=3)
-        >>> radial = radial_segments(outer, inner, nr=3)
-        >>> from strainmap.models.contour_mask import angular_segments
-        >>> angular = angular_segments(nsegments=4, shape=(15, 15))
-        >>> mosaic = mosaic_mask(angular, radial)
-        >>> print(mosaic)
-        [[ 0  0  0  0  0  0  0  0  0  0  0  0  0  0  0]
-         [ 0  0  0  0  0  0  0 11  0  0  0  0  0  0  0]
-         [ 0  0  0  0 11  7  7  7 12 12 12  0  0  0  0]
-         [ 0  0  0 11  3  3  3  3  8  8 12 12  0  0  0]
-         [ 0  0 11  3  0  0  0  0  4  4  8 12 12  0  0]
-         [ 0  0  7  0  0  0  0  0  0  4  8  8 12  0  0]
-         [ 0  0  7  0  0  0  0  0  0  4  8  8 12  0  0]
-         [ 0  0  7  0  0  0  0  0  0  4  8  8 12 12  0]
-         [ 0  0  6  2  0  0  0  0  1  1  5  5  9  0  0]
-         [ 0  0 10  6  2  2  2  2  1  5  5  9  9  0  0]
-         [ 0  0 10 10  6  6  2  2  5  5  5  9  9  0  0]
-         [ 0  0  0 10 10  6  6  6  5  9  9  9  0  0  0]
-         [ 0  0  0  0 10 10 10 10  9  9  9  0  0  0  0]
-         [ 0  0  0  0  0  0  0  0  0  0  0  0  0  0  0]
-         [ 0  0  0  0  0  0  0  0  0  0  0  0  0  0  0]]
-    """
-    assert angular.shape == radial.shape
-
-    aidx = set(angular.flatten()) - {0}
-    ridx = set(radial.flatten()) - {0}
-    mosaic = np.zeros_like(angular)
-    for i, (r, a) in enumerate(product(ridx, aidx)):
-        mosaic[np.nonzero(np.logical_and(radial == r, angular == a))] = i + 1
-
-    return mosaic
 
 
 def cart2pol(cart: np.ndarray) -> np.recarray:
@@ -570,15 +531,23 @@ def masked_means(
     """
     from numpy.ma import MaskedArray
 
-    if regions is None:
-        regions = sorted(set(masks.flat) - {0})
-    blabels = np.broadcast_to(masks, data.shape)
+    nz = np.nonzero(masks)
+    rmin, rmax, cmin, cmax = (nz[-2].min(), nz[-2].max(), nz[-1].min(), nz[-1].max())
+    rslice = slice(rmin, rmax + 1)
+    cslice = slice(cmin, cmax + 1)
 
-    def _mean(data, mask):
-        result = MaskedArray(data, mask).mean(axis=axes).data
+    sdata = data[..., rslice, cslice]
+    smasks = masks[..., rslice, cslice]
+
+    if regions is None:
+        regions = sorted(set(smasks.flat) - {0})
+    blabels = np.broadcast_to(smasks, sdata.shape)
+
+    def _mean(d, m):
+        result = MaskedArray(d, m).mean(axis=axes).data
         return result.reshape(1, *result.shape)
 
-    return np.concatenate(list(_mean(data, blabels != l) for l in regions))
+    return np.concatenate(list(_mean(sdata, blabels != l) for l in regions))
 
 
 if __name__ == "__main__":

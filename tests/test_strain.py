@@ -1,47 +1,50 @@
-import numpy as np
-from pytest import approx, mark
+from pytest import approx
 
 
-def test_inplane_strain(data_with_velocities):
-    from strainmap.models.strain import calculate_inplane_strain
+def test_resample():
+    from strainmap.models.strain import resample_interval
+    import numpy as np
 
-    strain = calculate_inplane_strain(
-        data_with_velocities, datasets=data_with_velocities.data_files.datasets[:1]
+    frames = 50
+    interval = np.random.randint(10, 15, 3) / 100
+    nframes = np.ceil(interval / min(interval) * frames).astype(int)
+    t = np.linspace(0, np.ones_like(interval), frames, endpoint=False).T
+    disp = np.moveaxis(np.sin(np.pi * t)[..., None, None, None], (0, 1), (2, 1))
+
+    exframes = nframes.max() - nframes
+    expected = (np.sin(np.pi * np.linspace(0, 1, n, endpoint=False)) for n in nframes)
+    expected = np.array(
+        [np.concatenate([ex, ex[:n]]) for n, ex in zip(exframes, expected)]
+    ).T
+    actual = resample_interval(disp, interval)
+
+    assert (
+        actual.shape == np.concatenate([disp, disp], axis=1)[:, : nframes.max()].shape
     )
-    assert set(strain) == set(data_with_velocities.data_files.datasets[:1])
-    assert strain[data_with_velocities.data_files.datasets[0]].shape == (2, 3, 512, 512)
+    assert np.squeeze(actual) == approx(expected, abs=1e-1)
 
 
-@mark.parametrize("deltaz", [1, 1.2])
-def test_outofplane_strain(deltaz):
-    from strainmap.models.strain import calculate_outofplane_strain
-    from types import SimpleNamespace
+def test_unresample():
+    from strainmap.models.strain import unresample_interval
+    import numpy as np
 
-    def vel(x, y, z, t):
-        return [0, 0, x % 7 + 2 * y - 3 * z + 4 * t]
+    frames = 50
+    interval = np.random.randint(10, 15, 3) / 100
+    nframes = np.ceil(interval / min(interval) * frames).astype(int)
 
-    data = SimpleNamespace()
-    data.masks = {
-        f"dodo{z}": {
-            "cylindrical - Estimated": np.array(
-                [
-                    [[[vel(x, y, z, t) for y in range(100)] for x in range(100)]]
-                    for t in range(10)
-                ]
-            ),
-            "angular x6 - Estimated": np.repeat(
-                np.arange(100, dtype=int)[:, None] % 7, 100, 1,
-            ),
-        }
-        for z in range(8)
-    }
-    data.data_files = SimpleNamespace()
-    data.data_files.files = list(data.masks.keys())
-    data.data_files.slice_loc = lambda x: {
-        k: deltaz * i for i, k in enumerate(data.data_files.files)
-    }[x]
-
-    strain = calculate_outofplane_strain(
-        data, image_axes=(-3, -2), component_axis=-1  # type: ignore
+    exframes = nframes.max() - nframes
+    disp = (np.sin(np.pi * np.linspace(0, 1, n, endpoint=False)) for n in nframes)
+    disp = np.moveaxis(
+        np.array([np.concatenate([ex, ex[:n]]) for n, ex in zip(exframes, disp)])[
+            ..., None, None, None
+        ],
+        (0, 1),
+        (2, 1),
     )
-    assert strain == approx(-3 / deltaz)
+
+    t = np.linspace(0, np.ones_like(interval), frames, endpoint=False)
+    expected = np.sin(np.pi * t)
+    actual = unresample_interval(disp, interval, frames)
+
+    assert actual.shape == disp[:, :frames].shape
+    assert np.squeeze(actual) == approx(expected, abs=1e-1)

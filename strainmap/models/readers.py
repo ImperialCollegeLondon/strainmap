@@ -4,7 +4,6 @@ import re
 from abc import ABC, abstractmethod
 from collections import OrderedDict, defaultdict
 from dataclasses import dataclass
-from functools import lru_cache
 from pathlib import Path, PurePath, PurePosixPath
 from typing import (
     ClassVar,
@@ -96,7 +95,7 @@ def image_orientation(filename) -> tuple:
     """Indicates if X and Y Phases should be swapped and the velocity sign factors."""
     ds = pydicom.dcmread(filename)
     swap = ds.InPlanePhaseEncodingDirection == "ROW"
-    signs = np.array([1, -1, 1]) * (-1) ** swap
+    signs = np.array([-1, 1, -1]) if swap else np.array([1, -1, 1])
     return swap, signs
 
 
@@ -253,6 +252,11 @@ def read_data_structure(g, structure):
 
 def from_relative_paths(master: str, paths: List[bytes]) -> list:
     """Transform a list of relative paths to a given master to absolute paths."""
+    import sys
+
+    if sys.platform == "win32":
+        return []
+
     return [
         str((Path(master).parent / PurePath(PurePosixPath(p.decode()))).resolve())
         for p in paths
@@ -267,7 +271,7 @@ def paths_from_hdf5(g, master, structure):
             base_dir = paths_from_hdf5(g[n], master, struct)
         else:
             filenames = from_relative_paths(master, struct[...])
-            if all(map(os.path.isfile, filenames)):
+            if len(filenames) > 0 and all(map(os.path.isfile, filenames)):
                 g[n] = filenames
                 base_dir = Path(filenames[0]).parent
 
@@ -301,7 +305,11 @@ class DICOMReaderBase(ABC):
 
     def __init__(self, files: dict):
         self.files = files
-        self.frames = len(list(self.files[self.datasets[0]].values())[0])
+
+    @property
+    def frames(self) -> int:
+        """ Number of frames per dataset. """
+        return len(list(self.files[self.datasets[0]].values())[0])
 
     @property
     def datasets(self) -> List[str]:
@@ -319,10 +327,9 @@ class DICOMReaderBase(ABC):
     def sensitivity(self) -> np.ndarray:
         """Obtains the in-plane and out of plane velocity sensitivity (scale)."""
 
-    @property
-    def orientation(self) -> tuple:
+    def orientation(self, dataset: str) -> tuple:
         """Indicates if X-Y Phases should be swapped and the velocity sign factors."""
-        return image_orientation(self.is_avail)
+        return image_orientation(list(self.files[dataset].values())[0][0])
 
     def tags(self, dataset: str, var: Optional[str] = None) -> dict:
         """Dictionary with the tags available in the DICOM files."""
@@ -354,7 +361,6 @@ class DICOMReaderBase(ABC):
     def time_interval(self, dataset: str) -> float:
         """Returns the frame time interval in seconds."""
 
-    @lru_cache(1)
     @abstractmethod
     def mag(self, dataset: str) -> np.ndarray:
         """Provides the magnitude data corresponding to the chosen dataset.
@@ -362,7 +368,6 @@ class DICOMReaderBase(ABC):
         The expected shape of the array is [frames, xpoints, ypoints].
         """
 
-    @lru_cache(1)
     @abstractmethod
     def phase(self, dataset: str) -> np.ndarray:
         """Provides the Phase data corresponding to the chosen dataset.
@@ -471,7 +476,6 @@ class LegacyDICOM(DICOMReaderBase):
         """Returns the frame time interval in seconds."""
         raise AttributeError("LegacyDICOM has no time interval defined.")
 
-    @lru_cache(1)
     def mag(self, dataset: str) -> np.ndarray:
         """Provides the Magnitude data corresponding to the chosen dataset."""
         magx = np.array(read_images(self.files, dataset, "MagX"))
@@ -480,7 +484,6 @@ class LegacyDICOM(DICOMReaderBase):
 
         return (magx + magy + magz) // 3
 
-    @lru_cache(1)
     def phase(self, dataset: str) -> np.ndarray:
         """Provides the Phase data corresponding to the chosen dataset."""
         phasex = np.array(read_images(self.files, dataset, "PhaseX"))
@@ -542,14 +545,6 @@ class DICOM(DICOMReaderBase):
         header = ds[("0021", "1019")].value.decode()
         return velocity_sensitivity(header)
 
-    @property
-    def orientation(self) -> tuple:
-        """Indicates if X-Y Phases should be swapped and the velocity sign factors."""
-        ds = pydicom.dcmread(self.is_avail)
-        swap = ds.InPlanePhaseEncodingDirection != "ROW"
-        signs = np.array([1, -1, 1]) * (-1) ** swap
-        return swap, signs
-
     def slice_loc(self, dataset: str) -> float:
         """Returns the slice location in cm from the isocentre."""
         return float(self.tags(dataset)["SliceLocation"]) / 10.0
@@ -560,18 +555,12 @@ class DICOM(DICOMReaderBase):
 
     def time_interval(self, dataset: str) -> float:
         """Returns the frame time interval in seconds."""
-        return (
-            float(self.tags(dataset)["ImageComments"].split(" ")[1])
-            / 1000.0
-            / self.frames
-        )
+        return float(self.tags(dataset)["ImageComments"].split(" ")[1]) / 1000.0 / 50
 
-    @lru_cache(1)
     def mag(self, dataset: str) -> np.ndarray:
         """Provides the Magnitude data corresponding to the chosen dataset."""
         return np.array(read_images(self.files, dataset, "MagAvg"))
 
-    @lru_cache(1)
     def phase(self, dataset: str) -> np.ndarray:
         """Provides the Phase data corresponding to the chosen dataset."""
         phasex = np.array(read_images(self.files, dataset, "PhaseX"))

@@ -432,17 +432,16 @@ class SegmentationTaskView(TaskViewBase):
     @property
     def centroid(self):
         """Return an array with the position of the centroid at a given time."""
-        frame = self.working_frame_var.get()
         mask = contour_diff(
-            self.final_segments["epicardium"][frame].T,
-            self.final_segments["endocardium"][frame].T,
-            shape=self.images["mag"][frame].shape,
+            self.final_segments["epicardium"][self.current_frame].T,
+            self.final_segments["endocardium"][self.current_frame].T,
+            shape=self.images["mag"][self.current_frame].shape,
         )
         return np.array(ndimage.measurements.center_of_mass(mask))
 
     @property
     def septum(self):
-        """Returns the current possition of the mid-point of the septum."""
+        """Returns the current position of the mid-point of the septum."""
         return np.array(self.septum_markers[0].get_data()).flatten()
 
     @property
@@ -536,7 +535,7 @@ class SegmentationTaskView(TaskViewBase):
                 dataset_name=self.datasets_var.get(),
                 segments=self.final_segments,
                 zero_angle=self.zero_angle,
-                frame=slice(0, self.working_frame_var.get() + 1),
+                frame=slice(None),
             )
         self.next_btn.config(text="Done!")
         self.next_btn.state(["disabled"])
@@ -547,6 +546,15 @@ class SegmentationTaskView(TaskViewBase):
         """Provides the next images and lines to plot when scrolling."""
         self.current_frame = frame % self.num_frames
 
+        if (
+            self.current_frame != self.working_frame_var.get()
+            or self.completed
+            or self.cursors["mag"] is not None
+        ):
+            self.next_btn.state(["disabled"])
+        else:
+            self.next_btn.state(["!disabled"])
+
         img = endo = epi = zero_angle = marker = None
 
         if image in ["mag", "vel"]:
@@ -554,7 +562,10 @@ class SegmentationTaskView(TaskViewBase):
         if self.final_segments["endocardium"] is not None:
             endo = self.final_segments["endocardium"][self.current_frame]
             epi = self.final_segments["epicardium"][self.current_frame]
-            zero_angle = self.zero_angle[self.current_frame]
+            zero_angle = self.data.zero_angle[self.datasets_var.get()][
+                self.current_frame
+            ]
+            # zero_angle = self.zero_angle[self.current_frame]
             marker = zero_angle[:, 0]
 
         self.update_undo_state()
@@ -709,6 +720,7 @@ class SegmentationTaskView(TaskViewBase):
         self.fig.actions_manager.DrawContours.num_contours = 1
         self.fig.actions_manager.DrawContours.contour_callback = circle
 
+        self.next_btn.state(["disabled"])
         cursor_properties = dict(useblit=True, ls="--", color="red", linewidth=1)
         self.cursors["mag"] = Cursor(self.fig.axes[0], **cursor_properties)
         self.cursors["vel"] = Cursor(self.fig.axes[1], **cursor_properties)

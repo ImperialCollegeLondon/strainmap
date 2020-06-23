@@ -89,7 +89,7 @@ def segmented_data(strainmap_data):
         initials={"epicardium": init_epi, "endocardium": init_endo},
     )
 
-    strainmap_data.zero_angle[dataset] = np.tile([[260, 230], [310, 280]], (3, 2, 2))
+    strainmap_data.zero_angle[dataset][..., 0] = np.array([260, 230])
     return strainmap_data
 
 
@@ -260,7 +260,7 @@ def data_with_velocities(segmented_data):
     )
     return output
 
-
+  
 @fixture
 def larray_np():
     from strainmap.models.sm_data import LabelledArray
@@ -287,3 +287,90 @@ def larray_coo(larray_np):
 @fixture(params=["np", "COO"])
 def larray(request, larray_np, larray_coo):
     return larray_np if request.param == "np" else larray_coo
+
+
+def vector_field(r0=0, t0=0, z0=0, frames=1, xsize=11, ysize=11, zsize=1):
+    """Creates a simple vector field in cylindrical coordinates.
+
+    The origin of the radial coordinates is the center of the image. The three
+    components of the vector field Vr, Vt and Vz are given by:
+
+    Vr = r0 * r
+    Vtheta = t0 * cos(theta)
+    Vz = z0 * z
+
+    where r0, t0 and z0 proportionality constants. As a consequence of this shape, the
+    derivative of this field in cylindrical coordinates should results in a 3x3 tensor
+    with the following non-zero components:
+
+    dVr/dr = r0
+    dVr/dtheta = - t0 * cos(theta) / r
+    dVtheta/dtheta = - t0 * sin(theta) / r + r0
+    dVz/dz = z0
+
+    More info:
+        https://sameradeeb-new.srv.ualberta.ca/calculus/vector-calculus-in-cylindrical-coordinate-systems/
+
+    Returns:
+        A dictionary where the keys are the z values (from 0 to zsize-1) and the values
+        are arrays of shape [3, frames, xsize, ysize]
+
+    Example:
+
+        The default field should only have radial components.
+
+        >>> from pytest import approx
+        >>> import numpy as np
+        >>> from .conftest import vector_field
+        >>> v = vector_field(r0=1)
+        >>> assert list(v.keys()) == [0]
+        >>> assert v[0].shape == (3, 1, 11, 11)
+        >>> assert (v[0][0] != 0).all()
+        >>> assert v[0][1] == approx(0)
+        >>> assert v[0][2] == approx(0)
+
+        The following filed, only has angular components:
+
+        >>> v = vector_field(t0=1)
+        >>> assert list(v.keys()) == [0]
+        >>> assert v[0].shape == (3, 1, 11, 11)
+        >>> assert v[0][0] == approx(0)
+        >>> assert (v[0][1] != 0).any()
+        >>> assert v[0][2] == approx(0)
+
+        This field should have only z component, but it is zero:
+
+        >>> v = vector_field(z0=1)
+        >>> assert list(v.keys()) == [0]
+        >>> assert v[0].shape == (3, 1, 11, 11)
+        >>> assert v[0][0] == approx(0)
+        >>> assert v[0][1] == approx(0)
+        >>> assert v[0][2] == approx(0)
+
+        We repeat the last case with two opints in the z direction. The first one should
+        have all zeros, as before, but the second one should have all values equal to 1.
+
+        >>> v = vector_field(z0=1, zsize=2)
+        >>> assert list(v.keys()) == [0, 1]
+        >>> assert v[0].shape == (3, 1, 11, 11)
+        >>> assert v[0][0] == approx(0)
+        >>> assert v[0][1] == approx(0)
+        >>> assert v[0][2] == approx(0)
+        >>> assert v[1][2] == approx(1)
+    """
+    import numpy as np
+
+    origin = np.array((xsize, ysize)) / 2
+    points = np.ogrid[range(frames), range(xsize), range(ysize), range(zsize)]
+    x = points[1] - origin[1]
+    y = points[2] - origin[0]
+    z = points[3]
+    f = points[0]
+    r = np.sqrt(x * x + y * y)
+    theta = np.arctan2(y, x)
+
+    Vr = r0 * r + 0 * (z + f)
+    Vt = t0 * np.cos(theta) + 0 * (z + f)
+    Vz = z0 * z + 0 * (r + f)
+
+    return {d: np.stack([Vr[..., d], Vt[..., d], Vz[..., d]]) for d in range(zsize)}

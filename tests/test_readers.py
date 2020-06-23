@@ -155,6 +155,7 @@ def test_read_data_structure(tmpdir, segmented_data):
     )
 
 
+@mark.skipif(sys.platform == "win32", reason="does not run on windows in Azure")
 def test_from_relative_paths(tmpdir):
     from strainmap.models.readers import from_relative_paths
     from pathlib import Path
@@ -227,7 +228,7 @@ def test_legacy_dicom():
     assert files.is_avail
     assert len(files.datasets) == 3
     assert list(files.sensitivity) == [60.0, 40.0, 40.0]
-    swap, signs = files.orientation
+    swap, signs = files.orientation(files.datasets[0])
     assert not swap
     assert list(signs) == [1, -1, 1]
     assert files.tags(files.datasets[0])["PatientName"] == "SUBJECT1"
@@ -252,9 +253,9 @@ def test_dicom_reader():
     assert files.is_avail
     assert len(files.datasets) == 5
     assert list(files.sensitivity) == [60.0, 40.0, 40.0]
-    swap, signs = files.orientation
-    assert swap
-    assert list(signs) == [-1, 1, -1]
+    swap, signs = files.orientation(files.datasets[0])
+    assert not swap
+    assert list(signs) == [1, -1, 1]
     assert files.tags(files.datasets[0])["PatientName"] == "CM"
     assert files.mag(files.datasets[0]).shape == (3, 512, 512)
     assert files.phase(files.datasets[0]).shape == (3, 3, 512, 512)
