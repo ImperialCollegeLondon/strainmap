@@ -260,7 +260,7 @@ def data_with_velocities(segmented_data):
     )
     return output
 
-  
+
 @fixture
 def larray_np():
     from strainmap.models.sm_data import LabelledArray

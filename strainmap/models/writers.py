@@ -362,9 +362,8 @@ def labelled_array_to_group(group: h5py.Group, larray: LabelledArray) -> None:
     else:
         group["values"] = larray.values
 
-        
+
 def terminal(msg: str, value: Optional[float] = None):
     if value is not None:
-        msg = f"{msg}. Progress: {min(1., value)*100}%"
+        msg = f"{msg}. Progress: {min(1., value) * 100}%"
     print(msg)
-
