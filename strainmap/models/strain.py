@@ -411,6 +411,9 @@ def calculate_strain(
     callback("Preparing independent variables", 2 / steps)
     space = coordinates(data, sorted_datasets, resample=resample)
 
+    callback("Calculating twist", 2 / steps)
+    data.twist = twist(data, sorted_datasets, space, resample=resample)
+
     callback("Calculating derivatives", 3 / steps)
     reduced_strain = differentiate(disp, space)
 
@@ -644,3 +647,33 @@ def global_longitudinal_strain(
             gls[i, j] = ldisp[corrected, i]
 
     return abs(np.polynomial.polynomial.polyfit(locations, gls, 1)[1])
+
+
+def twist(
+    data: StrainMapData,
+    datasets: Tuple[str, ...],
+    space: np.ndarray,
+    nrad: int = 3,
+    nang: int = 24,
+    background: str = "Estimated",
+    resample=True,
+) -> Dict[str, np.ndarray]:
+
+    vkey = f"cylindrical - {background}"
+    rkey = f"radial x{nrad} - {background}"
+    akey = f"angular x{nang} - {background}"
+    img_axis = tuple(range(len(data.masks[datasets[0]][vkey].shape)))[-2:]
+
+    cyl_iter = (data.masks[d][vkey] for d in datasets)
+    m_iter = (data.masks[d][rkey] + 100 * data.masks[d][akey] for d in datasets)
+    t_iter = tuple((data.data_files.time_interval(d) for d in datasets))
+    reduced_vel_map = map(partial(masked_reduction, axis=img_axis), cyl_iter, m_iter)
+
+    return {
+        d: np.cumsum(
+            (v[2].mean(axis=(1, 2)) - v[2].mean()) * t / r[1].mean(axis=(1, 2))
+        )
+        for d, v, t, r in zip(
+            datasets, reduced_vel_map, t_iter, np.moveaxis(space, 2, 0)
+        )
+    }
