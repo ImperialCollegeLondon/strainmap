@@ -5,12 +5,26 @@ from abc import ABC, abstractmethod
 from collections import OrderedDict, defaultdict
 from dataclasses import dataclass
 from pathlib import Path, PurePath, PurePosixPath
-from typing import ClassVar, Dict, Iterable, List, Mapping, Optional, Text, Tuple, Union
+from typing import (
+    ClassVar,
+    Dict,
+    Iterable,
+    List,
+    Mapping,
+    Optional,
+    Text,
+    Tuple,
+    Union,
+    Sequence,
+)
 
 import h5py
 import numpy as np
+import sparse
 import pydicom
 from natsort import natsorted
+
+from .sm_data import LabelledArray
 
 VAR_OFFSET = {"MagZ": 0, "PhaseZ": 1, "MagX": 2, "PhaseX": 3, "MagY": 4, "PhaseY": 5}
 
@@ -578,3 +592,35 @@ class DICOMNoTimeInterval(DICOM):
             return float(Path(self.is_avail).parent.name.split("RR")[-1]) / 1000.0
         else:
             raise AttributeError
+
+
+def labels_from_group(group: h5py.Group) -> Tuple[Sequence[str], Dict[str, Sequence]]:
+    """ Reads the labels from a h5 group and return dimensions and coordinates. """
+    dims: Sequence[str] = tuple(group.keys())
+    coords: Dict[str, Sequence] = {
+        d: None if group[d].shape is None else list(group[d][...].astype(np.str))
+        for d in dims
+    }
+    return dims, coords
+
+
+def group_to_labelled_array(group: h5py.Group) -> LabelledArray:
+    """ Reads labels and values from a h5 group and constructs a labelled array.
+    """
+    assert "labels" in group, "Missing 'labels' information."
+    assert "values" in group, "Missing 'values' information."
+
+    if "fill_value" in group.attrs:
+        data = group["values"][...]
+        coords = group["coords"][...]
+        shape = tuple(group.attrs["shape"][...])
+        fill_value = group.attrs["fill_value"]
+        values = sparse.COO(
+            coords=coords, data=data, shape=shape, fill_value=fill_value
+        )
+    else:
+        values = group["values"][...]
+
+    dims, coords = labels_from_group(group["labels"])
+
+    return LabelledArray(dims, coords, values)

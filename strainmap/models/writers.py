@@ -1,9 +1,11 @@
 import openpyxl as xlsx
 import h5py
 import numpy as np
-from typing import List, Union, Optional
+from typing import List, Union, Dict, Sequence, Optional
 import os
 from pathlib import PurePosixPath, PurePath, Path
+import sparse
+from .sm_data import LabelledArray
 
 
 def velocity_to_xlsx(filename, data, dataset, vel_label):
@@ -334,7 +336,35 @@ def paths_to_hdf5(
             group.create_dataset(n, data=paths, track_order=True)
 
 
+def labels_to_group(
+    group: h5py.Group, dims: Sequence[str], coords: Dict[str, Sequence]
+) -> None:
+    """ Save the dimensions and coordinates of a labelled array as a h5 group.
+    """
+    for d in dims:
+        if coords[d] is not None:
+            group.create_dataset(d, data=np.array(coords[d], dtype="S10"))
+        else:
+            group.create_dataset(d, dtype=h5py.Empty("f"))
+
+
+def labelled_array_to_group(group: h5py.Group, larray: LabelledArray) -> None:
+    """ Save a LabelledArray as a h5 group.
+    """
+    labels_to_group(
+        group.create_group("labels", track_order=True), larray.dims, larray.coords
+    )
+    if isinstance(larray.values, sparse.COO):
+        group["values"] = larray.values.data
+        group["coords"] = larray.values.coords
+        group.attrs["shape"] = larray.values.shape
+        group.attrs["fill_value"] = larray.values.fill_value
+    else:
+        group["values"] = larray.values
+
+        
 def terminal(msg: str, value: Optional[float] = None):
     if value is not None:
         msg = f"{msg}. Progress: {min(1., value)*100}%"
     print(msg)
+
