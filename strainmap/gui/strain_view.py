@@ -126,6 +126,9 @@ class StrainTaskView(TaskViewBase):
                 self.param_tables[-1].column(l, width=80, stretch=tk.YES, anchor=tk.E)
 
         export_btn = ttk.Button(control, text="Export to Excel", command=self.export)
+        export_twist_btn = ttk.Button(
+            control, text="Export rotation", command=self.export_rotation
+        )
 
         # Grid all the widgets
         control.grid(sticky=tk.NSEW, padx=10, pady=10)
@@ -145,6 +148,7 @@ class StrainTaskView(TaskViewBase):
         for i, table in enumerate(self.param_tables):
             table.grid(row=0, column=i, sticky=tk.NSEW, padx=5)
         export_btn.grid(row=0, column=99, sticky=tk.NSEW, padx=5)
+        export_twist_btn.grid(row=1, column=99, sticky=tk.NSEW, padx=5)
 
     def dataset_changed(self, *args):
         """Updates the view when the selected dataset is changed."""
@@ -366,6 +370,20 @@ class StrainTaskView(TaskViewBase):
                 dataset=self.datasets_var.get(),
                 vel_label=self.strain_var.get(),
             )
+
+    def export_rotation(self, *args):
+        """Exports the rotation data to an XLSX file."""
+        meta = self.data.metadata()
+        name, date = [meta[key] for key in ["Patient Name", "Date of Scan"]]
+        init = f"{name}_{date}_rotation.xlsx"
+
+        filename = tk.filedialog.asksaveasfilename(
+            initialfile=init,
+            defaultextension="xlsx",
+            filetypes=[("Excel files", "*.xlsx")],
+        )
+        if filename != "":
+            self.controller.export_rotation(filename=filename)
 
     def populate_dataset_box(self, datasets=None):
         """Populate the dataset box with the datasets that have velocities."""
