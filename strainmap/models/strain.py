@@ -9,6 +9,7 @@ from scipy import interpolate
 from .strainmap_data_model import StrainMapData
 from .velocities import find_theta0, regenerate
 from .writers import terminal
+from .sm_data import LabelledArray
 
 
 def masked_reduction(data: np.ndarray, masks: np.ndarray, axis: tuple) -> np.ndarray:
@@ -412,7 +413,7 @@ def calculate_strain(
     space = coordinates(data, sorted_datasets, resample=resample)
 
     callback("Calculating twist", 2 / steps)
-    data.twist = twist(data, sorted_datasets, space, resample=resample)
+    data.twist = twist(data, sorted_datasets)
 
     callback("Calculating derivatives", 3 / steps)
     reduced_strain = differentiate(disp, space)
@@ -652,12 +653,10 @@ def global_longitudinal_strain(
 def twist(
     data: StrainMapData,
     datasets: Tuple[str, ...],
-    space: np.ndarray,
     nrad: int = 3,
     nang: int = 24,
     background: str = "Estimated",
-    resample=True,
-) -> Dict[str, np.ndarray]:
+) -> LabelledArray:
 
     vkey = f"cylindrical - {background}"
     rkey = f"radial x{nrad} - {background}"
@@ -666,14 +665,16 @@ def twist(
 
     cyl_iter = (data.masks[d][vkey] for d in datasets)
     m_iter = (data.masks[d][rkey] + 100 * data.masks[d][akey] for d in datasets)
-    t_iter = tuple((data.data_files.time_interval(d) for d in datasets))
     reduced_vel_map = map(partial(masked_reduction, axis=img_axis), cyl_iter, m_iter)
+    radius = coordinates(data, datasets, resample=False)[1].mean(axis=(2, 3))
 
-    return {
-        d: np.cumsum(
-            (v[2].mean(axis=(1, 2)) - v[2].mean()) * t / r[1].mean(axis=(1, 2))
-        )
-        for d, v, t, r in zip(
-            datasets, reduced_vel_map, t_iter, np.moveaxis(space, 2, 0)
-        )
-    }
+    vels = (
+        np.array([v[2].mean(axis=(1, 2)) - v[2].mean() for v in reduced_vel_map])
+        / radius.T
+    )
+
+    return LabelledArray(
+        dims=["dataset", "frame", "item"],
+        coords={"dataset": datasets, "item": ["angular_velocity", "radius"]},
+        values=np.stack((vels, radius.T), axis=-1),
+    )
