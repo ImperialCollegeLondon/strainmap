@@ -85,16 +85,15 @@ def strain_to_xlsx(filename, data, dataset, vel_label):
     colnames = (
         "Parameter",
         "Region",
-        "P",
-        "S",
-        "PSS",
-        "P",
-        "S",
-        "PSS",
+        "PS",
         "ES",
         "P",
-        "S",
-        "PSS",
+        "PS",
+        "ES",
+        "P",
+        "PS",
+        "ES",
+        "P",
     )
 
     p = ("Frame", "Strain (%)", "Time (s)")
@@ -102,7 +101,7 @@ def strain_to_xlsx(filename, data, dataset, vel_label):
     for l in labels:
         title = l.split(" - ")[0]
         try:
-            add_markers(
+            add_strain_markers(
                 data.strain_markers[dataset][l],
                 params_ws,
                 colnames=colnames,
@@ -152,6 +151,32 @@ def add_markers(markers, ws, colnames, p, title=None):
     mask = np.ones(12, dtype=bool)
     mask[[3, 11]] = False
     m = np.array(markers).transpose((3, 0, 1, 2)).reshape((-1, 12))[:, mask]
+
+    reg = len(markers)
+
+    for j in range(len(m)):
+        data = m[j].astype(int) if j // reg == 0 else np.around(m[j], 3)
+        row_data = [p[j // reg] if j % reg == 0 else "", j % reg + 1] + list(data)
+        ws.append(row_data)
+
+
+def add_strain_markers(markers, ws, colnames, p, title=None):
+    """Adds the markers parameters to the sheet."""
+    row = ws.max_row + 2
+    ws.merge_cells(start_row=row, start_column=3, end_row=row, end_column=9)
+    ws.cell(column=3, row=row, value=title)
+
+    row += 1
+    ws.merge_cells(start_row=row, start_column=3, end_row=row, end_column=5)
+    ws.merge_cells(start_row=row, start_column=6, end_row=row, end_column=8)
+    ws.merge_cells(start_row=row, start_column=9, end_row=row, end_column=11)
+    ws.cell(column=3, row=row, value="Longitudinal")
+    ws.cell(column=6, row=row, value="Radial")
+    ws.cell(column=9, row=row, value="Circumferential")
+
+    ws.append(colnames)
+
+    m = np.array(markers).transpose((3, 0, 1, 2)).reshape((-1, 9))
 
     reg = len(markers)
 
