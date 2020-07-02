@@ -256,6 +256,34 @@ def export_superpixel(data, dataset, filename):
     wb.close()
 
 
+def rotation_to_xlsx(data, filename):
+    """Exports rotation data to an excel file."""
+
+    wb = xlsx.Workbook()
+
+    ws = wb.active
+    ws.title = "angular_velocity"
+    ws.append(data.twist.coords["dataset"])
+    ws.append(
+        tuple((data.data_files.time_interval(d) for d in data.twist.coords["dataset"]))
+    )
+    ws.append(())
+    for values in (
+        data.twist.sel(item="angular_velocity").transpose("frame", "dataset").values
+    ):
+        ws.append(tuple(values))
+
+    ws = wb.create_sheet("radius")
+    ws.append(data.twist.coords["dataset"])
+    ws.append(())
+    ws.append(())
+    for values in data.twist.sel(item="radius").transpose("frame", "dataset").values:
+        ws.append(tuple(values))
+
+    wb.save(filename)
+    wb.close()
+
+
 def write_hdf5_file(data, filename: Union[h5py.File, str]):
     """Writes the contents of the StrainMap data object to a HDF5 file."""
     f = filename if isinstance(filename, h5py.File) else h5py.File(filename, "a")

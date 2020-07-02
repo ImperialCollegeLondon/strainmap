@@ -7,6 +7,7 @@ from functools import reduce
 
 from .readers import read_strainmap_file, DICOMReaderBase, read_folder
 from .writers import write_hdf5_file
+from .sm_data import LabelledArray
 
 
 class StrainMapLoadError(Exception):
@@ -88,6 +89,7 @@ class StrainMapData(object):
         self.strain: dict = defaultdict(dict)
         self.strain_markers: dict = defaultdict(dict)
         self.gls: np.ndarray = np.array([])
+        self.twist: Optional[LabelledArray] = None
 
     @property
     def rebuilt(self):
