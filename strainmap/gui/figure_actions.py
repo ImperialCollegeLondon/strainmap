@@ -668,7 +668,7 @@ class Markers(ActionBase):
         """Sets the function to be called when the contour is updated."""
         self._marker_moved = marker_moved
 
-    def add_marker(self, line=None, axes=None, xy=None, **kwargs):
+    def add_marker(self, line=None, axes=None, xy=None, vline=False, **kwargs):
         """Adds a marker to the axis of the linked data."""
         if line is not None:
             axes = line.axes
@@ -681,13 +681,18 @@ class Markers(ActionBase):
         else:
             raise ValueError("At least one of 'lines' or 'axes' must be defined.")
 
-        options = dict(picker=6, marker="x", markersize=20, linestyle="None")
-        options.update(kwargs)
-
         if xy is not None:
             x, y = xy[0], xy[1]
 
-        marker = axes.plot(x, y, **options)[0]
+        if vline:
+            options = dict(picker=6, linewidth=3, linestyle="--")
+            options.update(kwargs)
+            marker = axes.axvline(x, **options)
+        else:
+            options = dict(picker=6, marker="x", markersize=20, linestyle="None")
+            options.update(kwargs)
+            marker = axes.plot(x, y, **options)[0]
+
         self._linked_data[marker] = line
 
         return marker
@@ -703,7 +708,11 @@ class Markers(ActionBase):
             marker.set_data([new_x], [new_y if new_y is not None else y])
         else:
             x, y, idx = self.get_closest(line, new_x)
-            marker.set_data([x], [y])
+            old_x = marker.get_xdata()
+            if len(old_x) == 2:
+                marker.set_xdata([x, x])
+            if len(old_x) == 1:
+                marker.set_data([x], [y])
 
     def drag_marker(self, event, last_event, *args):
         """Drags a marker to a new position of the data."""
@@ -729,8 +738,11 @@ class Markers(ActionBase):
         else:
             x, y, idx = self.get_closest(self._current_data, ev.xdata)
 
-        if x != old_x:
-            self._current_marker.set_data([x], [y])
+        if x != old_x[0]:
+            if len(old_x) == 2:
+                self._current_marker.set_xdata([x, x])
+            else:
+                self._current_marker.set_data([x], [y])
 
         return event
 

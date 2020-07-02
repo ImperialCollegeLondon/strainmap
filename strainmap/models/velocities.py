@@ -322,10 +322,9 @@ def px_velocity_curves(
 
     cyl = data.masks[dataset][vkey]
     m = data.masks[dataset][rkey] + 100 * data.masks[dataset][akey]
-    t = data.data_files.time_interval(dataset)
     r = masked_reduction(cyl, m, axis=img_axis)
 
-    return (r - r.mean(axis=(1, 2, 3), keepdims=True)) * t
+    return r - r.mean(axis=(1, 2, 3), keepdims=True)
 
 
 def marker(comp, low=1, high=49, maximum=True):
@@ -515,13 +514,24 @@ def update_marker(
     If the marker modified is "ES" (marker_idx = 3), then all markers are updated.
     Otherwise just the chosen one is updated.
     """
-    data.markers[dataset][vel_label][region] = _update_marker(
-        data.velocities[dataset][vel_label][region],
-        data.markers[dataset][vel_label][region],
-        component,
-        marker_idx,
-        position,
-    )
+    if marker_idx == 3:
+        for l in data.markers[dataset]:
+            for r in range(len(data.markers[dataset][l])):
+                data.markers[dataset][l][r] = _update_marker(
+                    data.velocities[dataset][l][r],
+                    data.markers[dataset][l][r],
+                    component,
+                    marker_idx,
+                    position,
+                )
+    else:
+        data.markers[dataset][vel_label][region] = _update_marker(
+            data.velocities[dataset][vel_label][region],
+            data.markers[dataset][vel_label][region],
+            component,
+            marker_idx,
+            position,
+        )
     data.save(["markers", dataset, vel_label])
 
 
