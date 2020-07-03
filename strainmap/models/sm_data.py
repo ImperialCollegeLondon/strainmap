@@ -205,6 +205,17 @@ class LabelledArray:
     def shape(self) -> Tuple[int]:
         return self.values.shape
 
+    def len_of(self, dim: str) -> int:
+        """ Returns the length of the LabelledArray in that dimension.
+
+        Args:
+            dim: Dimension name
+
+        Returns:
+            The length of the array along the given dimension.
+        """
+        return self.shape[self.dims.index(dim)]
+
     def sel(self, **kwargs) -> Union[LabelledArray, np.ndarray, sparse.COO]:
         """ Gets items from 'values' using dimension and coordinate labels.
         """

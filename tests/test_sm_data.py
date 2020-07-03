@@ -52,6 +52,11 @@ def test_creation_from_dict():
     assert result.coords["var2"] is None and result.coords["var3"] is None
 
 
+def test_len_of(larray):
+    for d, i in zip(larray.dims, larray.shape):
+        assert larray.len_of(d) == i
+
+
 def test_labelled_array_selection(larray):
     small = larray[0]
     assert len(small.dims) == 2
