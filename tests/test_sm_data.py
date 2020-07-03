@@ -24,7 +24,39 @@ def test_labelled_array_creation(larray):
         assert v is None or len(v) == larray.values.shape[idx]
 
 
+def test_creation_from_dict():
+    from strainmap.models.sm_data import LabelledArray
+    import numpy as np
+
+    key1 = ["dog", "cat", "mouse"]
+    key2 = ["big", "medium", "tiny", "micro"]
+    var1 = ["a", "b", "c"]
+
+    nested_dict = {}
+    for k1 in key1:
+        nested_dict[k1] = {}
+        for k2 in key2:
+            nested_dict[k1][k2] = np.random.random((3, 2, 5))
+
+    result = LabelledArray.from_dict(
+        dims=["animal", "size", "var1", "var2", "var3"],
+        coords={"var1": var1},
+        values=nested_dict,
+        skip=("mouse",),
+    )
+
+    assert result.shape == (2, 4, 3, 2, 5)
+    assert result.coords["animal"] == ["dog", "cat"]
+    assert result.coords["size"] == key2
+    assert result.coords["var1"] == var1
+    assert result.coords["var2"] is None and result.coords["var3"] is None
+
+
 def test_labelled_array_selection(larray):
+    small = larray[0]
+    assert len(small.dims) == 2
+    assert small.shape == (larray.shape[1:])
+
     small = larray[:, 0]
     assert len(small.dims) == 2
     assert small.shape == (larray.shape[0:3:2])

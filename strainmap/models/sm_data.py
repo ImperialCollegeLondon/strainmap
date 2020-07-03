@@ -65,11 +65,64 @@ class LabelledArray:
     convenience methods like sum, cumsum or stack using labels rather than indices.
     """
 
+    @classmethod
+    def from_dict(
+        cls,
+        dims: Sequence,
+        values: Dict,
+        coords: Optional[Dict[str, Sequence]] = None,
+        skip: Tuple[str] = ("",),
+    ) -> LabelledArray:
+        """Transforms a (possibly nested) dictionary of np.ndarray in a LabelledArray.
+
+         If the dictionary is nested, all branches must have the same depth and keys on
+         each level. The arrays must have the same shape. dims must be a list with the
+         number of elements equal to the depth of the dictionary + the shape of the
+         array. If the number of non-zero elements is smaller than 75% of the total, a
+         sparse.COO array is used.
+
+        Args:
+            dims: Sequence of dimension names.
+            values: A nested dictionary with numpy arrays in the deepest level.
+            coords: (Optional) Dictionary of coordinates for one or more dimensions.
+            skip: (optional) Keys to skip when scanning the dictionaries.
+
+        Returns:
+            A LabelledArray object
+        """
+
+        def get_coords(d: Sequence, v: Union[Dict, np.ndarray], c: Dict) -> Dict:
+            c[d[0]] = (
+                [k for k in v.keys() if k not in skip] if isinstance(v, dict) else None
+            )
+            if len(d) > 1:
+                return get_coords(
+                    d[1:], v.get(c[d[0]][0]) if isinstance(v, dict) else v[0], c
+                )
+            return c
+
+        new_coords = get_coords(dims, values, {})
+        if coords is not None:
+            new_coords.update(coords)
+
+        def get_values(v: Union[Dict, np.ndarray]) -> np.ndarray:
+            if isinstance(v, dict):
+                return np.stack(
+                    (get_values(val) for key, val in v.items() if key not in skip)
+                )
+            return v
+
+        new_values = get_values(values)
+        if np.count_nonzero(new_values) / new_values.size < 0.75:
+            new_values = sparse.COO(new_values)
+
+        return cls(dims=dims, coords=new_coords, values=new_values)
+
     def __init__(
         self,
         dims: Sequence[str],
         coords: Dict[str, Sequence],
-        values: Union[np.ndarray, sparse.DOK, sparse.COO],
+        values: Union[np.ndarray, sparse.COO],
     ):
 
         if len(dims) != len(values.shape):
@@ -92,16 +145,17 @@ class LabelledArray:
         self.values = values
         self.module = __import__(type(values).__module__.split(".")[0])
 
-    def __getitem__(self, items) -> Union[LabelledArray, np.ndarray, sparse.COO]:
+    def __getitem__(self, idx) -> Union[LabelledArray, np.ndarray, sparse.COO]:
         """ Gets items from 'values' using indices.
 
         If the result is an scalar, then this function returns an scalar, otherwise
         it will return a LabelArray object with the corresponding dimensions and
         coordinates.
         """
-        assert not any(
-            isinstance(item, type(Ellipsis)) for item in items
-        ), NotImplementedError
+        items = (idx,) if not isinstance(idx, Sequence) else idx
+
+        if any(isinstance(item, type(Ellipsis)) for item in items):
+            raise NotImplementedError
 
         new_value = self.values[items]
         new_dims = [
