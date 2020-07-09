@@ -32,11 +32,7 @@ def test_creation_from_dict():
     key2 = ["big", "medium", "tiny", "micro"]
     var1 = ["a", "b", "c"]
 
-    nested_dict = {}
-    for k1 in key1:
-        nested_dict[k1] = {}
-        for k2 in key2:
-            nested_dict[k1][k2] = np.random.random((3, 2, 5))
+    nested_dict = {k1: {k2: np.random.random((3, 2, 5)) for k2 in key2} for k1 in key1}
 
     result = LabelledArray.from_dict(
         dims=["animal", "size", "var1", "var2", "var3"],
@@ -191,3 +187,53 @@ def test_stack(larray, coords):
 
     with raises(ValueError):
         larray.stack([larray], dim=dim, coords=["7"])
+
+
+def test_align(larray):
+    import numpy as np
+
+    # Same dimensions, different order
+    new_dims = list(larray.dims)
+    np.random.shuffle(new_dims)
+    rightin = larray.transpose(*new_dims)
+    left, right = larray.align(rightin)
+    assert left.dims == right.dims
+    assert all(d in new_dims for d in left.dims)
+    assert all(larray.len_of(d) == left.len_of(d) for d in larray.dims)
+    assert all(larray.len_of(d) == right.len_of(d) for d in larray.dims)
+
+    # Some common dimensions
+    leftin = larray.sel(cols="x")
+    rightin = larray.sel(depth="shallow")
+    left, right = leftin.align(rightin)
+    assert left.dims == right.dims
+    assert all(v is None for k, v in left.coords.items() if k not in leftin.dims)
+    assert all(v is None for k, v in right.coords.items() if k not in rightin.dims)
+    assert all(
+        left.len_of(d) == leftin.len_of(d) if d in leftin.dims else left.len_of(d) == 1
+        for d in left.dims
+    )
+    assert all(
+        right.len_of(d) == rightin.len_of(d)
+        if d in rightin.dims
+        else right.len_of(d) == 1
+        for d in right.dims
+    )
+
+    # No common dimensions
+    leftin = larray.sel(cols="x", rows=1)
+    rightin = larray.sel(depth="shallow")
+    left, right = leftin.align(rightin)
+    assert left.dims == right.dims
+    assert all(v is None for k, v in left.coords.items() if k in rightin.dims)
+    assert all(v is None for k, v in right.coords.items() if k in leftin.dims)
+    assert all(
+        left.len_of(d) == leftin.len_of(d) if d in leftin.dims else left.len_of(d) == 1
+        for d in left.dims
+    )
+    assert all(
+        right.len_of(d) == rightin.len_of(d)
+        if d in rightin.dims
+        else right.len_of(d) == 1
+        for d in right.dims
+    )

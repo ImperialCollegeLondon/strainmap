@@ -246,6 +246,38 @@ class LabelledArray:
 
         return didx, cidx
 
+    def align(self, right: LabelledArray) -> Tuple[LabelledArray, ...]:
+        """ Align the dimensions of the LabelledArrays so they can be used in maths.
+
+        Coordinates along the common dimensions must be identical.
+
+        Args:
+            right: The other LabelledArray to align with this one.
+            only keeps the common dimensions.
+
+        Returns:
+            A tuple with two LabelledArrays with aligned dimensions.
+        """
+        common_dims = tuple((d for d in self.dims if d in right.dims))
+        dims = common_dims + tuple(
+            (d for d in self.dims + right.dims if d not in common_dims)
+        )
+
+        if not all(self.coords[k] == right.coords[k] for k in common_dims):
+            raise ValueError("Common dimensions must have identical coordinates.")
+
+        lvalues = self.transpose(*(d for d in dims if d in self.dims)).values[
+            tuple(slice(None) if d in self.dims else None for d in dims)
+        ]
+        rvalues = right.transpose(*(d for d in dims if d in right.dims)).values[
+            tuple(slice(None) if d in right.dims else None for d in dims)
+        ]
+
+        return (
+            LabelledArray(dims, self.coords, lvalues),
+            LabelledArray(dims, right.coords, rvalues),
+        )
+
     def transpose(self, *dims: str) -> LabelledArray:
         """ Transposes the dimensions of the LabelledArray.
 
