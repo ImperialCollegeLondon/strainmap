@@ -1,4 +1,5 @@
 from pytest import raises, mark
+import operator as op
 
 
 def test_regional_labels():
@@ -190,11 +191,8 @@ def test_stack(larray, coords):
 
 
 def test_align(larray):
-    import numpy as np
-
     # Same dimensions, different order
-    new_dims = list(larray.dims)
-    np.random.shuffle(new_dims)
+    new_dims = ("cols", "depth", "rows")
     rightin = larray.transpose(*new_dims)
     left, right = larray.align(rightin)
     assert left.dims == right.dims
@@ -237,3 +235,94 @@ def test_align(larray):
         else right.len_of(d) == 1
         for d in right.dims
     )
+
+
+@mark.parametrize("operation", [op.add, op.mul])
+def test_operation(operation, larray):
+    import numpy as np
+
+    # Operations with scalars
+    scalar = np.random.random()
+
+    result = operation(larray, scalar)
+    result2 = operation(scalar, larray)
+
+    assert result == result2
+    assert all(d in result.dims for d in larray.dims)
+    assert (result.values == operation(larray.values, scalar)).all()
+
+    # Operation when both are LabelledArrays of the same type (either np or sparse)
+    left = larray.sel(cols="x")
+    right = larray.sel(depth="shallow")
+
+    result = operation(left, right)
+    result2 = operation(right, left)
+
+    assert result == result2
+    assert all(d in result.dims for d in larray.dims)
+
+
+def test_add_different_type(larray_np, larray_coo):
+    import numpy as np
+
+    left = larray_np.sel(cols="x")
+    right = larray_coo.sel(depth="shallow")
+
+    result = left + right
+    result2 = right + left
+
+    assert result == result2
+    assert all(d in result.dims for d in larray_np.dims)
+    assert isinstance(result.values, np.ndarray)
+
+
+def test_mul_different_type(larray_np, larray_coo):
+    import sparse
+
+    left = larray_np.sel(cols="x")
+    right = larray_coo.sel(depth="shallow")
+
+    result = left * right
+    result2 = right * left
+
+    assert result == result2
+    assert all(d in result.dims for d in larray_np.dims)
+    assert isinstance(result.values, sparse.COO)
+
+
+def test_to_coo(larray_np):
+    import sparse
+
+    result = larray_np.to_coo()
+    assert (result.values == sparse.COO(larray_np.values)).all()
+
+
+def test_to_dense(larray_coo):
+    result = larray_coo.to_dense()
+    assert (result.values == larray_coo.values.todense()).all()
+
+
+def test_match_type_add(larray_np, larray_coo):
+    from operator import add
+    import numpy as np
+
+    left, right = larray_np.match_type(larray_coo, add)
+    assert isinstance(left.values, np.ndarray)
+    assert isinstance(left.values, type(right.values))
+
+    left, right = larray_coo.match_type(larray_np, add)
+    assert isinstance(left.values, np.ndarray)
+    assert isinstance(left.values, type(right.values))
+
+
+def test_match_type_mul(larray_np, larray_coo):
+    from operator import mul
+    import sparse
+
+    left, right = larray_np.match_type(larray_coo, mul)
+    assert isinstance(left.values, sparse.COO)
+    assert isinstance(left.values, type(right.values))
+
+    left, right = larray_coo.match_type(larray_np, mul)
+    assert isinstance(left.values, sparse.COO)
+    assert isinstance(left.values, type(right.values))
