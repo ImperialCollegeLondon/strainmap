@@ -6,6 +6,7 @@ from tkinter import messagebox, ttk
 import os
 from functools import partial
 from pathlib import Path
+from typing import Dict, Callable, Union, Optional
 
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
@@ -70,13 +71,53 @@ class AtlasTaskView(TaskViewBase):
         self.notebook.add(frame, text=label)
         return plot
 
-    def create_data_tab(self, data: pd.DataFrame):
+    def update_plots(self, data: pd.DataFrame):
+        """Updates the plots with the new data."""
+        self.pss.update_plot(data)
+        self.ess.update_plot(data)
+        self.ps.update_plot(data)
+
+    def create_data_tab(self, data: pd.DataFrame) -> ttk.Treeview:
+        """Creates and populates the table in the data tab and controls.
+
+        Args:
+            data (pd.DataFrame): Dataframe containing all the data.
+
+        Returns:
+            A Treeview object.
+        """
         frame = ttk.Frame(self.notebook)
-        frame.columnconfigure(0, weight=1)
+        frame.columnconfigure(1, weight=1)
         frame.rowconfigure(0, weight=1)
 
-        treeview = ttk.Treeview(frame, selectmode="browse")
-        vsb = ttk.Scrollbar(frame, orient="vertical", command=treeview.yview())
+        control_frame = ttk.Frame(frame, width=300)
+        control_frame.grid(row=0, column=0, sticky=tk.NSEW, padx=10, pady=10)
+        control_frame.grid_propagate(flag=False)
+        control_frame.columnconfigure(0, weight=1)
+
+        button_frame = buttons_frame(
+            control_frame,
+            {
+                "Add...": self.add_record,
+                "Add current": self.add_record,
+                "Remove record": self.remove_record,
+                "Exclude record": self.exclude_record,
+                "Exclude selected": self.exclude_selected,
+                "Load atlas": self.load_atlas,
+                "Save as...": self.save_as_atlas,
+            },
+            text="Manage atlas:",
+            width=300,
+        )
+        button_frame.grid(row=0, column=0, sticky=tk.NSEW)
+
+        table_frame = ttk.Frame(frame)
+        table_frame.grid(row=0, column=1, sticky=tk.NSEW, padx=10, pady=10)
+        table_frame.columnconfigure(0, weight=1)
+        table_frame.rowconfigure(0, weight=1)
+
+        treeview = ttk.Treeview(table_frame, selectmode="browse")
+        vsb = ttk.Scrollbar(table_frame, orient="vertical", command=treeview.yview())
         treeview.configure(yscrollcommand=vsb.set)
         treeview.grid(column=0, row=0, sticky=tk.NSEW, padx=5, pady=5)
         vsb.grid(column=1, row=0, sticky=tk.NSEW)
@@ -84,7 +125,7 @@ class AtlasTaskView(TaskViewBase):
         treeview["columns"] = tuple(data.columns)
         treeview["show"] = "headings"
         for v in treeview["columns"]:
-            treeview.column(v, stretch=True)
+            treeview.column(v, width=80, stretch=True)
             treeview.heading(v, text=v)
 
         for i, row in data.iterrows():
@@ -93,16 +134,44 @@ class AtlasTaskView(TaskViewBase):
         self.notebook.add(frame, text="Data")
         return treeview
 
+    def update_table(self, data: pd.DataFrame) -> None:
+        self.table.delete(*self.table.get_children())
+        for i, row in data.iterrows():
+            self.table.insert("", tk.END, values=tuple(row))
+
+    def add_record(self, *args):
+        pass
+
+    def add_current(self, *args):
+        pass
+
+    def remove_record(self, *args):
+        pass
+
+    def exclude_record(self, *args):
+        pass
+
+    def exclude_selected(self, *args):
+        pass
+
+    def load_atlas(self, *args):
+        self.atlas_data = self.load_atlas_data()
+        self.update_table(self.atlas_data)
+        self.update_plots(self.atlas_data)
+
+    def save_as_atlas(self, *args):
+        pass
+
     @staticmethod
     def load_atlas_data():
         """Loads the atlas data from a csv file.
 
-        TODO: Placeholder. Replace with the real thing ASAP.
+        TODO: Placeholder. Replace with the real thing when available.
         """
-        M = 200
-        N = 9 * M
+        M = 30
+        N = 9 * 7 * M
         Record = pd.Series(np.random.random_integers(1, 20, N))
-        Slice = pd.Series(np.random.choice(["Base", "Middle", "Apex"], size=N)).astype(
+        Slice = pd.Series(np.random.choice(["Base", "Mid", "Apex"], size=N)).astype(
             "category"
         )
         Component = pd.Series(
@@ -139,9 +208,36 @@ class AtlasTaskView(TaskViewBase):
         pass
 
 
+def buttons_frame(
+    master: Union[ttk.Frame, ttk.LabelFrame],
+    buttons: Dict[str, Callable],
+    vert=True,
+    text: Optional[str] = None,
+    **kwargs
+) -> tk.Frame:
+    """Creates a frame with buttons in the vertical or horizontal direction."""
+    if text is not None:
+        frame = ttk.LabelFrame(master, text=text, **kwargs)
+    else:
+        frame = ttk.Frame(master, **kwargs)
+
+    if vert:
+        frame.columnconfigure(0, weight=1)
+    else:
+        frame.rowconfigure(0, weight=1)
+
+    for i, (text, callback) in enumerate(buttons.items()):
+        row, col = (i, 0) if vert else (i, 0)
+        ttk.Button(master=frame, text=text, command=callback).grid(
+            row=row, column=col, sticky=tk.NSEW, padx=5, pady=5,
+        )
+
+    return frame
+
+
 class GridPlot:
 
-    slices = ("Base", "Middle", "Apex")
+    slices = ("Base", "Mid", "Apex")
     comp = ("Longitudinal", "Radial", "Circumferential")
 
     def __init__(self, label: str, data: pd.Dataframe):
