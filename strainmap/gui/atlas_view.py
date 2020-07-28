@@ -107,9 +107,9 @@ class AtlasTaskView(TaskViewBase):
             {
                 "Add external record": self.add_record,
                 "Add current patient": self.add_record,
-                "Remove record": self.remove_record,
-                "Exclude record": self.exclude_record,
-                "Exclude selected": self.exclude_selected,
+                "Remove selected record": self.remove_record,
+                "Include/Exclude selected record": self.include_exclude_record,
+                "Include/Exclude selected row": self.include_exclude_selected,
                 "Load atlas": self.load_atlas,
                 "Save atlas as...": self.save_as_atlas,
             },
@@ -158,13 +158,45 @@ class AtlasTaskView(TaskViewBase):
         pass
 
     def remove_record(self, *args):
-        pass
+        if not self.table.selection():
+            return
 
-    def exclude_record(self, *args):
-        pass
+        i = self.table.index(self.table.selection()[0])
+        record = self.atlas_data.loc[i, "Record"]
+        msg = f"Record {record} will be permanently removed from atlas. " \
+              f"Do you want to continue?"
 
-    def exclude_selected(self, *args):
-        pass
+        if not messagebox.askyesno(message=msg, title="Confirm remove record"):
+            return
+
+        self.atlas_data = self.atlas_data.loc[self.atlas_data.Record != record]
+
+        self.save_atlas(self.path)
+        self.update_table(self.atlas_data)
+        self.update_plots(self.atlas_data)
+
+    def include_exclude_record(self, *args):
+        if not self.table.selection():
+            return
+        i = self.table.index(self.table.selection()[0])
+        record = self.atlas_data.loc[i, "Record"]
+        self.atlas_data.loc[
+            self.atlas_data.Record == record, "Included"
+        ] = ~self.atlas_data.loc[self.atlas_data.Record == record, "Included"]
+
+        self.save_atlas(self.path)
+        self.update_table(self.atlas_data)
+        self.update_plots(self.atlas_data)
+
+    def include_exclude_selected(self, *args):
+        if not self.table.selection():
+            return
+        i = self.table.index(self.table.selection()[0])
+        self.atlas_data.loc[i, "Included"] = not self.atlas_data.loc[i, "Included"]
+
+        self.save_atlas(self.path)
+        self.update_table(self.atlas_data)
+        self.update_plots(self.atlas_data)
 
     def load_atlas(self, *args, path: Optional[str] = None):
         if not path:
@@ -178,6 +210,7 @@ class AtlasTaskView(TaskViewBase):
             path = Path(filename)
 
         self.atlas_data = self.load_atlas_data(path)
+
         self.update_table(self.atlas_data)
         self.update_plots(self.atlas_data)
 
@@ -192,15 +225,21 @@ class AtlasTaskView(TaskViewBase):
         if filename == "":
             return
 
+        self.save_atlas(filename)
+
+    def save_atlas(self, filename: Path):
         try:
             self.atlas_data.to_csv(filename, index=False)
             self.path = Path(filename)
-
         except ValueError as err:
             self.controller.progress(f"Error found when saving: {str(err)}.")
 
-    def load_atlas_data(self, path: Optional[Path]):
-        """Loads the atlas data from the csv file."""
+    def load_atlas_data(self, path: Optional[Path] = None):
+        """Loads the atlas data from the csv file.
+
+        If path is invalid or empty, an empty atlas data structure is returned and an
+        an informative message is provided.
+        """
         if not path:
             return empty_data()
         elif not path.is_file():
@@ -276,7 +315,9 @@ class GridPlot:
         for i, s in enumerate(self.slices):
             for j, c in enumerate(self.comp):
                 self.ax[i][j].clear()
-                d = data.loc[(data["Slice"] == s) & (data["Component"] == c)]
+                d = data.loc[
+                    (data["Slice"] == s) & (data["Component"] == c) & data["Included"]
+                ]
                 d.boxplot(
                     column=[self.label], by=["Region"], ax=self.ax[i][j], grid=False
                 )
