@@ -19,6 +19,18 @@ from .base_window_and_task import TaskViewBase, register_view
 
 @register_view
 class AtlasTaskView(TaskViewBase):
+
+    cols = (
+        "Record",
+        "Slice",
+        "Component",
+        "Region",
+        "PSS",
+        "ESS",
+        "PS",
+        "Included",
+    )
+
     def __init__(self, root, controller):
 
         super().__init__(
@@ -31,18 +43,13 @@ class AtlasTaskView(TaskViewBase):
         self.rowconfigure(0, weight=1)
         self.columnconfigure(0, weight=1)
 
-        visualise = ttk.Frame(master=self, name="visualise")
-        visualise.grid(column=0, row=0, sticky=tk.NSEW, padx=10, pady=10)
-        visualise.columnconfigure(0, weight=1)
-        visualise.rowconfigure(0, weight=1)
-        visualise.grid_propagate(flag=False)
-
-        self.notebook = ttk.Notebook(visualise, name="notebook")
+        self.notebook = ttk.Notebook(self, name="notebook")
         self.notebook.grid(sticky=tk.NSEW)
         self.notebook.columnconfigure(0, weight=1)
         self.notebook.rowconfigure(0, weight=1)
 
-        self.atlas_data = self.load_atlas_data()
+        self.path = None
+        self.atlas_data = self.load_atlas_data(self.path)
         self.pss = self.create_plot("PSS", self.atlas_data)
         self.ess = self.create_plot("ESS", self.atlas_data)
         self.ps = self.create_plot("PS", self.atlas_data)
@@ -98,13 +105,13 @@ class AtlasTaskView(TaskViewBase):
         button_frame = buttons_frame(
             control_frame,
             {
-                "Add...": self.add_record,
-                "Add current": self.add_record,
+                "Add external record": self.add_record,
+                "Add current patient": self.add_record,
                 "Remove record": self.remove_record,
                 "Exclude record": self.exclude_record,
                 "Exclude selected": self.exclude_selected,
                 "Load atlas": self.load_atlas,
-                "Save as...": self.save_as_atlas,
+                "Save atlas as...": self.save_as_atlas,
             },
             text="Manage atlas:",
             width=300,
@@ -135,6 +142,11 @@ class AtlasTaskView(TaskViewBase):
         return treeview
 
     def update_table(self, data: pd.DataFrame) -> None:
+        """Updates the table with the new data.
+
+        Args:
+            data (pd.DataFrame): Dataframe containing all the data.
+        """
         self.table.delete(*self.table.get_children())
         for i, row in data.iterrows():
             self.table.insert("", tk.END, values=tuple(row))
@@ -154,52 +166,65 @@ class AtlasTaskView(TaskViewBase):
     def exclude_selected(self, *args):
         pass
 
-    def load_atlas(self, *args):
-        self.atlas_data = self.load_atlas_data()
+    def load_atlas(self, *args, path: Optional[str] = None):
+        if not path:
+            filename = tk.filedialog.askopenfilename(
+                title="Select strain atlas file",
+                initialdir=Path.home(),
+                filetypes=(("CSV file", "*.csv"),),
+            )
+            if filename == "":
+                return
+            path = Path(filename)
+
+        self.atlas_data = self.load_atlas_data(path)
         self.update_table(self.atlas_data)
         self.update_plots(self.atlas_data)
 
     def save_as_atlas(self, *args):
-        pass
-
-    @staticmethod
-    def load_atlas_data():
-        """Loads the atlas data from a csv file.
-
-        TODO: Placeholder. Replace with the real thing when available.
-        """
-        M = 30
-        N = 9 * 7 * M
-        Record = pd.Series(np.random.random_integers(1, 20, N))
-        Slice = pd.Series(np.random.choice(["Base", "Mid", "Apex"], size=N)).astype(
-            "category"
+        filename = tk.filedialog.asksaveasfilename(
+            title="Introduce new name for the strain atlas.",
+            initialfile="strain_atlas.csv",
+            initialdir=Path.home(),
+            filetypes=(("CSV file", "*.csv"),),
+            defaultextension="csv",
         )
-        Component = pd.Series(
-            np.random.choice(["Longitudinal", "Radial", "Circumferential"], size=N)
-        ).astype("category")
-        cat_type = pd.CategoricalDtype(
-            categories=("Global", "", "AS", "A", "AL", "IL", "I", "IS"), ordered=False
-        )
-        Region = pd.Series(
-            np.random.choice(["Global", "AS", "A", "AL", "IL", "I", "IS"], size=N)
-        ).astype(cat_type)
-        PSS = pd.Series(np.random.random(N))
-        ESS = pd.Series(np.random.random(N))
-        PS = pd.Series(np.random.random(N))
-        Included = pd.Series([True] * N).astype(bool)
+        if filename == "":
+            return
 
-        return pd.DataFrame(
-            {
-                "Record": Record,
-                "Slice": Slice,
-                "Component": Component,
-                "Region": Region,
-                "PSS": PSS,
-                "ESS": ESS,
-                "PS": PS,
-                "Included": Included,
-            }
-        )
+        try:
+            self.atlas_data.to_csv(filename, index=False)
+            self.path = Path(filename)
+
+        except ValueError as err:
+            self.controller.progress(f"Error found when saving: {str(err)}.")
+
+    def load_atlas_data(self, path: Optional[Path]):
+        """Loads the atlas data from the csv file."""
+        if not path:
+            return empty_data()
+        elif not path.is_file():
+            self.controller.progress(f"Unknown file {str(path)}.")
+            self.path = None
+            return empty_data()
+
+        try:
+            data = pd.read_csv(path)
+            # data = dummy_data()
+            if set(data.columns) != set(self.cols):
+                raise ValueError(
+                    f"Invalid column names found. "
+                    f"They should be, exactly: {self.cols}."
+                )
+            self.path = path
+            self.controller.progress("")
+
+        except ValueError as err:
+            self.controller.progress(str(err))
+            data = empty_data()
+            self.path = None
+
+        return data
 
     def update_widgets(self):
         pass
@@ -213,7 +238,7 @@ def buttons_frame(
     buttons: Dict[str, Callable],
     vert=True,
     text: Optional[str] = None,
-    **kwargs
+    **kwargs,
 ) -> tk.Frame:
     """Creates a frame with buttons in the vertical or horizontal direction."""
     if text is not None:
@@ -276,3 +301,66 @@ class GridPlot:
                     )
         self.fig.suptitle("")
         self.fig.canvas.draw_idle()
+
+
+def dummy_data() -> pd.DataFrame:
+    M = 30
+    N = 9 * 7 * M
+    cat_type = pd.CategoricalDtype(
+        categories=("Global", "", "AS", "A", "AL", "IL", "I", "IS"), ordered=False
+    )
+
+    Record = pd.Series(np.random.random_integers(1, 20, N))
+    Slice = pd.Series(np.random.choice(["Base", "Mid", "Apex"], size=N)).astype(
+        "category"
+    )
+    Component = pd.Series(
+        np.random.choice(["Longitudinal", "Radial", "Circumferential"], size=N)
+    ).astype("category")
+    Region = pd.Series(
+        np.random.choice(["Global", "AS", "A", "AL", "IL", "I", "IS"], size=N)
+    ).astype(cat_type)
+    PSS = pd.Series(np.random.random(N))
+    ESS = pd.Series(np.random.random(N))
+    PS = pd.Series(np.random.random(N))
+    Included = pd.Series([True] * N).astype(bool)
+
+    return pd.DataFrame(
+        {
+            "Record": Record,
+            "Slice": Slice,
+            "Component": Component,
+            "Region": Region,
+            "PSS": PSS,
+            "ESS": ESS,
+            "PS": PS,
+            "Included": Included,
+        }
+    )
+
+
+def empty_data() -> pd.DataFrame:
+    cat_type = pd.CategoricalDtype(
+        categories=("Global", "", "AS", "A", "AL", "IL", "I", "IS"), ordered=False
+    )
+    Record = pd.Series([])
+    Slice = pd.Series([]).astype("category")
+    Component = pd.Series([]).astype("category")
+    Region = pd.Series([]).astype(cat_type)
+    PSS = pd.Series([])
+    ESS = pd.Series([])
+    PS = pd.Series([])
+    Included = pd.Series([]).astype(bool)
+
+    return pd.DataFrame(
+        {
+            "Record": Record,
+            "Slice": Slice,
+            "Component": Component,
+            "Region": Region,
+            "PSS": PSS,
+            "ESS": ESS,
+            "PS": PS,
+            "Included": Included,
+        }
+    )
