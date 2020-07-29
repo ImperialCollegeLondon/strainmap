@@ -3,8 +3,6 @@ from __future__ import annotations
 import tkinter as tk
 import tkinter.filedialog
 from tkinter import messagebox, ttk
-import os
-from functools import partial
 from pathlib import Path
 from typing import Dict, Callable, Union, Optional
 
@@ -346,8 +344,8 @@ def validate_data(
     cols = (
         "Record",
         "Slice",
-        "Component",
         "Region",
+        "Component",
         "PSS",
         "ESS",
         "PS",
@@ -367,7 +365,7 @@ def validate_data(
         categories=("Global", "", "AS", "A", "AL", "IL", "I", "IS"), ordered=False
     )
 
-    col_types = (int, slice_type, comp_type, region_type, float, float, float, bool)
+    col_types = (int, slice_type, region_type, comp_type, float, float, float, bool)
 
     for col, col_type in zip(cols, col_types):
         data[col] = data[col].astype(col_type)
@@ -402,8 +400,8 @@ def empty_data() -> pd.DataFrame:
             {
                 "Record": Record,
                 "Slice": Slice,
-                "Component": Component,
                 "Region": Region,
+                "Component": Component,
                 "PSS": PSS,
                 "ESS": ESS,
                 "PS": PS,
@@ -435,8 +433,8 @@ def dummy_data() -> pd.DataFrame:
             {
                 "Record": Record,
                 "Slice": Slice,
-                "Component": Component,
                 "Region": Region,
+                "Component": Component,
                 "PSS": PSS,
                 "ESS": ESS,
                 "PS": PS,
