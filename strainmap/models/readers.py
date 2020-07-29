@@ -281,7 +281,7 @@ def paths_from_hdf5(g, master, structure):
 
 
 def extract_strain_markers(
-    h5file: h5py.File,
+    h5file: Union[Path, h5py.File],
     datasets: Dict[str, str],
     regions: Dict[str, Sequence[str]],
     colnames: Sequence[str] = ("Slice", "Region", "Component", "PSS", "ESS", "PS",),
@@ -304,12 +304,16 @@ def extract_strain_markers(
         Dataframe with the extracted data.
     """
     data: List[List[Any]] = []
+    markers = (
+        h5py.File(h5file, "r")["strain_markers"]
+        if isinstance(h5file, Path)
+        else h5file["strain_markers"]
+    )
 
     # Loop over datasets
-    for n, struct in h5file["strain_markers"].items():
+    for n, struct in markers.items():
         if n not in datasets:
             continue
-        data.append([datasets[n]])
 
         # Loop over regional groups (global, angular, etc.)
         for r, regdata in struct.items():
@@ -318,11 +322,10 @@ def extract_strain_markers(
 
             # Loop over the individual regions (global, AL, AS, I, etc.)
             for k, label in enumerate(regions[r]):
-                data[-1].append(label)
 
                 # Loop over the components
                 for j, comp in enumerate(("Longitudinal", "Radial", "Circumferential")):
-                    data[-1].append(comp)
+                    data.append([datasets[n], label, comp])
 
                     # Loop over the PSS, ESS and PS markers
                     for i in range(regdata.shape[2]):

@@ -4,7 +4,7 @@ import tkinter as tk
 import tkinter.filedialog
 from tkinter import messagebox, ttk
 from pathlib import Path
-from typing import Dict, Callable, Union, Optional
+from typing import Dict, Callable, Union, Optional, Tuple, NamedTuple
 
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
@@ -13,6 +13,27 @@ import numpy as np
 
 
 from .base_window_and_task import TaskViewBase, register_view
+
+COLS: Tuple[str, ...] = (
+    "Record",
+    "Slice",
+    "Region",
+    "Component",
+    "PSS",
+    "ESS",
+    "PS",
+    "Included",
+)
+
+SLICES: Tuple[str, ...] = ("Base", "Mid", "Apex")
+COMP: Tuple[str, ...] = ("Longitudinal", "Radial", "Circumferential")
+REGIONS: Tuple[str, ...] = ("Global", "", "AS", "A", "AL", "IL", "I", "IS")
+
+
+class SliceBoxes(NamedTuple):
+    Base: ttk.Combobox
+    Mid: ttk.Combobox
+    Apex: ttk.Combobox
 
 
 @register_view
@@ -26,20 +47,28 @@ class AtlasTaskView(TaskViewBase):
             button_image="atlas.gif",
             button_row=99,
         )
-        self.rowconfigure(0, weight=1)
+        self.rowconfigure(1, weight=1)
         self.columnconfigure(0, weight=1)
 
         self.notebook = ttk.Notebook(self, name="notebook")
-        self.notebook.grid(sticky=tk.NSEW)
+        self.notebook.grid(row=1, column=0, sticky=tk.NSEW)
         self.notebook.columnconfigure(0, weight=1)
         self.notebook.rowconfigure(0, weight=1)
 
-        self.path = None
+        self.path: Optional[Path] = None
         self.atlas_data = self.load_atlas_data(self.path)
         self.pss = self.create_plot("PSS", self.atlas_data)
         self.ess = self.create_plot("ESS", self.atlas_data)
         self.ps = self.create_plot("PS", self.atlas_data)
         self.table = self.create_data_tab(self.atlas_data)
+
+        self.overlay_data = tk.BooleanVar(value=False)
+        self.dataset_box = self.create_datasets_selector()
+
+    def tkraise(self, *args):
+        """Brings the frame to the front."""
+        super().tkraise()
+        self.populate_dataset_box()
 
     def create_plot(self, label: str, data: pd.DataFrame) -> GridPlot:
         """Creates a grid plot and put it as new tab in the notebook.
@@ -64,11 +93,25 @@ class AtlasTaskView(TaskViewBase):
         self.notebook.add(frame, text=label)
         return plot
 
-    def update_plots(self, data: pd.DataFrame):
+    def update_plots(self):
         """Updates the plots with the new data."""
-        self.pss.update_plot(data)
-        self.ess.update_plot(data)
-        self.ps.update_plot(data)
+        self.pss.update_plot(self.atlas_data)
+        self.ess.update_plot(self.atlas_data)
+        self.ps.update_plot(self.atlas_data)
+
+    def overlay(self, data: pd.DataFrame):
+        """Updates the plots with the new data."""
+        self.pss.overlay(data)
+        self.ess.overlay(data)
+        self.ps.overlay(data)
+
+    def toggle_overlay(self, *args):
+        """Toggles the overlay of the current data."""
+        if not self.overlay_data.get():
+            self.update_plots()
+        else:
+            data = self.get_new_data()
+            self.overlay(data)
 
     def create_data_tab(self, data: pd.DataFrame) -> ttk.Treeview:
         """Creates and populates the table in the data tab and controls.
@@ -91,8 +134,7 @@ class AtlasTaskView(TaskViewBase):
         button_frame = buttons_frame(
             control_frame,
             {
-                "Add external record": self.add_record,
-                "Add current patient": self.add_record,
+                "Add record": self.add_record,
                 "Remove selected record": self.remove_record,
                 "Include/Exclude selected record": self.include_exclude_record,
                 "Include/Exclude selected row": self.include_exclude_selected,
@@ -127,7 +169,7 @@ class AtlasTaskView(TaskViewBase):
         self.notebook.add(frame, text="Data")
         return treeview
 
-    def update_table(self, data: pd.DataFrame) -> None:
+    def update_table(self, data: pd.DataFrame):
         """Updates the table with the new data.
 
         Args:
@@ -137,11 +179,42 @@ class AtlasTaskView(TaskViewBase):
         for i, row in data.iterrows():
             self.table.insert("", tk.END, values=tuple(row))
 
-    def add_record(self, *args):
-        pass
+    def create_datasets_selector(self) -> SliceBoxes:
+        """Creates the dataset selector, linking datasets with normalised names."""
+        frame = ttk.LabelFrame(self, text="Current patient:")
+        frame.grid(row=0, column=0, sticky=tk.NSEW, padx=10, pady=10)
 
-    def add_current(self, *args):
-        pass
+        boxes = SliceBoxes(
+            ttk.Combobox(frame, state="readonly"),
+            ttk.Combobox(frame, state="readonly"),
+            ttk.Combobox(frame, state="readonly"),
+        )
+        for i, (label, box) in enumerate(zip(SLICES, boxes)):
+            ttk.Label(frame, text=f"{label}:").grid(row=0, column=2 * i, sticky=tk.NSEW)
+            box.grid(row=0, column=2 * i + 1, sticky=tk.NSEW, padx=10)
+
+        ttk.Checkbutton(
+            frame,
+            text="Overlay?",
+            variable=self.overlay_data,
+            command=self.toggle_overlay,
+        ).grid(row=0, column=6, sticky=tk.NSEW, padx=10)
+
+        self.populate_dataset_box()
+        return boxes
+
+    def populate_dataset_box(self):
+        """Pupulate dataset boxes with data from the current patient, if available."""
+        if not self.data or not self.data.strain_markers:
+            return
+
+        available = tuple(self.data.strain_markers.keys())
+        self.dataset_box.Base.config(values=available)
+        self.dataset_box.Base.current(0)
+        self.dataset_box.Mid.config(values=available)
+        self.dataset_box.Mid.current(int(len(available) / 2))
+        self.dataset_box.Apex.config(values=available)
+        self.dataset_box.Apex.current(len(available) - 1)
 
     def remove_record(self, *args):
         if not self.table.selection():
@@ -161,7 +234,7 @@ class AtlasTaskView(TaskViewBase):
 
         self.save_atlas(self.path)
         self.update_table(self.atlas_data)
-        self.update_plots(self.atlas_data)
+        self.update_plots()
 
     def include_exclude_record(self, *args):
         if not self.table.selection():
@@ -174,7 +247,7 @@ class AtlasTaskView(TaskViewBase):
 
         self.save_atlas(self.path)
         self.update_table(self.atlas_data)
-        self.update_plots(self.atlas_data)
+        self.update_plots()
 
     def include_exclude_selected(self, *args):
         if not self.table.selection():
@@ -184,9 +257,9 @@ class AtlasTaskView(TaskViewBase):
 
         self.save_atlas(self.path)
         self.update_table(self.atlas_data)
-        self.update_plots(self.atlas_data)
+        self.update_plots()
 
-    def load_atlas(self, *args, path: Optional[str] = None):
+    def load_atlas(self, *args, path: Optional[Path] = None):
         if not path:
             filename = tk.filedialog.askopenfilename(
                 title="Select strain atlas file",
@@ -200,7 +273,7 @@ class AtlasTaskView(TaskViewBase):
         self.atlas_data = self.load_atlas_data(path)
 
         self.update_table(self.atlas_data)
-        self.update_plots(self.atlas_data)
+        self.update_plots()
 
     def save_as_atlas(self, *args):
         filename = tk.filedialog.asksaveasfilename(
@@ -248,6 +321,47 @@ class AtlasTaskView(TaskViewBase):
 
         return data
 
+    def add_record(self, *args) -> None:
+        """Adds new data to the atlas from an StrainMap file."""
+        if not self.path:
+            self.controller.progress(
+                "No atlas file. Open an existing atlas or "
+                "'Save atlas as' to create an empty one."
+            )
+            return
+
+        data = self.get_new_data()
+        if data is None:
+            return
+
+        self.atlas_data = self.atlas_data.append(data)
+
+        self.save_atlas(self.path)
+        self.update_table(self.atlas_data)
+        self.update_plots()
+        self.overlay(data)
+
+    def get_new_data(self) -> Optional[pd.DataFrame]:
+        from ..models.readers import extract_strain_markers
+
+        if not self.data or not self.data.strain_markers:
+            self.controller.progress("No patient data available. Load data to proceed.")
+            return None
+
+        data = extract_strain_markers(
+            h5file=self.data.strainmap_file,
+            datasets={k.get(): v for k, v in zip(self.dataset_box, SLICES)},
+            regions={
+                "global - Estimated": REGIONS[:1],
+                "angular x6 - Estimated": REGIONS[2:],
+            },
+        )
+        data["Record"] = (
+            self.atlas_data.Record.max() + 1 if len(self.atlas_data) > 0 else 1
+        )
+        data["Included"] = True
+        return validate_data(data[list(COLS)], self.controller.progress)
+
     def update_widgets(self):
         pass
 
@@ -283,26 +397,26 @@ def buttons_frame(
 
 
 class GridPlot:
-
-    slices = ("Base", "Mid", "Apex")
-    comp = ("Longitudinal", "Radial", "Circumferential")
-
     def __init__(self, label: str, data: pd.Dataframe):
         self.label = label
-        self.fig, self.ax = plt.subplots(3, 3, sharey="all", tight_layout=True)
+        self.fig, self.ax = plt.subplots(3, 3, sharey="col", tight_layout=True)
         self.update_plot(data)
 
     def update_plot(self, data: pd.DataFrame):
         pad = 5
 
-        for i, s in enumerate(self.slices):
-            for j, c in enumerate(self.comp):
+        for i, s in enumerate(SLICES):
+            for j, c in enumerate(COMP):
                 self.ax[i][j].clear()
                 d = data.loc[
                     (data["Slice"] == s) & (data["Component"] == c) & data["Included"]
                 ]
                 d.boxplot(
-                    column=[self.label], by=["Region"], ax=self.ax[i][j], grid=False
+                    column=[self.label],
+                    by=["Region"],
+                    ax=self.ax[i][j],
+                    grid=False,
+                    showfliers=False,
                 )
 
                 self.ax[i][j].xaxis.set_label_text("")
@@ -326,6 +440,21 @@ class GridPlot:
         self.fig.suptitle("")
         self.fig.canvas.draw_idle()
 
+    def overlay(self, data: pd.DataFrame):
+        for i, s in enumerate(SLICES):
+            for j, c in enumerate(COMP):
+                d = data.loc[
+                    (data["Slice"] == s) & (data["Component"] == c) & data["Included"]
+                ]
+                self.ax[i][j].plot(
+                    [REGIONS.index(r) + 1 for r in d.Region],
+                    d[self.label],
+                    "ro",
+                    alpha=0.6,
+                )
+
+        self.fig.canvas.draw_idle()
+
 
 def validate_data(
     data: pd.DataFrame, callback: Optional[Callable] = None
@@ -341,33 +470,17 @@ def validate_data(
     Returns:
         The validated DataFrame
     """
-    cols = (
-        "Record",
-        "Slice",
-        "Region",
-        "Component",
-        "PSS",
-        "ESS",
-        "PS",
-        "Included",
-    )
-
-    if tuple(data.columns) != tuple(cols):
+    if tuple(data.columns) != tuple(COLS):
         raise ValueError(
-            f"Invalid column names found. They should be, exactly: {cols}."
+            f"Invalid column names found. They should be, exactly: {COLS}."
         )
 
-    slice_type = pd.CategoricalDtype(categories=("Base", "Mid", "Apex"), ordered=False)
-    comp_type = pd.CategoricalDtype(
-        categories=("Longitudinal", "Radial", "Circumferential"), ordered=False
-    )
-    region_type = pd.CategoricalDtype(
-        categories=("Global", "", "AS", "A", "AL", "IL", "I", "IS"), ordered=False
-    )
-
+    slice_type = pd.CategoricalDtype(categories=SLICES, ordered=False)
+    comp_type = pd.CategoricalDtype(categories=COMP, ordered=False)
+    region_type = pd.CategoricalDtype(categories=REGIONS, ordered=False)
     col_types = (int, slice_type, region_type, comp_type, float, float, float, bool)
 
-    for col, col_type in zip(cols, col_types):
+    for col, col_type in zip(COLS, col_types):
         data[col] = data[col].astype(col_type)
 
     dlen = len(data)
