@@ -19,18 +19,6 @@ from .base_window_and_task import TaskViewBase, register_view
 
 @register_view
 class AtlasTaskView(TaskViewBase):
-
-    cols = (
-        "Record",
-        "Slice",
-        "Component",
-        "Region",
-        "PSS",
-        "ESS",
-        "PS",
-        "Included",
-    )
-
     def __init__(self, root, controller):
 
         super().__init__(
@@ -163,8 +151,10 @@ class AtlasTaskView(TaskViewBase):
 
         i = self.table.index(self.table.selection()[0])
         record = self.atlas_data.loc[i, "Record"]
-        msg = f"Record {record} will be permanently removed from atlas. " \
-              f"Do you want to continue?"
+        msg = (
+            f"Record {record} will be permanently removed from atlas. "
+            f"Do you want to continue?"
+        )
 
         if not messagebox.askyesno(message=msg, title="Confirm remove record"):
             return
@@ -247,16 +237,11 @@ class AtlasTaskView(TaskViewBase):
             self.path = None
             return empty_data()
 
+        self.controller.progress("")
         try:
-            data = pd.read_csv(path)
+            data = validate_data(pd.read_csv(path), self.controller.progress)
             # data = dummy_data()
-            if set(data.columns) != set(self.cols):
-                raise ValueError(
-                    f"Invalid column names found. "
-                    f"They should be, exactly: {self.cols}."
-                )
             self.path = path
-            self.controller.progress("")
 
         except ValueError as err:
             self.controller.progress(str(err))
@@ -344,64 +329,118 @@ class GridPlot:
         self.fig.canvas.draw_idle()
 
 
-def dummy_data() -> pd.DataFrame:
-    M = 30
-    N = 9 * 7 * M
-    cat_type = pd.CategoricalDtype(
+def validate_data(
+    data: pd.DataFrame, callback: Optional[Callable] = None
+) -> pd.DataFrame:
+    """Validates the atlas data, checking and setting column dtypes.
+
+    Args:
+        data (pd.DataFrame): Input DataFrame to validate.
+
+    Raises:
+        ValueError: If the columns are not the correct ones.
+
+    Returns:
+        The validated DataFrame
+    """
+    cols = (
+        "Record",
+        "Slice",
+        "Component",
+        "Region",
+        "PSS",
+        "ESS",
+        "PS",
+        "Included",
+    )
+
+    if tuple(data.columns) != tuple(cols):
+        raise ValueError(
+            f"Invalid column names found. They should be, exactly: {cols}."
+        )
+
+    slice_type = pd.CategoricalDtype(categories=("Base", "Mid", "Apex"), ordered=False)
+    comp_type = pd.CategoricalDtype(
+        categories=("Longitudinal", "Radial", "Circumferential"), ordered=False
+    )
+    region_type = pd.CategoricalDtype(
         categories=("Global", "", "AS", "A", "AL", "IL", "I", "IS"), ordered=False
     )
 
-    Record = pd.Series(np.random.random_integers(1, 20, N))
-    Slice = pd.Series(np.random.choice(["Base", "Mid", "Apex"], size=N)).astype(
-        "category"
-    )
-    Component = pd.Series(
-        np.random.choice(["Longitudinal", "Radial", "Circumferential"], size=N)
-    ).astype("category")
-    Region = pd.Series(
-        np.random.choice(["Global", "AS", "A", "AL", "IL", "I", "IS"], size=N)
-    ).astype(cat_type)
-    PSS = pd.Series(np.random.random(N))
-    ESS = pd.Series(np.random.random(N))
-    PS = pd.Series(np.random.random(N))
-    Included = pd.Series([True] * N).astype(bool)
+    col_types = (int, slice_type, comp_type, region_type, float, float, float, bool)
 
-    return pd.DataFrame(
-        {
-            "Record": Record,
-            "Slice": Slice,
-            "Component": Component,
-            "Region": Region,
-            "PSS": PSS,
-            "ESS": ESS,
-            "PS": PS,
-            "Included": Included,
-        }
-    )
+    for col, col_type in zip(cols, col_types):
+        data[col] = data[col].astype(col_type)
+
+    dlen = len(data)
+    data = data.dropna()
+    if dlen != len(data):
+        msg = (
+            f"Atlas data contains {dlen - len(data)} invalid values. They will be "
+            f"removed if databased is saved."
+        )
+        if callback is None:
+            print(msg)
+        else:
+            callback(msg)
+
+    return data
 
 
 def empty_data() -> pd.DataFrame:
-    cat_type = pd.CategoricalDtype(
-        categories=("Global", "", "AS", "A", "AL", "IL", "I", "IS"), ordered=False
-    )
     Record = pd.Series([])
-    Slice = pd.Series([]).astype("category")
-    Component = pd.Series([]).astype("category")
-    Region = pd.Series([]).astype(cat_type)
+    Slice = pd.Series([])
+    Component = pd.Series([])
+    Region = pd.Series([])
     PSS = pd.Series([])
     ESS = pd.Series([])
     PS = pd.Series([])
-    Included = pd.Series([]).astype(bool)
+    Included = pd.Series([])
 
-    return pd.DataFrame(
-        {
-            "Record": Record,
-            "Slice": Slice,
-            "Component": Component,
-            "Region": Region,
-            "PSS": PSS,
-            "ESS": ESS,
-            "PS": PS,
-            "Included": Included,
-        }
+    return validate_data(
+        pd.DataFrame(
+            {
+                "Record": Record,
+                "Slice": Slice,
+                "Component": Component,
+                "Region": Region,
+                "PSS": PSS,
+                "ESS": ESS,
+                "PS": PS,
+                "Included": Included,
+            }
+        )
+    )
+
+
+def dummy_data() -> pd.DataFrame:
+    M = 30
+    N = 9 * 7 * M
+
+    Record = pd.Series(np.random.random_integers(1, 20, N))
+    Slice = pd.Series(np.random.choice(["Base", "Mid", "Apex"], size=N))
+    Component = pd.Series(
+        np.random.choice(["Longitudinal", "Radial", "Circumferential"], size=N)
+    )
+    Region = pd.Series(
+        np.random.choice(["Global", "AS", "A", "AL", "IL", "I", "IS"], size=N)
+    )
+    PSS = pd.Series(np.random.random(N))
+    ESS = pd.Series(np.random.random(N))
+    PS = pd.Series(np.random.random(N))
+    Included = pd.Series([True] * N)
+
+    return validate_data(
+        pd.DataFrame(
+            {
+                "Record": Record,
+                "Slice": Slice,
+                "Component": Component,
+                "Region": Region,
+                "PSS": PSS,
+                "ESS": ESS,
+                "PS": PS,
+                "Included": Included,
+            }
+        )
     )
