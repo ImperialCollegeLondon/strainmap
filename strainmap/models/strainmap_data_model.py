@@ -133,9 +133,14 @@ class StrainMapData(object):
 
         # TODO: Remove when consolidated. Regenerate the centroid
         for d in self.zero_angle:
-            img_shape = self.data_files.mag(d).shape[1:]
-            raw_centroids = centroid(self.segments[d], slice(None), img_shape)
-            self.zero_angle[d][..., 1] = effective_centroid(raw_centroids, window=3)
+            try:
+                img_shape = self.data_files.mag(d).shape[1:]
+                raw_centroids = centroid(self.segments[d], slice(None), img_shape)
+                self.zero_angle[d][..., 1] = effective_centroid(raw_centroids, window=3)
+
+            except Exception as err:
+                raise RuntimeError(f"Error when regenerating COM for dataset '{d}'. "
+                                   f"Error message: {err}.")
 
         for dataset, markers in self.markers.items():
             for k in markers.keys():
@@ -147,11 +152,16 @@ class StrainMapData(object):
         # TODO: Remove when consolidated. Heal the septum mid-point
         default = None
         for dataset, za in self.zero_angle.items():
-            if np.isnan(za[..., 0]).any():
-                za[..., 0] = default
-                self.save(["zero_angle", dataset])
-            else:
-                default = za[..., 0].copy()
+            try:
+                if np.isnan(za[..., 0]).any():
+                    za[..., 0] = default
+                    self.save(["zero_angle", dataset])
+                else:
+                    default = za[..., 0].copy()
+
+            except Exception as err:
+                raise RuntimeError(f"Error when healing septum mid-point for "
+                                   f"dataset '{dataset}'. Error message: {err}.")
 
     def metadata(self, dataset=None):
         """Retrieve the metadata from the DICOM files"""
