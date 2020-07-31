@@ -18,6 +18,7 @@ setup(
     author_email="rcs-support@imperial.ac.uk",
     setup_requires=["pytest-runner"],
     install_requires=[
+        "setuptools>=49.1.1",
         "pillow",
         "pydicom",
         "scikit-image<=0.15",
