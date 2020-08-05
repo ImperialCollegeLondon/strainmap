@@ -94,7 +94,7 @@ class StrainMapData(object):
         self.strain_markers: dict = defaultdict(dict)
         self.gls: np.ndarray = np.array([])
         self.twist: Optional[LabelledArray] = None
-        self.timeshift: dict = {}
+        self.timeshift: dict = defaultdict(lambda: TIMESHIFT)
 
     @property
     def rebuilt(self):

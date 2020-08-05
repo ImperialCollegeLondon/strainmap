@@ -42,6 +42,9 @@ class StrainTaskView(TaskViewBase):
         self.effective_disp = tk.BooleanVar(value=True)
         self.resample = tk.BooleanVar(value=True)
         self.gls = (tk.StringVar(), tk.StringVar(), tk.StringVar())
+        self.timeshift = {}
+        self.timeshift_var = tk.DoubleVar(value=0.0)
+        self.timeshift_var.trace_add("write", self.update_shift)
 
         # Figure-related variables
         self.fig = None
@@ -101,6 +104,8 @@ class StrainTaskView(TaskViewBase):
         resample = ttk.Checkbutton(
             master=strain_frame, text="Resample RR", variable=self.resample
         )
+        timeshift_lbl = ttk.Label(strain_frame, text="Time shift (s):")
+        timeshift = ttk.Entry(strain_frame, textvariable=self.timeshift_var)
         recalc = ttk.Button(
             master=strain_frame, text="Recalculate strain", command=self.recalculate
         )
@@ -142,6 +147,8 @@ class StrainTaskView(TaskViewBase):
         effective.grid(row=0, column=1, sticky=tk.NSEW, padx=5)
         resample.grid(row=1, column=1, sticky=tk.NSEW, padx=5)
         recalc.grid(row=2, column=0, columnspan=2, sticky=tk.NSEW, padx=5)
+        timeshift_lbl.grid(row=0, column=2, sticky=tk.NSEW, padx=5)
+        timeshift.grid(row=1, column=2, sticky=tk.NSEW, padx=5)
         self.output_frame.grid(row=0, column=2, rowspan=3, sticky=tk.NSEW, padx=5)
         for i, l in enumerate(self.gls_lbl):
             l.grid(row=i, column=99, sticky=tk.NSEW, padx=5)
@@ -154,6 +161,9 @@ class StrainTaskView(TaskViewBase):
         """Updates the view when the selected dataset is changed."""
         current = self.datasets_var.get()
         self.images = self.data.data_files.mag(current)
+        self.timeshift_var.set(
+            self.timeshift.get(current, self.data.timeshift[current])
+        )
         if self.data.strain.get(current):
             self.update_strain_list(current)
         else:
@@ -202,6 +212,10 @@ class StrainTaskView(TaskViewBase):
                 table,
                 marker,
             )
+
+    def update_shift(self, *args):
+        """Updates the data timeshift."""
+        self.timeshift[self.datasets_var.get()] = self.timeshift_var.get()
 
     def scroll(self, step=1, *args):
         """Changes the region being plotted when scrolling with the mouse."""
@@ -341,12 +355,14 @@ class StrainTaskView(TaskViewBase):
             effective_displacement=self.effective_disp.get(),
             resample=self.resample.get(),
             recalculate=recalculate,
+            timeshifts=self.timeshift,
         )
         lbl = ("psGLS", "esGLS", "pGLS")
         for i, v in enumerate(self.gls):
             v.set(value=f"{lbl[i]}: {round(self.data.gls[i] * 100, 1)}%")
         self.populate_dataset_box(datasets)
         self.update_strain_list(self.datasets_var.get())
+        self.timeshift = {}
 
     def recalculate(self, *args):
         """Re-calculate strain after changing any of the conditions."""

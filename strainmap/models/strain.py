@@ -1,4 +1,4 @@
-from typing import Dict, Text, Tuple, Callable
+from typing import Dict, Text, Tuple, Callable, Optional
 from itertools import product
 from functools import partial
 from collections import defaultdict
@@ -373,6 +373,7 @@ def calculate_strain(
     effective_displacement=True,
     resample=True,
     recalculate=False,
+    timeshifts: Optional[dict] = None,
 ):
     """Calculates the strain and updates the Data object with the result."""
     steps = 6.0
@@ -393,6 +394,11 @@ def calculate_strain(
     if len(sorted_datasets) < 2:
         callback("Insufficient datasets to calculate strain. At least 2 are needed.")
         return 1
+
+    if timeshifts:
+        data.timeshift.update(timeshifts)
+        for d in timeshifts.keys():
+            data.save(["timeshift", d])
 
     callback("Preparing dependent variables", 1 / steps)
     disp = displacement(
@@ -635,8 +641,7 @@ def initialise_markers(data: StrainMapData, dataset: str, str_labels: list):
     # The location of the ES marker is shifted by an approximate number of frames
     pos_es = int(
         data.markers[dataset]["global - Estimated"][0, 1, 3, 0]
-        - data.timeshift[dataset]
-        // data.data_files.time_interval(dataset)
+        - data.timeshift[dataset] // data.data_files.time_interval(dataset)
     )
 
     # Loop over the region types (global, angular, etc)
