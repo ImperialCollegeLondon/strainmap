@@ -635,7 +635,8 @@ def initialise_markers(data: StrainMapData, dataset: str, str_labels: list):
     # The location of the ES marker is shifted by an approximate number of frames
     pos_es = int(
         data.markers[dataset]["global - Estimated"][0, 1, 3, 0]
-        - data.timeshift[dataset] // data.data_files.time_interval(dataset)
+        - data.timeshift[dataset]
+        // data.data_files.time_interval(dataset)
     )
 
     # Loop over the region types (global, angular, etc)

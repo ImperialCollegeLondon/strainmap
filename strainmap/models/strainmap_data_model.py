@@ -52,6 +52,7 @@ class StrainMapData(object):
         "zero_angle",
         "markers",
         "strain_markers",
+        "timeshift"
     )
 
     @classmethod
@@ -93,7 +94,7 @@ class StrainMapData(object):
         self.strain_markers: dict = defaultdict(dict)
         self.gls: np.ndarray = np.array([])
         self.twist: Optional[LabelledArray] = None
-        self.timeshift: dict = defaultdict(lambda: TIMESHIFT)
+        self.timeshift: dict = {}
 
     @property
     def rebuilt(self):
@@ -152,6 +153,10 @@ class StrainMapData(object):
 
             # TODO To remove! Hack to add the radial data on legacy h5 files.
             self.velocities[dataset]["radial x3 - Estimated"] = None
+
+            # TODO Use DICOM data instead when the timeshift is available there
+            self.timeshift[dataset] = self.timeshift.get(dataset, TIMESHIFT)
+            self.save(["timeshift", dataset])
 
         # TODO: Remove when consolidated. Heal the septum mid-point
         default = None
