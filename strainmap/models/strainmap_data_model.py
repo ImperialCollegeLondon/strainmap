@@ -9,6 +9,9 @@ from .readers import read_strainmap_file, DICOMReaderBase, read_folder
 from .writers import write_hdf5_file
 from .sm_data import LabelledArray
 
+TIMESHIFT = -0.045
+"""Default timeshift"""
+
 
 class StrainMapLoadError(Exception):
     pass
@@ -90,6 +93,7 @@ class StrainMapData(object):
         self.strain_markers: dict = defaultdict(dict)
         self.gls: np.ndarray = np.array([])
         self.twist: Optional[LabelledArray] = None
+        self.timeshift: dict = defaultdict(lambda: TIMESHIFT)
 
     @property
     def rebuilt(self):

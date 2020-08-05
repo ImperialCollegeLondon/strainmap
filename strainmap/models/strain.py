@@ -220,6 +220,7 @@ def coordinates(
     origin_iter = (data.zero_angle[d][..., 1] for d in datasets)
     px_size = data.data_files.pixel_size(datasets[0])
     t_iter = tuple((data.data_files.time_interval(d) for d in datasets))
+    timeshift = (data.timeshift[d] for d in datasets)
 
     # z_loc should be increasing with the dataset
     z_loc = -z_loc if all(np.diff(z_loc) < 0) else z_loc
@@ -243,6 +244,16 @@ def coordinates(
         * z_loc[(...,) + (None,) * (len(in_plane[:, :1].shape) - 1)]
     )
     result = np.concatenate((out_plane, in_plane), axis=1).transpose((1, 2, 0, 3, 4))
+
+    # We shift the coordinates
+    for i, (t, ts) in enumerate(zip(t_iter, timeshift)):
+        result[:, :, i, ...] = shift_data(
+            result[:, :, i, ...], time_interval=t, timeshift=ts, axis=1
+        )
+    # We pick just the first element, representing the pixel locations at time zero.
+    # Yeah, this function is an massive overkill and will be changed asap.
+    result[...] = result[:, :1, ...]
+
     return resample_interval(result, t_iter) if resample else result
 
 
@@ -265,6 +276,7 @@ def displacement(
     cyl_iter = (data.masks[d][vkey] for d in datasets)
     m_iter = (data.masks[d][rkey] + 100 * data.masks[d][akey] for d in datasets)
     t_iter = tuple((data.data_files.time_interval(d) for d in datasets))
+    timeshift = (data.timeshift[d] for d in datasets)
     reduced_vel_map = map(partial(masked_reduction, axis=img_axis), cyl_iter, m_iter)
 
     # Create a mask to define the regions over which to calculate the background
@@ -274,7 +286,7 @@ def displacement(
     lmask = np.tile(lmask, (data.data_files.frames, 1, 1))
 
     disp = []
-    for r, t in zip(reduced_vel_map, t_iter):
+    for r, t, ts in zip(reduced_vel_map, t_iter, timeshift):
         # Radial and circumferential subtract the average of all slices and frames
         disp.append((r[1:] - r[1:].mean(axis=(1, 2, 3), keepdims=True)) * t)
 
@@ -289,6 +301,9 @@ def displacement(
 
         # The signs of the in-plane displacement are reversed to be consistent with ECHO
         disp[-1] = np.concatenate((vlong[None, ...], -disp[-1]), axis=0)
+
+        # We shift the data to the correct time
+        disp[-1] = shift_data(disp[-1], time_interval=t, timeshift=ts, axis=1)
 
     disp = np.asarray(disp)
 
@@ -351,28 +366,6 @@ def unresample_interval(
     return np.moveaxis(np.array([f(tt) for tt, f in zip(t, fdisp)]), 0, 2)
 
 
-def reconstruct_strain(
-    strain,
-    masks,
-    datasets,
-    resample: bool,
-    interval: tuple,
-    nrad: int = 3,
-    nang: int = 24,
-    background: str = "Estimated",
-):
-    rkey = f"radial x{nrad} - {background}"
-    akey = f"angular x{nang} - {background}"
-    m_iter = (masks[d][rkey] + 100 * masks[d][akey] for d in datasets)
-    frames = masks[datasets[0]][rkey].shape[0]
-
-    strain = unresample_interval(strain, interval, frames) if resample else strain
-    return (
-        masked_expansion(s, m, axis=(2, 3))
-        for s, m in zip(strain.transpose((2, 0, 1, 3, 4)), m_iter)
-    )
-
-
 def calculate_strain(
     data: StrainMapData,
     datasets: Tuple[str, ...],
@@ -419,14 +412,14 @@ def calculate_strain(
     reduced_strain = differentiate(disp, space)
 
     callback("Calculating the regional strains", 4 / steps)
-    strain = reconstruct_strain(
+    data.strain = calculate_regional_strain(
         reduced_strain,
         data.masks,
         sorted_datasets,
         resample=resample,
         interval=tuple((data.data_files.time_interval(d) for d in datasets)),
+        timeshift=tuple((data.timeshift[d] for d in datasets)),
     )
-    data.strain = calculate_regional_strain(strain, data.masks, sorted_datasets)
 
     callback("Calculating markers", 5 / steps)
     for d in datasets:
@@ -520,21 +513,68 @@ def finite_differences(f, x, axis=0, period=None):
     return np.moveaxis(result, 0, axis)
 
 
-def calculate_regional_strain(strain, masks, datasets) -> Dict:
+def calculate_regional_strain(
+    reduced_strain: np.ndarray,
+    masks: dict,
+    datasets: tuple,
+    resample: bool,
+    interval: tuple,
+    timeshift: tuple,
+    nrad: int = 3,
+    nang: int = 24,
+    lreg: int = 6,
+):
     """Calculate the regional strains (1D curves)."""
-    from strainmap.models.contour_mask import masked_means
-
     vkey = "cylindrical - Estimated"
     gkey = "global - Estimated"
     akey = "angular x6 - Estimated"
+    a24key = "angular x24 - Estimated"
     rkey = "radial x3 - Estimated"
 
+    data_shape = masks[datasets[0]][vkey].shape
+    m_iter = (masks[d][rkey] + 100 * masks[d][a24key] for d in datasets)
+
+    strain = (
+        unresample_interval(reduced_strain, interval, data_shape[1])
+        if resample
+        else reduced_strain
+    )
+
+    # Mask to define the 6x angular and 3x radial regional masks for the reduced strain
+    treg = nrad * nang
+    lmask = (
+        np.ceil(np.arange(1, treg + 1) / treg * lreg)
+        .reshape((nang, nrad))
+        .T[None, None, ...]
+    )
+    rmask = (
+        np.arange(1, nrad + 1)[None, None, :, None] * np.ones(nang)[None, None, None, :]
+    )
+
     result: Dict[Text, Dict[str, np.ndarray]] = defaultdict(dict)
-    for d, s in zip(datasets, strain):
-        result[d][gkey] = masked_means(s, masks[d][gkey], axes=(2, 3)) * 100
-        result[d][akey] = masked_means(s, masks[d][akey], axes=(2, 3)) * 100
-        result[d][rkey] = masked_means(s, masks[d][rkey], axes=(2, 3)) * 100
-        result[d][vkey] = s
+    vars = zip(datasets, strain.transpose((2, 0, 1, 3, 4)), m_iter, interval, timeshift)
+    for d, s, m, t, ts in vars:
+
+        # When calculating the regional strains from the reduced strain, we need the
+        # superpixel area. This has to be shifted to match the times of the strain.
+        rm = shift_data(superpixel_area(m, data_shape, axis=(2, 3)), t, ts, axis=1)
+
+        # Global and regional strains are calculated by modifying the relevant weights
+        result[d][gkey] = np.average(s, weights=rm, axis=(2, 3))[None, ...] * 100
+        result[d][akey] = np.stack(
+            np.average(s, weights=rm * (lmask == i), axis=(2, 3)) * 100
+            for i in range(1, lreg + 1)
+        )
+        result[d][rkey] = np.stack(
+            np.average(s, weights=rm * (rmask == i), axis=(2, 3)) * 100
+            for i in range(1, nrad + 1)
+        )
+
+        # To match the strain with the masks, we shift the strain in the opposite
+        # direction
+        result[d][vkey] = masked_expansion(
+            shift_data(s, t, -ts, axis=1), m, axis=(2, 3)
+        )
 
     return result
 
@@ -592,7 +632,11 @@ def initialise_markers(data: StrainMapData, dataset: str, str_labels: list):
 
     In a healthy patient, the three markers should be roughly at the same position.
     """
-    pos_es = int(data.markers[dataset]["global - Estimated"][0, 1, 3, 0])
+    # The location of the ES marker is shifted by an approximate number of frames
+    pos_es = int(
+        data.markers[dataset]["global - Estimated"][0, 1, 3, 0]
+        - data.timeshift[dataset] // data.data_files.time_interval(dataset)
+    )
 
     # Loop over the region types (global, angular, etc)
     for r in data.strain[dataset].keys():
@@ -678,3 +722,54 @@ def twist(
         coords={"dataset": datasets, "item": ["angular_velocity", "radius"]},
         values=np.stack((vels, radius.T), axis=-1),
     )
+
+
+def shift_data(
+    data: np.ndarray, time_interval: float, timeshift: float, axis: int = 0
+) -> np.ndarray:
+    """Interpolates the data to account for a timeshift correction."""
+    time = np.arange(-1, data.shape[axis] + 1)
+    d = np.moveaxis(data, axis, 0)
+    d = np.concatenate([d[-1:], d, d[:1]], axis=0)
+
+    new_time = np.arange(data.shape[axis]) + timeshift % time_interval
+    new_data = np.roll(
+        interpolate.interp1d(time, d, axis=0)(new_time),
+        -int(timeshift // time_interval),
+        axis=0,
+    )
+    return np.moveaxis(new_data, 0, axis)
+
+
+def superpixel_area(masks: np.ndarray, data_shape: tuple, axis: tuple) -> np.ndarray:
+    from functools import reduce
+
+    assert data_shape[-len(masks.shape) :] == masks.shape
+
+    mask_max = masks.max()
+    nrad, nang = mask_max % 100, mask_max // 100
+    nz = np.nonzero(masks)
+    xmin, xmax, ymin, ymax = (
+        nz[-2].min(),
+        nz[-2].max() + 1,
+        nz[-1].min(),
+        nz[-1].max() + 1,
+    )
+    smasks = masks[..., xmin : xmax + 1, ymin : ymax + 1]
+
+    shape = [s for i, s in enumerate(data_shape) if i not in axis] + [nrad, nang]
+    reduced = np.zeros(shape, dtype=int)
+
+    tile_shape = (
+        (data_shape[0],) + (1,) * len(masks.shape)
+        if data_shape != masks.shape
+        else (1,) * len(masks.shape)
+    )
+
+    def reduction(red, idx):
+        elements = tuple([...] + [k - 1 for k in idx])
+        i = idx[0] + 100 * idx[1]
+        red[elements] = np.tile(smasks == i, tile_shape).sum(axis=axis).data
+        return red
+
+    return reduce(reduction, product(range(1, nrad + 1), range(1, nang + 1)), reduced)
