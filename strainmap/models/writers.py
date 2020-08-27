@@ -296,6 +296,8 @@ def write_hdf5_file(data, filename: Union[h5py.File, str]):
                 f[s][...] = getattr(data, s)
             else:
                 f.create_dataset(s, data=getattr(data, s))
+        elif s == "timeshift":
+            f.attrs[s] = getattr(data, s)
         elif "files" in s:
             if getattr(data, s) is not None:
                 paths_to_hdf5(f, f.filename, s, getattr(data, s).files)

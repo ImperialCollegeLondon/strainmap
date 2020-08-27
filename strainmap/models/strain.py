@@ -220,7 +220,7 @@ def coordinates(
     origin_iter = (data.zero_angle[d][..., 1] for d in datasets)
     px_size = data.data_files.pixel_size(datasets[0])
     t_iter = tuple((data.data_files.time_interval(d) for d in datasets))
-    timeshift = (data.timeshift[d] for d in datasets)
+    ts = data.timeshift
 
     # z_loc should be increasing with the dataset
     z_loc = -z_loc if all(np.diff(z_loc) < 0) else z_loc
@@ -246,7 +246,7 @@ def coordinates(
     result = np.concatenate((out_plane, in_plane), axis=1).transpose((1, 2, 0, 3, 4))
 
     # We shift the coordinates
-    for i, (t, ts) in enumerate(zip(t_iter, timeshift)):
+    for i, t in enumerate(t_iter):
         result[:, :, i, ...] = shift_data(
             result[:, :, i, ...], time_interval=t, timeshift=ts, axis=1
         )
@@ -276,7 +276,7 @@ def displacement(
     cyl_iter = (data.masks[d][vkey] for d in datasets)
     m_iter = (data.masks[d][rkey] + 100 * data.masks[d][akey] for d in datasets)
     t_iter = tuple((data.data_files.time_interval(d) for d in datasets))
-    timeshift = (data.timeshift[d] for d in datasets)
+    ts = data.timeshift
     reduced_vel_map = map(partial(masked_reduction, axis=img_axis), cyl_iter, m_iter)
 
     # Create a mask to define the regions over which to calculate the background
@@ -286,7 +286,7 @@ def displacement(
     lmask = np.tile(lmask, (data.data_files.frames, 1, 1))
 
     disp = []
-    for r, t, ts in zip(reduced_vel_map, t_iter, timeshift):
+    for r, t in zip(reduced_vel_map, t_iter):
         # Radial and circumferential subtract the average of all slices and frames
         disp.append((r[1:] - r[1:].mean(axis=(1, 2, 3), keepdims=True)) * t)
 
@@ -373,7 +373,7 @@ def calculate_strain(
     effective_displacement=True,
     resample=True,
     recalculate=False,
-    timeshifts: Optional[dict] = None,
+    timeshift: Optional[float] = None,
 ):
     """Calculates the strain and updates the Data object with the result."""
     steps = 6.0
@@ -395,10 +395,9 @@ def calculate_strain(
         callback("Insufficient datasets to calculate strain. At least 2 are needed.")
         return 1
 
-    if timeshifts:
-        data.timeshift.update(timeshifts)
-        for d in timeshifts.keys():
-            data.save(["timeshift", d])
+    if timeshift is not None:
+        data.timeshift = timeshift
+        data.save(["timeshift"])
 
     callback("Preparing dependent variables", 1 / steps)
     disp = displacement(
@@ -424,7 +423,7 @@ def calculate_strain(
         sorted_datasets,
         resample=resample,
         interval=tuple((data.data_files.time_interval(d) for d in datasets)),
-        timeshift=tuple((data.timeshift[d] for d in datasets)),
+        timeshift=data.timeshift,
     )
 
     callback("Calculating markers", 5 / steps)
@@ -525,7 +524,7 @@ def calculate_regional_strain(
     datasets: tuple,
     resample: bool,
     interval: tuple,
-    timeshift: tuple,
+    timeshift: float,
     nrad: int = 3,
     nang: int = 24,
     lreg: int = 6,
@@ -558,12 +557,14 @@ def calculate_regional_strain(
     )
 
     result: Dict[Text, Dict[str, np.ndarray]] = defaultdict(dict)
-    vars = zip(datasets, strain.transpose((2, 0, 1, 3, 4)), m_iter, interval, timeshift)
-    for d, s, m, t, ts in vars:
+    vars = zip(datasets, strain.transpose((2, 0, 1, 3, 4)), m_iter, interval)
+    for d, s, m, t in vars:
 
         # When calculating the regional strains from the reduced strain, we need the
         # superpixel area. This has to be shifted to match the times of the strain.
-        rm = shift_data(superpixel_area(m, data_shape, axis=(2, 3)), t, ts, axis=1)
+        rm = shift_data(
+            superpixel_area(m, data_shape, axis=(2, 3)), t, timeshift, axis=1
+        )
 
         # Global and regional strains are calculated by modifying the relevant weights
         result[d][gkey] = np.average(s, weights=rm, axis=(2, 3))[None, ...] * 100
@@ -579,7 +580,7 @@ def calculate_regional_strain(
         # To match the strain with the masks, we shift the strain in the opposite
         # direction
         result[d][vkey] = masked_expansion(
-            shift_data(s, t, -ts, axis=1), m, axis=(2, 3)
+            shift_data(s, t, -timeshift, axis=1), m, axis=(2, 3)
         )
 
     return result
@@ -641,7 +642,7 @@ def initialise_markers(data: StrainMapData, dataset: str, str_labels: list):
     # The location of the ES marker is shifted by an approximate number of frames
     pos_es = int(
         data.markers[dataset]["global - Estimated"][0, 1, 3, 0]
-        - data.timeshift[dataset] // data.data_files.time_interval(dataset)
+        - data.timeshift // data.data_files.time_interval(dataset)
     )
 
     # Loop over the region types (global, angular, etc)

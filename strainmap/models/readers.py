@@ -224,6 +224,13 @@ def read_h5_file(stored: Tuple, filename: Union[Path, Text]) -> dict:
     for s in stored:
         if s == "sign_reversal":
             attributes[s] = tuple(sm_file[s][...])
+        elif s == "timeshift":
+            # TODO Simplify in the final version. Current design "heals" existing files
+            if s in sm_file.attrs:
+                attributes[s] = sm_file.attrs[s]
+            elif s in sm_file:
+                del sm_file[s]
+                continue
         elif "files" in s and s in sm_file:
             base_dir = paths_from_hdf5(defaultdict(dict), filename, sm_file[s])
             if base_dir is None:

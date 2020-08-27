@@ -94,7 +94,7 @@ class StrainMapData(object):
         self.strain_markers: dict = defaultdict(dict)
         self.gls: np.ndarray = np.array([])
         self.twist: Optional[LabelledArray] = None
-        self.timeshift: dict = defaultdict(lambda: TIMESHIFT)
+        self.timeshift: float = TIMESHIFT
 
     @property
     def rebuilt(self):
@@ -154,10 +154,6 @@ class StrainMapData(object):
             # TODO To remove! Hack to add the radial data on legacy h5 files.
             self.velocities[dataset]["radial x3 - Estimated"] = None
 
-            # TODO Use DICOM data instead when the timeshift is available there
-            self.timeshift[dataset] = self.timeshift.get(dataset, TIMESHIFT)
-            self.save(["timeshift", dataset])
-
         # TODO: Remove when consolidated. Heal the septum mid-point
         default = None
         for dataset, za in self.zero_angle.items():
@@ -207,14 +203,18 @@ class StrainMapData(object):
             return
 
         for keys in args:
-            assert keys[0] in self.stored, f"{keys[0]} is not storable."
-            s = "/".join(keys)
-            names = [getattr(self, keys[0])] + keys[1:]
-            if s in self.strainmap_file:
-                del self.strainmap_file[s]
-            self.strainmap_file.create_dataset(
-                s, data=reduce(lambda x, y: x[y], names), track_order=True
-            )
+            if keys[0] not in self.stored:
+                raise KeyError(f"{keys[0]} is not storable.")
+            elif keys[0] == "timeshift":
+                self.strainmap_file.attrs[keys[0]] = getattr(self, keys[0])
+            else:
+                s = "/".join(keys)
+                names = [getattr(self, keys[0])] + keys[1:]
+                if s in self.strainmap_file:
+                    del self.strainmap_file[s]
+                self.strainmap_file.create_dataset(
+                    s, data=reduce(lambda x, y: x[y], names), track_order=True
+                )
 
     def delete(self, *args):
         """ Deletes the chosen dataset or group from the hdf5 file.
