@@ -376,7 +376,7 @@ def calculate_strain(
     timeshift: Optional[float] = None,
 ):
     """Calculates the strain and updates the Data object with the result."""
-    steps = 6.0
+    steps = 7.0
     # Do we need to calculate the strain?
     if all([d in data.strain.keys() for d in datasets]) and not recalculate:
         return
@@ -399,7 +399,7 @@ def calculate_strain(
         data.timeshift = timeshift
         data.save(["timeshift"])
 
-    callback("Preparing dependent variables", 1 / steps)
+    callback("Calculating displacement", 1 / steps)
     disp = displacement(
         data,
         sorted_datasets,
@@ -407,16 +407,16 @@ def calculate_strain(
         resample=resample,
     )
 
-    callback("Preparing independent variables", 2 / steps)
+    callback("Calculating coordinates", 2 / steps)
     space = coordinates(data, sorted_datasets, resample=resample)
 
-    callback("Calculating twist", 2 / steps)
+    callback("Calculating twist", 3 / steps)
     data.twist = twist(data, sorted_datasets)
 
-    callback("Calculating derivatives", 3 / steps)
+    callback("Calculating strain", 4 / steps)
     reduced_strain = differentiate(disp, space)
 
-    callback("Calculating the regional strains", 4 / steps)
+    callback("Calculating the regional strains", 5 / steps)
     data.strain = calculate_regional_strain(
         reduced_strain,
         data.masks,
@@ -426,7 +426,7 @@ def calculate_strain(
         timeshift=data.timeshift,
     )
 
-    callback("Calculating markers", 5 / steps)
+    callback("Calculating markers", 6 / steps)
     for d in datasets:
         labels = [
             s
@@ -642,7 +642,7 @@ def initialise_markers(data: StrainMapData, dataset: str, str_labels: list):
     # The location of the ES marker is shifted by an approximate number of frames
     pos_es = int(
         data.markers[dataset]["global - Estimated"][0, 1, 3, 0]
-        - data.timeshift // data.data_files.time_interval(dataset)
+        - round(data.timeshift / data.data_files.time_interval(dataset))
     )
 
     # Loop over the region types (global, angular, etc)
@@ -739,11 +739,11 @@ def shift_data(
     d = np.moveaxis(data, axis, 0)
     d = np.concatenate([d[-1:], d, d[:1]], axis=0)
 
-    new_time = np.arange(data.shape[axis]) + timeshift % time_interval
+    shift_frames = int(round(timeshift / time_interval))
+    remainder = timeshift - time_interval * shift_frames
+    new_time = np.arange(data.shape[axis]) + remainder
     new_data = np.roll(
-        interpolate.interp1d(time, d, axis=0)(new_time),
-        -int(timeshift // time_interval),
-        axis=0,
+        interpolate.interp1d(time, d, axis=0)(new_time), -shift_frames, axis=0,
     )
     return np.moveaxis(new_data, 0, axis)
 
