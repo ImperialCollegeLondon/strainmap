@@ -16,10 +16,12 @@ from typing import (
     Tuple,
     Union,
     Sequence,
+    Any,
 )
 
 import h5py
 import numpy as np
+import pandas as pd
 import sparse
 import pydicom
 from natsort import natsorted
@@ -283,6 +285,60 @@ def paths_from_hdf5(g, master, structure):
                 base_dir = Path(filenames[0]).parent
 
     return base_dir
+
+
+def extract_strain_markers(
+    h5file: Union[Path, h5py.File],
+    datasets: Dict[str, str],
+    regions: Dict[str, Sequence[str]],
+    colnames: Sequence[str] = ("Slice", "Region", "Component", "PSS", "ESS", "PS",),
+) -> pd.DataFrame:
+    """Extracts as a DataFrame from a h5 file the strain markers.
+
+    Only the datasets and regions requested are extracted and their names replaced by
+    the corresponding values in the dictionaries. For regions, the entry for a given
+    regional group should contain as many labels as regions in that group.
+
+    Args:
+        h5file (h5py.File): Opened h5File to extract the data from.
+        datasets (Dict[str, str]): Dictionary with the datasets of interests and the
+            replacing names.
+        regions (Dict[str, Sequence[str]]): Dictionary with the regions of interest and
+            the names of each of the individual regions.
+        colnames (Sequence[str]): Sequence of names for the columns.
+
+    Returns:
+        Dataframe with the extracted data.
+    """
+    data: List[List[Any]] = []
+    markers = (
+        h5py.File(h5file, "r")["strain_markers"]
+        if isinstance(h5file, Path)
+        else h5file["strain_markers"]
+    )
+
+    # Loop over datasets
+    for n, struct in markers.items():
+        if n not in datasets:
+            continue
+
+        # Loop over regional groups (global, angular, etc.)
+        for r, regdata in struct.items():
+            if r not in regions:
+                continue
+
+            # Loop over the individual regions (global, AL, AS, I, etc.)
+            for k, label in enumerate(regions[r]):
+
+                # Loop over the components
+                for j, comp in enumerate(("Longitudinal", "Radial", "Circumferential")):
+                    data.append([datasets[n], label, comp])
+
+                    # Loop over the PSS, ESS and PS markers
+                    for i in range(regdata.shape[2]):
+                        data[-1].append(regdata[k, j, i, 1])
+
+    return pd.DataFrame(data, columns=colnames)
 
 
 class DICOMReaderBase(ABC):

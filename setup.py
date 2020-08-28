@@ -30,6 +30,7 @@ setup(
         "h5py",
         "natsort",
         "sparse",
+        "pandas"
     ],
     package_data={"strainmap.gui": ["icons/*.gif", "icons/CREDITS.md"]},
     packages=find_packages("."),

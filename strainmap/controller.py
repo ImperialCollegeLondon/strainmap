@@ -1,6 +1,7 @@
 """ Entry point of StrainMap, creating the main window and variables used along the
 whole code. """
 import weakref
+from typing import Callable
 
 from .gui import *  # noqa: F403,F401
 from .gui.base_window_and_task import REGISTERED_VIEWS, Requisites
@@ -28,6 +29,11 @@ class StrainMap(object):
         self.data = None
         self.review_mode = False
         self.unlock()
+
+    @property
+    def progress(self) -> Callable:
+        """Convenience property for accessing the progress bar and message ribbon"""
+        return self.window.progress
 
     def run(self):
         """ Runs StrainMap by calling the top window mainloop. """
