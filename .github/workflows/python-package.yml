@@ -76,7 +76,7 @@ jobs:
           cd dist
           hdiutil create ./StrainMap.dmg -srcfolder strain.app -ov
       - uses: actions/upload-artifact@v2
-        if: success() and matrix.os == 'macos-latest'
+        if: success() && matrix.os == 'macos-latest'
         with:
           path: dist/StrainMap.dmg
       - name: Build package (windows)
@@ -84,6 +84,6 @@ jobs:
         run: |
           pyinstaller strain.windows.spec
       - uses: actions/upload-artifact@v2
-        if: success() and matrix.os == 'windows-latest'
+        if: success() && matrix.os == 'windows-latest'
         with:
           path: dist/strain.exe
