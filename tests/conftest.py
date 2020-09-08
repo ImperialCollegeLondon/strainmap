@@ -1,7 +1,8 @@
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import patch, MagicMock
 
 from pytest import fixture
+import pandas as pd
 
 
 def patch_dialogs(function):
@@ -103,8 +104,9 @@ def old_dicom_bg_data_path():
 def registered_views():
     from strainmap.gui.data_view import DataTaskView
     from strainmap.gui.segmentation_view import SegmentationTaskView
+    from strainmap.gui.atlas_view import AtlasTaskView
 
-    return [DataTaskView, SegmentationTaskView]
+    return [DataTaskView, SegmentationTaskView, AtlasTaskView]
 
 
 @fixture
@@ -116,14 +118,15 @@ def control_with_mock_window(registered_views):
         return StrainMap()
 
 
-@fixture(scope="session")
+@fixture
 def main_window():
     from strainmap.gui.base_window_and_task import MainWindow
 
     root = MainWindow()
     root.withdraw()
 
-    return root
+    yield root
+    root.destroy()
 
 
 @fixture
@@ -151,6 +154,16 @@ def velocities_view(main_window):
     import weakref
 
     return VelocitiesTaskView(main_window, weakref.ref(StrainMap))
+
+
+@fixture
+def atlas_view(main_window):
+    from strainmap.gui.atlas_view import AtlasTaskView
+    from strainmap.controller import StrainMap
+    import weakref
+
+    StrainMap.data = None
+    return AtlasTaskView(main_window, weakref.ref(StrainMap))
 
 
 @fixture
@@ -374,3 +387,46 @@ def vector_field(r0=0, t0=0, z0=0, frames=1, xsize=11, ysize=11, zsize=1):
     Vz = z0 * z + 0 * (r + f)
 
     return {d: np.stack([Vr[..., d], Vt[..., d], Vz[..., d]]) for d in range(zsize)}
+
+
+@fixture
+def dummy_data() -> pd.DataFrame:
+    """Create dataframe with some dummy data."""
+    from strainmap.gui.atlas_view import SLICES, COMP, REGIONS, validate_data
+    import numpy as np
+
+    M = 30
+    N = 9 * 7 * M
+
+    Record = pd.Series(np.random.random_integers(1, 20, N))
+    Slice = pd.Series(np.random.choice(SLICES, size=N))
+    Component = pd.Series(np.random.choice(COMP, size=N))
+    Region = pd.Series(np.random.choice([a for a in REGIONS if a != ""], size=N))
+    PSS = pd.Series(np.random.random(N))
+    ESS = pd.Series(np.random.random(N))
+    PS = pd.Series(np.random.random(N))
+    Included = pd.Series([True] * N)
+
+    return validate_data(
+        pd.DataFrame(
+            {
+                "Record": Record,
+                "Slice": Slice,
+                "Region": Region,
+                "Component": Component,
+                "PSS": PSS,
+                "ESS": ESS,
+                "PS": PS,
+                "Included": Included,
+            }
+        )
+    )
+
+
+@fixture
+def atlas_view_with_data(atlas_view, dummy_data):
+    atlas_view.save_atlas = MagicMock()
+    atlas_view.update_plots = MagicMock()
+    atlas_view.atlas_data = dummy_data
+    atlas_view.update_table(atlas_view.atlas_data)
+    return atlas_view

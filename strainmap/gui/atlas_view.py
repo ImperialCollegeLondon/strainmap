@@ -9,7 +9,6 @@ from typing import Dict, Callable, Union, Optional, Tuple, NamedTuple
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import pandas as pd
-import numpy as np
 
 
 from .base_window_and_task import TaskViewBase, register_view
@@ -100,7 +99,7 @@ class AtlasTaskView(TaskViewBase):
         self.ps.update_plot(self.atlas_data)
 
     def overlay(self, data: pd.DataFrame):
-        """Updates the plots with the new data."""
+        """Updates the plots with the overlaid data."""
         self.pss.overlay(data)
         self.ess.overlay(data)
         self.ps.overlay(data)
@@ -217,6 +216,7 @@ class AtlasTaskView(TaskViewBase):
         self.dataset_box.Apex.current(len(available) - 1)
 
     def remove_record(self, *args):
+        """Remove a complete record from the database."""
         if not self.table.selection():
             return
 
@@ -237,6 +237,7 @@ class AtlasTaskView(TaskViewBase):
         self.update_plots()
 
     def include_exclude_record(self, *args):
+        """Include and exclude a record from the plots without deleting it."""
         if not self.table.selection():
             return
         i = self.table.index(self.table.selection()[0])
@@ -250,6 +251,7 @@ class AtlasTaskView(TaskViewBase):
         self.update_plots()
 
     def include_exclude_selected(self, *args):
+        """Include and exclude selected row from the plots without deleting it."""
         if not self.table.selection():
             return
         i = self.table.index(self.table.selection()[0])
@@ -260,6 +262,11 @@ class AtlasTaskView(TaskViewBase):
         self.update_plots()
 
     def load_atlas(self, *args, path: Optional[Path] = None):
+        """Loads atlas database and updates the plots and table.
+
+        Eventually, the atlas will be read from a default location, so the dialog will
+        not be needed.
+        """
         if not path:
             filename = tk.filedialog.askopenfilename(
                 title="Select strain atlas file",
@@ -276,6 +283,7 @@ class AtlasTaskView(TaskViewBase):
         self.update_plots()
 
     def save_as_atlas(self, *args):
+        """Save the atlas with a new name."""
         filename = tk.filedialog.asksaveasfilename(
             title="Introduce new name for the strain atlas.",
             initialfile="strain_atlas.csv",
@@ -289,13 +297,14 @@ class AtlasTaskView(TaskViewBase):
         self.save_atlas(filename)
 
     def save_atlas(self, filename: Path):
+        """Save the atlas using the currently selected filename."""
         try:
             self.atlas_data.to_csv(filename, index=False)
             self.path = Path(filename)
         except ValueError as err:
             self.controller.progress(f"Error found when saving: {str(err)}.")
 
-    def load_atlas_data(self, path: Optional[Path] = None):
+    def load_atlas_data(self, path: Optional[Path] = None) -> pd.DataFrame:
         """Loads the atlas data from the csv file.
 
         If path is invalid or empty, an empty atlas data structure is returned and an
@@ -311,7 +320,6 @@ class AtlasTaskView(TaskViewBase):
         self.controller.progress("")
         try:
             data = validate_data(pd.read_csv(path), self.controller.progress)
-            # data = dummy_data()
             self.path = path
 
         except ValueError as err:
@@ -342,6 +350,7 @@ class AtlasTaskView(TaskViewBase):
         self.overlay(data)
 
     def get_new_data(self) -> Optional[pd.DataFrame]:
+        """Get new data from the current patient and add it to the database."""
         from ..models.readers import extract_strain_markers
 
         if not self.data or not self.data.strain_markers:
@@ -403,6 +412,7 @@ class GridPlot:
         self.update_plot(data)
 
     def update_plot(self, data: pd.DataFrame):
+        """Update plot with data."""
         pad = 5
 
         for i, s in enumerate(SLICES):
@@ -441,6 +451,7 @@ class GridPlot:
         self.fig.canvas.draw_idle()
 
     def overlay(self, data: pd.DataFrame):
+        """Overlay data onto the existing plots."""
         for i, s in enumerate(SLICES):
             for j, c in enumerate(COMP):
                 d = data.loc[
@@ -499,47 +510,15 @@ def validate_data(
 
 
 def empty_data() -> pd.DataFrame:
-    Record = pd.Series([])
-    Slice = pd.Series([])
-    Component = pd.Series([])
-    Region = pd.Series([])
-    PSS = pd.Series([])
-    ESS = pd.Series([])
-    PS = pd.Series([])
-    Included = pd.Series([])
-
-    return validate_data(
-        pd.DataFrame(
-            {
-                "Record": Record,
-                "Slice": Slice,
-                "Region": Region,
-                "Component": Component,
-                "PSS": PSS,
-                "ESS": ESS,
-                "PS": PS,
-                "Included": Included,
-            }
-        )
-    )
-
-
-def dummy_data() -> pd.DataFrame:
-    M = 30
-    N = 9 * 7 * M
-
-    Record = pd.Series(np.random.random_integers(1, 20, N))
-    Slice = pd.Series(np.random.choice(["Base", "Mid", "Apex"], size=N))
-    Component = pd.Series(
-        np.random.choice(["Longitudinal", "Radial", "Circumferential"], size=N)
-    )
-    Region = pd.Series(
-        np.random.choice(["Global", "AS", "A", "AL", "IL", "I", "IS"], size=N)
-    )
-    PSS = pd.Series(np.random.random(N))
-    ESS = pd.Series(np.random.random(N))
-    PS = pd.Series(np.random.random(N))
-    Included = pd.Series([True] * N)
+    """Create empty dataframe with the required columns."""
+    Record = pd.Series([], dtype=int)
+    Slice = pd.Series([], dtype=str)
+    Component = pd.Series([], dtype=str)
+    Region = pd.Series([], dtype=str)
+    PSS = pd.Series([], dtype=float)
+    ESS = pd.Series([], dtype=float)
+    PS = pd.Series([], dtype=float)
+    Included = pd.Series([], dtype=bool)
 
     return validate_data(
         pd.DataFrame(
