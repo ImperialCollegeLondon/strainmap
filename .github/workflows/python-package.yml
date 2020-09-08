@@ -5,10 +5,9 @@ name: Test and build
 
 on: [push, pull_request, release]
 
-
 jobs:
   test:
-
+    if: github.event_name != 'release'
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -47,42 +46,50 @@ jobs:
       run: |
         xvfb-run -a python -m pytest
 
-  build:
+  build-windows:
     needs: test
     if: github.event_name == 'push' || github.event_name == 'release'
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [macos-latest, windows-latest]
-        python-version: [3.7]
+    runs-on: windows-latest
     
     steps:
       - uses: actions/checkout@v2
-      - name: Set up Python ${{ matrix.python-version }}
+      - name: Set up Python 3.7
         uses: actions/setup-python@v2
         with:
-          python-version: ${{ matrix.python-version }}
+          python-version: 3.7
       - name: Install dependencies
         run: |
           pip install -e .[dev]
-      - name: Build package (macos)
-        if: matrix.os == 'macos-latest' && github.event_name == 'release'
+      - name: Build package
+        run: |
+          pyinstaller strain.windows.spec
+      - uses: actions/upload-artifact@v2
+        if: success()
+        with:
+          name: Windows
+          path: dist/strain.exe
+
+  build-macos:
+    needs: test
+    if: github.event_name == 'release'
+    runs-on: macos-latest
+
+    steps:
+      - uses: actions/checkout@v2
+      - name: Set up Python 3.7
+        uses: actions/setup-python@v2
+        with:
+          python-version: 3.7
+      - name: Install dependencies
+        run: |
+          pip install -e .[dev]
+      - name: Build package
         run: |
           pyinstaller strain.mac.spec
           cd dist
           hdiutil create ./StrainMap.dmg -srcfolder strain.app -ov
       - uses: actions/upload-artifact@v2
-        if: success() && matrix.os == 'macos-latest' && github.event_name == 'release'
+        if: success()
         with:
           name: MacOS
           path: dist/StrainMap.dmg
-      - name: Build package (windows)
-        if: matrix.os == 'windows-latest'
-        run: |
-          pyinstaller strain.windows.spec
-      - uses: actions/upload-artifact@v2
-        if: success() && matrix.os == 'windows-latest'
-        with:
-          name: Windows
-          path: dist/strain.exe
