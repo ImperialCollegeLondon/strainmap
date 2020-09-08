@@ -78,6 +78,7 @@ jobs:
       - uses: actions/upload-artifact@v2
         if: success() && matrix.os == 'macos-latest'
         with:
+          name: MacOS
           path: dist/StrainMap.dmg
       - name: Build package (windows)
         if: matrix.os == 'windows-latest'
@@ -86,4 +87,5 @@ jobs:
       - uses: actions/upload-artifact@v2
         if: success() && matrix.os == 'windows-latest'
         with:
+          name: Windows
           path: dist/strain.exe
