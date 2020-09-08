@@ -31,7 +31,7 @@ from .figure_actions_manager import (
     MouseAction,
     Location,
 )
-from ..models.contour_mask import contour_diff
+from ..models.contour_mask import Contour
 
 
 @register_view
@@ -436,11 +436,10 @@ class SegmentationTaskView(TaskViewBase):
     @property
     def centroid(self):
         """Return an array with the position of the centroid at a given time."""
-        mask = contour_diff(
+        mask = Contour(
             self.final_segments["epicardium"][self.current_frame].T,
-            self.final_segments["endocardium"][self.current_frame].T,
             shape=self.images["mag"][self.current_frame].shape,
-        )
+        ).mask
         return np.array(ndimage.measurements.center_of_mass(mask))
 
     @property

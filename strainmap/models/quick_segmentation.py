@@ -1,6 +1,6 @@
 from .segmenters import Segmenter
 from .strainmap_data_model import StrainMapData
-from .contour_mask import Contour, dilate, contour_diff
+from .contour_mask import Contour, dilate
 
 import numpy as np
 from scipy import ndimage
@@ -113,12 +113,8 @@ def centroid(segments, frame, shape):
     """Return an array with the position of the centroid at a given time."""
     mask = np.array(
         [
-            ndimage.measurements.center_of_mass(
-                contour_diff(outer.T, inner.T, shape=shape)
-            )
-            for outer, inner in zip(
-                segments["epicardium"][frame], segments["endocardium"][frame]
-            )
+            ndimage.measurements.center_of_mass(Contour(outer.T, shape=shape).mask)
+            for outer in segments["epicardium"][frame]
         ]
     )
     return mask

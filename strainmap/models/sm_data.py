@@ -5,6 +5,7 @@ from copy import deepcopy
 from enum import Enum, auto
 from dataclasses import dataclass
 from itertools import chain
+import operator as op
 
 import numpy as np
 import sparse
@@ -65,11 +66,64 @@ class LabelledArray:
     convenience methods like sum, cumsum or stack using labels rather than indices.
     """
 
+    @classmethod
+    def from_dict(
+        cls,
+        dims: Sequence,
+        values: Dict,
+        coords: Optional[Dict[str, Sequence]] = None,
+        skip: Tuple[str] = ("",),
+    ) -> LabelledArray:
+        """Transforms a (possibly nested) dictionary of np.ndarray in a LabelledArray.
+
+         If the dictionary is nested, all branches must have the same depth and keys on
+         each level. The arrays must have the same shape. dims must be a list with the
+         number of elements equal to the depth of the dictionary + the shape of the
+         array. If the number of non-zero elements is smaller than 75% of the total, a
+         sparse.COO array is used.
+
+        Args:
+            dims: Sequence of dimension names.
+            values: A nested dictionary with numpy arrays in the deepest level.
+            coords: (Optional) Dictionary of coordinates for one or more dimensions.
+            skip: (optional) Keys to skip when scanning the dictionaries.
+
+        Returns:
+            A LabelledArray object
+        """
+
+        def get_coords(d: Sequence, v: Union[Dict, np.ndarray], c: Dict) -> Dict:
+            c[d[0]] = (
+                [k for k in v.keys() if k not in skip] if isinstance(v, dict) else None
+            )
+            if len(d) > 1:
+                return get_coords(
+                    d[1:], v.get(c[d[0]][0]) if isinstance(v, dict) else v[0], c
+                )
+            return c
+
+        new_coords = get_coords(dims, values, {})
+        if coords is not None:
+            new_coords.update(coords)
+
+        def get_values(v: Union[Dict, np.ndarray]) -> np.ndarray:
+            if isinstance(v, dict):
+                return np.stack(
+                    (get_values(val) for key, val in v.items() if key not in skip)
+                )
+            return v
+
+        new_values = get_values(values)
+        if np.count_nonzero(new_values) / new_values.size < 0.75:
+            new_values = sparse.COO(new_values)
+
+        return cls(dims=dims, coords=new_coords, values=new_values)
+
     def __init__(
         self,
         dims: Sequence[str],
         coords: Dict[str, Sequence],
-        values: Union[np.ndarray, sparse.DOK, sparse.COO],
+        values: Union[np.ndarray, sparse.COO],
     ):
 
         if len(dims) != len(values.shape):
@@ -92,16 +146,17 @@ class LabelledArray:
         self.values = values
         self.module = __import__(type(values).__module__.split(".")[0])
 
-    def __getitem__(self, items) -> Union[LabelledArray, np.ndarray, sparse.COO]:
+    def __getitem__(self, idx) -> Union[LabelledArray, np.ndarray, sparse.COO]:
         """ Gets items from 'values' using indices.
 
         If the result is an scalar, then this function returns an scalar, otherwise
         it will return a LabelArray object with the corresponding dimensions and
         coordinates.
         """
-        assert not any(
-            isinstance(item, type(Ellipsis)) for item in items
-        ), NotImplementedError
+        items = (idx,) if not isinstance(idx, Sequence) else idx
+
+        if any(isinstance(item, type(Ellipsis)) for item in items):
+            raise NotImplementedError
 
         new_value = self.values[items]
         new_dims = [
@@ -147,9 +202,114 @@ class LabelledArray:
             and (self.values == other.values).all()
         )
 
+    def __add__(self, other: object) -> LabelledArray:
+        return self._operate(other, op.add)
+
+    def __radd__(self, other: object) -> LabelledArray:
+        return self._operate(other, op.add)
+
+    def __mul__(self, other: object) -> LabelledArray:
+        return self._operate(other, op.mul)
+
+    def __rmul__(self, other: object) -> LabelledArray:
+        return self._operate(other, op.mul)
+
+    def _operate(self, other: object, operation: Callable) -> LabelledArray:
+        """ Carries the actual mathematical operation.
+
+        If the `other` argument is not a LabelledArray, the operation is transferred
+        directly to an operation on the `self.values`, and therefore will fail if that
+        operation makes no sense for whatever reason.
+
+        Otherwise, some manipulation is necessary to ensure that the underlying values,
+        which can be np.ndarray, sparse.COO or a mixture of both are compatible.
+
+        Finally dimensions are aligned to perform the operation.
+
+        Args:
+            other: Other object to operate with this one.
+            operation: Operation to be done.
+
+        Returns:
+            The result of the operation.
+        """
+        if not isinstance(other, LabelledArray):
+            return LabelledArray(self.dims, self.coords, operation(self.values, other))
+
+        if not isinstance(self.values, type(other.values)):
+            left, right = self.match_type(other, operation)
+            left, right = left.align(right)
+        else:
+            left, right = self.align(other)
+
+        return LabelledArray(
+            left.dims,
+            {
+                k: left.coords[k] if left.coords[k] is not None else right.coords[k]
+                for k in left.dims
+            },
+            operation(left.values, right.values),
+        )
+
+    def to_coo(self) -> LabelledArray:
+        """Transform a dense LabelledArray to its sparse version."""
+        if isinstance(self.values, sparse.COO):
+            return self
+        return LabelledArray(self.dims, self.coords, sparse.COO(self.values))
+
+    def to_dense(self) -> LabelledArray:
+        """Transform a sparse LabelledArray to its dense version."""
+        if isinstance(self.values, np.ndarray):
+            return self
+        return LabelledArray(self.dims, self.coords, self.values.todense())
+
+    def match_type(
+        self, other: LabelledArray, operation: Callable
+    ) -> Tuple[LabelledArray, ...]:
+        """  Matches the type of the arrays depending on the operation.
+
+        Mixed operations between np.ndarray and COO are not really allowed and they
+        need to be transformed to the same type.
+
+        - For additions: the COO array is densified.
+        - For multiplications: the np.ndarray is transformed to a COO array.
+
+        Args:
+            other: Other object to operate with this one.
+            operation: Operation to be done.
+
+        Returns:
+            A tuple with the arrays with match type.
+        """
+        if operation is op.add:
+            return (
+                (self.to_dense(), other)
+                if isinstance(self.values, sparse.COO)
+                else (self, other.to_dense())
+            )
+        elif operation is op.mul:
+            return (
+                (self.to_coo(), other)
+                if isinstance(self.values, np.ndarray)
+                else (self, other.to_coo())
+            )
+        else:
+            raise ValueError(f"Unsupported operation: {operation}.")
+
     @property
     def shape(self) -> Tuple[int]:
         return self.values.shape
+
+    def len_of(self, dim: str) -> int:
+        """ Returns the length of the LabelledArray in that dimension.
+
+        Args:
+            dim: Dimension name
+
+        Returns:
+            The length of the array along the given dimension.
+        """
+        return self.shape[self.dims.index(dim)]
 
     def sel(self, **kwargs) -> Union[LabelledArray, np.ndarray, sparse.COO]:
         """ Gets items from 'values' using dimension and coordinate labels.
@@ -180,6 +340,38 @@ class LabelledArray:
             cidx = coord
 
         return didx, cidx
+
+    def align(self, right: LabelledArray) -> Tuple[LabelledArray, ...]:
+        """ Align the dimensions of the LabelledArrays so they can be used in maths.
+
+        Coordinates along the common dimensions must be identical.
+
+        Args:
+            right: The other LabelledArray to align with this one.
+
+        Returns:
+            A tuple with two LabelledArrays with aligned dimensions.
+        """
+        common_dims = tuple((d for d in self.dims if d in right.dims))
+        dims = sorted(
+            common_dims
+            + tuple((d for d in self.dims + right.dims if d not in common_dims))
+        )
+
+        if not all(self.coords[k] == right.coords[k] for k in common_dims):
+            raise ValueError("Common dimensions must have identical coordinates.")
+
+        lvalues = self.transpose(*(d for d in dims if d in self.dims)).values[
+            tuple(slice(None) if d in self.dims else None for d in dims)
+        ]
+        rvalues = right.transpose(*(d for d in dims if d in right.dims)).values[
+            tuple(slice(None) if d in right.dims else None for d in dims)
+        ]
+
+        return (
+            LabelledArray(dims, self.coords, lvalues),
+            LabelledArray(dims, right.coords, rvalues),
+        )
 
     def transpose(self, *dims: str) -> LabelledArray:
         """ Transposes the dimensions of the LabelledArray.

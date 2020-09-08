@@ -4,6 +4,8 @@ from tkinter import messagebox, ttk
 import os
 from functools import partial
 from pathlib import Path
+from traceback import print_exc
+from datetime import datetime
 
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
@@ -254,16 +256,30 @@ class DataTaskView(TaskViewBase):
             filetypes=(("StrainMap files", "*.h5"),),
         )
 
-        if path != "" and self.controller.load_data_from_file(strainmap_file=path):
-            self.load_missing_data()
-            if self.data.data_files:
-                self.controller.review_mode = False
-                self.output_file.set(path)
-                self.data_folder.set(Path(self.data.data_files.is_avail).parent)
-                self.current_dir = str(Path(path).parent)
-                self.nametowidget("control.chooseOutputFile")["state"] = "enable"
+        try:
+            if path != "" and self.controller.load_data_from_file(strainmap_file=path):
+                self.load_missing_data()
+                if self.data.data_files:
+                    self.controller.review_mode = False
+                    self.output_file.set(path)
+                    self.data_folder.set(Path(self.data.data_files.is_avail).parent)
+                    self.current_dir = str(Path(path).parent)
+                    self.nametowidget("control.chooseOutputFile")["state"] = "enable"
+                self.update_widgets()
+                self.update_phantom_widgets()
+
+        except Exception as err:
+            log = (
+                Path.home()
+                / f"StrainMap_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
+            )
+            with log.open("a") as f:
+                print_exc(file=f)
+            self.controller.load_data_from_folder(data_files=path)
+            self.controller.window.progress(
+                f"{err} - Log info in {str(log)}"
+            )
             self.update_widgets()
-            self.update_phantom_widgets()
 
     def load_phantom(self):
         """Loads phantom data into a data structure."""
