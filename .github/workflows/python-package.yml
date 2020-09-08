@@ -1,7 +1,7 @@
 # This workflow will install Python dependencies, run tests and lint with a variety of Python versions
 # For more information see: https://help.github.com/actions/language-and-framework-guides/using-python-with-github-actions
 
-name: Python package
+name: Test and build
 
 on:
   push:
@@ -10,7 +10,7 @@ on:
 
 
 jobs:
-  build:
+  test:
 
     runs-on: ${{ matrix.os }}
     strategy:
@@ -50,8 +50,9 @@ jobs:
       run: |
         xvfb-run -a python -m pytest
 
-  deploy:
-    needs: build
+  build:
+    needs: test
+    if: github.event_name == 'push'
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -74,13 +75,15 @@ jobs:
           pyinstaller strain.mac.spec
           cd dist
           hdiutil create ./StrainMap.dmg -srcfolder strain.app -ov
+      - uses: actions/upload-artifact@v2
+        if: success() and matrix.os == 'macos-latest'
+        with:
+          path: dist/StrainMap.dmg
       - name: Build package (windows)
         if: matrix.os == 'windows-latest'
         run: |
           pyinstaller strain.windows.spec
       - uses: actions/upload-artifact@v2
+        if: success() and matrix.os == 'windows-latest'
         with:
-          name: packages
-          path: |
-            'dist/StrainMap.dmg'
-            'dist/strain.exe'
+          path: dist/strain.exe
