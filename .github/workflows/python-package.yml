@@ -7,7 +7,7 @@ on: [push, pull_request, release]
 
 jobs:
   style:
-    if: github.event_name == 'push'
+    if: github.event_name != 'release'
     runs-on: ubuntu-latest
 
     steps:
