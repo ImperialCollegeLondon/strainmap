@@ -114,7 +114,7 @@ class LabelledArray:
             return v
 
         new_values = get_values(values)
-        if np.count_nonzero(new_values) / new_values.size < 0.75:
+        if np.count_nonzero(new_values) / new_values.size < 0.90:
             new_values = sparse.COO(new_values)
 
         return cls(dims=dims, coords=new_coords, values=new_values)
