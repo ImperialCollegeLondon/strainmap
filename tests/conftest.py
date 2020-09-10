@@ -20,20 +20,9 @@ def patch_dialogs(function):
     return decorated
 
 
-def _old_dicom_data_path():
-    """Returns the old DICOM data path."""
-    return Path(__file__).parent / "data" / "SUB1"
-
-
 def _dicom_data_path():
     """Returns the DICOM data path."""
     return Path(__file__).parent / "data" / "CM1"
-
-
-@fixture(scope="session")
-def old_dicom_data_path():
-    """Returns the old DICOM data path."""
-    return _old_dicom_data_path()
 
 
 @fixture(scope="session")
@@ -91,12 +80,6 @@ def segmented_data(strainmap_data):
 
     strainmap_data.zero_angle[dataset][..., 0] = np.array([260, 230])
     return strainmap_data
-
-
-@fixture(scope="session")
-def old_dicom_bg_data_path():
-    """Returns the DICOM background data path."""
-    return Path(__file__).parent / "data" / "SUB1_BG"
 
 
 @fixture

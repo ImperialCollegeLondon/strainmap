@@ -155,7 +155,6 @@ def test_masked_means():
     from numpy import zeros
     from numpy.random import randint, random
     from strainmap.models.contour_mask import masked_means
-    from strainmap.models.readers import ImageTimeSeries
 
     # constructs cartesian velocities with known means
     N = 3
@@ -170,5 +169,5 @@ def test_masked_means():
             view[1][labels == l] = meanvel[l, 1, t]
             view[2][labels == l] = meanvel[l, 2, t]
 
-    actual = masked_means(cartvel, labels, axes=ImageTimeSeries.image_axes)
+    actual = masked_means(cartvel, labels, axes=(2, 3))
     assert actual == approx(meanvel[1:, :, :])
