@@ -8,7 +8,6 @@ def test_from_folder(dicom_data_path):
     data = StrainMapData.from_folder(data_files=dicom_data_path)
     assert isinstance(data, StrainMapData)
     assert len(data.data_files.files) > 0
-    assert data.bg_files is None
 
 
 def test_add_h5_file(dicom_data_path, tmpdir):

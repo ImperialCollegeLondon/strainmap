@@ -43,7 +43,6 @@ def compare_dicts(one, two):
 class StrainMapData(object):
     stored = (
         "data_files",
-        "bg_files",
         "sign_reversal",
         "segments",
         "zero_angle",
@@ -73,12 +72,10 @@ class StrainMapData(object):
     def __init__(
         self,
         data_files: Optional[DICOMReaderBase] = None,
-        bg_files: Optional[DICOMReaderBase] = None,
         strainmap_file: Optional[h5py.File] = None,
     ):
 
         self.data_files = data_files
-        self.bg_files = bg_files
         self.strainmap_file = strainmap_file
         self.sign_reversal: Tuple[bool, ...] = (False, False, False)
         self.segments: dict = defaultdict(dict)
@@ -97,16 +94,11 @@ class StrainMapData(object):
         return all([k in self.velocities.keys() for k in self.markers.keys()])
 
     def add_paths(
-        self,
-        data_files: Union[Path, Text, None] = None,
-        bg_files: Union[Path, Text, None] = None,
+        self, data_files: Union[Path, Text, None] = None,
     ):
         """Adds data and/or phantom paths to the object."""
         if data_files is not None:
             self.data_files = read_folder(data_files)
-        if bg_files is not None:
-            self.bg_files = read_folder(bg_files)
-        if data_files is not None or bg_files is not None:
             if not self.rebuilt:
                 self.regenerate()
             self.save_all()
@@ -139,8 +131,10 @@ class StrainMapData(object):
                 self.zero_angle[d][..., 1] = effective_centroid(raw_centroids, window=3)
 
             except Exception as err:
-                raise RuntimeError(f"Error when regenerating COM for dataset '{d}'. "
-                                   f"Error message: {err}.")
+                raise RuntimeError(
+                    f"Error when regenerating COM for dataset '{d}'. "
+                    f"Error message: {err}."
+                )
 
         for dataset, markers in self.markers.items():
             for k in markers.keys():
@@ -160,8 +154,10 @@ class StrainMapData(object):
                     default = za[..., 0].copy()
 
             except Exception as err:
-                raise RuntimeError(f"Error when healing septum mid-point for "
-                                   f"dataset '{dataset}'. Error message: {err}.")
+                raise RuntimeError(
+                    f"Error when healing septum mid-point for "
+                    f"dataset '{dataset}'. Error message: {err}."
+                )
 
     def metadata(self, dataset=None):
         """Retrieve the metadata from the DICOM files"""
