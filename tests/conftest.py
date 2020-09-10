@@ -283,3 +283,46 @@ def larray_coo(larray_np):
 @fixture(params=["np", "COO"])
 def larray(request, larray_np, larray_coo):
     return larray_np if request.param == "np" else larray_coo
+
+
+@fixture
+def dummy_data() -> pd.DataFrame:
+    """Create dataframe with some dummy data."""
+    from strainmap.gui.atlas_view import SLICES, COMP, REGIONS, validate_data
+    import numpy as np
+
+    M = 30
+    N = 9 * 7 * M
+
+    Record = pd.Series(np.random.random_integers(1, 20, N))
+    Slice = pd.Series(np.random.choice(SLICES, size=N))
+    Component = pd.Series(np.random.choice(COMP, size=N))
+    Region = pd.Series(np.random.choice([a for a in REGIONS if a != ""], size=N))
+    PSS = pd.Series(np.random.random(N))
+    ESS = pd.Series(np.random.random(N))
+    PS = pd.Series(np.random.random(N))
+    Included = pd.Series([True] * N)
+
+    return validate_data(
+        pd.DataFrame(
+            {
+                "Record": Record,
+                "Slice": Slice,
+                "Region": Region,
+                "Component": Component,
+                "PSS": PSS,
+                "ESS": ESS,
+                "PS": PS,
+                "Included": Included,
+            }
+        )
+    )
+
+
+@fixture
+def atlas_view_with_data(atlas_view, dummy_data):
+    atlas_view.save_atlas = MagicMock()
+    atlas_view.update_plots = MagicMock()
+    atlas_view.atlas_data = dummy_data
+    atlas_view.update_table(atlas_view.atlas_data)
+    return atlas_view
