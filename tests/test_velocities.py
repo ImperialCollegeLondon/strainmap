@@ -76,13 +76,12 @@ def test_transform_to_cylindrical():
     assert expected == approx(velocities)
 
 
-def test_substract_estimated_bg():
-    from strainmap.models.velocities import substract_estimated_bg
+def test_subtract_bg():
+    from strainmap.models.velocities import subtract_bg
     import numpy as np
 
     a = np.ones((3, 5, 5))
-    assert substract_estimated_bg(a).mean(axis=2) == approx(0)
-    assert substract_estimated_bg(a, bg="None").mean(axis=2) == approx(1)
+    assert subtract_bg(a).all() == approx(0)
 
 
 def test_velocity_global():
@@ -92,12 +91,12 @@ def test_velocity_global():
     cylindrical = np.random.random((3, 5, 48, 58))
     mask = np.random.randint(0, 2, (5, 48, 58))
 
-    actual_v, actual_m = velocity_global(cylindrical, mask, "Estimated")
+    actual_v, actual_m = velocity_global(cylindrical, mask)
 
-    assert "global - Estimated" in actual_v
-    assert "global - Estimated" in actual_m
-    assert actual_v["global - Estimated"].shape == (1, 3, 5)
-    assert actual_m["global - Estimated"] == approx(mask)
+    assert "global" in actual_v
+    assert "global" in actual_m
+    assert actual_v["global"].shape == (1, 3, 5)
+    assert actual_m["global"] == approx(mask)
 
 
 def test_velocities_angular():
@@ -111,7 +110,7 @@ def test_velocities_angular():
     zero_angle[:, :, 1] += 5
 
     actual_v, actual_m = velocities_angular(
-        cylindrical, zero_angle, origin, mask, "Estimated", regions=(6,)
+        cylindrical, zero_angle, origin, mask, regions=(6,)
     )
     assert len(list(actual_v.keys())) == len(list(actual_m.keys())) == 1
     assert list(actual_v.values())[0].shape == (6, 3, 5)
@@ -137,13 +136,7 @@ def test_velocities_radial():
     cylindrical = np.random.random((3,) + masks.shape)
 
     actual_v, actual_m = velocities_radial(
-        cylindrical,
-        segments,
-        origin,
-        mask=masks,
-        shift=shift,
-        bg="Estimated",
-        regions=(4,),
+        cylindrical, segments, origin, mask=masks, shift=shift, regions=(4,),
     )
     assert len(list(actual_v.keys())) == len(list(actual_m.keys())) == 1
     assert list(actual_v.values())[0].shape == (4, 3, 5)
@@ -166,12 +159,12 @@ def test_calculate_velocities(segmented_data):
     velocities = segmented_data.velocities
 
     assert dataset_name in velocities
-    assert "global - Estimated" in velocities[dataset_name]
-    assert velocities[dataset_name]["global - Estimated"].shape == (1, 3, 3)
-    assert "angular x6 - Estimated" in velocities[dataset_name]
-    assert velocities[dataset_name]["angular x6 - Estimated"].shape == (6, 3, 3)
-    assert "radial x4 - Estimated" in velocities[dataset_name]
-    assert velocities[dataset_name]["radial x4 - Estimated"].shape == (4, 3, 3)
+    assert "global" in velocities[dataset_name]
+    assert velocities[dataset_name]["global"].shape == (1, 3, 3)
+    assert "angular x6" in velocities[dataset_name]
+    assert velocities[dataset_name]["angular x6"].shape == (6, 3, 3)
+    assert "radial x4" in velocities[dataset_name]
+    assert velocities[dataset_name]["radial x4"].shape == (4, 3, 3)
 
 
 def test_marker():

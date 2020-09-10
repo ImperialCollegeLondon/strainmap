@@ -29,20 +29,12 @@ def find_theta0(zero_angle: np.ndarray):
 def scale_phase(
     data: StrainMapData,
     dataset_name: Text,
-    bg: str = "Estimated",
     swap: bool = False,
     sign_reversal=(False, False, False),
     scale=1 / 4096,
 ):
-    """Prepare the phases, scaling them and substracting the phantom, if needed."""
-    phase = data.data_files.phase(dataset_name) * scale
-
-    if data.bg_files is not None and bg in data.bg_files.datasets:  # type: ignore
-        phantom_phase = data.bg_files.phase(bg) * scale
-    else:
-        phantom_phase = 0.5
-
-    phase = phase - phantom_phase
+    """Prepare the phases, scaling them and shifting them to the [-0.5, 0.5] range."""
+    phase = data.data_files.phase(dataset_name) * scale - 0.5
 
     if swap:
         phase[0], phase[1] = phase[1], phase[0].copy()
@@ -91,21 +83,16 @@ def transform_to_cylindrical(phase: np.ndarray, masks: np.ndarray, origin: np.nd
     return cylindrical
 
 
-def substract_estimated_bg(
-    velocities: np.ndarray, bg: str = "Estimated", axis: int = 2
-):
-    """Subtracts the estimated background to the velocities, if required."""
-    if bg != "Estimated":
-        return velocities
-
-    return velocities - velocities.mean(axis=axis)[:, :, None]
+def subtract_bg(velocities: np.ndarray, axis: int = 2):
+    """Subtracts the estimated background to the velocities."""
+    return velocities - velocities.mean(axis=axis)[..., None]
 
 
-def velocity_global(cylindrical: np.ndarray, mask: np.ndarray, bg: str):
+def velocity_global(cylindrical: np.ndarray, mask: np.ndarray):
     """Calculate the global velocity."""
-    label = f"global - {bg}"
+    label = f"global"
     velocities = {label: masked_means(cylindrical, mask, axes=(2, 3))}
-    velocities[label] = substract_estimated_bg(velocities[label], bg=bg)
+    velocities[label] = subtract_bg(velocities[label])
     masks = {label: mask}
     return velocities, masks
 
@@ -115,7 +102,6 @@ def velocities_angular(
     zero_angle: np.ndarray,
     origin: np.ndarray,
     mask: np.ndarray,
-    bg: str,
     regions: Sequence[int] = (6,),
 ):
     """Calculate the angular velocities for angular regions."""
@@ -124,12 +110,12 @@ def velocities_angular(
     velocities: Dict[str, np.ndarray] = dict()
     masks: Dict[str, np.ndarray] = dict()
     for ang in regions:
-        label = f"angular x{ang} - {bg}"
+        label = f"angular x{ang}"
         region_labels = angular_segments(
             nsegments=ang, origin=origin, theta0=theta0, shape=cylindrical.shape[2:]
         ).transpose((2, 0, 1))
         velocities[label] = masked_means(cylindrical, region_labels * mask, axes=(2, 3))
-        velocities[label] = substract_estimated_bg(velocities[label], bg=bg)
+        velocities[label] = subtract_bg(velocities[label])
         masks[label] = region_labels * mask
 
     return velocities, masks
@@ -141,7 +127,6 @@ def velocities_radial(
     origin: np.ndarray,
     shift: np.ndarray,
     mask: np.ndarray,
-    bg: str,
     regions: Sequence[int] = (3,),
 ):
     """Calculates the regional velocities for radial regions."""
@@ -151,7 +136,7 @@ def velocities_radial(
     velocities: Dict[str, np.ndarray] = dict()
     masks: Dict[str, Union[list, np.ndarray]] = dict()
     for nr in regions:
-        label = f"radial x{nr} - {bg}"
+        label = f"radial x{nr}"
         velocities[label] = np.zeros((nr, cylindrical.shape[0], cylindrical.shape[1]))
         masks[label] = []
 
@@ -170,7 +155,7 @@ def velocities_radial(
                 cylindrical[:, i, :, :], masks[label][-1], axes=(1, 2)
             )
 
-        velocities[label] = substract_estimated_bg(velocities[label], bg=bg)
+        velocities[label] = subtract_bg(velocities[label])
         masks[label] = np.array(masks[label])
 
     return velocities, masks
@@ -188,13 +173,12 @@ def calculate_velocities(
     global_velocity: bool = True,
     angular_regions: Sequence[int] = (),
     radial_regions: Sequence[int] = (),
-    bg: str = "Estimated",
     sign_reversal: Tuple[bool, ...] = (False, False, False),
     init_markers: bool = True,
 ):
     """Calculates the velocity of the chosen dataset and regions."""
     swap, signs = data.data_files.orientation(dataset_name)  # type: ignore
-    phase = scale_phase(data, dataset_name, bg, swap, sign_reversal)  # type: ignore
+    phase = scale_phase(data, dataset_name, swap, sign_reversal)  # type: ignore
     mask, orig, (xmin, xmax, ymin, ymax) = global_masks_and_origin(
         outer=data.segments[dataset_name]["epicardium"],
         inner=data.segments[dataset_name]["endocardium"],
@@ -206,13 +190,13 @@ def calculate_velocities(
         transform_to_cylindrical(phase, rm_mask, origin)
         * (data.data_files.sensitivity * signs)[:, None, None, None]  # type: ignore
     )
-    data.masks[dataset_name][f"cylindrical - {bg}"] = cylindrical
+    data.masks[dataset_name][f"cylindrical"] = cylindrical
     data.sign_reversal = sign_reversal
 
     vel_labels: List[str] = []
     if global_velocity:
         velocities, masks = velocity_global(
-            cylindrical[..., xmin : xmax + 1, ymin : ymax + 1], mask, bg
+            cylindrical[..., xmin : xmax + 1, ymin : ymax + 1], mask
         )
         masks = {
             k: remap_array(v, phase.shape[-2:], (xmin, xmax, ymin, ymax))
@@ -228,7 +212,6 @@ def calculate_velocities(
             data.zero_angle[dataset_name],
             origin - shift[None, :],
             mask,
-            bg,
             angular_regions,
         )
         masks = {
@@ -246,7 +229,6 @@ def calculate_velocities(
             origin - shift[None, :],
             shift,
             mask,
-            bg,
             radial_regions,
         )
         masks = {
@@ -272,26 +254,21 @@ def regenerate(data, datasets, callback: Callable = terminal):
             i / len(datasets),
         )
         vels = data.velocities[d]
-        regions: Dict[str, dict] = {}
+        regions = {"angular_regions": [], "radial_regions": []}
         for k, v in vels.items():
-            info = k.split(" - ")
-            if info[-1] not in regions.keys():
-                regions[info[-1]] = dict(angular_regions=[], radial_regions=[])
-            if "global" in info[0]:
-                regions[info[-1]]["global_velocity"] = True
+            if k == "global":
+                regions["global_velocity"] = True
             else:
-                rtype, num = info[0].split(" x")
-                regions[info[-1]][f"{rtype}_regions"].append(int(num))
+                rtype, num = k.split(" x")
+                regions[f"{rtype}_regions"].append(int(num))
 
-        for bg, region in regions.items():
-            calculate_velocities(
-                data=data,
-                dataset_name=d,
-                bg=bg,
-                sign_reversal=data.sign_reversal,
-                init_markers=False,
-                **region,
-            )
+        calculate_velocities(
+            data=data,
+            dataset_name=d,
+            sign_reversal=data.sign_reversal,
+            init_markers=False,
+            **regions,
+        )
     callback(f"Regeneration complete!", 1)
 
 
@@ -306,18 +283,14 @@ markers_options = {
 
 
 def px_velocity_curves(
-    data: StrainMapData,
-    dataset: str,
-    nrad: int = 3,
-    nang: int = 24,
-    background: str = "Estimated",
+    data: StrainMapData, dataset: str, nrad: int = 3, nang: int = 24,
 ) -> np.ndarray:
     """ TODO: Remove in the final version. """
     from .strain import masked_reduction
 
-    vkey = f"cylindrical - {background}"
-    rkey = f"radial x{nrad} - {background}"
-    akey = f"angular x{nang} - {background}"
+    vkey = f"cylindrical"
+    rkey = f"radial x{nrad}"
+    akey = f"angular x{nang}"
     img_axis = tuple(range(len(data.masks[dataset][vkey].shape)))[-2:]
 
     cyl = data.masks[dataset][vkey]
@@ -537,19 +510,14 @@ def update_marker(
 
 def initialise_markers(data: StrainMapData, dataset: str, vel_labels: list):
     """Initialises the markers for all the available velocities."""
-    gvel = [key for key in vel_labels if "global" in key]
-    rvel = [key for key in vel_labels if "global" not in key]
+    data.markers[dataset]["global"] = markers_positions(
+        data.velocities[dataset]["global"]
+    )
 
-    for vel_label in gvel:
-        data.markers[dataset][vel_label] = markers_positions(
-            data.velocities[dataset][vel_label]
-        )
-
+    rvel = (key for key in vel_labels if key != "global")
     for vel_label in rvel:
-        bg = vel_label.split("-")[-1]
-        global_vel = f"global -{bg}"
         data.markers[dataset][vel_label] = markers_positions(
             data.velocities[dataset][vel_label],
-            data.markers[dataset][global_vel][0][1, 3],
+            data.markers[dataset]["global"][0][1, 3],
         )
     return data
