@@ -6,7 +6,9 @@ from functools import partial
 from pathlib import Path
 from traceback import print_exc
 from datetime import datetime
+from typing import Tuple, Optional
 
+import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.figure import Figure
@@ -14,6 +16,7 @@ from matplotlib.figure import Figure
 from .base_window_and_task import TaskViewBase, register_view
 from .figure_actions import BrightnessAndContrast, ScrollFrames, ZoomAndPan
 from .figure_actions_manager import FigureActionsManager
+from ..models.sm_data import LabelledArray
 
 
 @register_view
@@ -40,7 +43,7 @@ class DataTaskView(TaskViewBase):
         self.phantoms_box = None
         self.fig = None
         self.datasets_var = tk.StringVar(value="")
-        self.maps_var = tk.StringVar(value="Mag")
+        self.maps_var = tk.StringVar(value="mag")
         self.bg_var = tk.StringVar(value="")
         self.anim = False
 
@@ -274,9 +277,7 @@ class DataTaskView(TaskViewBase):
             with log.open("a") as f:
                 print_exc(file=f)
             self.controller.load_data_from_folder(data_files=path)
-            self.controller.window.progress(
-                f"{err} - Log info in {str(log)}"
-            )
+            self.controller.window.progress(f"{err} - Log info in {str(log)}")
             self.update_widgets()
 
     def load_phantom(self):
@@ -367,7 +368,7 @@ class DataTaskView(TaskViewBase):
                 "In-plane velocity map (X)",
                 "In-plane velocity map (Y)",
             ]
-            var_values = ["Mag", "PhaseZ", "PhaseX", "PhaseY"]
+            var_values = ["mag", "z", "x", "y"]
             patient_data = self.data.metadata()
         else:
             values = ["No suitable datasets available."]
@@ -376,6 +377,12 @@ class DataTaskView(TaskViewBase):
             patient_data = {}
 
         return values, texts, var_values, patient_data
+
+    @property
+    def images(self) -> LabelledArray:
+        variable = self.maps_var.get()
+        series = self.datasets_var.get()
+        return self.data.data_files.images(series).sel(comp=variable)
 
     def update_visualization(self, *args, phantom=False):
         """ Updates the visualization whenever the data selected changes. """
@@ -391,14 +398,12 @@ class DataTaskView(TaskViewBase):
         else:
             self.bg_var.set("")
 
-        self.update_plot(series, variable)
+        self.update_plot()
         self.update_dicom_bg_view(self.bg_var.get(), variable)
         self.update_dicom_data_view(series, variable)
 
-    def update_plot(self, series, variable):
+    def update_plot(self):
         """Updates the data contained in the plot."""
-        images = self.data.data_files.images(series, variable)
-
         self.fig.actions_manager.ScrollFrames.clear()
 
         ax = self.fig.axes[-1]
@@ -406,25 +411,16 @@ class DataTaskView(TaskViewBase):
         ax.get_xaxis().set_visible(False)
         ax.get_yaxis().set_visible(False)
 
-        if len(images) == 0:
+        if len(self.images) == 0:
             return
 
-        ax.imshow(images[0], cmap=plt.get_cmap("binary_r"))
+        ax.imshow(self.images[0], cmap=plt.get_cmap("binary_r"))
 
         self.fig.actions_manager.ScrollFrames.set_scroller(
-            partial(self.scroll, images), ax
+            partial(scroll, self.images.values), ax
         )
 
         self.fig.canvas.draw()
-
-    @staticmethod
-    def scroll(images, frame):
-        """Provides the next images when scrolling."""
-        if len(images) == 0:
-            return 0, None, None
-
-        current_frame = frame % images.shape[0]
-        return current_frame, images[current_frame], None
 
     def update_dicom_data_view(self, series, variable):
         """ Updates the treeview with data from the selected options.
@@ -494,3 +490,12 @@ class DataTaskView(TaskViewBase):
             self.notebook.destroy()
             self.notebook = None
             self.dataselector = None
+
+
+def scroll(images: np.ndarray, frame: int) -> Tuple[int, Optional[np.ndarray], None]:
+    """Provides the next image when scrolling."""
+    if len(images) == 0:
+        return 0, None, None
+
+    current_frame = frame % images.shape[0]
+    return current_frame, images[current_frame], None

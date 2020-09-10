@@ -23,6 +23,8 @@ import numpy as np
 import sparse
 import pydicom
 from natsort import natsorted
+from functools import lru_cache
+from warnings import warn
 
 from .sm_data import LabelledArray
 
@@ -389,10 +391,10 @@ DICOM_READERS = []
 def register_dicom_reader(reader_class):
     """Registers the reader_class in the list of available readers."""
     if issubclass(reader_class, DICOMReaderBase) and set(reader_class.vars.keys()) == {
-        "Mag",
-        "PhaseX",
-        "PhaseY",
-        "PhaseZ",
+        "mag",
+        "x",
+        "y",
+        "z",
     }:
         DICOM_READERS.append(reader_class)
     return reader_class
@@ -493,7 +495,7 @@ class LegacyDICOM(DICOMReaderBase):
         return np.stack((phasex, phasey, phasez))
 
 
-@register_dicom_reader
+# @register_dicom_reader
 class DICOM(DICOMReaderBase):
 
     variables = ["MagAvg", "PhaseZ", "PhaseX", "PhaseY", "RefMag"]
@@ -624,3 +626,24 @@ def group_to_labelled_array(group: h5py.Group) -> LabelledArray:
     dims, coords = labels_from_group(group["labels"])
 
     return LabelledArray(dims, coords, values)
+
+
+@register_dicom_reader
+class DICOMlabelled(DICOM):
+
+    variables = ["MagAvg", "PhaseZ", "PhaseX", "PhaseY", "RefMag"]
+    vars = {"mag": "MagAvg", "z": "PhaseZ", "x": "PhaseX", "y": "PhaseY"}
+
+    @lru_cache(1)
+    def images(self, dataset: str, *arg, **kwargs) -> LabelledArray:
+        """Provides the Phase data corresponding to the chosen dataset."""
+        mag = np.array(read_images(self.files, dataset, "MagAvg"))
+        phasex = np.array(read_images(self.files, dataset, "PhaseX"))
+        phasey = np.array(read_images(self.files, dataset, "PhaseY"))
+        phasez = np.array(read_images(self.files, dataset, "PhaseZ"))
+
+        return LabelledArray(
+            dims=["comp", "frame", "row", "col"],
+            coords={"comp": ["mag", "x", "y", "z"]},
+            values=np.stack((mag, phasex, phasey, phasez)),
+        )
