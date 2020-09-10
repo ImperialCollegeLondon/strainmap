@@ -39,8 +39,6 @@ class VelocitiesTaskView(TaskViewBase):
         self.datasets_var = tk.StringVar(value="")
         self.velocities_frame = None
         self.velocities_var = tk.StringVar(value="")
-        self.bg_box = None
-        self.bg_var = tk.StringVar(value="Estimated")
         self.plot = None
         self.regional_fig = None
         self.param_tables = []
@@ -59,7 +57,6 @@ class VelocitiesTaskView(TaskViewBase):
         self.axes = None
         self.maps = None
         self.vel_lines = None
-        self.bg_images = None
         self.vel_masks = None
         self.cbar = None
         self.limits = None
@@ -94,18 +91,6 @@ class VelocitiesTaskView(TaskViewBase):
             state="readonly",
         )
         self.datasets_box.bind("<<ComboboxSelected>>", self.dataset_changed)
-
-        # Background frame
-        bg_frame = ttk.Labelframe(control, text="Background:")
-        bg_frame.columnconfigure(0, weight=1)
-        bg_frame.rowconfigure(0, weight=1)
-        self.bg_box = ttk.Combobox(
-            master=bg_frame,
-            textvariable=self.bg_var,
-            values=["Estimated"],
-            state="readonly",
-        )
-        self.bg_box.bind("<<ComboboxSelected>>", self.bg_changed)
 
         # Velocities frame
         self.velocities_frame = ttk.Labelframe(control, text="Velocities:")
@@ -164,8 +149,6 @@ class VelocitiesTaskView(TaskViewBase):
         info.grid(sticky=tk.NSEW, padx=10, pady=10)
         dataset_frame.grid(row=0, column=0, sticky=tk.NSEW, padx=5)
         self.datasets_box.grid(row=0, column=0, sticky=tk.NSEW)
-        bg_frame.grid(row=1, column=0, sticky=tk.NSEW, padx=5)
-        self.bg_box.grid(row=0, column=0, sticky=tk.NSEW)
         self.velocities_frame.grid(row=0, column=3, rowspan=3, sticky=tk.NSEW, padx=5)
         for i, table in enumerate(self.param_tables):
             table.grid(row=0, column=i, sticky=tk.NSEW, padx=5)
@@ -184,29 +167,16 @@ class VelocitiesTaskView(TaskViewBase):
         if self.data.velocities.get(current):
             self.update_velocities_list(current)
         else:
-            self.populate_bg_box(current)
             self.calculate_velocities(current)
 
         self.replot()
-
-    def bg_changed(self, *args):
-        """When the background is changed, new velocities need to be calculated."""
-        bg = self.bg_var.get()
-        dataset = self.datasets_var.get()
-        existing_vels = self.data.velocities[dataset].keys()
-        if not any([bg in vel_label for vel_label in existing_vels]):
-            self.calculate_velocities(dataset)
-            self.replot()
 
     def recalculate_velocities(self):
         """Recalculate velocities after a sign reversal."""
         self.update_vel_btn.state(["disabled"])
         dataset = self.datasets_var.get()
-        existing_vels = self.data.velocities[dataset].keys()
-        existing_bg = {vel_label.split(" - ")[-1] for vel_label in existing_vels}
-        for bg in existing_bg:
-            self.calculate_velocities(dataset, bg=bg)
-            self.replot()
+        self.calculate_velocities(dataset)
+        self.replot()
 
     def reversal_checked(self):
         """Enables/disables de update velocities button if amy sign reversal changes."""
@@ -226,9 +196,6 @@ class VelocitiesTaskView(TaskViewBase):
         """Updates the plot to show the chosen velocity."""
         dataset = self.datasets_var.get()
         vel_label = self.velocities_var.get()
-        bg = vel_label.split(" - ")[-1]
-        if not any([bg in k for k in self.data.masks[dataset]]):
-            self.calculate_velocities(dataset, bg, init_markers=False)
 
         self.find_velocity_limits(vel_label)
         if self.data.velocities[dataset][vel_label].shape[0] == 24:
@@ -248,11 +215,9 @@ class VelocitiesTaskView(TaskViewBase):
             self.draw()
             self.populate_tables()
 
-        self.bg_var.set(self.velocities_var.get().split(" - ")[-1])
-
     def color_plots(self, dataset, vel_label):
         """Creates the color plots for the case of 24 angular regions."""
-        gmark = self.data.markers[dataset][f"global - {vel_label.split(' - ')[-1]}"][0]
+        gmark = self.data.markers[dataset]["global"][0]
         markers_idx = gmark[:, :3, 0].flatten()
         self.fig = colour_figure(
             self.data.velocities[dataset][vel_label],
@@ -333,8 +298,7 @@ class VelocitiesTaskView(TaskViewBase):
     @property
     def velocity_maps(self):
         """Calculate velocity maps out of the masks and cylindrical velocities."""
-        cyl_label = f"cylindrical -{self.velocities_var.get().split('-')[-1]}"
-        cylindrical = self.data.masks[self.datasets_var.get()][cyl_label]
+        cylindrical = self.data.masks[self.datasets_var.get()]["cylindrical"]
         bmask = np.broadcast_to(self.masks, cylindrical.shape)
         return np.ma.masked_where(bmask, cylindrical)
 
@@ -416,16 +380,13 @@ class VelocitiesTaskView(TaskViewBase):
         if self.velocities_var.get() not in velocities and len(velocities) > 0:
             self.velocities_var.set(vel_list[0])
 
-        self.bg_var.set(self.velocities_var.get().split(" - ")[-1])
-
-    def calculate_velocities(self, dataset, bg=None, init_markers=True):
+    def calculate_velocities(self, dataset, init_markers=True):
         """Calculate pre-defined velocities for the chosen dataset."""
         self.controller.calculate_velocities(
             dataset_name=dataset,
             global_velocity=True,
             angular_regions=[6, 24],
             radial_regions=[3],
-            bg=self.bg_var.get() if bg is None else bg,
             sign_reversal=tuple(var.get() for var in self.reverse_vel_var),
             init_markers=init_markers,
         )
@@ -478,17 +439,6 @@ class VelocitiesTaskView(TaskViewBase):
         if current not in values:
             self.datasets_var.set(values[0])
 
-    def populate_bg_box(self, dataset):
-        """Populates the background box and try to match the bg choice by name."""
-        values = ["Estimated", "None"] + (
-            self.data.bg_files.datasets if self.data.bg_files is not None else []
-        )
-        self.bg_box.config(values=values)
-        if dataset in values:
-            self.bg_var.set(dataset)
-        else:
-            self.bg_var.set(values[0])
-
     def update_sign_reversal(self):
         """Updates the sign reversal information with data.sign_reversal info."""
         for i, var in enumerate(self.data.sign_reversal):
@@ -497,7 +447,6 @@ class VelocitiesTaskView(TaskViewBase):
     def update_widgets(self):
         """ Updates widgets after an update in the data var. """
         self.populate_dataset_box()
-        self.populate_bg_box(self.datasets_var.get())
         self.update_sign_reversal()
         self.calculate_all()
         self.dataset_changed()
@@ -539,9 +488,7 @@ class VelocitiesTaskView(TaskViewBase):
     @property
     def es_marker(self):
         """ ES marker position. """
-        return self.data.markers[self.datasets_var.get()]["global - Estimated"][
-            0, 1, 3, :2
-        ]
+        return self.data.markers[self.datasets_var.get()]["global"][0, 1, 3, :2]
 
     def markers_figure(
         self,
@@ -635,7 +582,7 @@ class VelocitiesTaskView(TaskViewBase):
         bg = {l: [] for l in self.axes_lbl}
         masks = {l: [] for l in self.axes_lbl}
 
-        if "global" in self.velocities_var.get():
+        if "global" == self.velocities_var.get():
             self.limits = self.find_limits(vel_masks[0, 0])
 
         rmin, rmax, cmin, cmax = self.limits

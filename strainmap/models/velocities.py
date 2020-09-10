@@ -254,13 +254,18 @@ def regenerate(data, datasets, callback: Callable = terminal):
             i / len(datasets),
         )
         vels = data.velocities[d]
-        regions = {"angular_regions": [], "radial_regions": []}
+        regions: Dict = {}
         for k, v in vels.items():
             if k == "global":
                 regions["global_velocity"] = True
             else:
                 rtype, num = k.split(" x")
-                regions[f"{rtype}_regions"].append(int(num))
+                if f"{rtype}_regions" in regions:
+                    regions[f"{rtype}_regions"].append(int(num))
+                else:
+                    regions[f"{rtype}_regions"] = [
+                        int(num),
+                    ]
 
         calculate_velocities(
             data=data,

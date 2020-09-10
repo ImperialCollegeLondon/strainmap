@@ -21,15 +21,6 @@ def test_update_widgets(velocities_view, segmented_data, data_with_velocities):
     assert velocities_view.replot.call_count == 2
 
 
-def test_bg_changed(velocities_view, data_with_velocities):
-    velocities_view.calculate_velocities = MagicMock()
-    velocities_view.controller.data = data_with_velocities
-    velocities_view.update_widgets()
-    velocities_view.bg_var.set("None")
-    velocities_view.bg_changed()
-    velocities_view.calculate_velocities.assert_called_once()
-
-
 def test_reversal_checked(velocities_view, data_with_velocities):
     velocities_view.calculate_velocities = MagicMock()
     velocities_view.controller.data = data_with_velocities
@@ -67,12 +58,10 @@ def test_color_plot(velocities_view, data_with_velocities):
     velocities_view.calculate_velocities = MagicMock()
     velocities_view.controller.data = data_with_velocities
     velocities_view.update_widgets()
-    velocities_view.velocities_var.set("angular x24 - Estimated")
+    velocities_view.velocities_var.set("angular x24")
     velocities_view.replot()
 
-    expected = list(data_with_velocities.velocities.values())[0][
-        "angular x24 - Estimated"
-    ][:, 0, :]
+    expected = list(data_with_velocities.velocities.values())[0]["angular x24"][:, 0, :]
     actual = velocities_view.fig.axes[0].images[0].get_array().data
 
     assert len(velocities_view.fig.axes) == 6  # 3 axes + 3 colorbars
