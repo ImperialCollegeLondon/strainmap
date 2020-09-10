@@ -11,14 +11,6 @@ def test_from_folder(dicom_data_path):
     assert data.bg_files is None
 
 
-def test_add_paths(old_dicom_data_path, old_dicom_bg_data_path):
-    from strainmap.models.strainmap_data_model import StrainMapData
-
-    data = StrainMapData.from_folder(data_files=old_dicom_data_path)
-    data.add_paths(bg_files=old_dicom_bg_data_path)
-    assert len(data.data_files.files) == len(data.bg_files.files)
-
-
 def test_add_h5_file(dicom_data_path, tmpdir):
     from strainmap.models.strainmap_data_model import StrainMapData
     import h5py

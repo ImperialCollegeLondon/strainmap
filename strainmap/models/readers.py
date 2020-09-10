@@ -24,7 +24,6 @@ import sparse
 import pydicom
 from natsort import natsorted
 from functools import lru_cache
-from warnings import warn
 
 from .sm_data import LabelledArray
 
@@ -413,7 +412,7 @@ class LegacyDICOM(DICOMReaderBase):
 
     offset = {"MagZ": 0, "PhaseZ": 1, "MagX": 2, "PhaseX": 3, "MagY": 4, "PhaseY": 5}
 
-    vars = {"Mag": "MagZ", "PhaseZ": "PhaseZ", "PhaseX": "PhaseX", "PhaseY": "PhaseY"}
+    vars = {"mag": "MagAvg", "z": "PhaseZ", "x": "PhaseX", "y": "PhaseY"}
 
     @staticmethod
     def belongs(path: Union[Path, Text]) -> bool:
@@ -500,7 +499,7 @@ class DICOM(DICOMReaderBase):
 
     variables = ["MagAvg", "PhaseZ", "PhaseX", "PhaseY", "RefMag"]
 
-    vars = {"Mag": "MagAvg", "PhaseZ": "PhaseZ", "PhaseX": "PhaseX", "PhaseY": "PhaseY"}
+    vars = {"mag": "MagAvg", "z": "PhaseZ", "x": "PhaseX", "y": "PhaseY"}
 
     @staticmethod
     def belongs(path: Union[Path, Text]) -> bool:

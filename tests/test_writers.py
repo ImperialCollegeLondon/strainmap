@@ -141,7 +141,7 @@ def test_paths_to_hdf5(strainmap_data, tmpdir):
     dataset_name = strainmap_data.data_files.datasets[0]
     filename = tmpdir / "strain_map_file.h5"
 
-    mag = strainmap_data.data_files.vars["Mag"]
+    mag = strainmap_data.data_files.vars["mag"]
     abs_paths = strainmap_data.data_files.files[dataset_name][mag]
     rel_paths = to_relative_paths(filename, abs_paths)
 

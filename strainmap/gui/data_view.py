@@ -30,7 +30,6 @@ class DataTaskView(TaskViewBase):
         self.data_folder = tk.StringVar(value="")
         self.output_file = tk.StringVar(value="")
         self.current_dir = os.path.expanduser("~")
-        self.phantom_check = tk.BooleanVar(value=False)
         self.control = None
         self.dataselector = None
         self.patient_info = None
@@ -38,13 +37,9 @@ class DataTaskView(TaskViewBase):
         self.visualise = None
         self.notebook = None
         self.treeview = None
-        self.treeview_bg = None
-        self.bg_tab_frame = None
-        self.phantoms_box = None
         self.fig = None
         self.datasets_var = tk.StringVar(value="")
         self.maps_var = tk.StringVar(value="mag")
-        self.bg_var = tk.StringVar(value="")
         self.anim = False
 
         self.create_controls()
@@ -160,26 +155,6 @@ class DataTaskView(TaskViewBase):
                 command=self.update_visualization,
             ).grid(sticky=tk.NSEW, padx=5, pady=5)
 
-        ttk.Checkbutton(
-            master=self.dataselector,
-            text="Use phantom subtraction.",
-            command=self.load_phantom,
-            variable=self.phantom_check,
-            onvalue=True,
-            offvalue=False,
-            state="enable" if len(patient_data) > 0 else "disabled",
-        ).grid(sticky=tk.NSEW, padx=5, pady=5)
-
-        self.phantoms_box = ttk.Combobox(
-            master=self.dataselector,
-            textvariable=self.bg_var,
-            values=[],
-            state="readonly",
-        )
-        self.phantoms_box.bind(
-            "<<ComboboxSelected>>", lambda _: self.update_visualization(phantom=True)
-        )
-
     def create_data_viewer(self):
         """ Creates the viewer for the data, including the animation and the DICOM. """
         self.notebook = ttk.Notebook(self.visualise, name="notebook")
@@ -190,13 +165,9 @@ class DataTaskView(TaskViewBase):
         self.notebook.add(self.create_animation_viewer(), text="Animation")
         data_frame, self.treeview = self.create_dicom_viewer()
         self.notebook.add(data_frame, text="DATA dicom")
-        self.bg_tab_frame, self.treeview_bg = self.create_dicom_viewer()
-        self.notebook.add(self.bg_tab_frame, text="PHANTOM dicom")
-        self.notebook.hide(2)
 
     def create_animation_viewer(self):
         """ Creates the animation plot area. """
-
         self.fig = Figure()
         ax = self.fig.add_subplot()
         ax.set_position((0.05, 0.05, 0.9, 0.9))
@@ -267,7 +238,6 @@ class DataTaskView(TaskViewBase):
                     self.current_dir = str(Path(path).parent)
                     self.nametowidget("control.chooseOutputFile")["state"] = "enable"
                 self.update_widgets()
-                self.update_phantom_widgets()
 
         except Exception as err:
             log = (
@@ -280,28 +250,9 @@ class DataTaskView(TaskViewBase):
             self.controller.window.progress(f"{err} - Log info in {str(log)}")
             self.update_widgets()
 
-    def load_phantom(self):
-        """Loads phantom data into a data structure."""
-
-        result = {}
-        if self.phantom_check.get():
-            path = tk.filedialog.askdirectory(
-                title="Select PHANTOM directory", initialdir=self.current_dir
-            )
-            if path == "":
-                self.phantom_check.set(False)
-            else:
-                result = dict(bg_files=path)
-        else:
-            self.phantoms_box.grid_remove()
-            result = dict(bg_files="")
-
-        self.controller.add_paths(**result)
-        self.update_phantom_widgets()
-
     def load_missing_data(self):
-        """Adds missing data to StrainMap if data or phantom files not found."""
-        data_path = phantom_path = None
+        """Adds missing data to StrainMap if data files not found."""
+        data_path = None
         if self.data.data_files == ():
             data_path = tk.filedialog.askdirectory(
                 title="Select DATA directory", initialdir=self.current_dir
@@ -310,14 +261,7 @@ class DataTaskView(TaskViewBase):
                 self.current_dir = data_path
                 self.data_folder.set(self.current_dir)
 
-        if self.data.bg_files == ():
-            phantom_path = tk.filedialog.askdirectory(
-                title="Select PHANTOM directory", initialdir=self.current_dir
-            )
-            if phantom_path != "":
-                self.current_dir = data_path
-
-        self.controller.add_paths(data_files=data_path, bg_files=phantom_path)
+        self.controller.add_paths(data_files=data_path)
 
     def select_output_file(self):
         """ Selects an output file in which to store the current data."""
@@ -384,23 +328,10 @@ class DataTaskView(TaskViewBase):
         series = self.datasets_var.get()
         return self.data.data_files.images(series).sel(comp=variable)
 
-    def update_visualization(self, *args, phantom=False):
+    def update_visualization(self, *args):
         """ Updates the visualization whenever the data selected changes. """
-        variable = self.maps_var.get()
-
-        if phantom:
-            self.update_dicom_bg_view(self.bg_var.get(), variable)
-            return
-
-        series = self.datasets_var.get()
-        if series in self.phantoms_box["values"]:
-            self.bg_var.set(series)
-        else:
-            self.bg_var.set("")
-
         self.update_plot()
-        self.update_dicom_bg_view(self.bg_var.get(), variable)
-        self.update_dicom_data_view(series, variable)
+        self.update_dicom_data_view()
 
     def update_plot(self):
         """Updates the data contained in the plot."""
@@ -422,33 +353,19 @@ class DataTaskView(TaskViewBase):
 
         self.fig.canvas.draw()
 
-    def update_dicom_data_view(self, series, variable):
+    def update_dicom_data_view(self):
         """ Updates the treeview with data from the selected options.
 
-        Only data for cine = 0 is loaded."""
+        Only data for cine = 0 is loaded.
+        """
+        variable = self.maps_var.get()
+        series = self.datasets_var.get()
         self.treeview.delete(*self.treeview.get_children())
 
-        if series != "":
-            data = self.data.data_files.tags(series, variable)
-        else:
-            data = []
+        data = self.data.data_files.tags(series, variable) if series != "" else []
 
         for d in data:
             self.treeview.insert("", tk.END, values=(d, data.get(d)))
-
-    def update_dicom_bg_view(self, series, variable):
-        """ Updates the phantom treeview with data from the selected options.
-
-        Only data for cine = 0 is loaded."""
-        self.treeview_bg.delete(*self.treeview_bg.get_children())
-
-        if self.data.bg_files is not None and series in self.data.bg_files.datasets:
-            data = self.data.bg_files.tags(series, variable)
-        else:
-            data = []
-
-        for d in data:
-            self.treeview_bg.insert("", tk.END, values=(d, data.get(d)))
 
     def stop_animation(self):
         """Stops an animation, if there is one running."""
@@ -464,20 +381,6 @@ class DataTaskView(TaskViewBase):
         if self.data.data_files is not None:
             self.update_visualization()
 
-    def update_phantom_widgets(self):
-        """Updates the widgets related to the Phantom"""
-        values = self.data.bg_files.datasets if self.data.bg_files is not None else []
-        if len(values) > 0:
-            self.phantoms_box["values"] = values
-            self.phantoms_box.current(0)
-            self.phantoms_box.grid(column=0, sticky=tk.NSEW, padx=5, pady=5)
-            self.phantom_check.set(True)
-            self.notebook.add(self.bg_tab_frame)
-            self.update_visualization(phantom=True)
-        else:
-            self.phantom_check.set(False)
-            self.notebook.hide(2)
-
     def clear_widgets(self):
         """ Clear widgets after removing the data. """
         self.data_folder.set("")
@@ -486,7 +389,6 @@ class DataTaskView(TaskViewBase):
 
         if self.notebook:
             self.dataselector.grid_remove()
-            self.phantom_check.set(False)
             self.notebook.destroy()
             self.notebook = None
             self.dataselector = None

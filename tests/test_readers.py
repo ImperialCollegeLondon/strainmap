@@ -180,7 +180,7 @@ def test_paths_from_hdf5(strainmap_data, tmpdir):
 
     import h5py
 
-    mag = strainmap_data.data_files.vars["Mag"]
+    mag = strainmap_data.data_files.vars["mag"]
     dataset_name = strainmap_data.data_files.datasets[0]
     filename = tmpdir / "strain_map_file.h5"
 

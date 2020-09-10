@@ -25,4 +25,4 @@ def test_update_and_clear_widgets(data_view, strainmap_data):
     data_view.update_widgets()
 
     assert data_view.nametowidget("visualise.notebook")
-    assert len(data_view.notebook.tabs()) == 3
+    assert len(data_view.notebook.tabs()) == 2
