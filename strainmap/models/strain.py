@@ -207,12 +207,11 @@ def coordinates(
     datasets: Tuple[str, ...],
     nrad: int = 3,
     nang: int = 24,
-    background: str = "Estimated",
     resample=True,
 ) -> np.ndarray:
 
-    rkey = f"radial x{nrad} - {background}"
-    akey = f"angular x{nang} - {background}"
+    rkey = f"radial x{nrad}"
+    akey = f"angular x{nang}"
 
     m_iter = (data.masks[d][rkey] + 100 * data.masks[d][akey] for d in datasets)
     z_loc = np.array([data.data_files.slice_loc(d) for d in datasets])
@@ -263,14 +262,13 @@ def displacement(
     nrad: int = 3,
     nang: int = 24,
     lreg: int = 6,
-    background: str = "Estimated",
     effective_displacement=True,
     resample=True,
 ) -> np.ndarray:
 
-    vkey = f"cylindrical - {background}"
-    rkey = f"radial x{nrad} - {background}"
-    akey = f"angular x{nang} - {background}"
+    vkey = f"cylindrical"
+    rkey = f"radial x{nrad}"
+    akey = f"angular x{nang}"
     img_axis = tuple(range(len(data.masks[datasets[0]][vkey].shape)))[-2:]
 
     cyl_iter = (data.masks[d][vkey] for d in datasets)
@@ -530,11 +528,11 @@ def calculate_regional_strain(
     lreg: int = 6,
 ):
     """Calculate the regional strains (1D curves)."""
-    vkey = "cylindrical - Estimated"
-    gkey = "global - Estimated"
-    akey = "angular x6 - Estimated"
-    a24key = "angular x24 - Estimated"
-    rkey = "radial x3 - Estimated"
+    vkey = "cylindrical"
+    gkey = "global"
+    akey = "angular x6"
+    a24key = "angular x24"
+    rkey = "radial x3"
 
     data_shape = masks[datasets[0]][vkey].shape
     m_iter = (masks[d][rkey] + 100 * masks[d][a24key] for d in datasets)
@@ -621,9 +619,7 @@ def update_strain_es_marker(data: StrainMapData, dataset: str, **kwargs):
 
     for d in data.strain.keys():
         labels = [
-            s
-            for s in data.strain[d].keys()
-            if "cylindrical" not in s and "radial" not in s
+            s for s in data.strain[d].keys() if s not in ("cylindrical", "radial")
         ]
         initialise_markers(data, d, labels)
         data.save(*[["strain_markers", d, vel] for vel in labels])
@@ -641,7 +637,7 @@ def initialise_markers(data: StrainMapData, dataset: str, str_labels: list):
     """
     # The location of the ES marker is shifted by an approximate number of frames
     pos_es = int(
-        data.markers[dataset]["global - Estimated"][0, 1, 3, 0]
+        data.markers[dataset]["global"][0, 1, 3, 0]
         - round(data.timeshift / data.data_files.time_interval(dataset))
     )
 
@@ -694,7 +690,7 @@ def global_longitudinal_strain(
         # Loop over the markers: PS, ES, P
         # The markers of interest are those corresponding to the longitudinal component
         for j in range(gls.shape[1]):
-            pos = int(m["global - Estimated"][0, 0, j, 0])
+            pos = int(m["global"][0, 0, j, 0])
             corrected = int(round(times[i] / tmin * pos)) if resample else pos
             gls[i, j] = ldisp[corrected, i]
 
@@ -702,16 +698,12 @@ def global_longitudinal_strain(
 
 
 def twist(
-    data: StrainMapData,
-    datasets: Tuple[str, ...],
-    nrad: int = 3,
-    nang: int = 24,
-    background: str = "Estimated",
+    data: StrainMapData, datasets: Tuple[str, ...], nrad: int = 3, nang: int = 24,
 ) -> LabelledArray:
 
-    vkey = f"cylindrical - {background}"
-    rkey = f"radial x{nrad} - {background}"
-    akey = f"angular x{nang} - {background}"
+    vkey = f"cylindrical"
+    rkey = f"radial x{nrad}"
+    akey = f"angular x{nang}"
     img_axis = tuple(range(len(data.masks[datasets[0]][vkey].shape)))[-2:]
 
     cyl_iter = (data.masks[d][vkey] for d in datasets)

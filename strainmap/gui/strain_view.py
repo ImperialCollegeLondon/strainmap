@@ -263,8 +263,7 @@ class StrainTaskView(TaskViewBase):
     @property
     def strain_maps(self):
         """Calculate strain maps out of the masks and cylindrical strain."""
-        cyl_label = f"cylindrical -{self.strain_var.get().split('-')[-1]}"
-        cylindrical = self.data.strain[self.datasets_var.get()][cyl_label]
+        cylindrical = self.data.strain[self.datasets_var.get()]["cylindrical"]
         bmask = np.broadcast_to(self.masks, cylindrical.shape)
         return np.ma.masked_where(bmask, cylindrical)
 
