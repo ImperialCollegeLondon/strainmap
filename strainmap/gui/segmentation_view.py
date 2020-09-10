@@ -42,7 +42,11 @@ class SegmentationTaskView(TaskViewBase):
     def __init__(self, root, controller):
 
         super().__init__(
-            root, controller, button_text="Segmentation", button_image="molecules.gif"
+            root,
+            controller,
+            button_text="Segmentation",
+            button_image="molecules.gif",
+            button_row=1,
         )
         self.rowconfigure(1, weight=1)
         self.columnconfigure(0, weight=1)

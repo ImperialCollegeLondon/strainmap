@@ -55,10 +55,12 @@ class TaskViewBase(ABC, ttk.Frame):
         controller: weakref.ReferenceType,
         button_text: Optional[Text] = None,
         button_image: Optional[Text] = None,
+        button_row: Optional[int] = None,
     ):
         super().__init__(root)
         self.__controller = controller
         self.is_stale = False
+        self.button_row = button_row
 
         if button_image is not None:
             self.image = Image.open(ICONS_DIRECTORY / button_image)
@@ -164,6 +166,7 @@ class MainWindow(tk.Tk):
         self.button_frame = ttk.Frame(self, width=150)
         self.button_frame.grid(column=0, row=1, sticky=tk.NS)
         self.button_frame.columnconfigure(0, weight=1)
+        self.button_frame.rowconfigure(50, weight=1)
         self.button_frame.grid_propagate(flag=False)
 
         self.bar_var = tk.DoubleVar(value=0)
@@ -197,7 +200,12 @@ class MainWindow(tk.Tk):
         """ Creates a view if not already created and adds it to the main window."""
         if view not in self.view_classes:
             v = view(root=self, controller=controller)
-            v.button.grid(column=0, sticky=(tk.EW, tk.N), padx=10, pady=10)
+            if v.button_row is not None:
+                v.button.grid(
+                    column=0, row=v.button_row, sticky=(tk.EW, tk.N), padx=10, pady=10
+                )
+            else:
+                v.button.grid(column=0, sticky=(tk.EW, tk.N), padx=10, pady=10)
             v.grid(column=1, row=1, sticky=tk.NSEW)
             v.lower()
 

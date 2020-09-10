@@ -1,7 +1,8 @@
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import patch, MagicMock
 
 from pytest import fixture
+import pandas as pd
 
 
 def patch_dialogs(function):
@@ -86,8 +87,9 @@ def segmented_data(strainmap_data):
 def registered_views():
     from strainmap.gui.data_view import DataTaskView
     from strainmap.gui.segmentation_view import SegmentationTaskView
+    from strainmap.gui.atlas_view import AtlasTaskView
 
-    return [DataTaskView, SegmentationTaskView]
+    return [DataTaskView, SegmentationTaskView, AtlasTaskView]
 
 
 @fixture
@@ -99,14 +101,15 @@ def control_with_mock_window(registered_views):
         return StrainMap()
 
 
-@fixture(scope="session")
+@fixture
 def main_window():
     from strainmap.gui.base_window_and_task import MainWindow
 
     root = MainWindow()
     root.withdraw()
 
-    return root
+    yield root
+    root.destroy()
 
 
 @fixture
@@ -134,6 +137,16 @@ def velocities_view(main_window):
     import weakref
 
     return VelocitiesTaskView(main_window, weakref.ref(StrainMap))
+
+
+@fixture
+def atlas_view(main_window):
+    from strainmap.gui.atlas_view import AtlasTaskView
+    from strainmap.controller import StrainMap
+    import weakref
+
+    StrainMap.data = None
+    return AtlasTaskView(main_window, weakref.ref(StrainMap))
 
 
 @fixture

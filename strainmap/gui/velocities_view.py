@@ -29,7 +29,11 @@ class VelocitiesTaskView(TaskViewBase):
     def __init__(self, root, controller):
 
         super().__init__(
-            root, controller, button_text="Velocities", button_image="speed.gif"
+            root,
+            controller,
+            button_text="Velocities",
+            button_image="speed.gif",
+            button_row=2,
         )
         self.rowconfigure(1, weight=1)
         self.columnconfigure(0, weight=1)

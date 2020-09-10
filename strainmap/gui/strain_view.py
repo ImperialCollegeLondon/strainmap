@@ -23,7 +23,11 @@ class StrainTaskView(TaskViewBase):
     def __init__(self, root, controller):
 
         super().__init__(
-            root, controller, button_text="Strain", button_image="strain.gif"
+            root,
+            controller,
+            button_text="Strain",
+            button_image="strain.gif",
+            button_row=3,
         )
         self.rowconfigure(1, weight=1)
         self.columnconfigure(0, weight=1)
