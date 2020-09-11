@@ -96,8 +96,8 @@ class StrainMap(object):
         self.lock(Requisites.SEGMENTED)
         self.lock(Requisites.VELOCITIES)
 
-    def add_paths(self, data_files=None, bg_files=None):
-        self.data.add_paths(data_files, bg_files)
+    def add_paths(self, data_files=None):
+        self.data.add_paths(data_files)
         there_are_segments = any(len(i) != 0 for i in self.data.segments.values())
         self.lock_toggle(self.data.data_files, Requisites.DATALOADED)
         self.lock_toggle(there_are_segments, Requisites.SEGMENTED)
