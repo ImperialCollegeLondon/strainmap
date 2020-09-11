@@ -3,6 +3,7 @@ from unittest.mock import patch, MagicMock
 
 from pytest import fixture
 import pandas as pd
+import xarray as xr
 
 
 def patch_dialogs(function):
@@ -43,7 +44,7 @@ def h5_file_path(tmpdir):
 
 
 @fixture
-def data_tree(strainmap_data):
+def data_tree(strainmap_data) -> xr.DataArray:
     """Returns the DICOM directory data tree."""
     return strainmap_data.data_files.files
 
@@ -294,7 +295,7 @@ def dummy_data() -> pd.DataFrame:
     M = 30
     N = 9 * 7 * M
 
-    Record = pd.Series(np.random.random_integers(1, 20, N))
+    Record = pd.Series(np.random.randint(1, 20+1, N))
     Slice = pd.Series(np.random.choice(SLICES, size=N))
     Component = pd.Series(np.random.choice(COMP, size=N))
     Region = pd.Series(np.random.choice([a for a in REGIONS if a != ""], size=N))

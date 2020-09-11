@@ -7,13 +7,13 @@ def test_read_images(data_tree):
     import pydicom
     from strainmap.models.readers import read_images
 
-    series = choice(list(data_tree.keys()))
-    variable = choice(list(data_tree[series].keys()))
-    images = read_images(data_tree, series, variable)
-    assert len(images) == len(data_tree[series][variable])
+    slice = choice(data_tree.slice.values)
+    comp = choice(data_tree.raw_comp.values)
+    images = read_images(data_tree.sel(slice=slice, raw_comp=comp).values)
+    assert len(images) == data_tree.sizes["frame"]
 
     for i, im in enumerate(images):
-        data = pydicom.dcmread(data_tree[series][variable][i])
+        data = pydicom.dcmread(data_tree.sel(slice=slice, raw_comp=comp)[i].item())
         columns = data.Columns
         rows = data.Rows
         assert im.shape == (rows, columns)
@@ -26,7 +26,7 @@ def test_velocity_sensitivity(dicom_data_path):
     import pydicom
 
     data_tree = StrainMapData.from_folder(data_files=dicom_data_path).data_files.files
-    filename = list(data_tree.values())[0]["PhaseZ"][0]
+    filename = data_tree[0, 0, 0].item()
 
     expected = np.array((60, 40, 40))
     ds = pydicom.dcmread(filename)
@@ -87,21 +87,21 @@ def test_paths_from_hdf5(strainmap_data, tmpdir):
     dataset_name = strainmap_data.data_files.datasets[0]
     filename = tmpdir / "strain_map_file.h5"
 
-    abs_paths = strainmap_data.data_files.files[dataset_name][mag]
+    abs_paths = strainmap_data.data_files.files.isel(slice=0, raw_comp=0).values
 
     f = h5py.File(filename, "a")
     d = defaultdict(dict)
-    paths_to_hdf5(f, filename, "data_files", strainmap_data.data_files.files)
+    paths_to_hdf5(f, filename, strainmap_data.data_files.files)
     paths_from_hdf5(d, filename, f["data_files"])
 
     assert dataset_name in d
     assert all(
         [
             key in d[dataset_name]
-            for key in strainmap_data.data_files.files[dataset_name]
+            for key in strainmap_data.data_files.files.raw_comp.values
         ]
     )
-    assert d[dataset_name][mag] == abs_paths
+    assert (d[dataset_name][mag] == abs_paths).all()
 
 
 @mark.skipif(sys.platform == "win32", reason="does not run on windows in Azure")

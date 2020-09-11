@@ -109,7 +109,7 @@ class LabelledArray:
         def get_values(v: Union[Dict, np.ndarray]) -> np.ndarray:
             if isinstance(v, dict):
                 return np.stack(
-                    (get_values(val) for key, val in v.items() if key not in skip)
+                    [get_values(val) for key, val in v.items() if key not in skip]
                 )
             return v
 

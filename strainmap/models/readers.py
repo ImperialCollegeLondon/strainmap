@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import glob
 import os
 import re
@@ -7,7 +9,6 @@ from pathlib import Path, PurePath, PurePosixPath
 from typing import (
     Dict,
     List,
-    Mapping,
     Optional,
     Text,
     Tuple,
@@ -19,14 +20,13 @@ from typing import (
 import h5py
 import numpy as np
 import pandas as pd
+import xarray as xr
 import sparse
 import pydicom
 from natsort import natsorted
 from functools import lru_cache
 
 from .sm_data import LabelledArray
-
-VAR_OFFSET = {"MagZ": 0, "PhaseZ": 1, "MagX": 2, "PhaseX": 3, "MagY": 4, "PhaseY": 5}
 
 
 def chunks(lst, n):
@@ -68,12 +68,9 @@ def image_orientation(filename) -> tuple:
     return swap, signs
 
 
-def read_images(origin: Mapping, series: Text, variable: Text) -> List:
+def read_images(filenames: Sequence[str]) -> np.ndarray:
     """Returns the images for a given series and var."""
-    if series in origin and variable in origin[series]:
-        return [pydicom.dcmread(f).pixel_array for f in origin[series][variable]]
-    else:
-        return []
+    return np.array([pydicom.dcmread(f).pixel_array for f in filenames])
 
 
 def read_strainmap_file(stored: Tuple, filename: Union[Path, Text]) -> dict:
@@ -232,24 +229,25 @@ class DICOMReaderBase(ABC):
     def factory(cls, path: Union[Path, Text]):
         """Reads the dicom files in the directory indicated in path."""
 
-    def __init__(self, files: dict):
+    def __init__(self, files: xr.DataArray):
         self.files = files
 
     @property
     def frames(self) -> int:
         """ Number of frames per dataset. """
-        return len(list(self.files[self.datasets[0]].values())[0])
+        return self.files.sizes["frame"]
 
     @property
     def datasets(self) -> List[str]:
         """List of datasets available in the files."""
-        return list(self.files.keys())
+        return self.files.slice.values.tolist()
 
     @property
     def is_avail(self) -> Union[str, bool]:
         """Provides the first filename or False if there are no files."""
-        var = list(self.files[self.datasets[0]].values())
-        return var[0][0] if len(var) > 0 and len(var[0]) > 0 else False
+        return (
+            False if self.files[0, 0, 0].item() is None else self.files[0, 0, 0].item()
+        )
 
     @property
     @abstractmethod
@@ -258,20 +256,19 @@ class DICOMReaderBase(ABC):
 
     def orientation(self, dataset: str) -> tuple:
         """Indicates if X-Y Phases should be swapped and the velocity sign factors."""
-        return image_orientation(list(self.files[dataset].values())[0][0])
+        return image_orientation(self.files.sel(slice=dataset)[0, 0].item())
 
     def tags(self, dataset: str, var: Optional[str] = None) -> dict:
         """Dictionary with the tags available in the DICOM files."""
         data_dict = dict()
 
         if var is not None:
-            files = self.files[dataset].get(self.vars[var], [])
+            filename = self.files.sel(slice=dataset, raw_comp=self.vars[var])[0].item()
         else:
-            files = list(self.files[dataset].values())
-            files = files[0] if len(files) > 0 else []
+            filename = self.files.sel(slice=dataset)[0, 0].item()
 
-        if len(files) > 0:
-            data = pydicom.dcmread(files[0])
+        if filename is not None:
+            data = pydicom.dcmread(filename)
 
             for i, d in enumerate(data.dir()):
                 data_dict[d] = getattr(data, d)
@@ -305,10 +302,9 @@ class DICOMReaderBase(ABC):
         should follow the order PhaseX -> PhaseY -> PhaseZ.
         """
 
-    def images(self, dataset: str, var: str) -> np.ndarray:
+    @abstractmethod
+    def images(self, dataset: str) -> xr.DataArray:
         """Returns one specific component of all the image data."""
-        nvar = list(self.vars.keys()).index(var)
-        return self.mag(dataset) if nvar == 0 else self.phase(dataset)[nvar - 1]
 
 
 DICOM_READERS = []
@@ -354,12 +350,13 @@ class DICOM(DICOMReaderBase):
         )
 
     @classmethod
-    def factory(cls, path: Union[Path, Text]):
+    def factory(cls, path: Union[Path, Text]) -> DICOM:
         """Reads in the legacy Dicom data files."""
         pattern = str(Path(path) / "*.*.*.*.1.*.*.*.*.*.*.*.*.dcm")
         filenames = chunks(natsorted(glob.glob(pattern)), len(cls.variables))
 
-        data_files: dict = dict()
+        slices = []
+        data = []
         for f in filenames:
             if len(f) != len(cls.variables):
                 continue
@@ -369,16 +366,26 @@ class DICOM(DICOMReaderBase):
             if not parallel_spirals(header):
                 continue
 
-            dataset_name = f"{ds.SeriesNumber} {ds.SeriesDescription}"
-            data_files[dataset_name] = dict()
+            slices.append(f"{ds.SeriesNumber} {ds.SeriesDescription}")
+            data.append([])
 
             for i, var in enumerate(cls.variables):
                 num = Path(f[i]).stem.split(".")[3]
-                data_files[dataset_name][var] = natsorted(
-                    glob.glob(str(Path(path) / f"*.*.*.{num}.*.*.*.*.*.*.*.*.*.dcm"))
+                data[-1].append(
+                    natsorted(
+                        glob.glob(
+                            str(Path(path) / f"*.*.*.{num}.*.*.*.*.*.*.*.*.*.dcm")
+                        )
+                    )
                 )
 
-        return cls(data_files)
+        return cls(
+            xr.DataArray(
+                data,
+                dims=["slice", "raw_comp", "frame"],
+                coords={"slice": slices, "raw_comp": cls.variables},
+            )
+        )
 
     @property
     def sensitivity(self) -> np.ndarray:
@@ -401,28 +408,28 @@ class DICOM(DICOMReaderBase):
 
     def mag(self, dataset: str) -> np.ndarray:
         """Provides the Magnitude data corresponding to the chosen dataset."""
-        return np.array(read_images(self.files, dataset, "MagAvg"))
+        return read_images(self.files.sel(slice=dataset, raw_comp="MagAvg").values)
 
     def phase(self, dataset: str) -> np.ndarray:
         """Provides the Phase data corresponding to the chosen dataset."""
-        phasex = np.array(read_images(self.files, dataset, "PhaseX"))
-        phasey = np.array(read_images(self.files, dataset, "PhaseY"))
-        phasez = np.array(read_images(self.files, dataset, "PhaseZ"))
+        phasex = read_images(self.files.sel(slice=dataset, raw_comp="PhaseX").values)
+        phasey = read_images(self.files.sel(slice=dataset, raw_comp="PhaseY").values)
+        phasez = read_images(self.files.sel(slice=dataset, raw_comp="PhaseZ").values)
 
         return np.stack((phasex, phasey, phasez))
 
     @lru_cache(1)
-    def images(self, dataset: str, *arg, **kwargs) -> LabelledArray:
+    def images(self, dataset: str) -> xr.DataArray:
         """Provides the Phase data corresponding to the chosen dataset."""
-        mag = np.array(read_images(self.files, dataset, "MagAvg"))
-        phasex = np.array(read_images(self.files, dataset, "PhaseX"))
-        phasey = np.array(read_images(self.files, dataset, "PhaseY"))
-        phasez = np.array(read_images(self.files, dataset, "PhaseZ"))
+        mag = read_images(self.files.sel(slice=dataset, raw_comp="MagAvg").values)
+        phasex = read_images(self.files.sel(slice=dataset, raw_comp="PhaseX").values)
+        phasey = read_images(self.files.sel(slice=dataset, raw_comp="PhaseY").values)
+        phasez = read_images(self.files.sel(slice=dataset, raw_comp="PhaseZ").values)
 
-        return LabelledArray(
+        return xr.DataArray(
+            np.stack((mag, phasex, phasey, phasez)),
             dims=["comp", "frame", "row", "col"],
             coords={"comp": ["mag", "x", "y", "z"]},
-            values=np.stack((mag, phasex, phasey, phasez)),
         )
 
 

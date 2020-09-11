@@ -142,21 +142,27 @@ def test_paths_to_hdf5(strainmap_data, tmpdir):
     filename = tmpdir / "strain_map_file.h5"
 
     mag = strainmap_data.data_files.vars["mag"]
-    abs_paths = strainmap_data.data_files.files[dataset_name][mag]
+    abs_paths = strainmap_data.data_files.files.sel(
+        slice=dataset_name, raw_comp=mag
+    ).values
     rel_paths = to_relative_paths(filename, abs_paths)
 
     f = h5py.File(filename, "a")
-    paths_to_hdf5(f, filename, "data_files", strainmap_data.data_files.files)
+    paths_to_hdf5(f, filename, strainmap_data.data_files.files)
 
     assert "data_files" in f
     assert dataset_name in f["data_files"]
     assert mag in f["data_files"][dataset_name]
     assert rel_paths == f["data_files"][dataset_name][mag][...].tolist()
 
-    strainmap_data.data_files.files[dataset_name][mag][0] = "/my new path"
-    abs_paths = strainmap_data.data_files.files[dataset_name][mag]
+    strainmap_data.data_files.files.loc[
+        {"slice": dataset_name, "raw_comp": mag, "frame": 0}
+    ] = "/my new path"
+    abs_paths = strainmap_data.data_files.files.sel(
+        slice=dataset_name, raw_comp=mag
+    ).values
     rel_paths = to_relative_paths(filename, abs_paths)
-    paths_to_hdf5(f, filename, "data_files", strainmap_data.data_files.files)
+    paths_to_hdf5(f, filename, strainmap_data.data_files.files)
 
     assert rel_paths == f["data_files"][dataset_name][mag][...].tolist()
 

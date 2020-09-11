@@ -353,7 +353,7 @@ class DataTaskView(TaskViewBase):
             partial(scroll, self.images.values), ax
         )
 
-        self.fig.canvas.draw()
+        self.fig.canvas.draw_idle()
 
     def update_dicom_data_view(self):
         """ Updates the treeview with data from the selected options.

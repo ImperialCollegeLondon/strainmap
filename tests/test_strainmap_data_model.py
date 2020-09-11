@@ -26,12 +26,12 @@ def test_save(tmpdir, segmented_data):
     segmented_data.save(["segments", "my_data"])
     s = "/".join(["segments", "my_data"])
     assert s in segmented_data.strainmap_file
-    assert all(segmented_data.strainmap_file[s].value == [1, 2, 3])
+    assert all(segmented_data.strainmap_file[s][()] == [1, 2, 3])
 
     segmented_data.segments["my_data"] = [5, 2, 3]
     segmented_data.save(["segments", "my_data"])
     assert s in segmented_data.strainmap_file
-    assert not all(segmented_data.strainmap_file[s].value == [1, 2, 3])
+    assert not all(segmented_data.strainmap_file[s][()] == [1, 2, 3])
 
 
 @mark.skipif(sys.platform == "win32", reason="does not run on windows in Azure")
@@ -46,9 +46,10 @@ def test_from_file(dicom_data_path, h5_file_path):
     data.add_paths(data_files=dicom_data_path)
     assert len(data.data_files.files) > 0
 
-    for d, dataset in data.data_files.files.items():
-        for v, variable in dataset.items():
+    for slice in data.data_files.files.slice.values:
+        for comp in data.data_files.files.raw_comp.values:
+            variable = data.data_files.files.sel(slice=slice, raw_comp=comp).values
             paths = from_relative_paths(
-                h5_file_path, data.strainmap_file["data_files"][d][v][:]
+                h5_file_path, data.strainmap_file[f"/data_files/{slice}/{comp}"][:]
             )
-            assert variable == paths
+            assert (variable == paths).all()

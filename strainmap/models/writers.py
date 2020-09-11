@@ -1,10 +1,13 @@
 import openpyxl as xlsx
 import h5py
 import numpy as np
-from typing import List, Union, Dict, Sequence, Optional
+from typing import Iterable, Union, Dict, Sequence, Optional
 import os
 from pathlib import PurePosixPath, PurePath, Path
+
 import sparse
+import xarray as xr
+
 from .sm_data import LabelledArray
 
 
@@ -298,9 +301,9 @@ def write_hdf5_file(data, filename: Union[h5py.File, str]):
                 f.create_dataset(s, data=getattr(data, s))
         elif s == "timeshift":
             f.attrs[s] = getattr(data, s)
-        elif "files" in s:
+        elif s == "data_files":
             if getattr(data, s) is not None:
-                paths_to_hdf5(f, f.filename, s, getattr(data, s).files)
+                paths_to_hdf5(f, f.filename, getattr(data, s).files)
         else:
             write_data_structure(f, s, getattr(data, s))
 
@@ -328,7 +331,7 @@ def write_data_structure(g, name, structure):
             group.create_dataset(n, data=struct, track_order=True)
 
 
-def to_relative_paths(master: str, paths: List[str]) -> list:
+def to_relative_paths(master: str, paths: Iterable[str]) -> list:
     """Finds the relative paths of "paths" with respect to "master"."""
     import sys
 
@@ -350,20 +353,20 @@ def to_relative_paths(master: str, paths: List[str]) -> list:
     return filenames
 
 
-def paths_to_hdf5(
-    g: Union[h5py.File, h5py.Group], master: str, name: str, structure: dict
-) -> None:
-    """Saves a dictionary with paths as values after calculating the relative path."""
-    group = g[name] if name in g else g.create_group(name, track_order=True)
+def paths_to_hdf5(g: Union[h5py.File], master: str, structure: xr.DataArray) -> None:
+    """Saves a dictionary with paths as values after calculating the relative path.
 
-    for n, struct in structure.items():
-        if isinstance(struct, dict):
-            paths_to_hdf5(group, master, n, struct)
-        else:
-            if n in group:
-                del group[n]
-            paths = to_relative_paths(master, struct)
-            group.create_dataset(n, data=paths, track_order=True)
+    TODO: Update when/if changing the data format."""
+
+    for slice in structure.slice.values:
+        for comp in structure.raw_comp.values:
+            n = f"/data_files/{slice}/{comp}"
+            if n in g:
+                del g[n]
+            paths = to_relative_paths(
+                master, structure.sel(slice=slice, raw_comp=comp).values
+            )
+            g.create_dataset(n, data=paths, track_order=True)
 
 
 def labels_to_group(
