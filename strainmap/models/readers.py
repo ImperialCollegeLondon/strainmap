@@ -86,6 +86,16 @@ def read_h5_file(stored: Tuple, filename: Union[Path, Text]) -> dict:
     sm_file = h5py.File(filename, "a")
     attributes = dict(strainmap_file=sm_file)
 
+    to_rename = {}
+    def search_to_rename(name: str):
+        if " - " in name:
+            new_name = name.split(" - ")[0]
+            to_rename[name] = new_name
+
+    sm_file.visit(search_to_rename)
+    for k, v in to_rename.items():
+        sm_file.move(k, v)
+
     for s in stored:
         if s == "sign_reversal":
             attributes[s] = tuple(sm_file[s][...])

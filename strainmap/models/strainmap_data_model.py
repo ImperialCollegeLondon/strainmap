@@ -146,7 +146,7 @@ class StrainMapData(object):
                 self.velocities[dataset][k] = None
 
             # TODO To remove! Hack to add the radial data on legacy h5 files.
-            self.velocities[dataset]["radial x3 - Estimated"] = None
+            self.velocities[dataset]["radial x3"] = None
 
         # TODO: Remove when consolidated. Heal the septum mid-point
         default = None
