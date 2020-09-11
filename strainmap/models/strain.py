@@ -209,6 +209,7 @@ def coordinates(
     nang: int = 24,
     background: str = "Estimated",
     resample=True,
+    use_frame_zero=True,
 ) -> np.ndarray:
 
     rkey = f"radial x{nrad} - {background}"
@@ -252,7 +253,8 @@ def coordinates(
         )
     # We pick just the first element, representing the pixel locations at time zero.
     # Yeah, this function is an massive overkill and will be changed asap.
-    result[...] = result[:, :1, ...]
+    if use_frame_zero:
+        result[...] = result[:, :1, ...]
 
     return resample_interval(result, t_iter) if resample else result
 
@@ -717,7 +719,9 @@ def twist(
     cyl_iter = (data.masks[d][vkey] for d in datasets)
     m_iter = (data.masks[d][rkey] + 100 * data.masks[d][akey] for d in datasets)
     reduced_vel_map = map(partial(masked_reduction, axis=img_axis), cyl_iter, m_iter)
-    radius = coordinates(data, datasets, resample=False)[1].mean(axis=(2, 3))
+    radius = coordinates(data, datasets, resample=False, use_frame_zero=False)[1].mean(
+        axis=(2, 3)
+    )
 
     vels = (
         np.array([v[2].mean(axis=(1, 2)) - v[2].mean() for v in reduced_vel_map])
