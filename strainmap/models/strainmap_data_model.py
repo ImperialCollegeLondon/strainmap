@@ -2,6 +2,7 @@ from pathlib import Path
 from typing import Optional, Text, Union, Tuple
 from collections import defaultdict
 import numpy as np
+import xarray as xr
 import h5py
 from functools import reduce
 
@@ -82,8 +83,9 @@ class StrainMapData(object):
         self.data_files = data_files
         self.strainmap_file = strainmap_file
         self.sign_reversal: Tuple[bool, ...] = (False, False, False)
-        self.segments: dict = defaultdict(dict)
-        self.zero_angle: dict = {}
+        self.segments: xr.DataArray = xr.DataArray()
+        self.centroid: xr.DataArray = xr.DataArray()
+        self.zero_angle: xr.DataArray = xr.DataArray()
         self.velocities: dict = defaultdict(dict)
         self.masks: dict = defaultdict(dict)
         self.markers: dict = defaultdict(dict)
@@ -102,13 +104,14 @@ class StrainMapData(object):
         self, data_files: Union[Path, Text, None] = None,
     ):
         """Adds data and/or phantom paths to the object."""
-        if data_files is not None:
-            self.data_files = read_folder(data_files)
-            if not self.rebuilt:
-                self.regenerate()
-            self.save_all()
-            return True
-        return False
+        if data_files is None:
+            return False
+
+        self.data_files = read_folder(data_files)
+        if not self.rebuilt:
+            self.regenerate()
+        self.save_all()
+        return True
 
     def add_h5_file(self, strainmap_file: Union[Path, Text]):
         """Creates anew h5 file in the given path and add it to the structure."""

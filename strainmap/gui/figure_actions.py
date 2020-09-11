@@ -738,11 +738,13 @@ class Markers(ActionBase):
         else:
             x, y, idx = self.get_closest(self._current_data, ev.xdata)
 
-        if x != old_x[0]:
+        if isinstance(old_x, list) and x != old_x[0]:
             if len(old_x) == 2:
                 self._current_marker.set_xdata([x, x])
             else:
                 self._current_marker.set_data([x], [y])
+        elif x != old_x:
+            self._current_marker.set_data([x], [y])
 
         return event
 

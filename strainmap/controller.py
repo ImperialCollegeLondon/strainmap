@@ -108,7 +108,7 @@ class StrainMap(object):
     def find_segmentation(self, unlock=True, **kwargs):
         """Runs an automated segmentation routine."""
         quick_segmentation.find_segmentation(data=self.data, **kwargs)
-        there_are_segments = any(len(i) != 0 for i in self.data.segments.values())
+        there_are_segments = self.data.segments.shape != ()
         if there_are_segments and unlock:
             self.unlock(Requisites.SEGMENTED)
         elif not there_are_segments:

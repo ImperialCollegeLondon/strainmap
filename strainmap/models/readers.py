@@ -285,6 +285,13 @@ class DICOMReaderBase(ABC):
 
         return data_dict
 
+    def tag(self, dataset: str, tag: str) -> Any:
+        """Return the requested tag from the first file of chosen dataset."""
+        filename = self.files.sel(slice=dataset)[0, 0].item()
+
+        if filename is not None:
+            return getattr(pydicom.dcmread(filename), tag)
+
     @abstractmethod
     def slice_loc(self, dataset: str) -> float:
         """Returns the slice location in cm from the isocentre."""
