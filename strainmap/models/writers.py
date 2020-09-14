@@ -219,7 +219,9 @@ def export_superpixel(data, dataset, filename):
     from .strain import coordinates
 
     vels = px_velocity_curves(data, dataset)
-    loc = np.take(coordinates(data, (dataset,), resample=False), 0, axis=2)
+    loc = np.take(
+        coordinates(data, (dataset,), resample=False, use_frame_zero=False), 0, axis=2
+    )
 
     rad = ["endo", "mid", "epi"]
     label = "{} {}"
