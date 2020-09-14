@@ -125,7 +125,7 @@ class StrainMapData(object):
         """We create placeholders for the velocities that were expected.
 
         The velocities and masks will be created at runtime, just when needed."""
-        from .quick_segmentation import effective_centroid, centroid
+        from .segmentation import effective_centroid, centroid
 
         # If there is no data paths yet, we postpone the regeneration.
         if self.data_files == ():

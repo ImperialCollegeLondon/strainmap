@@ -3,7 +3,7 @@ from pytest import approx
 
 def test_replace_single():
     from strainmap.models.contour_mask import Contour
-    from strainmap.models.quick_segmentation import replace_single
+    from strainmap.models.segmentation import replace_single
 
     c = Contour.circle((0, 0), 10)
     c2 = c.dilate(1.05)
@@ -21,7 +21,7 @@ def test_replace_single():
 
 def test_replace_in_list():
     from strainmap.models.contour_mask import Contour
-    from strainmap.models.quick_segmentation import replace_in_list
+    from strainmap.models.segmentation import replace_in_list
 
     c = Contour.circle((0, 0), 10)
     contours = [c, c.dilate(1.5), c.dilate(1.05)]
@@ -35,7 +35,7 @@ def test_replace_in_list():
 def test_effective_centroid():
     import numpy as np
     from scipy import ndimage
-    from strainmap.models.quick_segmentation import effective_centroid
+    from strainmap.models.segmentation import effective_centroid
 
     centroid = np.random.random((10, 2))
     n = np.random.randint(1, len(centroid) - 1)

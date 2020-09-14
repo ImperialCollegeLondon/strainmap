@@ -6,7 +6,7 @@ from typing import Callable
 from .gui import *  # noqa: F403,F401
 from .gui.base_window_and_task import REGISTERED_VIEWS, Requisites
 from .models.strainmap_data_model import StrainMapData
-from .models import quick_segmentation
+from .models import segmentation
 from .models.velocities import calculate_velocities, update_marker, regenerate
 from .models.writers import velocity_to_xlsx, strain_to_xlsx, rotation_to_xlsx
 from .models.strain import (
@@ -107,7 +107,7 @@ class StrainMap(object):
 
     def find_segmentation(self, unlock=True, **kwargs):
         """Runs an automated segmentation routine."""
-        quick_segmentation.find_segmentation(data=self.data, **kwargs)
+        segmentation.find_segmentation(data=self.data, **kwargs)
         there_are_segments = self.data.segments.shape != ()
         if there_are_segments and unlock:
             self.unlock(Requisites.SEGMENTED)
@@ -116,7 +116,7 @@ class StrainMap(object):
 
     def update_segmentation(self, unlock=True, **kwargs):
         """Runs an automated segmentation routine."""
-        quick_segmentation.update_segmentation(data=self.data, **kwargs)
+        segmentation.update_segmentation(data=self.data, **kwargs)
         there_are_segments = any(len(i) != 0 for i in self.data.segments.values())
         if there_are_segments and unlock:
             self.unlock(Requisites.SEGMENTED)
@@ -125,11 +125,11 @@ class StrainMap(object):
 
     def update_and_find_next(self, **kwargs):
         """Runs an automated segmentation routine."""
-        quick_segmentation.update_and_find_next(data=self.data, **kwargs)
+        segmentation.update_and_find_next(data=self.data, **kwargs)
 
     def clear_segmentation(self, dataset_name):
         """Clears an existing segmentation."""
-        quick_segmentation.clear_segmentation(data=self.data, dataset_name=dataset_name)
+        segmentation.clear_segmentation(data=self.data, dataset_name=dataset_name)
         there_are_segments = any(len(i) != 0 for i in self.data.segments.values())
         if not there_are_segments:
             self.lock(Requisites.SEGMENTED)

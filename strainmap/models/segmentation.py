@@ -151,24 +151,6 @@ def effective_centroid(centroid: np.ndarray, window: int = 3) -> np.ndarray:
     return ndimage.convolve1d(centroid, weights, axis=axis, mode="wrap")
 
 
-def initialize_data_segments(data, dataset_name, shape):
-    """Initialises the StrainMap data object with empty segments."""
-    if len(shape) == 2:
-        num_frames = data.data_files.mag(dataset_name).shape[0]
-        shape = (num_frames,) + shape
-    else:
-        num_frames = shape[0]
-
-    if shape[-1] == 2:
-        shape = (shape[0], shape[2], shape[1])
-
-    data.segments[dataset_name]["endocardium"] = np.full(shape, np.nan)
-    data.segments[dataset_name]["epicardium"] = np.full(shape, np.nan)
-    data.zero_angle[dataset_name] = np.full((num_frames, 2, 2), np.nan)
-
-    return data
-
-
 def initialize_segments(dataset_name: str, frames: int, points: int):
     """Initialises an empty segments DataArray."""
     return xr.DataArray(
@@ -212,7 +194,10 @@ def create_rules(frame, segments, shape, rtol, replace_threshold):
                 rules[side].append(
                     partial(
                         replace_single,
-                        replacement=Contour(segments[side][frame - 1].T, shape=shape),
+                        replacement=Contour(
+                            segments.sel(side=side, frame=frame - 1).values.T,
+                            shape=shape,
+                        ),
                         rtol=rtol[side],
                         replace=False,
                     )

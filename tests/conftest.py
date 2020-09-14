@@ -61,7 +61,7 @@ def strainmap_data(dicom_data_path):
 def segmented_data(strainmap_data):
     """Returns a StrainMapData object with segmented data."""
     from strainmap.models.contour_mask import Contour
-    from strainmap.models.quick_segmentation import find_segmentation
+    from strainmap.models.segmentation import find_segmentation
     import numpy as np
 
     dataset = strainmap_data.data_files.datasets[0]

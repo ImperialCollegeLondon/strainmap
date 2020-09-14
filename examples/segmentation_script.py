@@ -28,7 +28,7 @@ import matplotlib.pyplot as plt
 import pydicom
 
 from strainmap.models.contour_mask import Contour
-from strainmap.models.quick_segmentation import simple_segmentation
+from strainmap.models.segmentation import simple_segmentation
 
 # Load the data of interest
 path = Path(__file__).parent.parent / "tests/data/SUB1/MR012001002.dcm"

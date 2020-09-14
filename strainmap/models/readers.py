@@ -87,6 +87,7 @@ def read_h5_file(stored: Tuple, filename: Union[Path, Text]) -> dict:
     attributes = dict(strainmap_file=sm_file)
 
     to_rename = {}
+
     def search_to_rename(name: str):
         if " - " in name:
             new_name = name.split(" - ")[0]
