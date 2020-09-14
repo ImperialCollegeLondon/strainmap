@@ -55,15 +55,21 @@ def find_segmentation(
     Returns:
         The StrainMapData object updated with the segmentation.
     """
+    frames = data.data_files.frames
+    num_points = max(initials["endocardium"].shape)
 
-    if not data.segments.shape or dataset_name not in data.segments.slice:
-        segments = initialize_segments(
-            dataset_name, data.data_files.frames, max(initials["endocardium"].shape)
-        )
-        if not data.segments.shape:
-            data.segments = segments
-        else:
-            data.segments = xr.concat([data.segments, segments], dim="slice")
+    if data.segments.shape == ():
+        data.segments = initialize_segments(dataset_name, frames, num_points)
+        data.centroid = initialize_centroid(dataset_name, frames)
+        data.zero_angle = initialize_septum(dataset_name, frames)
+
+    elif dataset_name not in data.segments.slice:
+        segments = initialize_segments(dataset_name, frames, num_points)
+        data.segments = xr.concat([data.segments, segments], dim="slice")
+        com = initialize_centroid(dataset_name, frames)
+        data.centroid = xr.concat([data.centroid, com], dim="slice")
+        za = initialize_septum(dataset_name, frames)
+        data.zero_angle = xr.concat([data.centroid, za], dim="slice")
 
     segments = data.segments.sel(slice=dataset_name)
 
@@ -100,13 +106,6 @@ def find_segmentation(
         frame = slice(frame, frame + 1)
 
     # Now we tackle the centroid (or center of mass, COM)
-    if not data.centroid.shape or dataset_name not in data.centroid.slice:
-        com = initialize_centroid(dataset_name, data.data_files.frames)
-        if not data.centroid.shape:
-            data.centroid = com
-        else:
-            data.centroid = xr.concat([data.centroid, com], dim="slice")
-
     data.centroid.loc[{"slice": dataset_name, "frame": frame}] = centroid(
         segments, frame
     )
@@ -118,13 +117,6 @@ def find_segmentation(
         )
 
     # If the septum has been manually changed, we also update it
-    if not data.zero_angle.shape or dataset_name not in data.zero_angle.slice:
-        za = initialize_septum(dataset_name, data.data_files.frames)
-        if not data.zero_angle.shape:
-            data.zero_angle = za
-        else:
-            data.zero_angle = xr.concat([data.centroid, za], dim="slice")
-
     if zero_angle is not None:
         data.zero_angle.loc[{"slice": dataset_name, "frame": frame}] = copy(zero_angle)
 
