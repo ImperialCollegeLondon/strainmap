@@ -83,34 +83,42 @@ def test_update_segmentation(segments_arrays):
     # Checks updating the septum of 1 frame
     frame, other = default_rng().choice(frames, size=2, replace=False)
     new_septum = septum.sel(cine="mid", frame=frame) * 2
-    _update_segmentation(segments, centroid, septum, velocities, new_septum=new_septum)
+    _update_segmentation(
+        segments.sel(cine="mid"),
+        centroid.sel(cine="mid"),
+        septum.sel(cine="mid"),
+        velocities,
+        new_septum=new_septum,
+    )
     xr.testing.assert_equal(septum.sel(cine="mid", frame=frame), new_septum)
     assert "mid" not in velocities
     with raises(AssertionError):
         xr.testing.assert_equal(septum.sel(cine="mid", frame=other), new_septum)
-    with raises(AssertionError):
-        xr.testing.assert_equal(septum.sel(cine="base", frame=frame), new_septum)
 
     # Checks updating the segmentation of 1 frame
     frame, other = default_rng().choice(frames, size=2, replace=False)
     new_segments = segments.sel(cine="base", frame=frame) * 2
     _update_segmentation(
-        segments, centroid, septum, velocities, new_segments=new_segments
+        segments.sel(cine="base"),
+        centroid.sel(cine="base"),
+        septum.sel(cine="base"),
+        velocities,
+        new_segments=new_segments,
     )
     xr.testing.assert_equal(segments.sel(cine="base", frame=frame), new_segments)
     assert "base" not in velocities
     with raises(AssertionError):
         xr.testing.assert_equal(segments.sel(cine="base", frame=other), new_segments)
-    with raises(AssertionError):
-        xr.testing.assert_equal(segments.sel(cine="apex", frame=frame), new_segments)
 
     # Checks updating the segmentation of all frames
     new_segments = segments.sel(cine="apex") * 2
     _update_segmentation(
-        segments, centroid, septum, velocities, new_segments=new_segments
+        segments.sel(cine="apex"),
+        centroid.sel(cine="apex"),
+        septum.sel(cine="apex"),
+        velocities,
+        new_segments=new_segments,
     )
     xr.testing.assert_equal(segments.sel(cine="apex"), new_segments)
     assert not np.isnan(centroid.sel(cine="apex").data).any()
-    assert np.isnan(centroid.sel(cine="base").data).all()
     assert "apex" not in velocities
-
