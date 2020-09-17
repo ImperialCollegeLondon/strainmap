@@ -58,11 +58,7 @@ def new_segmentation(
     if frame == segments.frame:
         centroid[...] = _calc_effective_centroids(centroid, window=3)
 
-    # data.save(
-    #     ["segments", cine, "endocardium"],
-    #     ["segments", cine, "epicardium"],
-    #     ["zero_angle", cine],
-    # )
+    # data.save("segments", "centroid", "septum")
 
 
 def update_segmentation(
@@ -74,23 +70,27 @@ def update_segmentation(
     """Updates the segmentation for the current frame.
 
     If there're no NaNs in the segments array, then we update the effective centroids as
-    the segmentation is complete.
+    the segmentation is complete.Updating a complete segmentation deletes any derived
+    quantity, like velocities, markers and all the strain results.
     """
     segments, centroid, septum = _get_segment_variables(data, cine)
 
-    _update_segmentation(
-        segments, centroid, septum, data.velocities, new_segments, new_septum
-    )
+    _update_segmentation(segments, centroid, septum, new_segments, new_septum)
 
     if not xr.ufuncs.isnan(segments).any():
         raw_centroids = _calc_centroids(segments)
         centroid[...] = _calc_effective_centroids(raw_centroids, window=3)
 
-    # data.save(
-    #     ["segments", cine, "endocardium"],
-    #     ["segments", cine, "epicardium"],
-    #     ["zero_angle", cine],
-    # )
+        # data.velocities.pop(cine, None)
+        # data.masks.pop(cine, None)
+        # data.markers.pop(cine, None)
+        # data.strain = xr.DataArray()
+        # data.strain_markers = xr.DataArray()
+
+        # data.save_all()
+
+    # else:
+    #     data.save("segments", "centroid", "septum")
 
 
 def update_and_find_next(
@@ -120,22 +120,23 @@ def update_and_find_next(
 
 
 def remove_segmentation(data: StrainMapData, cine: str) -> None:
-    """Clears the segmentation for the given dataset."""
+    """Removes the segmentation for the given cine.
+
+    It also removes all the derived magnitudes form that segmentation. In the case of
+    strain, it removes all the strain related data from all cines as the calculated
+    strain is no longer valid if one of the segmentations it depends on is changed
+    or removed.
+    """
     data.segments = data.segments.where(data.segments.cine != cine, drop=True)
     data.centroid = data.septum.where(data.centroid.cine != cine, drop=True)
     data.septum = data.septum.where(data.septum.cine != cine, drop=True)
     data.velocities.pop(cine, None)
     data.masks.pop(cine, None)
     data.markers.pop(cine, None)
-    data.strain.pop(cine, None)
-    data.strain_markers.pop(cine, None)
+    data.strain = xr.DataArray()
+    data.strain_markers = xr.DataArray()
 
-    # data.delete(
-    #     ["segments", cine],
-    #     ["zero_angle", cine],
-    #     ["markers", cine],
-    #     ["strain_markers", cine],
-    # )
+    # data.save_all()
 
 
 def _get_segment_variables(
@@ -267,7 +268,6 @@ def _update_segmentation(
     segments: xr.DataArray,
     centroid: xr.DataArray,
     septum: xr.DataArray,
-    velocities: dict,
     new_segments: Optional[xr.DataArray] = None,
     new_septum: Optional[xr.DataArray] = None,
 ) -> None:
@@ -279,25 +279,18 @@ def _update_segmentation(
         segments (xr.DataArray): The original segments array.
         centroid (xr.DataArray): The original centroids array.
         septum (xr.DataArray): The original septum array.
-        velocities (dict): The original velocities dictionary.
         new_segments (optional, xr.DataArray): The new segments.
         new_septum (optional, xr.DataArray): The new septum.
 
     Returns:
         None
     """
-    cine = None
     if new_segments is not None:
         segments.loc[{"frame": new_segments.frame}] = new_segments.copy()
         centroid.loc[{"frame": new_segments.frame}] = _calc_centroids(new_segments)
-        cine = new_segments.cine.item()
 
     if new_septum is not None:
         septum[...] = new_septum.copy()
-        cine = new_septum.cine.item()
-
-    if cine is not None:
-        velocities.pop(cine, None)
 
 
 def _calc_centroids(segments: xr.DataArray) -> xr.DataArray:

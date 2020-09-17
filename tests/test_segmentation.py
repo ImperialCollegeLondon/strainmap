@@ -77,7 +77,6 @@ def test_update_segmentation(segments_arrays):
     segments, septum, centroid = segments_arrays
     segments[...] = np.random.random(segments.shape)
     septum[...] = np.random.random(septum.shape)
-    velocities = {c: None for c in segments.cine.data}
     frames = segments.sizes["frame"]
 
     # Checks updating the septum of 1 frame
@@ -87,11 +86,9 @@ def test_update_segmentation(segments_arrays):
         segments.sel(cine="mid"),
         centroid.sel(cine="mid"),
         septum.sel(cine="mid"),
-        velocities,
         new_septum=new_septum,
     )
     xr.testing.assert_equal(septum.sel(cine="mid", frame=frame), new_septum)
-    assert "mid" not in velocities
     with raises(AssertionError):
         xr.testing.assert_equal(septum.sel(cine="mid", frame=other), new_septum)
 
@@ -102,11 +99,9 @@ def test_update_segmentation(segments_arrays):
         segments.sel(cine="base"),
         centroid.sel(cine="base"),
         septum.sel(cine="base"),
-        velocities,
         new_segments=new_segments,
     )
     xr.testing.assert_equal(segments.sel(cine="base", frame=frame), new_segments)
-    assert "base" not in velocities
     with raises(AssertionError):
         xr.testing.assert_equal(segments.sel(cine="base", frame=other), new_segments)
 
@@ -116,9 +111,7 @@ def test_update_segmentation(segments_arrays):
         segments.sel(cine="apex"),
         centroid.sel(cine="apex"),
         septum.sel(cine="apex"),
-        velocities,
         new_segments=new_segments,
     )
     xr.testing.assert_equal(segments.sel(cine="apex"), new_segments)
     assert not np.isnan(centroid.sel(cine="apex").data).any()
-    assert "apex" not in velocities
