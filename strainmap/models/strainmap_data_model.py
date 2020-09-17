@@ -4,7 +4,6 @@ from collections import defaultdict
 import numpy as np
 import xarray as xr
 import h5py
-from functools import reduce
 
 from .readers import read_strainmap_file, DICOMReaderBase, read_folder
 from .writers import write_hdf5_file
@@ -49,10 +48,10 @@ class StrainMapData(object):
         "data_files",
         "sign_reversal",
         "segments",
-        "zero_angle",
+        "septum",
         "markers",
         "strain_markers",
-        "timeshift"
+        "timeshift",
     )
 
     @classmethod
@@ -85,7 +84,7 @@ class StrainMapData(object):
         self.sign_reversal: Tuple[bool, ...] = (False, False, False)
         self.segments: xr.DataArray = xr.DataArray()
         self.centroid: xr.DataArray = xr.DataArray()
-        self.zero_angle: xr.DataArray = xr.DataArray()
+        self.septum: xr.DataArray = xr.DataArray()
         self.velocities: dict = defaultdict(dict)
         self.masks: dict = defaultdict(dict)
         self.markers: dict = defaultdict(dict)
@@ -125,18 +124,18 @@ class StrainMapData(object):
         """We create placeholders for the velocities that were expected.
 
         The velocities and masks will be created at runtime, just when needed."""
-        from .segmentation import effective_centroid, centroid
+        from .segmentation import _calc_effective_centroids, _calc_centroids
 
         # If there is no data paths yet, we postpone the regeneration.
         if self.data_files == ():
             return
 
         # TODO: Remove when consolidated. Regenerate the centroid
-        for d in self.zero_angle:
+        for d in self.septum:
             try:
                 img_shape = self.data_files.mag(d).shape[1:]
-                raw_centroids = centroid(self.segments[d], slice(None), img_shape)
-                self.zero_angle[d][..., 1] = effective_centroid(raw_centroids, window=3)
+                raw_centroids = _calc_centroids(self.segments[d], slice(None), img_shape)
+                self.septum[d][..., 1] = _calc_effective_centroids(raw_centroids, window=3)
 
             except Exception as err:
                 raise RuntimeError(
@@ -153,7 +152,7 @@ class StrainMapData(object):
 
         # TODO: Remove when consolidated. Heal the septum mid-point
         default = None
-        for dataset, za in self.zero_angle.items():
+        for dataset, za in self.septum.items():
             try:
                 if np.isnan(za[..., 0]).any():
                     za[..., 0] = default
@@ -197,7 +196,11 @@ class StrainMapData(object):
 
         Each dataset to be saved must be defined as a list of keys, where key[0] must be
         one of the StrainMapData attributes (segments, velocities, etc.)
+
+        TODO: Datya saving is now done by whole attributes
         """
+        from .writers import write_data_structure
+
         if self.strainmap_file is None:
             return
 
@@ -207,12 +210,8 @@ class StrainMapData(object):
             elif keys[0] == "timeshift":
                 self.strainmap_file.attrs[keys[0]] = getattr(self, keys[0])
             else:
-                s = "/".join(keys)
-                names = [getattr(self, keys[0])] + keys[1:]
-                if s in self.strainmap_file:
-                    del self.strainmap_file[s]
-                self.strainmap_file.create_dataset(
-                    s, data=reduce(lambda x, y: x[y], names), track_order=True
+                write_data_structure(
+                    self.strainmap_file, keys[0], getattr(self, keys[0])
                 )
 
     def delete(self, *args):

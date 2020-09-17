@@ -6,6 +6,7 @@ from unittest.mock import MagicMock, patch, PropertyMock
 def test_update_and_clear_widgets(segmentation_view, strainmap_data):
     segmentation_view.dataset_changed = MagicMock()
     segmentation_view.controller.data = strainmap_data
+    segmentation_view.controller.review_mode = False
     segmentation_view.update_widgets()
 
     expected = strainmap_data.data_files.datasets[0]
@@ -18,6 +19,7 @@ def test_update_plots(segmentation_view, strainmap_data):
     segmentation_view.plot_images = MagicMock()
     segmentation_view.plot_segments = MagicMock()
     segmentation_view.controller.data = strainmap_data
+    segmentation_view.controller.review_mode = False
     segmentation_view.update_widgets()
 
     segmentation_view.plot_images.assert_called_once()
@@ -29,6 +31,7 @@ def test_update_plots(segmentation_view, strainmap_data):
 
 def test_plot_images(segmentation_view, strainmap_data):
     segmentation_view.controller.data = strainmap_data
+    segmentation_view.controller.review_mode = False
     segmentation_view.update_widgets()
 
     generators = segmentation_view.fig.actions_manager.ScrollFrames._scroller
@@ -39,6 +42,7 @@ def test_plot_images(segmentation_view, strainmap_data):
 
 def test_get_data_to_segment(segmentation_view, strainmap_data):
     segmentation_view.controller.data = strainmap_data
+    segmentation_view.controller.review_mode = False
     segmentation_view.update_widgets()
 
     dataset = strainmap_data.data_files.datasets[0]
@@ -63,6 +67,7 @@ def test_define_initial_contour(segmentation_view, strainmap_data):
     from copy import deepcopy
 
     segmentation_view.controller.data = deepcopy(strainmap_data)
+    segmentation_view.controller.review_mode = False
     segmentation_view.update_widgets()
 
     segmentation_view.set_initial_contour("endocardium")
@@ -121,11 +126,11 @@ def test_quick_segmentation(septum, centroid, segmentation_view, strainmap_data)
     segmentation_view.update_widgets()
 
     segmentation_view.first_frame = MagicMock()
-    segmentation_view.find_segmentation = MagicMock()
+    segmentation_view._find_segmentation = MagicMock()
     segmentation_view.go_to_frame = MagicMock()
     centroid.return_value = 0
     septum.return_value = 0
-    segmentation_view.zero_angle = np.zeros((3, 2, 2))
+    segmentation_view.septum = np.zeros((3, 2, 2))
 
     segmentation_view.quick_segment_var.set(True)
     contour = np.random.random((2, 5))
@@ -143,15 +148,19 @@ def test_quick_segmentation(septum, centroid, segmentation_view, strainmap_data)
 def test_plot_segments(segmentation_view, strainmap_data):
     import numpy as np
     from copy import deepcopy
+    from strainmap.models.segmentation import _init_segments
 
-    contour = np.random.random((2, 5))
+    contour = np.random.random((2, 1, 2, 5))
     dataset = strainmap_data.data_files.datasets[0]
 
     segmentation_view.controller.data = deepcopy(strainmap_data)
+    segmentation_view.controller.review_mode = False
     segmentation_view.update_widgets()
 
-    segmentation_view.data.segments[dataset]["endocardium"] = [contour]
-    segmentation_view.data.segments[dataset]["epicardium"] = [contour]
+    segmentation_view.data.segments = _init_segments(
+        cine=dataset, frames=1, points=5
+    )
+    segmentation_view.data.segments.loc[{"cine": dataset}] = contour
 
     segmentation_view.plot_segments(dataset)
     generators = segmentation_view.fig.actions_manager.ScrollFrames._scroller
@@ -162,7 +171,7 @@ def test_plot_segments(segmentation_view, strainmap_data):
 def test_clear_segments(segmentation_view):
     import numpy as np
 
-    segmentation_view.clear_segmentation = MagicMock()
+    segmentation_view.remove_segmentation = MagicMock()
     contour = np.random.random((2, 5))
 
     segmentation_view.initial_segments["endocardium"] = contour
@@ -176,50 +185,58 @@ def test_clear_segments(segmentation_view):
     assert segmentation_view.initial_segments["epicardium"] is None
     assert segmentation_view.final_segments["endocardium"] is None
     assert segmentation_view.final_segments["epicardium"] is None
-    segmentation_view.clear_segmentation.assert_called_once()
+    segmentation_view.remove_segmentation.assert_called_once()
 
 
 def test_scroll(segmentation_view, strainmap_data):
     import numpy as np
+    from strainmap.models.segmentation import initialize_septum
 
     dataset = strainmap_data.data_files.datasets[0]
     segmentation_view.controller.data = strainmap_data
+    segmentation_view.controller.review_mode = False
     segmentation_view.update_widgets()
 
     segmentation_view.images["mag"] = np.random.random((5, 5, 2))
-    segmentation_view.data.zero_angle[dataset] = np.random.random((2, 2, 2))
-    contour = np.random.random((2, 2, 5))
+    segmentation_view.data.septum = initialize_septum(cine=dataset, frames=2)
+    segmentation_view.data.septum.loc[{"cine": dataset}] = np.random.random((2, 2))
 
+    contour = np.random.random((2, 2, 5))
     segmentation_view.final_segments["endocardium"] = contour
     segmentation_view.final_segments["epicardium"] = contour
 
-    frame, img, (endo, epi, zero_angle, marker) = segmentation_view.scroll(1, "mag")
+    frame, img, (endo, epi, septum_line, septum) = segmentation_view.scroll(1, "mag")
 
     assert frame == 1
     assert img == approx(segmentation_view.images["mag"][1])
     assert endo == approx(contour[1])
     assert epi == approx(contour[1])
-    assert zero_angle == approx(segmentation_view.data.zero_angle[dataset][1])
-    assert marker == approx(segmentation_view.data.zero_angle[dataset][1, :, 0])
+    assert approx(septum) == segmentation_view.data.septum.sel(cine=dataset, frame=1)
+    assert septum_line == approx(np.array([septum, segmentation_view.centroid]).T)
 
 
 def test_contour_edited_and_undo(segmentation_view, strainmap_data):
+    from strainmap.models.segmentation import initialize_septum, _init_segments
     import numpy as np
 
-    contour = np.random.random((2, 2, 5))
+    contour = np.random.random((2, 2, 2, 5))
     dataset = strainmap_data.data_files.datasets[0]
 
     segmentation_view.controller.data = strainmap_data
+    segmentation_view.controller.review_mode = False
     segmentation_view.update_widgets()
 
-    segmentation_view.data.zero_angle[dataset] = np.random.random((2, 2, 2))
-    segmentation_view.data.segments[dataset]["endocardium"] = contour
-    segmentation_view.data.segments[dataset]["epicardium"] = contour
+    segmentation_view.data.segments = _init_segments(
+        cine=dataset, frames=2, points=5
+    )
+    segmentation_view.data.septum = initialize_septum(cine=dataset, frames=2)
+    segmentation_view.data.septum.loc[{"cine": dataset}] = np.random.random((2, 2))
+    segmentation_view.data.segments.loc[{"cine": dataset}] = contour
 
     segmentation_view.plot_segments(dataset)
     segmentation_view.plot_zero_angle(dataset)
 
-    contour_mod = 2 * contour[0]
+    contour_mod = 2 * contour[0, 0]
     axes = segmentation_view.fig.axes[0]
 
     segmentation_view.contour_edited("endocardium", axes, contour_mod)
@@ -235,40 +252,45 @@ def test_contour_edited_and_undo(segmentation_view, strainmap_data):
     segmentation_view.undo(0)
 
     assert len(segmentation_view.undo_stack) == 0
-    assert segmentation_view.final_segments["endocardium"][0] == approx(contour[0])
+    assert segmentation_view.final_segments["endocardium"][0] == approx(contour[0, 0])
     for ax in segmentation_view.fig.axes:
         for line in ax.lines:
             if line.get_label() == "endocardium":
-                assert line.get_data() == approx(contour[0])
+                assert line.get_data() == approx(contour[0, 0])
 
 
 def test_next_frames(segmentation_view, strainmap_data):
+    from strainmap.models.segmentation import initialize_septum, _init_segments
     import numpy as np
 
-    contour = np.random.random((2, 2, 5))
+    contour = np.random.random((2, 2, 2, 5))
     dataset = strainmap_data.data_files.datasets[0]
 
     segmentation_view.controller.data = strainmap_data
+    segmentation_view.controller.review_mode = False
     segmentation_view.update_widgets()
 
-    segmentation_view.data.zero_angle[dataset] = np.random.random((2, 2, 2))
-    segmentation_view.data.segments[dataset]["endocardium"] = contour
-    segmentation_view.data.segments[dataset]["epicardium"] = contour
-    initial = {"endocardium": contour[0], "epicardium": contour[0]}
+    segmentation_view.data.segments = _init_segments(
+        cine=dataset, frames=2, points=5
+    )
+    segmentation_view.data.septum = initialize_septum(cine=dataset, frames=2)
+    segmentation_view.data.septum.loc[{"cine": dataset}] = np.random.random((2, 2))
+    segmentation_view.data.segments.loc[{"cine": dataset}] = contour
+    initial = {"endocardium": contour[:, 0], "epicardium": contour[:, 0]}
     segmentation_view.initial_segments = initial
     segmentation_view.initialization = iter((lambda: None,))
     segmentation_view.get_septum(None, [np.random.random(2)])
     segmentation_view.plot_segments(dataset)
     segmentation_view.plot_zero_angle(dataset)
 
-    segmentation_view.find_segmentation = MagicMock()
-    segmentation_view.update_segmentation = MagicMock()
+    segmentation_view._find_segmentation = MagicMock()
+    segmentation_view._update_segmentation = MagicMock()
     segmentation_view.update_and_find_next = MagicMock()
     segmentation_view.go_to_frame = MagicMock()
 
     # First frame
     segmentation_view.first_frame()
-    segmentation_view.find_segmentation.assert_called_with(0, initial)
+    segmentation_view._find_segmentation.assert_called_with(0, initial)
     assert segmentation_view.go_to_frame.call_count == 1
 
     # Other frames
@@ -278,8 +300,8 @@ def test_next_frames(segmentation_view, strainmap_data):
 
 
 def test_finish_segmentation(segmentation_view):
-    segmentation_view.controller.update_segmentation = MagicMock()
+    segmentation_view.controller._update_segmentation = MagicMock()
 
     segmentation_view.finish_segmentation()
-    segmentation_view.controller.update_segmentation.assert_called()
+    segmentation_view.controller._update_segmentation.assert_called()
     assert segmentation_view.completed

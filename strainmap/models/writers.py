@@ -322,7 +322,24 @@ def write_data_structure(g, name, structure):
     """
     group = g[name] if name in g else g.create_group(name, track_order=True)
 
-    for n, struct in structure.items():
+    if isinstance(structure, xr.DataArray):
+        struct = (
+            {
+                s: {
+                    side: structure.sel(cine=s, side=side).values
+                    for side in structure.side.values
+                }
+                if "side" in structure.dims
+                else structure.sel(cine=s)
+                for s in structure.cine.values
+            }
+            if "cine" in structure.dims
+            else {}
+        )
+    else:
+        struct = structure
+
+    for n, struct in struct.items():
         if isinstance(struct, dict):
             write_data_structure(group, n, struct)
         else:
@@ -358,13 +375,13 @@ def paths_to_hdf5(g: Union[h5py.File], master: str, structure: xr.DataArray) -> 
 
     TODO: Update when/if changing the data format."""
 
-    for slice in structure.slice.values:
+    for cine in structure.cine.values:
         for comp in structure.raw_comp.values:
-            n = f"/data_files/{slice}/{comp}"
+            n = f"/data_files/{cine}/{comp}"
             if n in g:
                 del g[n]
             paths = to_relative_paths(
-                master, structure.sel(slice=slice, raw_comp=comp).values
+                master, structure.sel(cine=cine, raw_comp=comp).values
             )
             g.create_dataset(n, data=paths, track_order=True)
 

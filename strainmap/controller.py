@@ -107,7 +107,7 @@ class StrainMap(object):
 
     def find_segmentation(self, unlock=True, **kwargs):
         """Runs an automated segmentation routine."""
-        segmentation.find_segmentation(data=self.data, **kwargs)
+        segmentation._find_segmentation(data=self.data, **kwargs)
         there_are_segments = self.data.segments.shape != ()
         if there_are_segments and unlock:
             self.unlock(Requisites.SEGMENTED)
@@ -116,7 +116,7 @@ class StrainMap(object):
 
     def update_segmentation(self, unlock=True, **kwargs):
         """Runs an automated segmentation routine."""
-        segmentation.update_segmentation(data=self.data, **kwargs)
+        segmentation._update_segmentation(data=self.data, **kwargs)
         there_are_segments = any(len(i) != 0 for i in self.data.segments.values())
         if there_are_segments and unlock:
             self.unlock(Requisites.SEGMENTED)
@@ -129,7 +129,7 @@ class StrainMap(object):
 
     def clear_segmentation(self, dataset_name):
         """Clears an existing segmentation."""
-        segmentation.clear_segmentation(data=self.data, dataset_name=dataset_name)
+        segmentation.remove_segmentation(data=self.data, dataset_name=dataset_name)
         there_are_segments = any(len(i) != 0 for i in self.data.segments.values())
         if not there_are_segments:
             self.lock(Requisites.SEGMENTED)

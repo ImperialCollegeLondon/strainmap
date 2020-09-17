@@ -1,5 +1,5 @@
 from copy import copy
-from typing import Text, Dict, Any, Union, List, Callable, Optional
+from typing import Text, Dict, Any, Union, List, Callable, Optional, Tuple
 from functools import partial, reduce
 
 import numpy as np
@@ -26,71 +26,227 @@ filter_params: Dict[str, Dict] = {
 propagator = "initial"
 propagator_params: Dict[str, Dict] = {"endocardium": dict(), "epicardium": dict()}
 
+rtol_endo: float = 0.15
+rtol_epi: float = 0.10
+replace_threshold: int = 31
 
-def find_segmentation(
+
+def new_segmentation(
     data: StrainMapData,
-    dataset_name: str,
-    frame: Union[int, slice, None],
-    images: Dict[str, np.ndarray],
-    initials: Dict[str, np.ndarray],
-    zero_angle: Optional[np.ndarray] = None,
-    rtol_endo: float = 0.15,
-    rtol_epi: float = 0.10,
-    replace_threshold: int = 31,
-    save=True,
+    cine: str,
+    frame: Union[int, xr.DataArray],
+    initials: xr.DataArray,
+    new_septum: xr.DataArray,
 ) -> None:
-    """Find the segmentation for the endocardium and the epicardium at one single frame.
+    """Starts a new segmentation, either quick or step by step.
+
+    If it is a quick one, after calculating the segmentation, the effective centroids
+    are also calculated.
+    """
+    segments, centroid, septum = _get_segment_variables(data, cine, initials.point)
+
+    _find_segmentation(
+        segments,
+        centroid,
+        septum,
+        data.data_files.images(cine).sel(frame=frame),
+        initials,
+        new_septum,
+    )
+
+    # If are doing an automatic segmentation for all frames, calculate the effective COM
+    if frame == segments.frame:
+        centroid[...] = _calc_effective_centroids(centroid, window=3)
+
+    # data.save(
+    #     ["segments", cine, "endocardium"],
+    #     ["segments", cine, "epicardium"],
+    #     ["zero_angle", cine],
+    # )
+
+
+def update_segmentation(
+    data: StrainMapData,
+    cine: str,
+    new_segments: xr.DataArray,
+    new_septum: xr.DataArray,
+) -> None:
+    """Updates the segmentation for the current frame.
+
+    If there're no NaNs in the segments array, then we update the effective centroids as
+    the segmentation is complete.
+    """
+    segments, centroid, septum = _get_segment_variables(data, cine)
+
+    _update_segmentation(
+        segments, centroid, septum, data.velocities, new_segments, new_septum
+    )
+
+    if not xr.ufuncs.isnan(segments).any():
+        raw_centroids = _calc_centroids(segments)
+        centroid[...] = _calc_effective_centroids(raw_centroids, window=3)
+
+    # data.save(
+    #     ["segments", cine, "endocardium"],
+    #     ["segments", cine, "epicardium"],
+    #     ["zero_angle", cine],
+    # )
+
+
+def update_and_find_next(
+    data: StrainMapData,
+    cine: str,
+    frame: int,
+    new_segments: xr.DataArray,
+    new_septum: xr.DataArray,
+) -> None:
+    """Updates the segmentation for the current frame and starts the next one.
+
+    The segmentation of the next frame uses the previous one as initial value and takes
+    the same septum.
+    """
+
+    update_segmentation(data, cine, new_segments, new_septum)
+
+    segments, centroid, septum = _get_segment_variables(data, cine)
+    _find_segmentation(
+        segments,
+        centroid,
+        septum,
+        data.data_files.images(cine).sel(frame=frame),
+        segments.sel(frame=frame - 1),
+        new_septum,
+    )
+
+
+def remove_segmentation(data: StrainMapData, cine: str) -> None:
+    """Clears the segmentation for the given dataset."""
+    data.segments = data.segments.where(data.segments.cine != cine, drop=True)
+    data.centroid = data.septum.where(data.centroid.cine != cine, drop=True)
+    data.septum = data.septum.where(data.septum.cine != cine, drop=True)
+    data.velocities.pop(cine, None)
+    data.masks.pop(cine, None)
+    data.markers.pop(cine, None)
+    data.strain.pop(cine, None)
+    data.strain_markers.pop(cine, None)
+
+    # data.delete(
+    #     ["segments", cine],
+    #     ["zero_angle", cine],
+    #     ["markers", cine],
+    #     ["strain_markers", cine],
+    # )
+
+
+def _get_segment_variables(
+    data: StrainMapData, cine: str, points: int = 360
+) -> Tuple[xr.DataArray, ...]:
+    """Get the relevant segementation variables for this cine.
+
+    If they do not exist already in the data structure, they are created.
 
     Args:
-        data: StrainMapData object to store the result
-        dataset_name: Name of the dataset to segment
-        frame: index of the frame to segment
-        images: Dictionary with the images to segment for the epi- and endocardium
-        initials: Dictionary with the initial segmentation for the epi- and endocardium.
-        rtol_endo: Relative tolerance of areal change in the endocardium.
-        rtol_epi: Relative tolerance of areal change in the endocardium.
-        replace_threshold: frame threshold from where endocardium segment must be
-            replaced
+        data (StrainMapData): The data object containing all the information.
+        cine (str): Cine of interest.
+        points (int): Number of points in a segment.
 
     Returns:
-        The StrainMapData object updated with the segmentation.
+        A tuple with the segment, centroid and septum for the chosen cine.
     """
     frames = data.data_files.frames
-    num_points = max(initials["endocardium"].shape)
 
     if data.segments.shape == ():
-        data.segments = initialize_segments(dataset_name, frames, num_points)
-        data.centroid = initialize_centroid(dataset_name, frames)
-        data.zero_angle = initialize_septum(dataset_name, frames)
+        data.segments = _init_segments(cine, frames, points)
+        data.centroid = _init_septum_and_centroid(cine, frames, "centroid")
+        data.septum = _init_septum_and_centroid(cine, frames, "septum")
 
-    elif dataset_name not in data.segments.slice:
-        segments = initialize_segments(dataset_name, frames, num_points)
-        data.segments = xr.concat([data.segments, segments], dim="slice")
-        com = initialize_centroid(dataset_name, frames)
-        data.centroid = xr.concat([data.centroid, com], dim="slice")
-        za = initialize_septum(dataset_name, frames)
-        data.zero_angle = xr.concat([data.centroid, za], dim="slice")
+    elif cine not in data.segments.cine:
+        segments = _init_segments(cine, frames, points)
+        data.segments = xr.concat([data.segments, segments], dim="cine")
+        centroid = _init_septum_and_centroid(cine, frames, "centroid")
+        data.centroid = xr.concat([data.centroid, centroid], dim="cine")
+        septum = _init_septum_and_centroid(cine, frames, "septum")
+        data.septum = xr.concat([data.septum, septum], dim="cine")
 
-    segments = data.segments.sel(slice=dataset_name)
+    return (
+        data.segments.sel(cine=cine),
+        data.centroid.sel(cine=cine),
+        data.septum.sel(cine=cine),
+    )
 
-    img_shape = images["endocardium"].shape[-2:]
-    rules = create_rules(
-        frame,
-        segments,
-        img_shape,
-        {"endocardium": rtol_endo, "epicardium": rtol_epi},
-        replace_threshold,
+
+def _init_segments(cine: str, frames: int, points: int) -> xr.DataArray:
+    """Initialises an empty segments DataArray."""
+    return xr.DataArray(
+        np.full((1, 2, frames, 2, points), np.nan),
+        dims=("cine", "side", "frame", "coord", "point"),
+        coords={
+            "cine": [cine],
+            "side": ["endocardium", "epicardium"],
+            "coord": ["row", "col"],
+            "frame": np.arange(0, frames),
+        },
+        name="segments",
+    )
+
+
+def _init_septum_and_centroid(cine: str, frames: int, name: str) -> xr.DataArray:
+    """Initialises an empty septum mid point DataArray."""
+    return xr.DataArray(
+        np.full((1, frames, 2), np.nan),
+        dims=("cine", "frame", "coord"),
+        coords={
+            "cine": [cine],
+            "coord": ["row", "col"],
+            "frame": np.arange(0, frames),
+        },
+        name=name,
+    )
+
+
+def _find_segmentation(
+    segments: xr.DataArray,
+    centroid: xr.DataArray,
+    septum: xr.DataArray,
+    images: xr.DataArray,
+    initials: xr.DataArray,
+    new_septum: xr.DataArray,
+) -> None:
+    """Find the segmentation of one or more images starting at the initials segments.
+
+    Args:
+        segments (xr.DataArray): The original segments array.
+        centroid (xr.DataArray): The original centroids array.
+        septum (xr.DataArray): The original septum array.
+        images (xr.DataArray): The images for the frames to segment.
+        initials (xr.DataArray): Initial segments to start the segmentation with.
+        new_septum (xr.DataArray): The new septum
+
+    Returns:
+        None
+    """
+    frame = images.frame
+
+    rules = (
+        _create_rules_one_frame(
+            frame.item(), segments, (images.sizes["rows"], images.sizes["cols"])
+        )
+        if frame.shape == ()
+        else _create_rules_all_frames()
     )
 
     for side in ("endocardium", "epicardium"):
-        if isinstance(frame, int) and frame >= replace_threshold:
+        # In frame by frame segmentation, we don't segment if already above threshold
+        if frame.shape == () and frame.item() >= replace_threshold:
             segments.loc[{"side": side, "frame": frame}] = segments.sel(
                 side=side, frame=frame - 1
             ).copy()
+
+        # For multiple segmentations or if not yet above threshold
         else:
-            segments.loc[{"side": side, "frame": frame}] = simple_segmentation(
-                images[side],
-                initials[side],
+            segments.loc[{"side": side, "frame": frame}] = _simple_segmentation(
+                images.sel(side=side).data,
+                initials.sel(side=side).data,
                 model=model,
                 model_params=model_params[side],
                 ffilter=ffilter,
@@ -98,205 +254,141 @@ def find_segmentation(
                 propagator=propagator,
                 propagator_params=propagator_params[side],
                 rules=rules[side],
-            ).squeeze()
+            )
 
-    if frame is None:
-        frame = slice(None)
-    elif isinstance(frame, int):
-        frame = slice(frame, frame + 1)
+    # We update the centroid (or center of mass, COM)
+    centroid.loc[{"frame": frame}] = _calc_centroids(segments.sel(frame=frame))
 
-    # Now we tackle the centroid (or center of mass, COM)
-    data.centroid.loc[{"slice": dataset_name, "frame": frame}] = centroid(
-        segments, frame
-    )
-
-    # If are doing an automatic segmentation for all frames, calculate the effective COM
-    if frame == slice(None):
-        data.centroid.loc[{"slice": dataset_name}] = effective_centroid(
-            data.centroid.loc[{"slice": dataset_name}].values, window=3
-        )
-
-    # If the septum has been manually changed, we also update it
-    if zero_angle is not None:
-        data.zero_angle.loc[{"slice": dataset_name, "frame": frame}] = copy(zero_angle)
-
-    # Finally, we save the data, if requested
-    # if save:
-    #     data.save(
-    #         ["segments", dataset_name, "endocardium"],
-    #         ["segments", dataset_name, "epicardium"],
-    #         ["zero_angle", dataset_name],
-    #     )
+    # We set the new septum
+    septum.loc[{"frame": frame}] = new_septum.copy()
 
 
-def centroid(segments, frame):
+def _update_segmentation(
+    segments: xr.DataArray,
+    centroid: xr.DataArray,
+    septum: xr.DataArray,
+    velocities: dict,
+    new_segments: Optional[xr.DataArray] = None,
+    new_septum: Optional[xr.DataArray] = None,
+) -> None:
+    """ Updates an existing segmentation and septum with new ones.
+
+    Any velocities calculated for this cine are deleted, forcing their recalculation.
+
+    Args:
+        segments (xr.DataArray): The original segments array.
+        centroid (xr.DataArray): The original centroids array.
+        septum (xr.DataArray): The original septum array.
+        velocities (dict): The original velocities dictionary.
+        new_segments (optional, xr.DataArray): The new segments.
+        new_septum (optional, xr.DataArray): The new septum.
+
+    Returns:
+        None
+    """
+    cine = None
+    if new_segments is not None:
+        segments.loc[{"frame": new_segments.frame}] = new_segments.copy()
+        centroid.loc[{"frame": new_segments.frame}] = _calc_centroids(new_segments)
+        cine = new_segments.cine.item()
+
+    if new_septum is not None:
+        septum[...] = new_septum.copy()
+        cine = new_septum.cine.item()
+
+    if cine is not None:
+        velocities.pop(cine, None)
+
+
+def _calc_centroids(segments: xr.DataArray) -> xr.DataArray:
     """Return an array with the position of the centroid at a given time."""
-    return segments.sel(side="epicardium", frame=frame).mean(dim="point")
+    return segments.sel(side="epicardium").mean(dim="point").drop("side")
 
 
-def effective_centroid(centroid: np.ndarray, window: int = 3) -> np.ndarray:
-    """ Returns the rolling average of the centroid for the chosen window.
+def _calc_effective_centroids(centroid: xr.DataArray, window: int = 3) -> xr.DataArray:
+    """Returns the rolling average of the centroid for the chosen window.
 
     The rolling average is wrapped at the edges of the array.
 
     Args:
-        centroid: Array with the current centroids.
-        window: Width of the window at each side. eg, 3 means rolling average of ±3
+        centroid (xr.DataArray): Array with the current centroids.
+        window (int): Width of the window at each side. eg, 3 is rolling average of ±3
 
     Returns:
-        An array with the new centroid positions.
+        A DataArray with the new centroid positions.
     """
-    axis = np.argmax(centroid.shape)
+    axis = centroid.dims.index("frame")
     weights = np.full((2 * window + 1), 1 / (2 * window + 1))
-    return ndimage.convolve1d(centroid, weights, axis=axis, mode="wrap")
-
-
-def initialize_segments(dataset_name: str, frames: int, points: int):
-    """Initialises an empty segments DataArray."""
-    return xr.DataArray(
-        np.full((1, 2, frames, 2, points), np.nan),
-        dims=("slice", "side", "frame", "coord", "point"),
-        coords={
-            "slice": [dataset_name,],
-            "side": ["endocardium", "epicardium"],
-            "coord": ["row", "col"],
-        },
+    return xr.apply_ufunc(
+        lambda x: ndimage.convolve1d(x, weights, axis=axis, mode="wrap"), centroid
     )
 
 
-def initialize_septum(dataset_name: str, frames: int):
-    """Initialises an empty septum mid point DataArray."""
-    return xr.DataArray(
-        np.full((1, frames, 2), np.nan),
-        dims=("slice", "frame", "coord"),
-        coords={"slice": [dataset_name,], "coord": ["row", "col"]},
-    )
+def _create_rules_one_frame(
+    frame: xr.DataArray, replacement: xr.DataArray, shape: Tuple[int, int]
+):
+    """Create the rules to apply to the segments to ensure their 'quality'.
 
+    - Expand/contract the contour
+    - Replace for the previous segmentation is area change above tolerance.
 
-def initialize_centroid(dataset_name: str, frames: int):
-    """Initialises an empty centroid DataArray."""
-    return xr.DataArray(
-        np.full((1, frames, 2), np.nan),
-        dims=("slice", "frame", "coord"),
-        coords={"slice": [dataset_name,], "coord": ["row", "col"]},
-    )
+    Args:
+        frame (int): Frame at which to apply the rules.
+        segments(xr.DataArray): Array with all the contours
+        shape (tuple): Shape of the image. Needed to expand/contract the contour
+            (well, not really)
 
-
-def create_rules(frame, segments, shape, rtol, replace_threshold):
-    """Create the rules to apply to the segments to ensure their 'quality'."""
+    Returns:
+        A dictionary with the set of rules for the endo and epicardium contours
+    """
     rules = {"endocardium": [], "epicardium": []}
     shift = {"endocardium": 2, "epicardium": -2}
+    rtol = {"endocardium": rtol_endo, "epicardium": rtol_epi}
 
     for side in ("endocardium", "epicardium"):
-        if isinstance(frame, int):
-            rules[side].append(partial(dilate, s=shift[side]))
-            if frame > 0:
-                rules[side].append(
-                    partial(
-                        replace_single,
-                        replacement=Contour(
-                            segments.sel(side=side, frame=frame - 1).values.T,
-                            shape=shape,
-                        ),
-                        rtol=rtol[side],
-                        replace=False,
-                    )
-                )
+        rules[side].append(partial(dilate, s=shift[side]))
+        if frame == 0:
+            continue
 
-        elif frame is None or isinstance(frame, slice):
-            rules[side].append(lambda c: list(map(partial(dilate, s=shift[side]), c)))
-            rules[side].append(
-                partial(
-                    replace_in_list, rtol=rtol[side], frame_threshold=replace_threshold
-                )
+        rules[side].append(
+            partial(
+                _replace_single,
+                replacement=Contour(
+                    replacement.sel(side=side, frame=frame - 1).data.T, shape=shape,
+                ),
+                rtol=rtol[side],
+                replace=False,
             )
+        )
 
     return rules
 
 
-def update_segmentation(
-    data: StrainMapData,
-    dataset_name: str,
-    segments: dict,
-    zero_angle: np.ndarray,
-    frame: Union[int, slice],
-) -> None:
-    """Updates an existing segmentation with new segments.
+def _create_rules_all_frames():
+    """Create the rules to apply to the segments to ensure their 'quality'.
 
-    Any velocities calculated for this dataset are deleted, forcing their recalculation.
-
-    Args:
-        data: StrainMapData object containing the data
-        dataset_name: Name of the dataset whose segmentation are to modify
-        segments: Dictionary with the segmentation for the epi- and endocardium. If
-            either is None, the existing segmentation is erased.
-        zero_angle: array with the zero angle information.
-        frame: int or slice indicating the frames to update
+    - Expand/contract the contour
+    - Replace contour by the previous one if area change is above tolerance or frame
+        number is above threshold.
 
     Returns:
-        The StrainMapData object updated with the segmentation.
+        A dictionary with the set of rules for the endo and epicardium contours
     """
-    data.segments[dataset_name]["endocardium"][frame] = copy(
-        segments["endocardium"][frame]
-    )
-    data.segments[dataset_name]["epicardium"][frame] = copy(
-        segments["epicardium"][frame]
-    )
-    data.zero_angle[dataset_name][frame] = copy(zero_angle[frame])
+    rules = {"endocardium": [], "epicardium": []}
+    shift = {"endocardium": 2, "epicardium": -2}
+    rtol = {"endocardium": rtol_endo, "epicardium": rtol_epi}
 
-    if frame == slice(None):
-        img_shape = data.data_files.mag(dataset_name).shape[1:]
-        raw_centroids = centroid(data.segments[dataset_name], frame, img_shape)
-        data.zero_angle[dataset_name][..., 1] = effective_centroid(
-            raw_centroids, window=3
+    for side in ("endocardium", "epicardium"):
+        rules[side].append(lambda c: list(map(partial(dilate, s=shift[side]), c)))
+        rules[side].append(
+            partial(
+                _replace_in_list, rtol=rtol[side], frame_threshold=replace_threshold
+            )
         )
-
-    data.velocities.pop(dataset_name, None)
-
-    data.save(
-        ["segments", dataset_name, "endocardium"],
-        ["segments", dataset_name, "epicardium"],
-        ["zero_angle", dataset_name],
-    )
+    return rules
 
 
-def clear_segmentation(data: StrainMapData, dataset_name: str) -> None:
-    """Clears the segmentation for the given dataset."""
-    data.segments.pop(dataset_name, None)
-    data.zero_angle.pop(dataset_name, None)
-    data.velocities.pop(dataset_name, None)
-    data.masks.pop(dataset_name, None)
-    data.markers.pop(dataset_name, None)
-    data.strain.pop(dataset_name, None)
-    data.strain_markers.pop(dataset_name, None)
-
-    data.delete(
-        ["segments", dataset_name],
-        ["zero_angle", dataset_name],
-        ["markers", dataset_name],
-        ["strain_markers", dataset_name],
-    )
-
-
-def update_and_find_next(
-    data: StrainMapData,
-    dataset_name: str,
-    segments: dict,
-    zero_angle: np.ndarray,
-    frame: int,
-    images: Dict[str, np.ndarray],
-) -> None:
-    """Updates the segmentation for the current frame and starts the next one."""
-    update_segmentation(data, dataset_name, segments, zero_angle, frame)
-    initial = {
-        "endocardium": data.segments[dataset_name]["endocardium"][frame],
-        "epicardium": data.segments[dataset_name]["epicardium"][frame],
-    }
-    frame += 1
-    find_segmentation(data, dataset_name, frame, images, initial, save=False)
-
-
-def simple_segmentation(
+def _simple_segmentation(
     data: np.ndarray,
     initial: np.ndarray,
     model: Text,
@@ -367,7 +459,7 @@ def simple_segmentation(
     )
 
 
-def replace_single(
+def _replace_single(
     contour: Contour, replacement: Contour, rtol: float = 0.15, replace: bool = True
 ) -> Contour:
     value = abs(contour.mask.sum() - replacement.mask.sum()) / replacement.mask.sum()
@@ -377,11 +469,11 @@ def replace_single(
     return contour
 
 
-def replace_in_list(
+def _replace_in_list(
     contour: List[Contour], rtol: float = 0.15, frame_threshold: int = 30
 ) -> List[Contour]:
     result = [contour[0]]
     for i, c in enumerate(contour[1:]):
-        result.append(replace_single(c, result[i], rtol, i + 1 >= frame_threshold))
+        result.append(_replace_single(c, result[i], rtol, i + 1 >= frame_threshold))
 
     return result

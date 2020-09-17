@@ -251,7 +251,7 @@ class DICOMReaderBase(ABC):
     @property
     def datasets(self) -> List[str]:
         """List of datasets available in the files."""
-        return self.files.slice.values.tolist()
+        return self.files.cine.values.tolist()
 
     @property
     def is_avail(self) -> Union[str, bool]:
@@ -267,16 +267,16 @@ class DICOMReaderBase(ABC):
 
     def orientation(self, dataset: str) -> tuple:
         """Indicates if X-Y Phases should be swapped and the velocity sign factors."""
-        return image_orientation(self.files.sel(slice=dataset)[0, 0].item())
+        return image_orientation(self.files.sel(cine=dataset)[0, 0].item())
 
     def tags(self, dataset: str, var: Optional[str] = None) -> dict:
         """Dictionary with the tags available in the DICOM files."""
         data_dict = dict()
 
         if var is not None:
-            filename = self.files.sel(slice=dataset, raw_comp=self.vars[var])[0].item()
+            filename = self.files.sel(cine=dataset, raw_comp=self.vars[var])[0].item()
         else:
-            filename = self.files.sel(slice=dataset)[0, 0].item()
+            filename = self.files.sel(cine=dataset)[0, 0].item()
 
         if filename is not None:
             data = pydicom.dcmread(filename)
@@ -288,14 +288,14 @@ class DICOMReaderBase(ABC):
 
     def tag(self, dataset: str, tag: str) -> Any:
         """Return the requested tag from the first file of chosen dataset."""
-        filename = self.files.sel(slice=dataset)[0, 0].item()
+        filename = self.files.sel(cine=dataset)[0, 0].item()
 
         if filename is not None:
             return getattr(pydicom.dcmread(filename), tag)
 
     @abstractmethod
-    def slice_loc(self, dataset: str) -> float:
-        """Returns the slice location in cm from the isocentre."""
+    def cine_loc(self, dataset: str) -> float:
+        """Returns the cine location in cm from the isocentre."""
 
     @abstractmethod
     def pixel_size(self, dataset: str) -> float:
@@ -373,7 +373,7 @@ class DICOM(DICOMReaderBase):
         pattern = str(Path(path) / "*.*.*.*.1.*.*.*.*.*.*.*.*.dcm")
         filenames = chunks(natsorted(glob.glob(pattern)), len(cls.variables))
 
-        slices = []
+        cine = []
         data = []
         for f in filenames:
             if len(f) != len(cls.variables):
@@ -384,7 +384,7 @@ class DICOM(DICOMReaderBase):
             if not parallel_spirals(header):
                 continue
 
-            slices.append(f"{ds.SeriesNumber} {ds.SeriesDescription}")
+            cine.append(f"{ds.SeriesNumber} {ds.SeriesDescription}")
             data.append([])
 
             for i, var in enumerate(cls.variables):
@@ -400,8 +400,8 @@ class DICOM(DICOMReaderBase):
         return cls(
             xr.DataArray(
                 data,
-                dims=["slice", "raw_comp", "frame"],
-                coords={"slice": slices, "raw_comp": cls.variables},
+                dims=["cine", "raw_comp", "frame"],
+                coords={"cine": cine, "raw_comp": cls.variables},
             )
         )
 
@@ -412,8 +412,8 @@ class DICOM(DICOMReaderBase):
         header = ds[("0021", "1019")].value.decode()
         return velocity_sensitivity(header)
 
-    def slice_loc(self, dataset: str) -> float:
-        """Returns the slice location in cm from the isocentre."""
+    def cine_loc(self, dataset: str) -> float:
+        """Returns the cine location in cm from the isocentre."""
         return float(self.tags(dataset)["SliceLocation"]) / 10.0
 
     def pixel_size(self, dataset: str) -> float:
@@ -426,23 +426,23 @@ class DICOM(DICOMReaderBase):
 
     def mag(self, dataset: str) -> np.ndarray:
         """Provides the Magnitude data corresponding to the chosen dataset."""
-        return read_images(self.files.sel(slice=dataset, raw_comp="MagAvg").values)
+        return read_images(self.files.sel(cine=dataset, raw_comp="MagAvg").values)
 
     def phase(self, dataset: str) -> np.ndarray:
         """Provides the Phase data corresponding to the chosen dataset."""
-        phasex = read_images(self.files.sel(slice=dataset, raw_comp="PhaseX").values)
-        phasey = read_images(self.files.sel(slice=dataset, raw_comp="PhaseY").values)
-        phasez = read_images(self.files.sel(slice=dataset, raw_comp="PhaseZ").values)
+        phasex = read_images(self.files.sel(cine=dataset, raw_comp="PhaseX").values)
+        phasey = read_images(self.files.sel(cine=dataset, raw_comp="PhaseY").values)
+        phasez = read_images(self.files.sel(cine=dataset, raw_comp="PhaseZ").values)
 
         return np.stack((phasex, phasey, phasez))
 
     @lru_cache(1)
     def images(self, dataset: str) -> xr.DataArray:
         """Provides the Phase data corresponding to the chosen dataset."""
-        mag = read_images(self.files.sel(slice=dataset, raw_comp="MagAvg").values)
-        phasex = read_images(self.files.sel(slice=dataset, raw_comp="PhaseX").values)
-        phasey = read_images(self.files.sel(slice=dataset, raw_comp="PhaseY").values)
-        phasez = read_images(self.files.sel(slice=dataset, raw_comp="PhaseZ").values)
+        mag = read_images(self.files.sel(cine=dataset, raw_comp="MagAvg").values)
+        phasex = read_images(self.files.sel(cine=dataset, raw_comp="PhaseX").values)
+        phasey = read_images(self.files.sel(cine=dataset, raw_comp="PhaseY").values)
+        phasez = read_images(self.files.sel(cine=dataset, raw_comp="PhaseZ").values)
 
         return xr.DataArray(
             np.stack((mag, phasex, phasey, phasez)),

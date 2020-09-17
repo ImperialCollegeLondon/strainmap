@@ -61,26 +61,26 @@ def strainmap_data(dicom_data_path):
 def segmented_data(strainmap_data):
     """Returns a StrainMapData object with segmented data."""
     from strainmap.models.contour_mask import Contour
-    from strainmap.models.segmentation import find_segmentation
+    from strainmap.models.segmentation import _find_segmentation
     import numpy as np
 
-    dataset = strainmap_data.data_files.datasets[0]
-    image = strainmap_data.data_files.mag(dataset)
+    cine = strainmap_data.data_files.datasets[0]
+    image = strainmap_data.data_files.mag(cine)
 
     # Create the initial contour
     init_epi = Contour.circle(center=(270, 308), radius=50, shape=image.shape).xy
     init_endo = Contour.circle(center=(270, 308), radius=30, shape=image.shape).xy
 
     # Launch the segmentation process
-    find_segmentation(
+    _find_segmentation(
         data=strainmap_data,
-        dataset_name=dataset,
+        cine=cine,
         images={"endocardium": image, "epicardium": image},
         frame=None,
         initials={"epicardium": init_epi, "endocardium": init_endo},
     )
 
-    strainmap_data.zero_angle[dataset][..., 0] = np.array([260, 230])
+    strainmap_data.septum.loc[{"cine": cine}] = np.array([260, 230])
     return strainmap_data
 
 
@@ -295,7 +295,7 @@ def dummy_data() -> pd.DataFrame:
     M = 30
     N = 9 * 7 * M
 
-    Record = pd.Series(np.random.randint(1, 20+1, N))
+    Record = pd.Series(np.random.randint(1, 20 + 1, N))
     Slice = pd.Series(np.random.choice(SLICES, size=N))
     Component = pd.Series(np.random.choice(COMP, size=N))
     Region = pd.Series(np.random.choice([a for a in REGIONS if a != ""], size=N))
@@ -327,3 +327,40 @@ def atlas_view_with_data(atlas_view, dummy_data):
     atlas_view.atlas_data = dummy_data
     atlas_view.update_table(atlas_view.atlas_data)
     return atlas_view
+
+
+@fixture
+def segments_arrays():
+    import numpy as np
+    import xarray as xr
+    from strainmap.models.segmentation import (
+        _init_septum_and_centroid,
+        _init_segments,
+    )
+
+    frames, points = np.random.randint(20, 51, 2)
+    segments = xr.concat(
+        [
+            _init_segments("apex", frames, points),
+            _init_segments("mid", frames, points),
+            _init_segments("base", frames, points),
+        ],
+        dim="cine",
+    )
+    septum = xr.concat(
+        [
+            _init_septum_and_centroid("apex", frames, "septum"),
+            _init_septum_and_centroid("mid", frames, "septum"),
+            _init_septum_and_centroid("base", frames, "septum"),
+        ],
+        dim="cine",
+    )
+    centroid = xr.concat(
+        [
+            _init_septum_and_centroid("apex", frames, "centroid"),
+            _init_septum_and_centroid("mid", frames, "centroid"),
+            _init_septum_and_centroid("base", frames, "centroid"),
+        ],
+        dim="cine",
+    )
+    return segments, septum, centroid

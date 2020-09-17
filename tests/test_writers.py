@@ -83,34 +83,28 @@ def test_write_data_structure(segmented_data, tmpdir):
     from strainmap.models.writers import write_data_structure
     import h5py
 
-    dataset_name = list(segmented_data.segments.keys())[0]
+    cine = segmented_data.segments.cine[0].item()
     filename = tmpdir / "strain_map_file.h5"
     f = h5py.File(filename, "a")
 
     write_data_structure(f, "segments", segmented_data.segments)
     assert "segments" in f
-    assert dataset_name in f["segments"]
-    assert "endocardium" in f["segments"][dataset_name]
-    assert "epicardium" in f["segments"][dataset_name]
-    assert segmented_data.segments[dataset_name]["endocardium"] == approx(
-        f["segments"][dataset_name]["endocardium"][:]
+    assert cine in f["segments"]
+    assert "endocardium" in f["segments"][cine]
+    assert "epicardium" in f["segments"][cine]
+    assert segmented_data.segments.sel(cine=cine, side="endocardium").values == approx(
+        f["segments"][cine]["endocardium"][:]
     )
 
-    segmented_data.segments[dataset_name]["endocardium"] *= 2
+    segmented_data.segments.loc[{"cine": cine, "side": "endocardium"}] *= 2
     write_data_structure(f, "segments", segmented_data.segments)
-    assert segmented_data.segments[dataset_name]["endocardium"] == approx(
-        f["segments"][dataset_name]["endocardium"][:]
+    assert segmented_data.segments.sel(cine=cine, side="endocardium").values == approx(
+        f["segments"][cine]["endocardium"][:]
     )
 
 
 def test_write_hdf5_file(segmented_data, tmpdir):
-    from strainmap.models.velocities import calculate_velocities
     from strainmap.models.writers import write_hdf5_file
-
-    dataset_name = list(segmented_data.segments.keys())[0]
-    calculate_velocities(
-        segmented_data, dataset_name, global_velocity=True, angular_regions=[6]
-    )
 
     filename = tmpdir / "strain_map_file.h5"
     write_hdf5_file(segmented_data, filename)
@@ -138,33 +132,29 @@ def test_paths_to_hdf5(strainmap_data, tmpdir):
     from strainmap.models.writers import paths_to_hdf5, to_relative_paths
     import h5py
 
-    dataset_name = strainmap_data.data_files.datasets[0]
+    cine = strainmap_data.data_files.datasets[0]
     filename = tmpdir / "strain_map_file.h5"
 
     mag = strainmap_data.data_files.vars["mag"]
-    abs_paths = strainmap_data.data_files.files.sel(
-        slice=dataset_name, raw_comp=mag
-    ).values
+    abs_paths = strainmap_data.data_files.files.sel(cine=cine, raw_comp=mag).values
     rel_paths = to_relative_paths(filename, abs_paths)
 
     f = h5py.File(filename, "a")
     paths_to_hdf5(f, filename, strainmap_data.data_files.files)
 
     assert "data_files" in f
-    assert dataset_name in f["data_files"]
-    assert mag in f["data_files"][dataset_name]
-    assert rel_paths == f["data_files"][dataset_name][mag][...].tolist()
+    assert cine in f["data_files"]
+    assert mag in f["data_files"][cine]
+    assert rel_paths == f["data_files"][cine][mag][...].tolist()
 
     strainmap_data.data_files.files.loc[
-        {"slice": dataset_name, "raw_comp": mag, "frame": 0}
+        {"cine": cine, "raw_comp": mag, "frame": 0}
     ] = "/my new path"
-    abs_paths = strainmap_data.data_files.files.sel(
-        slice=dataset_name, raw_comp=mag
-    ).values
+    abs_paths = strainmap_data.data_files.files.sel(cine=cine, raw_comp=mag).values
     rel_paths = to_relative_paths(filename, abs_paths)
     paths_to_hdf5(f, filename, strainmap_data.data_files.files)
 
-    assert rel_paths == f["data_files"][dataset_name][mag][...].tolist()
+    assert rel_paths == f["data_files"][cine][mag][...].tolist()
 
 
 def test_labels_to_group(larray, tmpdir):

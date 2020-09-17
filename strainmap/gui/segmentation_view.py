@@ -369,7 +369,7 @@ class SegmentationTaskView(TaskViewBase):
         colors = ("lime", "tab:orange")
         for i, side in enumerate(["endocardium", "epicardium"]):
             self.final_segments[side] = self.data.segments.sel(
-                slice=dataset, side=side
+                cine=dataset, side=side
             ).values
             self.ax_mag.plot(
                 *self.final_segments[side][self.current_frame],
@@ -388,10 +388,10 @@ class SegmentationTaskView(TaskViewBase):
 
     def plot_zero_angle(self, dataset):
         """Plots the centroid - septum mid-point line."""
-        if not self.data.zero_angle.shape or dataset not in self.data.zero_angle.slice:
+        if not self.data.septum.shape or dataset not in self.data.septum.cine:
             return
 
-        self.zero_angle = self.data.zero_angle.sel(slice=dataset).values
+        self.zero_angle = self.data.septum.sel(cine=dataset).values
 
         data = self.zero_angle[self.current_frame]
         options = dict(marker="+", color="r", markersize=10, label="zero_angle")
@@ -428,12 +428,12 @@ class SegmentationTaskView(TaskViewBase):
     def refresh_data(self):
         """Refresh the data available in the local variables."""
         dataset = self.datasets_var.get()
-        self.zero_angle[self.current_frame] = self.data.zero_angle.sel(
-            slice=dataset, frame=self.current_frame
+        self.zero_angle[self.current_frame] = self.data.septum.sel(
+            cine=dataset, frame=self.current_frame
         )
         for i, side in enumerate(["endocardium", "epicardium"]):
-            self.final_segments[side][self.current_frame] = self.data.segmentssel(
-                slice=dataset, side=side, frame=self.current_frame
+            self.final_segments[side][self.current_frame] = self.data.segments.sel(
+                cine=dataset, side=side, frame=self.current_frame
             )
 
     @property
@@ -466,7 +466,7 @@ class SegmentationTaskView(TaskViewBase):
             self.clear_btn.state(["disabled"])
             self.completed = False
 
-        elif not np.isnan(self.data.centroid.sel(slice=dataset)).any():
+        elif not np.isnan(self.data.centroid.sel(cine=dataset)).any():
             self.current_frame = self.num_frames - 1
             self.working_frame_var.set(self.current_frame)
             self.clear_btn.state(["!disabled"])
@@ -541,7 +541,7 @@ class SegmentationTaskView(TaskViewBase):
     def finish_segmentation(self, update=True):
         """Finish the segmentation, updating values and state of buttons."""
         if update:
-            self.controller.update_segmentation(
+            self.controller._update_segmentation(
                 dataset_name=self.datasets_var.get(),
                 segments=self.final_segments,
                 zero_angle=self.zero_angle,
@@ -565,21 +565,21 @@ class SegmentationTaskView(TaskViewBase):
         else:
             self.next_btn.state(["!disabled"])
 
-        img = endo = epi = zero_angle = septum_line = None
+        img = endo = epi = septum = septum_line = None
 
         if image in ["mag", "vel"]:
             img = self.images[image][self.current_frame]
         if self.final_segments["endocardium"] is not None:
             endo = self.final_segments["endocardium"][self.current_frame]
             epi = self.final_segments["epicardium"][self.current_frame]
-            zero_angle = self.data.zero_angle.sel(
-                slice=self.datasets_var.get(), frame=self.current_frame
+            septum = self.data.septum.sel(
+                cine=self.datasets_var.get(), frame=self.current_frame
             ).values
-            septum_line = np.array([zero_angle, self.centroid]).T
+            septum_line = np.array([septum, self.centroid]).T
 
         self.update_undo_state()
 
-        return self.current_frame, img, (endo, epi, septum_line, zero_angle)
+        return self.current_frame, img, (endo, epi, septum_line, septum)
 
     def contour_edited(self, label, axes, data):
         """After a contour is modified, this function is executed."""
@@ -786,7 +786,7 @@ class SegmentationTaskView(TaskViewBase):
             "endocardium": self.images[self.endocardium_target_var.get()][frame],
             "epicardium": self.images[self.epicardium_target_var.get()][frame],
         }
-        self.controller.find_segmentation(
+        self.controller._find_segmentation(
             dataset_name=self.datasets_var.get(),
             frame=frame,
             images=images,
@@ -818,7 +818,7 @@ class SegmentationTaskView(TaskViewBase):
         self.undo_last_btn.state(["disabled"])
         self.undo_all_btn.state(["disabled"])
         self.undo_stack = defaultdict(list)
-        self.controller.update_segmentation(
+        self.controller._update_segmentation(
             dataset_name=self.datasets_var.get(),
             segments=self.final_segments,
             zero_angle=self.zero_angle,
@@ -828,7 +828,7 @@ class SegmentationTaskView(TaskViewBase):
     def clear_segmentation(self):
         """Clear an existing segmentation."""
         dataset_name = self.datasets_var.get()
-        self.controller.clear_segmentation(dataset_name=dataset_name)
+        self.controller.remove_segmentation(dataset_name=dataset_name)
         self.replot(dataset_name)
 
     def stop_animation(self):
@@ -838,13 +838,13 @@ class SegmentationTaskView(TaskViewBase):
     def update_widgets(self):
         """ Updates widgets after an update in the data var. """
         if self.controller.review_mode:
-            values = self.data.segments.dims
+            values = self.data.segments.cine
         else:
             values = self.data.data_files.datasets
         values_segments = (
             []
             if not self.data.segments.shape
-            else self.data.segments.slice.values.tolist()
+            else self.data.segments.cine.values.tolist()
         )
         current = self.datasets_var.get()
         self.datasets_box.config(values=values)

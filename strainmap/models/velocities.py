@@ -183,7 +183,7 @@ def calculate_velocities(
         outer=data.segments[dataset_name]["epicardium"],
         inner=data.segments[dataset_name]["endocardium"],
     )
-    origin = data.zero_angle[dataset_name][..., 1][:, ::-1]
+    origin = data.septum[dataset_name][..., 1][:, ::-1]
     shift = np.array([xmin, ymin])
     rm_mask = remap_array(mask, phase.shape[-2:], (xmin, xmax, ymin, ymax))
     cylindrical = (
@@ -209,7 +209,7 @@ def calculate_velocities(
     if angular_regions:
         velocities, masks = velocities_angular(
             cylindrical[..., xmin : xmax + 1, ymin : ymax + 1],
-            data.zero_angle[dataset_name],
+            data.septum[dataset_name],
             origin - shift[None, :],
             mask,
             angular_regions,

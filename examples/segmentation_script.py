@@ -28,7 +28,7 @@ import matplotlib.pyplot as plt
 import pydicom
 
 from strainmap.models.contour_mask import Contour
-from strainmap.models.segmentation import simple_segmentation
+from strainmap.models.segmentation import _simple_segmentation
 
 # Load the data of interest
 path = Path(__file__).parent.parent / "tests/data/SUB1/MR012001002.dcm"
@@ -48,7 +48,7 @@ filter_params = dict(sigma=2)
 propagator_params = dict()
 
 # Launch the segmentation process
-outer = simple_segmentation(
+outer = _simple_segmentation(
     data=image,
     initial=init_out,
     model=model,
@@ -59,7 +59,7 @@ outer = simple_segmentation(
     propagator_params=propagator_params,
 )
 
-inner = simple_segmentation(
+inner = _simple_segmentation(
     data=image,
     initial=init_in,
     model=model,
