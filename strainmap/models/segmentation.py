@@ -1,5 +1,5 @@
 from copy import copy
-from typing import Text, Dict, Any, Union, List, Callable, Optional, Tuple
+from typing import Text, Dict, Any, Union, List, Callable, Tuple, Optional
 from functools import partial, reduce
 
 import numpy as np
@@ -34,7 +34,7 @@ replace_threshold: int = 31
 def new_segmentation(
     data: StrainMapData,
     cine: str,
-    frame: Union[int, xr.DataArray],
+    frame: Union[int, None],
     initials: xr.DataArray,
     new_septum: xr.DataArray,
 ) -> None:
@@ -43,20 +43,24 @@ def new_segmentation(
     If it is a quick one, after calculating the segmentation, the effective centroids
     are also calculated.
     """
-    segments, centroid, septum = _get_segment_variables(data, cine, initials.point)
+    segments, centroid, septum = _get_segment_variables(
+        data, cine, initials.sizes["point"]
+    )
+    frame = frame if frame is not None else segments.frame
 
     _find_segmentation(
         segments,
         centroid,
-        septum,
-        data.data_files.images(cine).sel(frame=frame),
+        data.data_files.images(cine).sel(frame=frame, comp="mag"),
         initials,
-        new_septum,
     )
 
     # If are doing an automatic segmentation for all frames, calculate the effective COM
-    if frame == segments.frame:
+    if (frame == segments.frame).all():
         centroid[...] = _calc_effective_centroids(centroid, window=3)
+
+    # We set the new septum
+    septum.loc[{"frame": frame}] = new_septum.sel(frame=0).copy()
 
     # data.save("segments", "centroid", "septum")
 
@@ -75,7 +79,9 @@ def update_segmentation(
     """
     segments, centroid, septum = _get_segment_variables(data, cine)
 
-    _update_segmentation(segments, centroid, septum, new_segments, new_septum)
+    _update_segmentation(segments, centroid, new_segments)
+
+    septum[...] = new_septum.copy()
 
     if not xr.ufuncs.isnan(segments).any():
         raw_centroids = _calc_centroids(segments)
@@ -112,11 +118,12 @@ def update_and_find_next(
     _find_segmentation(
         segments,
         centroid,
-        septum,
-        data.data_files.images(cine).sel(frame=frame),
+        data.data_files.images(cine).sel(frame=frame, comp="mag"),
         segments.sel(frame=frame - 1),
-        new_septum,
     )
+
+    # We set the new septum
+    septum.loc[{"frame": frame}] = new_septum.sel(frame=frame - 1).copy()
 
 
 def remove_segmentation(data: StrainMapData, cine: str) -> None:
@@ -208,20 +215,16 @@ def _init_septum_and_centroid(cine: str, frames: int, name: str) -> xr.DataArray
 def _find_segmentation(
     segments: xr.DataArray,
     centroid: xr.DataArray,
-    septum: xr.DataArray,
     images: xr.DataArray,
     initials: xr.DataArray,
-    new_septum: xr.DataArray,
 ) -> None:
     """Find the segmentation of one or more images starting at the initials segments.
 
     Args:
         segments (xr.DataArray): The original segments array.
         centroid (xr.DataArray): The original centroids array.
-        septum (xr.DataArray): The original septum array.
         images (xr.DataArray): The images for the frames to segment.
         initials (xr.DataArray): Initial segments to start the segmentation with.
-        new_septum (xr.DataArray): The new septum
 
     Returns:
         None
@@ -230,7 +233,7 @@ def _find_segmentation(
 
     rules = (
         _create_rules_one_frame(
-            frame.item(), segments, (images.sizes["rows"], images.sizes["cols"])
+            frame.item(), segments, (images.sizes["row"], images.sizes["col"])
         )
         if frame.shape == ()
         else _create_rules_all_frames()
@@ -246,7 +249,7 @@ def _find_segmentation(
         # For multiple segmentations or if not yet above threshold
         else:
             segments.loc[{"side": side, "frame": frame}] = _simple_segmentation(
-                images.sel(side=side).data,
+                images.data,
                 initials.sel(side=side).data,
                 model=model,
                 model_params=model_params[side],
@@ -260,16 +263,11 @@ def _find_segmentation(
     # We update the centroid (or center of mass, COM)
     centroid.loc[{"frame": frame}] = _calc_centroids(segments.sel(frame=frame))
 
-    # We set the new septum
-    septum.loc[{"frame": frame}] = new_septum.copy()
-
 
 def _update_segmentation(
     segments: xr.DataArray,
     centroid: xr.DataArray,
-    septum: xr.DataArray,
     new_segments: Optional[xr.DataArray] = None,
-    new_septum: Optional[xr.DataArray] = None,
 ) -> None:
     """ Updates an existing segmentation and septum with new ones.
 
@@ -278,19 +276,13 @@ def _update_segmentation(
     Args:
         segments (xr.DataArray): The original segments array.
         centroid (xr.DataArray): The original centroids array.
-        septum (xr.DataArray): The original septum array.
         new_segments (optional, xr.DataArray): The new segments.
-        new_septum (optional, xr.DataArray): The new septum.
 
     Returns:
         None
     """
-    if new_segments is not None:
-        segments.loc[{"frame": new_segments.frame}] = new_segments.copy()
-        centroid.loc[{"frame": new_segments.frame}] = _calc_centroids(new_segments)
-
-    if new_septum is not None:
-        septum[...] = new_septum.copy()
+    segments.loc[{"frame": new_segments.frame}] = new_segments.copy()
+    centroid.loc[{"frame": new_segments.frame}] = _calc_centroids(new_segments)
 
 
 def _calc_centroids(segments: xr.DataArray) -> xr.DataArray:

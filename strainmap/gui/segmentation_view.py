@@ -1,14 +1,13 @@
 import tkinter as tk
 from tkinter import ttk
-from copy import copy
 from collections import defaultdict
 
-from typing import Optional, Dict
+from typing import Optional, Dict, Union
 from functools import partial
 
 import matplotlib.pyplot as plt
 import numpy as np
-from scipy import ndimage
+import xarray as xr
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.widgets import Cursor
 from matplotlib.figure import Figure
@@ -53,19 +52,10 @@ class SegmentationTaskView(TaskViewBase):
 
         # Control-related attributes
         self.current_frame = 0
-        self.images: Dict[str, Optional[np.ndarray]] = {"mag": None, "vel": None}
-        self.initial_segments: Dict[str, Optional[np.ndarray]] = {
-            "endocardium": None,
-            "epicardium": None,
-        }
-        self.final_segments: Dict[str, Optional[np.ndarray]] = {
-            "endocardium": None,
-            "epicardium": None,
-        }
-        self.zero_angle: Optional[np.ndarray] = None
-        self.endocardium_target_var = tk.StringVar(value="mag")
-        self.epicardium_target_var = tk.StringVar(value="mag")
-        self.datasets_var = tk.StringVar(value="")
+        self.initial_segments: xr.DataArray = xr.DataArray()
+        self._segments: xr.DataArray = xr.DataArray()
+        self._septum: xr.DataArray = xr.DataArray()
+        self.cines_var = tk.StringVar(value="")
         self.endo_redy_var = tk.StringVar(value="1 - Endocardium")
         self.epi_redy_var = tk.StringVar(value="2 - Epicardium")
         self.septum_redy_var = tk.StringVar(value="3 - Septum mid-point")
@@ -82,7 +72,7 @@ class SegmentationTaskView(TaskViewBase):
         self.ax_mag = None
         self.ax_vel = None
         self.cursors: Dict[str, Optional[Cursor]] = {"mag": None, "vel": None}
-        self.datasets_box = None
+        self.cines_box = None
         self.quick_checkbox = None
         self.clear_btn = None
         self.confirm_btn = None
@@ -91,7 +81,7 @@ class SegmentationTaskView(TaskViewBase):
         self.next_btn = None
         self.pbar = None
         self.septum_markers = [None, None]
-        self.zero_angle_lines = [None, None]
+        self.septum_lines = [None, None]
 
         self.create_controls()
 
@@ -105,17 +95,14 @@ class SegmentationTaskView(TaskViewBase):
         visualise_frame.rowconfigure(1, weight=1)
 
         # Dataset frame
-        dataset_frame = ttk.Labelframe(control, text="Datasets:")
-        dataset_frame.columnconfigure(0, weight=1)
-        dataset_frame.rowconfigure(0, weight=1)
+        cine_frame = ttk.Labelframe(control, text="Cines:")
+        cine_frame.columnconfigure(0, weight=1)
+        cine_frame.rowconfigure(0, weight=1)
 
-        self.datasets_box = ttk.Combobox(
-            master=dataset_frame,
-            textvariable=self.datasets_var,
-            values=[],
-            state="readonly",
+        self.cines_box = ttk.Combobox(
+            master=cine_frame, textvariable=self.cines_var, values=[], state="readonly",
         )
-        self.datasets_box.bind("<<ComboboxSelected>>", self.dataset_changed)
+        self.cines_box.bind("<<ComboboxSelected>>", self.cine_changed)
 
         self.clear_btn = ttk.Button(
             master=control,
@@ -155,22 +142,6 @@ class SegmentationTaskView(TaskViewBase):
             variable=self.quick_segment_var,
             state="enable",
         )
-
-        for i, text in enumerate(["mag", "vel"]):
-            ttk.Radiobutton(
-                master=segment_frame,
-                text=text,
-                variable=self.endocardium_target_var,
-                value=text,
-            )
-            # .grid(row=0, column=2 + i, sticky=tk.NSEW)
-            ttk.Radiobutton(
-                master=segment_frame,
-                text=text,
-                variable=self.epicardium_target_var,
-                value=text,
-            )
-            # .grid(row=1, column=2 + i, sticky=tk.NSEW)
 
         # Manual segmentation frame
         manual_frame = ttk.Labelframe(control, text="Manual segmentation:")
@@ -232,8 +203,8 @@ class SegmentationTaskView(TaskViewBase):
 
         control.grid(sticky=tk.NSEW, padx=10, pady=10)
         visualise_frame.grid(sticky=tk.NSEW, padx=10)
-        dataset_frame.grid(row=0, column=0, sticky=tk.NSEW, padx=5)
-        self.datasets_box.grid(row=0, column=0, sticky=tk.NSEW)
+        cine_frame.grid(row=0, column=0, sticky=tk.NSEW, padx=5)
+        self.cines_box.grid(row=0, column=0, sticky=tk.NSEW)
         self.clear_btn.grid(row=0, column=50, sticky=(tk.N, tk.E, tk.S))
         self.confirm_btn.grid(row=1, column=50, sticky=(tk.N, tk.E, tk.S))
         segment_frame.grid(row=0, column=1, rowspan=3, sticky=tk.NSEW, padx=5)
@@ -308,19 +279,19 @@ class SegmentationTaskView(TaskViewBase):
             lambda frame, axes="vel": self.scroll(frame, axes), self.ax_vel
         )
 
-    def dataset_changed(self, *args):
-        """Updates the GUI when a new dataset is chosen."""
-        dataset = self.datasets_var.get()
-        self.images = self.get_data_to_segment(dataset)
-        self.update_state(dataset)
-        self.replot(dataset)
+    def cine_changed(self, *args):
+        """Updates the GUI when a new cine is chosen."""
+        cine = self.cines_var.get()
+        self.update_state(cine)
+        self.replot(cine)
 
-    def replot(self, dataset):
+    def replot(self, cine):
         """Replots the data, updating the relevant variables if needed."""
         self.fig.actions_manager.ScrollFrames.clear()
         for ax in self.fig.axes:
             self.fig.actions_manager.DrawContours.clear_drawing_(ax)
 
+        # Get current scale and colormap limits
         clim_mag = clim_vel = xlim = ylim = None
         if len(self.ax_mag.images) > 0:
             clim_mag = self.ax_mag.images[0].get_clim()
@@ -334,8 +305,8 @@ class SegmentationTaskView(TaskViewBase):
         self.ax_vel.images.clear()
 
         self.plot_images()
-        self.plot_segments(dataset)
-        self.plot_zero_angle(dataset)
+        self.plot_segments(cine)
+        self.plot_septum(cine)
         self.plot_markers()
 
         if clim_mag is not None:
@@ -348,18 +319,20 @@ class SegmentationTaskView(TaskViewBase):
 
     def plot_images(self):
         """Plot or updates the images in the figure, if they already exist."""
-        self.pbar.config(maximum=self.images["mag"].shape[0] - 1)
+        self.pbar.config(maximum=self.data.data_files.frames - 1)
 
         self.ax_mag.imshow(
-            self.images["mag"][self.current_frame], cmap=plt.get_cmap("binary_r")
+            self.images.sel(comp="mag", frame=self.current_frame),
+            cmap=plt.get_cmap("binary_r"),
         )
         self.ax_vel.imshow(
-            self.images["vel"][self.current_frame], cmap=plt.get_cmap("binary_r")
+            self.images.sel(comp="z", frame=self.current_frame),
+            cmap=plt.get_cmap("binary_r"),
         )
 
-    def plot_segments(self, dataset):
+    def plot_segments(self, cine):
         """Plot or updates the segments in the figure, if they already exist."""
-        if not self.data.segments.shape:
+        if self.data.segments.shape == () or cine not in self.data.segments.cine:
             self.initialize_segmentation()
             return
 
@@ -367,36 +340,37 @@ class SegmentationTaskView(TaskViewBase):
             self.switch_mark_state(side, "ready")
 
         colors = ("lime", "tab:orange")
-        for i, side in enumerate(["endocardium", "epicardium"]):
-            self.final_segments[side] = self.data.segments.sel(
-                cine=dataset, side=side
-            ).values
+        self._segments = self.data.segments.sel(cine=cine).copy()
+        for i, side in enumerate(("endocardium", "epicardium")):
             self.ax_mag.plot(
-                *self.final_segments[side][self.current_frame],
+                *self._segments.sel(side=side, frame=self.current_frame),
                 dashes=(5, 5),
                 picker=6,
                 label=side,
                 color=colors[i],
             )
             self.ax_vel.plot(
-                *self.final_segments[side][self.current_frame],
+                *self._segments.sel(side=side, frame=self.current_frame),
                 dashes=(5, 5),
                 picker=6,
                 label=side,
                 color=colors[i],
             )
 
-    def plot_zero_angle(self, dataset):
+    def plot_septum(self, cine):
         """Plots the centroid - septum mid-point line."""
-        if not self.data.septum.shape or dataset not in self.data.septum.cine:
+        if self.data.septum.shape == () or cine not in self.data.septum.cine:
             return
 
-        self.zero_angle = self.data.septum.sel(cine=dataset).values
+        self._septum = self.data.septum.sel(cine=cine).copy()
 
-        data = self.zero_angle[self.current_frame]
-        options = dict(marker="+", color="r", markersize=10, label="zero_angle")
-        self.zero_angle_lines[0] = self.ax_mag.plot(*data, **options)[0]
-        self.zero_angle_lines[1] = self.ax_vel.plot(*data, **options)[0]
+        options = dict(marker="+", color="r", markersize=10, label="septum")
+        self.septum_lines[0] = self.ax_mag.plot(
+            *self._septum.sel(frame=self.current_frame), **options
+        )[0]
+        self.septum_lines[1] = self.ax_vel.plot(
+            *self._septum.sel(frame=self.current_frame), **options
+        )[0]
 
     def plot_markers(self):
         """Adds the existing mid-septum markers, if already created, or creat new."""
@@ -404,46 +378,47 @@ class SegmentationTaskView(TaskViewBase):
             self.ax_mag.lines.append(self.septum_markers[0])
             self.ax_vel.lines.append(self.septum_markers[1])
 
-        elif self.zero_angle is not None:
+        elif self._septum.shape != ():
             markers = self.fig.actions_manager.Markers
             drag = self.fig.actions_manager.DragContours
             self.switch_mark_state("septum mid-point", "ready")
 
             options = dict(marker="o", markersize=8, color="r")
-
-            data = self.zero_angle[self.current_frame, :]
             for i, ax in enumerate((self.ax_mag, self.ax_vel)):
                 self.septum_markers[i] = markers.add_marker(axes=ax, **options)
-                markers.update_marker_position(self.septum_markers[i], *data)
+                markers.update_marker_position(
+                    self.septum_markers[i], *self._septum.sel(frame=self.current_frame)
+                )
                 drag.ignore_dragging(self.septum_markers[i])
 
     def plot_initial_segments(self):
         """Plots the initial segments."""
         style = dict(color="yellow", ls="--", linewidth=1)
-        for side in self.initial_segments:
-            if self.initial_segments[side] is not None:
-                self.ax_mag.plot(*self.initial_segments[side], **style)
-                self.ax_vel.plot(*self.initial_segments[side], **style)
+        if self.initial_segments.shape != ():
+            for side in self.initial_segments.side:
+                self.ax_mag.plot(*self.initial_segments.sel(side=side), **style)
+                self.ax_vel.plot(*self.initial_segments.sel(side=side), **style)
 
     def refresh_data(self):
         """Refresh the data available in the local variables."""
-        dataset = self.datasets_var.get()
-        self.zero_angle[self.current_frame] = self.data.septum.sel(
-            cine=dataset, frame=self.current_frame
+        cine = self.cines_var.get()
+        self._septum.loc[{"frame": self.current_frame}] = self.data.septum.sel(
+            cine=cine, frame=self.current_frame
         )
-        for i, side in enumerate(["endocardium", "epicardium"]):
-            self.final_segments[side][self.current_frame] = self.data.segments.sel(
-                cine=dataset, side=side, frame=self.current_frame
-            )
+        self._segments.loc[{"frame": self.current_frame}] = self.data.segments.sel(
+            cine=cine, frame=self.current_frame
+        )
+
+    @property
+    def images(self) -> xr.DataArray:
+        return self.data.data_files.images(self.cines_var.get())
 
     @property
     def centroid(self):
         """Return an array with the position of the centroid at a given time."""
-        mask = Contour(
-            self.final_segments["epicardium"][self.current_frame].T,
-            shape=self.images["mag"][self.current_frame].shape,
-        ).mask
-        return np.array(ndimage.measurements.center_of_mass(mask))
+        return self._segments.sel(side="epicardium", frame=self.current_frame).mean(
+            "point"
+        )
 
     @property
     def septum(self):
@@ -451,33 +426,41 @@ class SegmentationTaskView(TaskViewBase):
         return np.array(self.septum_markers[0].get_data()).flatten()
 
     @property
-    def num_frames(self):
-        return self.images["mag"].shape[0]
+    def septum_line(self) -> np.ndarray:
+        """Returns the septum line, joining the septum and the centroid."""
+        septum = self._septum.sel(frame=self.current_frame).data
+        return np.array([septum, self.centroid.data]).T
 
-    def update_state(self, dataset):
+    @property
+    def num_frames(self):
+        return self.data.data_files.frames
+
+    def update_state(self, cine):
         """Updates the state of buttons and vars when something happens in the GUI."""
         self.undo_stack = defaultdict(list)
         self.update_undo_state()
         self.confirm_btn.state(["disabled"])
 
-        if not self.data.segments.shape:
+        if self.data.segments.shape == () or cine not in self.data.segments.cine:
             # There are no segments at all
             self.clear_segment_variables(button_pressed=False)
             self.clear_btn.state(["disabled"])
             self.completed = False
 
-        elif not np.isnan(self.data.centroid.sel(cine=dataset)).any():
+        elif not np.isnan(self.data.centroid.sel(cine=cine)).any():
+            # Completed segmentation
             self.current_frame = self.num_frames - 1
             self.working_frame_var.set(self.current_frame)
             self.clear_btn.state(["!disabled"])
             self.next_btn.config(text="Done!")
             self.next_btn.state(["disabled"])
-            self.datasets_box.state(["!disabled"])
+            self.cines_box.state(["!disabled"])
             self.completed = True
             self.cursors["mag"] = None
             self.cursors["vel"] = None
 
         else:
+            # Ongoing segmentation
             self.clear_btn.state(["!disabled"])
             self.completed = False
 
@@ -503,55 +486,6 @@ class SegmentationTaskView(TaskViewBase):
         self.fig.actions_manager.ScrollFrames.go_to_frame(frame, self.fig.axes[0])
         self.fig.canvas.draw_idle()
 
-    def first_frame(self):
-        """Triggers the segmentation when frame is 0."""
-        self.next_btn.config(text="Next \u25B6", command=self.next)
-        self.find_segmentation(0, self.initial_segments)
-        self.replot(self.datasets_var.get())
-        self.zero_angle[self.current_frame] = self.septum
-        self.go_to_frame()
-
-    def next(self):
-        """Triggers the segmentation in the rest of the frames."""
-        self.next_btn.state(["disabled"])
-        self.update_and_find_next()
-        self.refresh_data()
-        self.zero_angle[self.current_frame] = self.septum
-
-        frame = self.working_frame_var.get()
-        if frame == self.num_frames - 2:
-            self.next_btn.config(command=self.finish_segmentation)
-
-        self.working_frame_var.set(frame + 1)
-        self.current_frame = frame + 1
-        self.zero_angle[self.current_frame] = self.septum
-        self.go_to_frame()
-        self.next_btn.state(["!disabled"])
-
-    def quick_segmentation(self):
-        """Triggers a quick segmentation of the whole dataset."""
-        self.find_segmentation(
-            slice(None), self.initial_segments, self.septum, unlock=True
-        )
-        self.finish_segmentation(update=False)
-        self.replot(self.datasets_var.get())
-        self.working_frame_var.set(self.num_frames - 1)
-        self.go_to_frame()
-
-    def finish_segmentation(self, update=True):
-        """Finish the segmentation, updating values and state of buttons."""
-        if update:
-            self.controller._update_segmentation(
-                dataset_name=self.datasets_var.get(),
-                segments=self.final_segments,
-                zero_angle=self.zero_angle,
-                frame=slice(None),
-            )
-        self.next_btn.config(text="Done!")
-        self.next_btn.state(["disabled"])
-        self.datasets_box.state(["!disabled"])
-        self.completed = True
-
     def scroll(self, frame, image=None):
         """Provides the next images and lines to plot when scrolling."""
         self.current_frame = frame % self.num_frames
@@ -566,16 +500,14 @@ class SegmentationTaskView(TaskViewBase):
             self.next_btn.state(["!disabled"])
 
         img = endo = epi = septum = septum_line = None
+        if image in ("mag", "z"):
+            img = self.images.sel(comp=image, frame=self.current_frame)
 
-        if image in ["mag", "vel"]:
-            img = self.images[image][self.current_frame]
-        if self.final_segments["endocardium"] is not None:
-            endo = self.final_segments["endocardium"][self.current_frame]
-            epi = self.final_segments["epicardium"][self.current_frame]
-            septum = self.data.septum.sel(
-                cine=self.datasets_var.get(), frame=self.current_frame
-            ).values
-            septum_line = np.array([septum, self.centroid]).T
+        if self._segments.shape != ():
+            endo = self._segments.sel(side="endocardium", frame=self.current_frame).data
+            epi = self._segments.sel(side="epicardium", frame=self.current_frame).data
+            septum = self._septum.sel(frame=self.current_frame).data
+            septum_line = self.septum_line
 
         self.update_undo_state()
 
@@ -584,17 +516,19 @@ class SegmentationTaskView(TaskViewBase):
     def contour_edited(self, label, axes, data):
         """After a contour is modified, this function is executed."""
         self.undo_stack[self.current_frame].append(
-            dict(label=label, data=copy(self.final_segments[label][self.current_frame]))
+            dict(
+                label=label,
+                data=self._segments.sel(side=label, frame=self.current_frame).copy(),
+            )
         )
         self.update_undo_state()
         if self.completed:
             self.confirm_btn.state(["!disabled"])
 
-        self.final_segments[label][self.current_frame] = data
-        septum_line = np.array([self.zero_angle[self.current_frame], self.centroid]).T
+        self._segments.loc[{"side": label, "frame": self.current_frame}] = data
 
         for i in range(2):
-            self.zero_angle_lines[i].set_data(septum_line)
+            self.septum_lines[i].set_data(self.septum_line)
 
         for ax in set(self.fig.axes) - {axes}:
             for l in ax.lines:
@@ -603,16 +537,15 @@ class SegmentationTaskView(TaskViewBase):
 
     def septum_edited(self, marker, data, x, y, idx):
         """Updates the mid-septum information when this is dragged."""
-        if self.zero_angle is None:
+        if self._septum.shape == ():
             return
 
         if self.completed:
             self.confirm_btn.state(["!disabled"])
 
-        self.zero_angle[self.current_frame, :] = np.array((x, y))
-        septum_line = np.array([self.zero_angle[self.current_frame], self.centroid]).T
+        self._septum.loc[{"frame": self.current_frame}] = np.array((x, y))
         for i in range(2):
-            self.zero_angle_lines[i].set_data(septum_line)
+            self.septum_lines[i].set_data(self.septum_line)
             self.septum_markers[i].set_data(np.array((x, y)))
 
         self.fig.canvas.draw_idle()
@@ -620,7 +553,9 @@ class SegmentationTaskView(TaskViewBase):
     def undo(self, index):
         """Undo the last manual modification in the current frame."""
         last = self.undo_stack[self.current_frame].pop(index)
-        self.final_segments[last["label"]][self.current_frame] = last["data"]
+        self._segments.loc[{"side": last["label"], "frame": self.current_frame}] = last[
+            "data"
+        ]
 
         for ax in self.fig.axes:
             for l in ax.lines:
@@ -650,13 +585,6 @@ class SegmentationTaskView(TaskViewBase):
         self.drag_width_label.set(f"{width}%")
         self.fig.actions_manager.DragContours.contour_fraction = width / 100
 
-    def get_data_to_segment(self, dataset):
-        """Gets the data that will be segmented."""
-        return {
-            "mag": self.data.data_files.mag(dataset),
-            "vel": self.data.data_files.phase(dataset)[-1],
-        }
-
     def set_initial_contour(self, side):
         """Enables the definition of the initial segment for the side."""
         self.fig.suptitle(
@@ -677,16 +605,25 @@ class SegmentationTaskView(TaskViewBase):
 
     def get_contour(self, contour, points, side):
         """Gets and plots the contour."""
-        self.initial_segments[side] = contour[-1]
+        if self.initial_segments.shape == ():
+            self.initial_segments = xr.DataArray(
+                np.full((2, 2, max(contour[-1].shape)), np.nan),
+                dims=("side", "coord", "point"),
+                coords={
+                    "side": ["endocardium", "epicardium"],
+                    "coord": ["row", "col"],
+                },
+            )
+        self.initial_segments.loc[{"side": side}] = contour[-1]
         self.switch_mark_state(side, "ready")
-        self.datasets_box.state(["disabled"])
+        self.cines_box.state(["disabled"])
         if not self.controller.review_mode:
             self.clear_btn.state(["!disabled"])
 
         for ax in self.fig.axes:
             self.fig.actions_manager.DrawContours.clear_drawing_(ax)
 
-        if any([s is None for s in self.initial_segments.values()]):
+        if xr.ufuncs.isnan(self.initial_segments).any():
             self.fig.actions_manager.DrawContours.add_point(
                 self.fig.axes[0], *points[0]
             )
@@ -698,6 +635,14 @@ class SegmentationTaskView(TaskViewBase):
 
     def get_septum(self, _, data):
         """Sets the initial position of the mid-septum."""
+        if self._septum.shape == ():
+            self._septum = xr.DataArray(
+                np.full((self.num_frames, 2), np.nan),
+                dims=("frame", "coord"),
+                coords={"coord": ["row", "col"], "frame": np.arange(self.num_frames),},
+            )
+        self._septum.loc[{"frame": self.current_frame}] = data[-1]
+
         markers = self.fig.actions_manager.Markers
         drag = self.fig.actions_manager.DragContours
         self.switch_mark_state("septum mid-point", "ready")
@@ -756,10 +701,10 @@ class SegmentationTaskView(TaskViewBase):
             self.first_frame()
 
     def clear_segment_variables(self, button_pressed=True):
-        """Clears all segmentation when a dataset with no segmentation is loaded."""
-        self.initial_segments = {"endocardium": None, "epicardium": None}
-        self.final_segments = {"endocardium": None, "epicardium": None}
-        self.zero_angle = None
+        """Clears all segmentation when a cine with no segmentation is loaded."""
+        self.initial_segments = xr.DataArray()
+        self._segments = xr.DataArray()
+        self._septum = xr.DataArray()
         self.septum_markers = [None, None]
 
         for side in ("endocardium", "epicardium", "septum mid-point"):
@@ -769,7 +714,7 @@ class SegmentationTaskView(TaskViewBase):
         self.working_frame_var.set(0)
         self.current_frame = 0
         self.next_btn.state(["disabled"])
-        self.datasets_box.state(["!disabled"])
+        self.cines_box.state(["!disabled"])
         self.quick_checkbox.state(["!disabled"])
         self.confirm_btn.state(["disabled"])
         self.completed = False
@@ -780,56 +725,103 @@ class SegmentationTaskView(TaskViewBase):
         if button_pressed:
             self.clear_segmentation()
 
-    def find_segmentation(self, frame, initial, zero_angle=None, unlock=False):
+    def quick_segmentation(self):
+        """Triggers a quick segmentation of the whole cine."""
+        self.new_segmentation(None, unlock=True)
+        self.finish_segmentation(update=False)
+        self.replot(self.cines_var.get())
+        self.working_frame_var.set(self.num_frames - 1)
+        self.go_to_frame()
+
+    def first_frame(self):
+        """Triggers the segmentation when frame is 0."""
+        self.next_btn.config(text="Next \u25B6", command=self.next)
+        self.new_segmentation(0, unlock=False)
+        self.replot(self.cines_var.get())
+        self.go_to_frame()
+
+    def next(self):
+        """Triggers the segmentation in the rest of the frames."""
+        self.next_btn.state(["disabled"])
+        self.confirm_btn.state(["disabled"])
+        self.undo_last_btn.state(["disabled"])
+        self.undo_all_btn.state(["disabled"])
+        self.undo_stack = defaultdict(list)
+
+        self.update_and_find_next()
+        self.refresh_data()
+
+        frame = self.working_frame_var.get()
+        if frame == self.num_frames - 2:
+            self.next_btn.config(command=self.finish_segmentation)
+
+        self.working_frame_var.set(frame + 1)
+        self.current_frame = frame + 1
+        self.refresh_data()
+        self.go_to_frame()
+        self.next_btn.state(["!disabled"])
+
+    def finish_segmentation(self, update=True):
+        """Finish the segmentation, updating values and state of buttons."""
+        if update:
+            self.controller.update_segmentation(
+                cine=self.cines_var.get(),
+                new_segments=self._segments,
+                new_septum=self._septum,
+                unlock=True,
+            )
+        self.next_btn.config(text="Done!")
+        self.next_btn.state(["disabled"])
+        self.cines_box.state(["!disabled"])
+        self.confirm_btn.state(["disabled"])
+        self.undo_last_btn.state(["disabled"])
+        self.undo_all_btn.state(["disabled"])
+        self.undo_stack = defaultdict(list)
+        self.completed = True
+
+    def new_segmentation(
+        self, frame: Optional[int], unlock: bool,
+    ):
         """Runs an automatic segmentation sequence."""
-        images = {
-            "endocardium": self.images[self.endocardium_target_var.get()][frame],
-            "epicardium": self.images[self.epicardium_target_var.get()][frame],
-        }
-        self.controller._find_segmentation(
-            dataset_name=self.datasets_var.get(),
+        self.controller.new_segmentation(
+            cine=self.cines_var.get(),
             frame=frame,
-            images=images,
-            initials=initial,
-            zero_angle=zero_angle,
+            initials=self.initial_segments,
+            new_septum=self._septum,
             unlock=unlock,
         )
 
     def update_and_find_next(self):
         """Confirm the new segments and moves to the next."""
-        frame = self.current_frame + 1
-        images = {
-            "endocardium": self.images[self.endocardium_target_var.get()][frame],
-            "epicardium": self.images[self.epicardium_target_var.get()][frame],
-        }
         self.controller.update_and_find_next(
-            dataset_name=self.datasets_var.get(),
-            segments=self.final_segments,
-            zero_angle=self.zero_angle,
-            frame=self.current_frame,
-            images=images,
+            cine=self.cines_var.get(),
+            frame=self.current_frame + 1,
+            new_segments=self._segments,
+            new_septum=self._septum,
         )
 
     def confirm_segmentation(self, *args):
         """Updates an existing segmentation after modifying the contours.
 
-        If there was a velocity with this segmentation, it is deleted too."""
+        If there was a velocity with this segmentation, it is deleted too.
+        """
         self.confirm_btn.state(["disabled"])
         self.undo_last_btn.state(["disabled"])
         self.undo_all_btn.state(["disabled"])
         self.undo_stack = defaultdict(list)
-        self.controller._update_segmentation(
-            dataset_name=self.datasets_var.get(),
-            segments=self.final_segments,
-            zero_angle=self.zero_angle,
-            frame=slice(None),
+        self.controller.update_segmentation(
+            cine=self.cines_var.get(),
+            segments=self._segments,
+            new_segments=self._segments,
+            new_septum=self._septum,
+            unlock=True,
         )
 
     def clear_segmentation(self):
         """Clear an existing segmentation."""
-        dataset_name = self.datasets_var.get()
-        self.controller.remove_segmentation(dataset_name=dataset_name)
-        self.replot(dataset_name)
+        cine_name = self.cines_var.get()
+        self.controller.remove_segmentation(cine=cine_name)
+        self.replot(cine_name)
 
     def stop_animation(self):
         """Stops an animation, if there is one running."""
@@ -846,16 +838,16 @@ class SegmentationTaskView(TaskViewBase):
             if not self.data.segments.shape
             else self.data.segments.cine.values.tolist()
         )
-        current = self.datasets_var.get()
-        self.datasets_box.config(values=values)
+        current = self.cines_var.get()
+        self.cines_box.config(values=values)
         if current in values:
-            self.datasets_var.set(current)
+            self.cines_var.set(current)
         elif len(values_segments) > 0:
-            self.datasets_var.set(values_segments[0])
+            self.cines_var.set(values_segments[0])
         else:
-            self.datasets_var.set(values[0])
+            self.cines_var.set(values[0])
 
-        self.dataset_changed()
+        self.cine_changed()
 
     def clear_widgets(self):
         """ Clear widgets after removing the data. """

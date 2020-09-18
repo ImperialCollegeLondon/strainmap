@@ -447,7 +447,11 @@ class DICOM(DICOMReaderBase):
         return xr.DataArray(
             np.stack((mag, phasex, phasey, phasez)),
             dims=["comp", "frame", "row", "col"],
-            coords={"comp": ["mag", "x", "y", "z"]},
+            coords={
+                "comp": ["mag", "x", "y", "z"],
+                "frame": np.arange(0, mag.shape[0]),
+                "cine": dataset,
+            },
         )
 
 

@@ -105,7 +105,7 @@ class StrainMap(object):
     def add_h5_file(self, strainmap_file):
         return self.data.add_h5_file(strainmap_file)
 
-    def find_segmentation(self, unlock=True, **kwargs):
+    def new_segmentation(self, unlock=True, **kwargs):
         """Runs an automated segmentation routine."""
         segmentation.new_segmentation(data=self.data, **kwargs)
         there_are_segments = self.data.segments.shape != ()
@@ -127,10 +127,10 @@ class StrainMap(object):
         """Runs an automated segmentation routine."""
         segmentation.update_and_find_next(data=self.data, **kwargs)
 
-    def remove_segmentation(self, dataset_name):
+    def remove_segmentation(self, cine):
         """Clears an existing segmentation."""
-        segmentation.remove_segmentation(data=self.data, cine=dataset_name)
-        there_are_segments = any(len(i) != 0 for i in self.data.segments.values())
+        segmentation.remove_segmentation(data=self.data, cine=cine)
+        there_are_segments = self.data.segments.shape != ()
         if not there_are_segments:
             self.lock(Requisites.SEGMENTED)
             self.lock(Requisites.VELOCITIES)

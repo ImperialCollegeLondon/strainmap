@@ -74,32 +74,15 @@ def test_update_segmentation(segments_arrays):
     import xarray as xr
     from strainmap.models.segmentation import _update_segmentation
 
-    segments, septum, centroid = segments_arrays
+    segments, _, centroid = segments_arrays
     segments[...] = np.random.random(segments.shape)
-    septum[...] = np.random.random(septum.shape)
     frames = segments.sizes["frame"]
-
-    # Checks updating the septum of 1 frame
-    frame, other = default_rng().choice(frames, size=2, replace=False)
-    new_septum = septum.sel(cine="mid", frame=frame) * 2
-    _update_segmentation(
-        segments.sel(cine="mid"),
-        centroid.sel(cine="mid"),
-        septum.sel(cine="mid"),
-        new_septum=new_septum,
-    )
-    xr.testing.assert_equal(septum.sel(cine="mid", frame=frame), new_septum)
-    with raises(AssertionError):
-        xr.testing.assert_equal(septum.sel(cine="mid", frame=other), new_septum)
 
     # Checks updating the segmentation of 1 frame
     frame, other = default_rng().choice(frames, size=2, replace=False)
     new_segments = segments.sel(cine="base", frame=frame) * 2
     _update_segmentation(
-        segments.sel(cine="base"),
-        centroid.sel(cine="base"),
-        septum.sel(cine="base"),
-        new_segments=new_segments,
+        segments.sel(cine="base"), centroid.sel(cine="base"), new_segments=new_segments,
     )
     xr.testing.assert_equal(segments.sel(cine="base", frame=frame), new_segments)
     with raises(AssertionError):
@@ -108,10 +91,6 @@ def test_update_segmentation(segments_arrays):
     # Checks updating the segmentation of all frames
     new_segments = segments.sel(cine="apex") * 2
     _update_segmentation(
-        segments.sel(cine="apex"),
-        centroid.sel(cine="apex"),
-        septum.sel(cine="apex"),
-        new_segments=new_segments,
+        segments.sel(cine="apex"), centroid.sel(cine="apex"), new_segments=new_segments,
     )
     xr.testing.assert_equal(segments.sel(cine="apex"), new_segments)
-    assert not np.isnan(centroid.sel(cine="apex").data).any()

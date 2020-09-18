@@ -176,15 +176,15 @@ def test_clear_segments(segmentation_view):
 
     segmentation_view.initial_segments["endocardium"] = contour
     segmentation_view.initial_segments["epicardium"] = contour
-    segmentation_view.final_segments["endocardium"] = contour
-    segmentation_view.final_segments["epicardium"] = contour
+    segmentation_view._segments["endocardium"] = contour
+    segmentation_view._segments["epicardium"] = contour
 
     segmentation_view.clear_segment_variables()
 
     assert segmentation_view.initial_segments["endocardium"] is None
     assert segmentation_view.initial_segments["epicardium"] is None
-    assert segmentation_view.final_segments["endocardium"] is None
-    assert segmentation_view.final_segments["epicardium"] is None
+    assert segmentation_view._segments["endocardium"] is None
+    assert segmentation_view._segments["epicardium"] is None
     segmentation_view.remove_segmentation.assert_called_once()
 
 
@@ -202,8 +202,8 @@ def test_scroll(segmentation_view, strainmap_data):
     segmentation_view.data.septum.loc[{"cine": dataset}] = np.random.random((2, 2))
 
     contour = np.random.random((2, 2, 5))
-    segmentation_view.final_segments["endocardium"] = contour
-    segmentation_view.final_segments["epicardium"] = contour
+    segmentation_view._segments["endocardium"] = contour
+    segmentation_view._segments["epicardium"] = contour
 
     frame, img, (endo, epi, septum_line, septum) = segmentation_view.scroll(1, "mag")
 
@@ -234,7 +234,7 @@ def test_contour_edited_and_undo(segmentation_view, strainmap_data):
     segmentation_view.data.segments.loc[{"cine": dataset}] = contour
 
     segmentation_view.plot_segments(dataset)
-    segmentation_view.plot_zero_angle(dataset)
+    segmentation_view.plot_septum(dataset)
 
     contour_mod = 2 * contour[0, 0]
     axes = segmentation_view.fig.axes[0]
@@ -242,7 +242,7 @@ def test_contour_edited_and_undo(segmentation_view, strainmap_data):
     segmentation_view.contour_edited("endocardium", axes, contour_mod)
 
     assert len(segmentation_view.undo_stack) == 1
-    assert segmentation_view.final_segments["endocardium"][0] == approx(contour_mod)
+    assert segmentation_view._segments["endocardium"][0] == approx(contour_mod)
 
     for ax in segmentation_view.fig.axes:
         for line in ax.lines:
@@ -252,7 +252,7 @@ def test_contour_edited_and_undo(segmentation_view, strainmap_data):
     segmentation_view.undo(0)
 
     assert len(segmentation_view.undo_stack) == 0
-    assert segmentation_view.final_segments["endocardium"][0] == approx(contour[0, 0])
+    assert segmentation_view._segments["endocardium"][0] == approx(contour[0, 0])
     for ax in segmentation_view.fig.axes:
         for line in ax.lines:
             if line.get_label() == "endocardium":
@@ -281,7 +281,7 @@ def test_next_frames(segmentation_view, strainmap_data):
     segmentation_view.initialization = iter((lambda: None,))
     segmentation_view.get_septum(None, [np.random.random(2)])
     segmentation_view.plot_segments(dataset)
-    segmentation_view.plot_zero_angle(dataset)
+    segmentation_view.plot_septum(dataset)
 
     segmentation_view._find_segmentation = MagicMock()
     segmentation_view._update_segmentation = MagicMock()
