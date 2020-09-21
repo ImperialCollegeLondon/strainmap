@@ -1,7 +1,19 @@
-from typing import Dict, List, Optional, Sequence, Text, Tuple, Union, Callable
+from typing import (
+    Dict,
+    List,
+    Optional,
+    Sequence,
+    Text,
+    Tuple,
+    Union,
+    Callable,
+    NamedTuple,
+)
+from enum import Enum
 
 import numpy as np
 from scipy import ndimage
+import xarray as xr
 
 from strainmap.models.contour_mask import cylindrical_projection, masked_means
 
@@ -10,37 +22,46 @@ from .strainmap_data_model import StrainMapData
 from .writers import terminal
 
 
-def find_theta0(zero_angle: np.ndarray):
-    """Finds theta0 out of the COM and septum mid-point for all timeframes.
+class Region(Enum):
+    GLOBAL = "global"
+    ANGULAR_x6 = "angular x6"
+    ANGULAR_x24 = "angular x24"
+    RADIAL_x3 = "radial x3"
 
-    zero_angle: array with dimensions [num_timeframes, 2, 2], where the last axis
-    discriminates between the center of mass (index 0) and the septum (index 1), and
-    the second axis are the cartesian coordinates x and y.
 
-    For any timeframe,  it contains the center of mass of the mask and the position
-    of the septum mid-point. Out of these two points, the angle that is the origin of
-    angular coordinates is calculated.
-    """
-    shifted = zero_angle[:, :, 0] - zero_angle[:, :, 1]
-    theta0 = np.arctan2(shifted[:, 1], shifted[:, 0])
+def theta_origin(centroid: xr.DataArray, septum: xr.DataArray):
+    """Finds theta0 out of the centroid and septum mid-point"""
+    shifted = septum - centroid
+    theta0 = np.arctan2(shifted.sel(coord="col"), shifted.sel(coord="row"))
     return theta0
 
 
-def scale_phase(
-    data: StrainMapData,
-    dataset_name: Text,
+def process_phases(
+    raw_phase: xr.DataArray,
     swap: bool = False,
-    sign_reversal=(False, False, False),
-    scale=1 / 4096,
-):
-    """Prepare the phases, scaling them and shifting them to the [-0.5, 0.5] range."""
-    phase = data.data_files.phase(dataset_name) * scale - 0.5
+    sign_reversal: Sequence[bool] = (False, False, False),
+    scale: float = 1 / 4096,
+) -> xr.DataArray:
+    """Prepare the phases, scaling them and shifting them to the [-0.5, 0.5] range.
+
+    Args:
+        raw_phase (xr.DataArray): Un-processed phase images. It should have 3 components
+            (x, y, z) and any number of frames, rows and columns.
+        swap (bool): If the x and y components should be swapped.
+        sign_reversal (Sequence[bool]): If the sign of any of the components should be
+            reversed.
+        scale (float): The scale to apply to the data, which depends on the color depth.
+
+    Returns:
+        An DataArray with the phases adjusted by the input parameters.
+    """
+    phase = raw_phase * scale - 0.5
 
     if swap:
-        phase[0], phase[1] = phase[1], phase[0].copy()
+        phase = phase.assign_coords(comp=["y", "x", "z"])
 
-    for i, r in enumerate(sign_reversal):
-        phase[i] *= -1 if r else 1
+    for comp, r in zip(phase.comp, sign_reversal):
+        phase.loc[{"comp": comp}] *= -1 if r else 1
 
     return phase
 
@@ -169,28 +190,28 @@ def remap_array(data, new_shape, roi):
 
 def calculate_velocities(
     data: StrainMapData,
-    dataset_name: Text,
+    cine: Text,
     global_velocity: bool = True,
     angular_regions: Sequence[int] = (),
     radial_regions: Sequence[int] = (),
     sign_reversal: Tuple[bool, ...] = (False, False, False),
     init_markers: bool = True,
 ):
-    """Calculates the velocity of the chosen dataset and regions."""
-    swap, signs = data.data_files.orientation(dataset_name)  # type: ignore
-    phase = scale_phase(data, dataset_name, swap, sign_reversal)  # type: ignore
+    """Calculates the velocity of the chosen cine and regions."""
+    swap, signs = data.data_files.orientation(cine)  # type: ignore
+    phase = scale_phase(data, cine, swap, sign_reversal)  # type: ignore
     mask, orig, (xmin, xmax, ymin, ymax) = global_masks_and_origin(
-        outer=data.segments[dataset_name]["epicardium"],
-        inner=data.segments[dataset_name]["endocardium"],
+        outer=data.segments[cine]["epicardium"],
+        inner=data.segments[cine]["endocardium"],
     )
-    origin = data.septum[dataset_name][..., 1][:, ::-1]
+    origin = data.septum[cine][..., 1][:, ::-1]
     shift = np.array([xmin, ymin])
     rm_mask = remap_array(mask, phase.shape[-2:], (xmin, xmax, ymin, ymax))
     cylindrical = (
         transform_to_cylindrical(phase, rm_mask, origin)
         * (data.data_files.sensitivity * signs)[:, None, None, None]  # type: ignore
     )
-    data.masks[dataset_name][f"cylindrical"] = cylindrical
+    data.masks[cine][f"cylindrical"] = cylindrical
     data.sign_reversal = sign_reversal
 
     vel_labels: List[str] = []
@@ -202,14 +223,14 @@ def calculate_velocities(
             k: remap_array(v, phase.shape[-2:], (xmin, xmax, ymin, ymax))
             for k, v in masks.items()
         }
-        data.velocities[dataset_name].update(velocities)
-        data.masks[dataset_name].update(masks)
+        data.velocities[cine].update(velocities)
+        data.masks[cine].update(masks)
         vel_labels += list(velocities.keys())
 
     if angular_regions:
         velocities, masks = velocities_angular(
             cylindrical[..., xmin : xmax + 1, ymin : ymax + 1],
-            data.septum[dataset_name],
+            data.septum[cine],
             origin - shift[None, :],
             mask,
             angular_regions,
@@ -218,14 +239,14 @@ def calculate_velocities(
             k: remap_array(v, phase.shape[-2:], (xmin, xmax, ymin, ymax))
             for k, v in masks.items()
         }
-        data.velocities[dataset_name].update(velocities)
-        data.masks[dataset_name].update(masks)
+        data.velocities[cine].update(velocities)
+        data.masks[cine].update(masks)
         vel_labels += list(velocities.keys())
 
     if radial_regions:
         velocities, masks = velocities_radial(
             cylindrical[..., xmin : xmax + 1, ymin : ymax + 1],
-            data.segments[dataset_name],
+            data.segments[cine],
             origin - shift[None, :],
             shift,
             mask,
@@ -235,23 +256,20 @@ def calculate_velocities(
             k: remap_array(v, phase.shape[-2:], (xmin, xmax, ymin, ymax))
             for k, v in masks.items()
         }
-        data.velocities[dataset_name].update(velocities)
-        data.masks[dataset_name].update(masks)
+        data.velocities[cine].update(velocities)
+        data.masks[cine].update(masks)
         vel_labels += list(velocities.keys())
 
     if init_markers:
-        initialise_markers(data, dataset_name, vel_labels)
-        data.save(
-            *[["markers", dataset_name, vel] for vel in vel_labels], ["sign_reversal"]
-        )
+        initialise_markers(data, cine, vel_labels)
+        data.save(*[["markers", cine, vel] for vel in vel_labels], ["sign_reversal"])
 
 
-def regenerate(data, datasets, callback: Callable = terminal):
+def regenerate(data, cines, callback: Callable = terminal):
     """Regenerate velocities and masks information after loading from h5 file."""
-    for i, d in enumerate(datasets):
+    for i, d in enumerate(cines):
         callback(
-            f"Regenerating existing velocities {i+1}/{len(datasets)}.",
-            i / len(datasets),
+            f"Regenerating existing velocities {i+1}/{len(cines)}.", i / len(cines),
         )
         vels = data.velocities[d]
         regions: Dict = {}
@@ -269,7 +287,7 @@ def regenerate(data, datasets, callback: Callable = terminal):
 
         calculate_velocities(
             data=data,
-            dataset_name=d,
+            cine=d,
             sign_reversal=data.sign_reversal,
             init_markers=False,
             **regions,
@@ -288,7 +306,7 @@ markers_options = {
 
 
 def px_velocity_curves(
-    data: StrainMapData, dataset: str, nrad: int = 3, nang: int = 24,
+    data: StrainMapData, cine: str, nrad: int = 3, nang: int = 24,
 ) -> np.ndarray:
     """ TODO: Remove in the final version. """
     from .strain import masked_reduction
@@ -296,10 +314,10 @@ def px_velocity_curves(
     vkey = f"cylindrical"
     rkey = f"radial x{nrad}"
     akey = f"angular x{nang}"
-    img_axis = tuple(range(len(data.masks[dataset][vkey].shape)))[-2:]
+    img_axis = tuple(range(len(data.masks[cine][vkey].shape)))[-2:]
 
-    cyl = data.masks[dataset][vkey]
-    m = data.masks[dataset][rkey] + 100 * data.masks[dataset][akey]
+    cyl = data.masks[cine][vkey]
+    m = data.masks[cine][rkey] + 100 * data.masks[cine][akey]
     r = masked_reduction(cyl, m, axis=img_axis)
 
     return r - r.mean(axis=(1, 2, 3), keepdims=True)
@@ -390,7 +408,7 @@ def larger_than_es(x, es, frames, syst=350, dias=650):
 def _markers_positions(
     velocity: np.ndarray, es: Optional[np.ndarray] = None
 ) -> np.ndarray:
-    """Find the position of the markers for the chosen dataset and velocity.
+    """Find the position of the markers for the chosen cine and velocity.
 
     The default positions for the markers are:
 
@@ -437,7 +455,7 @@ def _markers_positions(
 
 
 def markers_positions(velocity: np.ndarray, es: Optional[np.ndarray] = None):
-    """Find the position of the markers for the chosen dataset and velocity."""
+    """Find the position of the markers for the chosen cine and velocity."""
     markers = []
     for i in range(velocity.shape[0]):
         markers.append(_markers_positions(velocity[i], es))
@@ -480,7 +498,7 @@ def _update_marker(
 
 def update_marker(
     data: StrainMapData,
-    dataset: str,
+    cine: str,
     vel_label: str,
     region: int,
     component: int,
@@ -493,36 +511,33 @@ def update_marker(
     Otherwise just the chosen one is updated.
     """
     if marker_idx == 3:
-        for l in data.markers[dataset]:
-            for r in range(len(data.markers[dataset][l])):
-                data.markers[dataset][l][r] = _update_marker(
-                    data.velocities[dataset][l][r],
-                    data.markers[dataset][l][r],
+        for l in data.markers[cine]:
+            for r in range(len(data.markers[cine][l])):
+                data.markers[cine][l][r] = _update_marker(
+                    data.velocities[cine][l][r],
+                    data.markers[cine][l][r],
                     component,
                     marker_idx,
                     position,
                 )
     else:
-        data.markers[dataset][vel_label][region] = _update_marker(
-            data.velocities[dataset][vel_label][region],
-            data.markers[dataset][vel_label][region],
+        data.markers[cine][vel_label][region] = _update_marker(
+            data.velocities[cine][vel_label][region],
+            data.markers[cine][vel_label][region],
             component,
             marker_idx,
             position,
         )
-    data.save(["markers", dataset, vel_label])
+    data.save(["markers", cine, vel_label])
 
 
-def initialise_markers(data: StrainMapData, dataset: str, vel_labels: list):
+def initialise_markers(data: StrainMapData, cine: str, vel_labels: list):
     """Initialises the markers for all the available velocities."""
-    data.markers[dataset]["global"] = markers_positions(
-        data.velocities[dataset]["global"]
-    )
+    data.markers[cine]["global"] = markers_positions(data.velocities[cine]["global"])
 
     rvel = (key for key in vel_labels if key != "global")
     for vel_label in rvel:
-        data.markers[dataset][vel_label] = markers_positions(
-            data.velocities[dataset][vel_label],
-            data.markers[dataset]["global"][0][1, 3],
+        data.markers[cine][vel_label] = markers_positions(
+            data.velocities[cine][vel_label], data.markers[cine]["global"][0][1, 3],
         )
     return data

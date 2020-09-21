@@ -1,29 +1,48 @@
 from _pytest.python_api import approx
 
 
-def test_find_theta0():
-    from strainmap.models.velocities import find_theta0
+def test_theta_origin():
+    from strainmap.models.velocities import theta_origin
     import numpy as np
+    import xarray as xr
 
     N = 5
     expected = np.random.uniform(-np.pi, np.pi, N)
 
-    vector = np.zeros((N, 2, 2))
-    vector[:, 1, 0] = np.sin(expected)
-    vector[:, 0, 0] = np.cos(expected)
+    centroid = xr.DataArray(
+        np.zeros((N, 2)),
+        dims=("frame", "coord"),
+        coords={"coord": ["row", "col"], "frame": np.arange(N),},
+    )
+    septum = xr.DataArray(
+        np.stack((np.cos(expected), np.sin(expected)), axis=1),
+        dims=("frame", "coord"),
+        coords={"coord": ["row", "col"], "frame": np.arange(N),},
+    )
 
-    actual = find_theta0(vector)
-    assert actual == approx(expected)
+    assert theta_origin(centroid, septum).data == approx(expected)
 
 
-def test_scale_phase(strainmap_data):
-    from strainmap.models.velocities import scale_phase
+def test_process_phases(strainmap_data):
+    from strainmap.models.velocities import process_phases
 
-    dataset_name = strainmap_data.data_files.datasets[0]
-    phase = scale_phase(strainmap_data, dataset_name)
-
+    cine = strainmap_data.data_files.datasets[0]
+    phase = process_phases(
+        strainmap_data.data_files.images(cine).sel(comp=["x", "y", "z"])
+    )
     assert (phase >= -0.5).all()
     assert (phase <= 0.5).all()
+
+    phase2 = process_phases(
+        strainmap_data.data_files.images(cine).sel(comp=["x", "y", "z"]), swap=True
+    )
+    assert (phase.sel(comp="x") == phase2.sel(comp="y")).all()
+
+    phase3 = process_phases(
+        strainmap_data.data_files.images(cine).sel(comp=["x", "y", "z"]),
+        sign_reversal=(False, False, True),
+    )
+    assert (phase.sel(comp="z") == -phase3.sel(comp="z")).all()
 
 
 def test_global_masks_and_origin():
