@@ -723,7 +723,7 @@ class SegmentationTaskView(TaskViewBase):
         self.fig.actions_manager.Markers.disabled = False
 
         if button_pressed:
-            self.clear_segmentation()
+            self.remove_segmentation()
 
     def quick_segmentation(self):
         """Triggers a quick segmentation of the whole cine."""
@@ -817,7 +817,7 @@ class SegmentationTaskView(TaskViewBase):
             unlock=True,
         )
 
-    def clear_segmentation(self):
+    def remove_segmentation(self):
         """Clear an existing segmentation."""
         cine_name = self.cines_var.get()
         self.controller.remove_segmentation(cine=cine_name)
