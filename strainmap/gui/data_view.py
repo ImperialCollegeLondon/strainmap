@@ -20,7 +20,9 @@ from .figure_actions_manager import FigureActionsManager
 class DataTaskView(TaskViewBase):
     def __init__(self, root, controller):
 
-        super().__init__(root, controller, button_text="Data", button_image="save.gif")
+        super().__init__(
+            root, controller, button_text="Data", button_image="save.gif", button_row=0
+        )
         self.rowconfigure(0, weight=1)
         self.columnconfigure(1, weight=1)
 
