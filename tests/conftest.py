@@ -61,23 +61,40 @@ def strainmap_data(dicom_data_path):
 def segmented_data(strainmap_data):
     """Returns a StrainMapData object with segmented data."""
     from strainmap.models.contour_mask import Contour
-    from strainmap.models.segmentation import _find_segmentation
+    from strainmap.models.segmentation import new_segmentation
     import numpy as np
+    from skimage.draw import circle_perimeter
 
     cine = strainmap_data.data_files.datasets[0]
-    image = strainmap_data.data_files.mag(cine)
+    image = strainmap_data.data_files.images(cine).sel(comp="mag")
+    shape = image.sizes["row"], image.sizes["col"]
 
     # Create the initial contour
-    init_epi = Contour.circle(center=(270, 308), radius=50, shape=image.shape).xy
-    init_endo = Contour.circle(center=(270, 308), radius=30, shape=image.shape).xy
+    initial_segments = xr.DataArray(
+        np.array(
+            [
+                Contour.circle(center=(270, 308), radius=50, shape=image.shape).xy.T,
+                Contour.circle(center=(270, 308), radius=30, shape=image.shape).xy.T,
+            ]
+        ),
+        dims=("side", "coord", "point"),
+        coords={"side": ["endocardium", "epicardium"], "coord": ["row", "col"],},
+    )
+
+    # Create septum
+    septum = xr.DataArray(
+        np.full((image.sizes["frame"], 2), np.nan),
+        dims=("frame", "coord"),
+        coords={"coord": ["row", "col"], "frame": np.arange(image.sizes["frame"]),},
+    )
 
     # Launch the segmentation process
-    _find_segmentation(
+    new_segmentation(
         data=strainmap_data,
         cine=cine,
-        images={"endocardium": image, "epicardium": image},
         frame=None,
-        initials={"epicardium": init_epi, "endocardium": init_endo},
+        initials=initial_segments,
+        new_septum=septum,
     )
 
     strainmap_data.septum.loc[{"cine": cine}] = np.array([260, 230])

@@ -4,16 +4,18 @@ from typing import (
     Optional,
     Sequence,
     Text,
-    Tuple,
     Union,
     Callable,
-    NamedTuple,
+    Tuple,
 )
 from enum import Enum
 
 import numpy as np
 from scipy import ndimage
 import xarray as xr
+from skimage.draw import polygon2mask
+from sparse import COO
+
 
 from strainmap.models.contour_mask import cylindrical_projection, masked_means
 
@@ -80,6 +82,37 @@ def global_masks_and_origin(outer, inner):
     origin = np.array([*map(ndimage.measurements.center_of_mass, masks)])
 
     return masks, origin, (xmin, xmax, ymin, ymax)
+
+
+def global_mask(segments: xr.DataArray, shape=Tuple[int, int]) -> xr.DataArray:
+    """Finds the global masks and origin versus time frame."""
+    data = np.array(
+        [
+            polygon2mask(
+                shape,
+                segments.sel(frame=i, side="epicardium")
+                .transpose("point", "coord")
+                .data,
+            )
+            ^ polygon2mask(
+                shape,
+                segments.sel(frame=i, side="endocardium")
+                .transpose("point", "coord")
+                .data,
+            )
+            for i in segments.frame
+        ]
+    )[None, None, ...].astype(np.uint8)
+
+    return xr.DataArray(
+        COO.from_numpy(data),
+        dims=["cine", "region", "frame", "row", "col"],
+        coords={
+            "cine": [segments.cine.item()],
+            "region": [Region.GLOBAL],
+            "frame": segments.frame,
+        },
+    )
 
 
 def transform_to_cylindrical(phase: np.ndarray, masks: np.ndarray, origin: np.ndarray):

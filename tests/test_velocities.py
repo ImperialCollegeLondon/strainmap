@@ -45,6 +45,33 @@ def test_process_phases(strainmap_data):
     assert (phase.sel(comp="z") == -phase3.sel(comp="z")).all()
 
 
+def test_global_mask(segmented_data):
+    from strainmap.models.velocities import global_mask
+
+    cine = segmented_data.data_files.datasets[0]
+    image = segmented_data.data_files.images(cine)
+    shape = image.sizes["row"], image.sizes["col"]
+    segments = segmented_data.segments.isel(cine=0)
+    mask = global_mask(segments, shape).isel(cine=0)
+
+    # The mean of the epi and endo-cardium should be wholly within the mask
+    for i in segments.frame:
+        mid = segments.isel(frame=i).mean("side").astype(int)
+        assert (
+            mask.isel(frame=i).sel(row=mid.sel(coord="row"), col=mid.sel(coord="col"))
+            == 1
+        ).all()
+
+    # The centroid should be outside of the mask
+    centroid = segmented_data.septum.isel(cine=0).astype(int)
+    assert (
+        mask.sel(row=centroid.sel(coord="row"), col=centroid.sel(coord="col")) == 0
+    ).all()
+
+    # The number of non-zero elements should be small, <1%
+    assert mask.data.density < 0.01
+
+
 def test_global_masks_and_origin():
     from strainmap.models.velocities import global_masks_and_origin
     from strainmap.models.contour_mask import Contour
