@@ -9,9 +9,9 @@ from typing import (
     Tuple,
 )
 from enum import Enum
+from itertools import chain
 
 import numpy as np
-from scipy import ndimage
 import xarray as xr
 from skimage.draw import polygon2mask
 from sparse import COO
@@ -25,10 +25,10 @@ from .writers import terminal
 
 
 class Region(Enum):
-    GLOBAL = "global"
-    ANGULAR_x6 = "angular x6"
-    ANGULAR_x24 = "angular x24"
-    RADIAL_x3 = "radial x3"
+    GLOBAL = 1
+    ANGULAR_x6 = 6
+    ANGULAR_x24 = 24
+    RADIAL_x3 = 3
 
 
 def theta_origin(centroid: xr.DataArray, septum: xr.DataArray):
@@ -44,7 +44,12 @@ def process_phases(
     sign_reversal: Sequence[bool] = (False, False, False),
     scale: float = 1 / 4096,
 ) -> xr.DataArray:
-    """Prepare the phases, scaling them and shifting them to the [-0.5, 0.5] range.
+    """Prepare the phases for further analysis.
+
+    Several manipulations are done
+    - scaling and shifting them to the [-0.5, 0.5] range
+    - swap X and Y components, if needed
+    - Reverse the sign of one or more components
 
     Args:
         raw_phase (xr.DataArray): Un-processed phase images. It should have 3 components
@@ -68,51 +73,113 @@ def process_phases(
     return phase
 
 
-def global_masks_and_origin(outer, inner):
-    """Finds the global masks and origin versus time frame."""
-    ymin, ymax = int(outer[:, 0].min()), int(outer[:, 0].max()) + 1
-    xmin, xmax = int(outer[:, 1].min()), int(outer[:, 1].max()) + 1
-    shift = np.array([ymin, xmin])
-    masks = np.array(
+def ring_mask(
+    outer: xr.DataArray, inner: xr.DataArray, shape: Tuple[int, int]
+) -> np.ndarray:
+    """Finds a ring-shaped mask between the outer and inner contours vs frame."""
+    out_T = outer.transpose("frame", "point", "coord")
+    in_T = inner.transpose("frame", "point", "coord")
+
+    return np.array(
         [
-            contour_diff(c1=o.T, c2=i.T, shape=(ymax - ymin + 1, xmax - xmin + 1)).T
-            for o, i in zip(outer - shift[None, :, None], inner - shift[None, :, None])
+            polygon2mask(shape, out_T.sel(frame=i).data)
+            ^ polygon2mask(shape, in_T.sel(frame=i).data)
+            for i in out_T.frame
         ]
     )
-    origin = np.array([*map(ndimage.measurements.center_of_mass, masks)])
-
-    return masks, origin, (xmin, xmax, ymin, ymax)
 
 
-def global_mask(segments: xr.DataArray, shape=Tuple[int, int]) -> xr.DataArray:
-    """Finds the global masks and origin versus time frame."""
-    data = np.array(
-        [
-            polygon2mask(
-                shape,
-                segments.sel(frame=i, side="epicardium")
-                .transpose("point", "coord")
-                .data,
-            )
-            ^ polygon2mask(
-                shape,
-                segments.sel(frame=i, side="endocardium")
-                .transpose("point", "coord")
-                .data,
-            )
-            for i in segments.frame
-        ]
-    )[None, None, ...].astype(np.uint8)
+def global_mask(
+    segments: xr.DataArray, shape: Tuple[int, int], mask: xr.DataArray
+) -> None:
+    """Finds the global mask"""
+    mask[...] = ring_mask(
+        segments.sel(side="epicardium"), segments.sel(side="endocardium"), shape
+    )
 
-    return xr.DataArray(
-        COO.from_numpy(data),
+
+def angular_mask(
+    centroid: xr.DataArray,
+    theta0: xr.DataArray,
+    global_mask: xr.DataArray,
+    angular_mask: xr.DataArray,
+    clockwise: bool = True,
+):
+    """Calculates the angular mask for the requested angular region."""
+    iframe, irow, icol = np.nonzero(global_mask.data)
+
+    crow = centroid.sel(frame=iframe, coord="row").data
+    ccol = centroid.sel(frame=iframe, coord="col").data
+    th0 = theta0.sel(frame=iframe).data
+
+    theta = np.mod(np.arctan2(icol - ccol, irow - crow) - th0, 2 * np.pi)
+    if clockwise:
+        theta = 2 * np.pi - theta
+
+    nsegments = angular_mask.region[0].item().value
+    steps = np.linspace(0, 2 * np.pi, nsegments + 1)
+
+    for i in range(nsegments):
+        idx = (theta > steps[i]) & (theta <= steps[i + 1])
+        angular_mask.data[i, iframe[idx], irow[idx], icol[idx]] = True
+
+    return
+
+
+def radial_mask(
+    segments: xr.DataArray, shape: Tuple[int, int], radial_mask: xr.DataArray,
+):
+    """Calculates the angular mask for the requested radial region."""
+    nsegments = radial_mask.region[0].item().value
+    diff = segments.sel(side="epicardium") - segments.sel(side="endocardium")
+    for i in range(nsegments):
+        outer = segments.sel(side="endocardium") + diff * (i + 1) / nsegments
+        inner = segments.sel(side="endocardium") + diff * i / nsegments
+        radial_mask.data[i] = ring_mask(outer, inner, shape)
+
+    return
+
+
+def find_masks(
+    segments: xr.DataArray,
+    centroid: xr.DataArray,
+    theta0: xr.DataArray,
+    shape: Tuple[int, int],
+) -> xr.DataArray:
+    """Calculates all the masks defined in the Region class.
+
+    The output mask array is of type boolean and has as many elements in the region
+    dimension as the sum of individual regions, ie. 1x global + 6x angular + 24x angular
+    + 3x radial. The coordinates of each region is the corresponding Region element,
+    so selecting each of them, selects the whole group.
+    """
+    reg = list(chain.from_iterable(([r] * r.value for r in Region)))
+
+    mask = xr.DataArray(
+        np.full(
+            (1, len(reg), len(segments.frame), shape[0], shape[1]), False, dtype=bool
+        ),
         dims=["cine", "region", "frame", "row", "col"],
         coords={
             "cine": [segments.cine.item()],
-            "region": [Region.GLOBAL],
+            "region": reg,
             "frame": segments.frame,
         },
     )
+
+    gmask = mask.sel(cine=segments.cine.item(), region=Region.GLOBAL)
+    global_mask(segments, shape, gmask)
+
+    for region in (Region.ANGULAR_x6, Region.ANGULAR_x24):
+        amask = mask.sel(cine=segments.cine.item(), region=region)
+        angular_mask(centroid, theta0, gmask, amask)
+        mask.loc[{"cine": segments.cine.item(), "region": region}] = amask
+
+    rmask = mask.sel(cine=segments.cine.item(), region=Region.RADIAL_x3)
+    radial_mask(segments, shape, rmask)
+    mask.loc[{"cine": segments.cine.item(), "region": Region.RADIAL_x3}] = rmask
+
+    return mask
 
 
 def transform_to_cylindrical(phase: np.ndarray, masks: np.ndarray, origin: np.ndarray):
@@ -232,7 +299,7 @@ def calculate_velocities(
 ):
     """Calculates the velocity of the chosen cine and regions."""
     swap, signs = data.data_files.orientation(cine)  # type: ignore
-    phase = scale_phase(data, cine, swap, sign_reversal)  # type: ignore
+    phase = process_phases(data, cine, swap, sign_reversal)  # type: ignore
     mask, orig, (xmin, xmax, ymin, ymax) = global_masks_and_origin(
         outer=data.segments[cine]["epicardium"],
         inner=data.segments[cine]["endocardium"],

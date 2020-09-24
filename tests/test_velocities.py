@@ -46,50 +46,61 @@ def test_process_phases(strainmap_data):
 
 
 def test_global_mask(segmented_data):
-    from strainmap.models.velocities import global_mask
+    from strainmap.models.velocities import global_mask, Region
+    import xarray as xr
+    import numpy as np
 
     cine = segmented_data.data_files.datasets[0]
     image = segmented_data.data_files.images(cine)
     shape = image.sizes["row"], image.sizes["col"]
     segments = segmented_data.segments.isel(cine=0)
-    mask = global_mask(segments, shape).isel(cine=0)
+
+    mask = xr.DataArray(
+        np.full((len(segments.frame), shape[0], shape[1]), False, dtype=bool),
+        dims=["frame", "row", "col"],
+        coords={"frame": segments.frame,},
+    )
+    global_mask(segments, shape, mask)
 
     # The mean of the epi and endo-cardium should be wholly within the mask
     for i in segments.frame:
         mid = segments.isel(frame=i).mean("side").astype(int)
         assert (
             mask.isel(frame=i).sel(row=mid.sel(coord="row"), col=mid.sel(coord="col"))
-            == 1
+            == True
         ).all()
 
     # The centroid should be outside of the mask
     centroid = segmented_data.septum.isel(cine=0).astype(int)
     assert (
-        mask.sel(row=centroid.sel(coord="row"), col=centroid.sel(coord="col")) == 0
+        mask.sel(row=centroid.sel(coord="row"), col=centroid.sel(coord="col")) == False
     ).all()
 
-    # The number of non-zero elements should be small, <1%
-    assert mask.data.density < 0.01
 
+def test_find_masks(segmented_data):
+    from strainmap.models.velocities import find_masks, theta_origin, Region
+    import xarray as xr
 
-def test_global_masks_and_origin():
-    from strainmap.models.velocities import global_masks_and_origin
-    from strainmap.models.contour_mask import Contour
-    import numpy as np
+    cine = segmented_data.data_files.datasets[0]
+    image = segmented_data.data_files.images(cine)
+    shape = image.sizes["row"], image.sizes["col"]
+    segments = segmented_data.segments.isel(cine=0)
+    centroid = segmented_data.centroid.isel(cine=0)
+    septum = segmented_data.septum.isel(cine=0)
+    theta0 = theta_origin(centroid, septum)
+    mask = find_masks(segments, centroid, theta0, shape)
 
-    centre = (11, 11)
-    shape = (21, 21)
-    c1 = Contour.circle(centre, 6, shape=shape)
-    c2 = Contour.circle(centre, 4, shape=shape)
-    outer = np.array([c1.xy.T])
-    inner = np.array([c2.xy.T])
-    mask, origin, roi = global_masks_and_origin(outer, inner)
+    global_int = mask.sel(region=Region.GLOBAL).astype(int).drop("region")
+    for r in Region:
+        if r == Region.GLOBAL:
+            continue
 
-    assert len(mask) == 1
-    assert mask[0].shape == approx((13, 13), abs=1)
-    assert len(origin) == 1
-    assert origin[0] == approx(np.array((12, 12)) / 2, abs=1)
-    assert len(roi) == 4
+        # No regional masks of one type overlap
+        m = mask.sel(region=r).astype(int).sum("region")
+        assert m.max() == 1
+
+        # All regional masks add up to exactly the global mask
+        xr.testing.assert_equal(m, global_int)
 
 
 def test_transform_to_cylindrical():
