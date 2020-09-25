@@ -8,6 +8,7 @@ import h5py
 from .readers import read_strainmap_file, DICOMReaderBase, read_folder
 from .writers import write_hdf5_file
 from .sm_data import LabelledArray
+from ..coordinates import Comp
 
 TIMESHIFT = -0.045
 """Default timeshift"""
@@ -81,7 +82,11 @@ class StrainMapData(object):
 
         self.data_files = data_files
         self.strainmap_file = strainmap_file
-        self.sign_reversal: Tuple[bool, ...] = (False, False, False)
+        self.sign_reversal: xr.DataArray = xr.DataArray(
+            [1, 1, 1],
+            dims=["comp"],
+            coords={"comp": [Comp.X, Comp.Y, Comp.Z]},
+        )
         self.segments: xr.DataArray = xr.DataArray()
         self.centroid: xr.DataArray = xr.DataArray()
         self.septum: xr.DataArray = xr.DataArray()
@@ -134,8 +139,12 @@ class StrainMapData(object):
         for d in self.septum:
             try:
                 img_shape = self.data_files.mag(d).shape[1:]
-                raw_centroids = _calc_centroids(self.segments[d], slice(None), img_shape)
-                self.septum[d][..., 1] = _calc_effective_centroids(raw_centroids, window=3)
+                raw_centroids = _calc_centroids(
+                    self.segments[d], slice(None), img_shape
+                )
+                self.septum[d][..., 1] = _calc_effective_centroids(
+                    raw_centroids, window=3
+                )
 
             except Exception as err:
                 raise RuntimeError(

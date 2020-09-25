@@ -4,31 +4,18 @@ from typing import (
     Optional,
     Sequence,
     Text,
-    Union,
     Callable,
     Tuple,
 )
-from enum import Enum
 from itertools import chain
 
 import numpy as np
 import xarray as xr
 from skimage.draw import polygon2mask
-from sparse import COO
 
-
-from strainmap.models.contour_mask import cylindrical_projection, masked_means
-
-from .contour_mask import Contour, angular_segments, contour_diff, radial_segments
 from .strainmap_data_model import StrainMapData
 from .writers import terminal
-
-
-class Region(Enum):
-    GLOBAL = 1
-    ANGULAR_x6 = 6
-    ANGULAR_x24 = 24
-    RADIAL_x3 = 3
+from ..coordinates import Comp, Mark, Region
 
 
 def theta_origin(centroid: xr.DataArray, septum: xr.DataArray):
@@ -40,8 +27,8 @@ def theta_origin(centroid: xr.DataArray, septum: xr.DataArray):
 
 def process_phases(
     raw_phase: xr.DataArray,
+    sign_reversal: xr.DataArray,
     swap: bool = False,
-    sign_reversal: Sequence[bool] = (False, False, False),
     scale: float = 1 / 4096,
 ) -> xr.DataArray:
     """Prepare the phases for further analysis.
@@ -65,10 +52,12 @@ def process_phases(
     phase = raw_phase * scale - 0.5
 
     if swap:
-        phase = phase.assign_coords(comp=["y", "x", "z"])
+        phase.loc[{"comp": Comp.X}], phase.loc[{"comp": Comp.Y}] = (
+            phase.sel(comp=Comp.Y).copy(),
+            phase.sel(comp=Comp.X).copy(),
+        )
 
-    for comp, r in zip(phase.comp, sign_reversal):
-        phase.loc[{"comp": comp}] *= -1 if r else 1
+    phase[...] *= sign_reversal
 
     return phase
 
@@ -182,183 +171,120 @@ def find_masks(
     return mask
 
 
-def transform_to_cylindrical(phase: np.ndarray, masks: np.ndarray, origin: np.ndarray):
-    """Transform the velocities to cylindrical coordinates.
+def cartesian_to_cylindrical(
+    centroid: xr.DataArray,
+    theta0: xr.DataArray,
+    global_mask: xr.DataArray,
+    phase: xr.DataArray,
+    clockwise: bool = True,
+):
+    """Transform the phases from cartesian to cylindrical coordinates.
 
-    It also accounts for the different origin of coordinates for each time step (frame),
-    and substracts for bulk movement of the heart in the plane.
+    The calculation has several steps:
+        1- We check the non-zero elements in the global mask. Any further calculation is
+            done on those elements.
+        2- Calculate the bulk movement of the heart. Only the bulk in the plane should
+            be accounted for.
+        3- Calculate the phases after the subtraction of the bulk.
+        4- Calculate theta for of each of the nonzero elements.
+        5- Build the rotation matrix
+        6- Calculate the sum product of the rotation and the cartesian coordinates to
+            get the cylindrical ones.
+
+    Args:
+        centroid (xr.DataArray): Centroid of the masks.
+        theta0 (xr.DataArray): Origin of angles.
+        global_mask (xr.DataArray): Global masks.
+        phase (xr.DataArray): The three components of the phase.
+        clockwise (optional, bool): The direction of the theta variable.
+
+    Returns:
+        DataArray with the cylindrical coordinates.
     """
-    num_frames = phase.shape[1]
-    cylindrical = np.zeros_like(phase)
-    for i in range(num_frames):
-        bulk_velocity = masked_means(phase[:, i, :, :], masks[i], axes=(1, 2))[0]
-        bulk_velocity[-1] = 0
+    iframe, irow, icol = np.nonzero(global_mask.data)
+    bulk = xr.where(global_mask, phase, np.nan).mean(dim=("row", "col"))
+    bulk.loc[{"comp": Comp.Z}] = 0
+    cartesian = (
+        (phase - bulk)
+        .transpose("frame", "row", "col", "comp")
+        .data[iframe, irow, icol, :]
+    )
+    cylindrical = np.zeros_like(phase.data)
 
-        cylindrical[:, i, :, :] = cylindrical_projection(
-            phase[:, i, :, :] - bulk_velocity[:, None, None],
-            origin[i],
-            component_axis=0,
-            image_axes=(1, 2),
-        )
+    crow = centroid.sel(frame=iframe, coord="row").data
+    ccol = centroid.sel(frame=iframe, coord="col").data
+    th0 = theta0.sel(frame=iframe).data
 
-    return cylindrical
+    theta = np.mod(np.arctan2(icol - ccol, irow - crow) - th0, 2 * np.pi)
+    if clockwise:
+        theta = 2 * np.pi - theta
 
+    cylindrical[:, iframe, irow, icol] = (
+        cylindrical_rotation_matrix(theta) @ cartesian[..., None]
+    ).T
 
-def subtract_bg(velocities: np.ndarray, axis: int = 2):
-    """Subtracts the estimated background to the velocities."""
-    return velocities - velocities.mean(axis=axis)[..., None]
-
-
-def velocity_global(cylindrical: np.ndarray, mask: np.ndarray):
-    """Calculate the global velocity."""
-    label = f"global"
-    velocities = {label: masked_means(cylindrical, mask, axes=(2, 3))}
-    velocities[label] = subtract_bg(velocities[label])
-    masks = {label: mask}
-    return velocities, masks
+    return xr.DataArray(
+        cylindrical, dims=phase.dims, coords=phase.coords
+    ).assign_coords(comp=[Comp.RAD, Comp.CIRC, Comp.LONG])
 
 
-def velocities_angular(
-    cylindrical: np.ndarray,
-    zero_angle: np.ndarray,
-    origin: np.ndarray,
-    mask: np.ndarray,
-    regions: Sequence[int] = (6,),
-):
-    """Calculate the angular velocities for angular regions."""
-    theta0 = find_theta0(zero_angle)
+def cylindrical_rotation_matrix(theta: np.ndarray) -> np.ndarray:
+    """Calculate the rotation matrix based on the given theta.
 
-    velocities: Dict[str, np.ndarray] = dict()
-    masks: Dict[str, np.ndarray] = dict()
-    for ang in regions:
-        label = f"angular x{ang}"
-        region_labels = angular_segments(
-            nsegments=ang, origin=origin, theta0=theta0, shape=cylindrical.shape[2:]
-        ).transpose((2, 0, 1))
-        velocities[label] = masked_means(cylindrical, region_labels * mask, axes=(2, 3))
-        velocities[label] = subtract_bg(velocities[label])
-        masks[label] = region_labels * mask
+    If the shape of theta is (M, ...), then the shape of the rotation matrix will
+    be (M, ..., 3, 3).
+    """
+    cos = np.cos(theta)
+    sin = np.sin(theta)
+    one = np.ones_like(theta)
+    zer = np.zeros_like(theta)
 
-    return velocities, masks
-
-
-def velocities_radial(
-    cylindrical: np.ndarray,
-    segments: Dict[str, np.ndarray],
-    origin: np.ndarray,
-    shift: np.ndarray,
-    mask: np.ndarray,
-    regions: Sequence[int] = (3,),
-):
-    """Calculates the regional velocities for radial regions."""
-    outer = segments["epicardium"] - shift[None, ::-1, None]
-    inner = segments["endocardium"] - shift[None, ::-1, None]
-
-    velocities: Dict[str, np.ndarray] = dict()
-    masks: Dict[str, Union[list, np.ndarray]] = dict()
-    for nr in regions:
-        label = f"radial x{nr}"
-        velocities[label] = np.zeros((nr, cylindrical.shape[0], cylindrical.shape[1]))
-        masks[label] = []
-
-        for i in range(cylindrical.shape[1]):
-            masks[label].append(
-                radial_segments(
-                    outer=Contour(outer[i].T, shape=cylindrical.shape[2:]),
-                    inner=Contour(inner[i].T, shape=cylindrical.shape[2:]),
-                    mask=mask[i],
-                    nr=nr,
-                    shape=cylindrical.shape[2:],
-                    center=origin[i],
-                )
-            )
-            velocities[label][:, :, i] = masked_means(
-                cylindrical[:, i, :, :], masks[label][-1], axes=(1, 2)
-            )
-
-        velocities[label] = subtract_bg(velocities[label])
-        masks[label] = np.array(masks[label])
-
-    return velocities, masks
-
-
-def remap_array(data, new_shape, roi):
-    result = np.zeros(data.shape[:-2] + new_shape, dtype=data.dtype)
-    result[..., roi[0] : roi[1] + 1, roi[2] : roi[3] + 1] = data
-    return result
+    return np.stack(
+        (
+            np.stack((-cos, sin, zer), axis=-1),
+            np.stack((-sin, -cos, zer), axis=-1),
+            np.stack((zer, zer, one), axis=-1),
+        ),
+        axis=-1,
+    )
 
 
 def calculate_velocities(
     data: StrainMapData,
     cine: Text,
-    global_velocity: bool = True,
-    angular_regions: Sequence[int] = (),
-    radial_regions: Sequence[int] = (),
-    sign_reversal: Tuple[bool, ...] = (False, False, False),
+    sign_reversal: Tuple[bool, ...] = (1, 1, 1),
     init_markers: bool = True,
 ):
     """Calculates the velocity of the chosen cine and regions."""
-    swap, signs = data.data_files.orientation(cine)  # type: ignore
-    phase = process_phases(data, cine, swap, sign_reversal)  # type: ignore
-    mask, orig, (xmin, xmax, ymin, ymax) = global_masks_and_origin(
-        outer=data.segments[cine]["epicardium"],
-        inner=data.segments[cine]["endocardium"],
-    )
-    origin = data.septum[cine][..., 1][:, ::-1]
-    shift = np.array([xmin, ymin])
-    rm_mask = remap_array(mask, phase.shape[-2:], (xmin, xmax, ymin, ymax))
+    data.sign_reversal[...] = np.array(sign_reversal)
+
+    # We start by processing the phase images
+    swap, signs = data.data_files.orientation(cine)
+    raw_phase = data.data_files.images(cine).sel(comp=[Comp.X, Comp.Y, Comp.Z])
+    phase = process_phases(raw_phase, data.sign_reversal, swap)
+
+    # Now we calculate all the masks
+    shape = raw_phase.sizes["row"], raw_phase.sizes["col"]
+    segments = data.segments.sel(cine=cine)
+    centroid = data.centroid.sel(cine=cine)
+    septum = data.septum.sel(cine=cine)
+    theta0 = theta_origin(centroid, septum)
+    masks = find_masks(segments, centroid, theta0, shape)
+
+    # Next we calculate the velocities in cylindrical coordinates
     cylindrical = (
-        transform_to_cylindrical(phase, rm_mask, origin)
-        * (data.data_files.sensitivity * signs)[:, None, None, None]  # type: ignore
+        cartesian_to_cylindrical(
+            centroid,
+            theta0,
+            masks.sel(cine=cine).sel(region=Region.GLOBAL).drop_vars("region"),
+            phase,
+        )
+        * data.data_files.sensitivity
+        * signs
     )
-    data.masks[cine][f"cylindrical"] = cylindrical
-    data.sign_reversal = sign_reversal
 
-    vel_labels: List[str] = []
-    if global_velocity:
-        velocities, masks = velocity_global(
-            cylindrical[..., xmin : xmax + 1, ymin : ymax + 1], mask
-        )
-        masks = {
-            k: remap_array(v, phase.shape[-2:], (xmin, xmax, ymin, ymax))
-            for k, v in masks.items()
-        }
-        data.velocities[cine].update(velocities)
-        data.masks[cine].update(masks)
-        vel_labels += list(velocities.keys())
-
-    if angular_regions:
-        velocities, masks = velocities_angular(
-            cylindrical[..., xmin : xmax + 1, ymin : ymax + 1],
-            data.septum[cine],
-            origin - shift[None, :],
-            mask,
-            angular_regions,
-        )
-        masks = {
-            k: remap_array(v, phase.shape[-2:], (xmin, xmax, ymin, ymax))
-            for k, v in masks.items()
-        }
-        data.velocities[cine].update(velocities)
-        data.masks[cine].update(masks)
-        vel_labels += list(velocities.keys())
-
-    if radial_regions:
-        velocities, masks = velocities_radial(
-            cylindrical[..., xmin : xmax + 1, ymin : ymax + 1],
-            data.segments[cine],
-            origin - shift[None, :],
-            shift,
-            mask,
-            radial_regions,
-        )
-        masks = {
-            k: remap_array(v, phase.shape[-2:], (xmin, xmax, ymin, ymax))
-            for k, v in masks.items()
-        }
-        data.velocities[cine].update(velocities)
-        data.masks[cine].update(masks)
-        vel_labels += list(velocities.keys())
+    # We are now ready to calculate the velocities
+    velocity = xr.where(masks, cylindrical, np.nan).mean(dim=["row", "col"])
 
     if init_markers:
         initialise_markers(data, cine, vel_labels)

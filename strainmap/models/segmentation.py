@@ -9,6 +9,7 @@ import xarray as xr
 from .segmenters import Segmenter
 from .strainmap_data_model import StrainMapData
 from .contour_mask import Contour, dilate
+from ..coordinates import Comp
 
 
 model = "AC"
@@ -51,7 +52,7 @@ def new_segmentation(
     _find_segmentation(
         segments,
         centroid,
-        data.data_files.images(cine).sel(frame=frame, comp="mag"),
+        data.data_files.images(cine).sel(frame=frame, comp=Comp.MAG),
         initials,
     )
 
@@ -118,7 +119,7 @@ def update_and_find_next(
     _find_segmentation(
         segments,
         centroid,
-        data.data_files.images(cine).sel(frame=frame, comp="mag"),
+        data.data_files.images(cine).sel(frame=frame, comp=Comp.MAG),
         segments.sel(frame=frame - 1),
     )
 

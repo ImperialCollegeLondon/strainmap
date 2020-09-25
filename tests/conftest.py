@@ -63,10 +63,10 @@ def segmented_data(strainmap_data):
     from strainmap.models.contour_mask import Contour
     from strainmap.models.segmentation import new_segmentation
     import numpy as np
-    from skimage.draw import circle_perimeter
+    from strainmap.coordinates import Comp
 
     cine = strainmap_data.data_files.datasets[0]
-    image = strainmap_data.data_files.images(cine).sel(comp="mag")
+    image = strainmap_data.data_files.images(cine).sel(comp=Comp.MAG)
     shape = image.sizes["row"], image.sizes["col"]
 
     # Create the initial contour
@@ -381,3 +381,23 @@ def segments_arrays():
         dim="cine",
     )
     return segments, septum, centroid
+
+
+@fixture
+def theta0(segmented_data):
+    from strainmap.models.velocities import theta_origin
+
+    centroid = segmented_data.centroid.isel(cine=0)
+    septum = segmented_data.septum.isel(cine=0)
+    return theta_origin(centroid, septum)
+
+@fixture
+def masks(segmented_data, theta0):
+    from strainmap.models.velocities import find_masks
+
+    cine = segmented_data.data_files.datasets[0]
+    image = segmented_data.data_files.images(cine)
+    shape = image.sizes["row"], image.sizes["col"]
+    segments = segmented_data.segments.isel(cine=0)
+    centroid = segmented_data.centroid.isel(cine=0)
+    return find_masks(segments, centroid, theta0, shape)

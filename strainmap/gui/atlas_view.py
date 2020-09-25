@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Dict, Callable, Union, Optional, Tuple, NamedTuple
 
 import matplotlib.pyplot as plt
+import strainmap.coordinates
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import pandas as pd
 
@@ -458,7 +459,7 @@ class GridPlot:
                     (data["Slice"] == s) & (data["Component"] == c) & data["Included"]
                 ]
                 self.ax[i][j].plot(
-                    [REGIONS.index(r) + 1 for r in d.Region],
+                    [REGIONS.index(r) + 1 for r in strainmap.coordinates.Region],
                     d[self.label],
                     "ro",
                     alpha=0.6,

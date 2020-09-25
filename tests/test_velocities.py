@@ -25,28 +25,33 @@ def test_theta_origin():
 
 def test_process_phases(strainmap_data):
     from strainmap.models.velocities import process_phases
+    from strainmap.coordinates import Comp
 
     cine = strainmap_data.data_files.datasets[0]
     phase = process_phases(
-        strainmap_data.data_files.images(cine).sel(comp=["x", "y", "z"])
+        strainmap_data.data_files.images(cine).sel(comp=[Comp.X, Comp.Y, Comp.Z]),
+        strainmap_data.sign_reversal,
     )
     assert (phase >= -0.5).all()
     assert (phase <= 0.5).all()
 
     phase2 = process_phases(
-        strainmap_data.data_files.images(cine).sel(comp=["x", "y", "z"]), swap=True
+        strainmap_data.data_files.images(cine).sel(comp=[Comp.X, Comp.Y, Comp.Z]),
+        strainmap_data.sign_reversal,
+        swap=True,
     )
-    assert (phase.sel(comp="x") == phase2.sel(comp="y")).all()
+    assert (phase.sel(comp=Comp.X) == phase2.sel(comp=Comp.Y)).all()
 
+    strainmap_data.sign_reversal.loc[{"comp": Comp.Z}] = -1
     phase3 = process_phases(
-        strainmap_data.data_files.images(cine).sel(comp=["x", "y", "z"]),
-        sign_reversal=(False, False, True),
+        strainmap_data.data_files.images(cine).sel(comp=[Comp.X, Comp.Y, Comp.Z]),
+        strainmap_data.sign_reversal,
     )
-    assert (phase.sel(comp="z") == -phase3.sel(comp="z")).all()
+    assert (phase.sel(comp=Comp.Z) == -phase3.sel(comp=Comp.Z)).all()
 
 
 def test_global_mask(segmented_data):
-    from strainmap.models.velocities import global_mask, Region
+    from strainmap.models.velocities import global_mask
     import xarray as xr
     import numpy as np
 
@@ -78,7 +83,8 @@ def test_global_mask(segmented_data):
 
 
 def test_find_masks(segmented_data):
-    from strainmap.models.velocities import find_masks, theta_origin, Region
+    from strainmap.models.velocities import find_masks, theta_origin
+    from strainmap.coordinates import Region
     import xarray as xr
 
     cine = segmented_data.data_files.datasets[0]
@@ -103,125 +109,51 @@ def test_find_masks(segmented_data):
         xr.testing.assert_equal(m, global_int)
 
 
-def test_transform_to_cylindrical():
-    from strainmap.models.velocities import transform_to_cylindrical
-    from strainmap.models.contour_mask import cylindrical_projection
+def test_cartesian_to_cylindrical(segmented_data, masks, theta0):
     import numpy as np
-
-    cartvel = np.random.random((3, 5, 48, 58))
-    masks = np.random.randint(0, 2, (5, 48, 58))
-    origin = np.array([48] * 10).reshape((5, 2))
-
-    velocities = transform_to_cylindrical(cartvel, masks, origin)
-
-    assert velocities.shape == cartvel.shape
-    assert velocities[0] == approx(cartvel[2])
-
-    num = np.sum(masks[None, :, :, :], axis=(2, 3))
-    bulk = np.sum(cartvel * masks[None, :, :, :], axis=(2, 3)) / num
-    bulk[-1] = 0
-
-    expected = np.zeros_like(cartvel)
-    for i in range(5):
-        expected[:, i, :, :] = cylindrical_projection(
-            cartvel[:, i, :, :] - bulk[:, i, None, None],
-            origin[i],
-            component_axis=0,
-            image_axes=(1, 2),
-        )
-
-    assert expected == approx(velocities)
-
-
-def test_subtract_bg():
-    from strainmap.models.velocities import subtract_bg
-    import numpy as np
-
-    a = np.ones((3, 5, 5))
-    assert subtract_bg(a).all() == approx(0)
-
-
-def test_velocity_global():
-    from strainmap.models.velocities import velocity_global
-    import numpy as np
-
-    cylindrical = np.random.random((3, 5, 48, 58))
-    mask = np.random.randint(0, 2, (5, 48, 58))
-
-    actual_v, actual_m = velocity_global(cylindrical, mask)
-
-    assert "global" in actual_v
-    assert "global" in actual_m
-    assert actual_v["global"].shape == (1, 3, 5)
-    assert actual_m["global"] == approx(mask)
-
-
-def test_velocities_angular():
-    from strainmap.models.velocities import velocities_angular
-    import numpy as np
-
-    cylindrical = np.random.random((3, 5, 48, 58))
-    mask = np.random.randint(0, 2, (5, 48, 58))
-    origin = np.ones((5, 2)) * 20
-    zero_angle = np.ones((5, 2, 2)) * 20
-    zero_angle[:, :, 1] += 5
-
-    actual_v, actual_m = velocities_angular(
-        cylindrical, zero_angle, origin, mask, regions=(6,)
+    import xarray as xr
+    from strainmap.models.velocities import (
+        process_phases,
+        cartesian_to_cylindrical,
     )
-    assert len(list(actual_v.keys())) == len(list(actual_m.keys())) == 1
-    assert list(actual_v.values())[0].shape == (6, 3, 5)
-    assert list(actual_m.values())[0].shape == (5, 48, 58)
-    assert set(list(actual_m.values())[0].flatten()) == set(range(7))
+    from strainmap.coordinates import Region, Comp
 
-
-def test_velocities_radial():
-    from strainmap.models.velocities import velocities_radial, global_masks_and_origin
-    from strainmap.models.contour_mask import Contour
-    import numpy as np
-
-    N = 5
-    s = Contour.circle((20, 20), 5, shape=(48, 58))
-    segments = {
-        "endocardium": np.tile(s.xy.T, (N, 1, 1)),
-        "epicardium": np.tile(s.dilate(2).xy.T, (N, 1, 1)),
-    }
-    masks, origin, roi = global_masks_and_origin(
-        segments["epicardium"], segments["endocardium"]
+    cine = segmented_data.data_files.datasets[0]
+    centroid = segmented_data.centroid.isel(cine=0)
+    global_mask = masks.isel(cine=0).sel(region=Region.GLOBAL).drop("region")
+    phase = process_phases(
+        segmented_data.data_files.images(cine).sel(comp=[Comp.X, Comp.Y, Comp.Z]),
+        segmented_data.sign_reversal,
     )
-    shift = np.array([roi[2], roi[0]])
-    cylindrical = np.random.random((3,) + masks.shape)
 
-    actual_v, actual_m = velocities_radial(
-        cylindrical, segments, origin, mask=masks, shift=shift, regions=(4,),
+    cyl = cartesian_to_cylindrical(centroid, theta0, global_mask, phase)
+
+    # The z component should be identical
+    xr.testing.assert_equal(
+        xr.where(global_mask, phase, 0).sel(comp=Comp.Z).drop("comp"),
+        cyl.sel(comp=Comp.LONG).drop("comp"),
     )
-    assert len(list(actual_v.keys())) == len(list(actual_m.keys())) == 1
-    assert list(actual_v.values())[0].shape == (4, 3, 5)
-    assert list(actual_m.values())[0].shape == masks.shape
-    assert set(list(actual_m.values())[0].flatten()) == set(range(5))
 
+    # The magnitude of the in-plane components should also be identical, numerical
+    # inaccuracies aside
+    bulk = xr.where(global_mask, phase, np.nan).mean(dim=("row", "col"))
+    bulk.loc[{"comp": Comp.Z}] = 0
+    mag_cart = (phase - bulk).sel(comp=Comp.X) ** 2 + (phase - bulk).sel(
+        comp=Comp.Y
+    ) ** 2
+    mag_cart = xr.where(global_mask, mag_cart, 0)
+    mag_cyl = cyl.sel(comp=Comp.RAD) ** 2 + cyl.sel(comp=Comp.CIRC) ** 2
+    xr.testing.assert_allclose(mag_cart, mag_cyl)
+
+    return
 
 def test_calculate_velocities(segmented_data):
     from strainmap.models.velocities import calculate_velocities
 
-    dataset_name = list(segmented_data.segments.keys())[0]
+    cine = segmented_data.data_files.datasets[0]
+    calculate_velocities(segmented_data, cine)
 
-    calculate_velocities(
-        segmented_data,
-        dataset_name,
-        global_velocity=True,
-        angular_regions=(6,),
-        radial_regions=(4,),
-    )
-    velocities = segmented_data.velocities
 
-    assert dataset_name in velocities
-    assert "global" in velocities[dataset_name]
-    assert velocities[dataset_name]["global"].shape == (1, 3, 3)
-    assert "angular x6" in velocities[dataset_name]
-    assert velocities[dataset_name]["angular x6"].shape == (6, 3, 3)
-    assert "radial x4" in velocities[dataset_name]
-    assert velocities[dataset_name]["radial x4"].shape == (4, 3, 3)
 
 
 def test_marker():

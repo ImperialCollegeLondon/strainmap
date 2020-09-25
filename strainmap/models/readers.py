@@ -27,6 +27,7 @@ from natsort import natsorted
 from functools import lru_cache
 
 from .sm_data import LabelledArray
+from ..coordinates import Comp
 
 
 def chunks(lst, n):
@@ -51,20 +52,31 @@ def parallel_spirals(header):
         return False
 
 
-def velocity_sensitivity(header) -> np.ndarray:
+def velocity_sensitivity(header) -> xr.DataArray:
     """Obtains the in-plane and out of plane velocity sensitivity (scale)."""
     z = float(re.search(r"asElm\[0\].nVelocity\t = \t(.*)", header)[1])
     r = float(re.search(r"asElm\[1\].nVelocity\t = \t(.*)", header)[1])
     theta = float(re.search(r"asElm\[2\].nVelocity\t = \t(.*)", header)[1])
 
-    return np.array((z, r, theta)) * 2
+    return xr.DataArray(
+        np.array((z, r, theta)) * 2,
+        dims=["comp"],
+        coords={"comp": [Comp.RAD, Comp.CIRC, Comp.LONG]},
+    )
 
 
-def image_orientation(filename) -> tuple:
+def image_orientation(filename) -> Tuple[bool, xr.DataArray]:
     """Indicates if X and Y Phases should be swapped and the velocity sign factors."""
     ds = pydicom.dcmread(filename)
     swap = ds.InPlanePhaseEncodingDirection == "ROW"
-    signs = np.array([-1, 1, -1]) if swap else np.array([1, -1, 1])
+    signs = (
+        xr.DataArray(
+            [1, -1, 1],
+            dims=["comp"],
+            coords={"comp": [Comp.RAD, Comp.CIRC, Comp.LONG]},
+        )
+        * (-1) ** swap
+    )
     return swap, signs
 
 
@@ -265,7 +277,7 @@ class DICOMReaderBase(ABC):
     def sensitivity(self) -> np.ndarray:
         """Obtains the in-plane and out of plane velocity sensitivity (scale)."""
 
-    def orientation(self, dataset: str) -> tuple:
+    def orientation(self, dataset: str) -> Tuple[bool, xr.DataArray]:
         """Indicates if X-Y Phases should be swapped and the velocity sign factors."""
         return image_orientation(self.files.sel(cine=dataset)[0, 0].item())
 
@@ -406,7 +418,7 @@ class DICOM(DICOMReaderBase):
         )
 
     @property
-    def sensitivity(self) -> np.ndarray:
+    def sensitivity(self) -> xr.DataArray:
         """Obtains the in-plane and out of plane velocity sensitivity (scale)."""
         ds = pydicom.dcmread(self.is_avail)
         header = ds[("0021", "1019")].value.decode()
@@ -448,7 +460,7 @@ class DICOM(DICOMReaderBase):
             np.stack((mag, phasex, phasey, phasez)),
             dims=["comp", "frame", "row", "col"],
             coords={
-                "comp": ["mag", "x", "y", "z"],
+                "comp": [Comp.MAG, Comp.X, Comp.Y, Comp.Z],
                 "frame": np.arange(0, mag.shape[0]),
                 "cine": dataset,
             },
