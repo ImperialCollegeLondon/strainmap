@@ -135,8 +135,8 @@ class StrainTaskView(TaskViewBase):
         )
 
         # Grid all the widgets
-        control.grid(sticky=tk.NSEW, padx=10, pady=10)
-        self.visualise_frame.grid(sticky=tk.NSEW, padx=10, pady=5)
+        control.grid(sticky=tk.NSEW, pady=5)
+        self.visualise_frame.grid(sticky=tk.NSEW, padx=5, pady=5)
         info.grid(sticky=tk.NSEW, padx=10, pady=10)
         dataset_frame.grid(row=0, column=0, rowspan=3, sticky=tk.NSEW, padx=5)
         self.datasets_box.grid(row=0, column=0, sticky=tk.NSEW)

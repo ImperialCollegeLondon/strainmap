@@ -44,7 +44,7 @@ class SegmentationTaskView(TaskViewBase):
         super().__init__(
             root,
             controller,
-            button_text="Segmentation",
+            button_text="Segment",
             button_image="molecules.gif",
             button_row=1,
         )
@@ -230,12 +230,12 @@ class SegmentationTaskView(TaskViewBase):
             maximum=49.0,
         )
 
-        control.grid(sticky=tk.NSEW, padx=10, pady=10)
-        visualise_frame.grid(sticky=tk.NSEW, padx=10)
+        control.grid(sticky=tk.NSEW, pady=5)
+        visualise_frame.grid(sticky=tk.NSEW, padx=5, pady=5)
         dataset_frame.grid(row=0, column=0, sticky=tk.NSEW, padx=5)
         self.datasets_box.grid(row=0, column=0, sticky=tk.NSEW)
-        self.clear_btn.grid(row=0, column=50, sticky=(tk.N, tk.E, tk.S))
-        self.confirm_btn.grid(row=1, column=50, sticky=(tk.N, tk.E, tk.S))
+        self.clear_btn.grid(row=0, column=50, sticky=(tk.N, tk.E, tk.S), padx=5)
+        self.confirm_btn.grid(row=1, column=50, sticky=(tk.N, tk.E, tk.S), padx=5)
         segment_frame.grid(row=0, column=1, rowspan=3, sticky=tk.NSEW, padx=5)
         endo_redy_lbl.grid(row=0, column=0, sticky=tk.NSEW)
         epi_redy_lbl.grid(row=1, column=0, sticky=tk.NSEW)
@@ -247,7 +247,7 @@ class SegmentationTaskView(TaskViewBase):
         scale.grid(row=1, column=0, columnspan=2, sticky=tk.NSEW, padx=5, pady=5)
         self.undo_last_btn.grid(row=0, column=2, sticky=tk.NSEW)
         self.undo_all_btn.grid(row=1, column=2, sticky=tk.NSEW)
-        progress_frame.grid(row=0, column=0, columnspan=4, sticky=tk.NSEW, padx=5)
+        progress_frame.grid(row=0, column=0, columnspan=4, sticky=tk.NSEW)
         progress_lbl.grid(row=0, column=0, sticky=tk.NSEW, padx=5, pady=5)
         frame_btn.grid(row=0, column=1, sticky=tk.NSEW, padx=5, pady=5)
         self.next_btn.grid(row=0, column=2, sticky=tk.NSEW, padx=5, pady=5)
