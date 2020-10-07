@@ -405,6 +405,7 @@ class VelocitiesTaskView(TaskViewBase):
             v.grid_remove()
 
         vel_list = [v for v in velocities if "global" in v or "6" in v or "24" in v]
+        vel_list = sorted(vel_list, reverse=True)
         for i, v in enumerate(vel_list):
             text = v.split(" - ")[0]
             ttk.Radiobutton(
@@ -700,7 +701,8 @@ class VelocitiesTaskView(TaskViewBase):
                     label=marker_lbl[i],
                     color=colors[i],
                     marker=str(i % 3 + 1),
-                    markeredgewidth=2,
+                    markeredgewidth=1.5,
+                    markersize=15,
                 )
             )
 
@@ -722,9 +724,9 @@ class VelocitiesTaskView(TaskViewBase):
             )
         )
 
-        self.axes["_long"].legend(frameon=False, markerscale=0.5)
-        self.axes["_rad"].legend(frameon=False, markerscale=0.5)
-        self.axes["_circ"].legend(frameon=False, markerscale=0.5)
+        self.axes["_long"].legend(frameon=False, markerscale=0.7)
+        self.axes["_rad"].legend(frameon=False, markerscale=0.7)
+        self.axes["_circ"].legend(frameon=False, markerscale=0.7)
 
         return markers_artists
 

@@ -507,7 +507,7 @@ class StrainTaskView(TaskViewBase):
             self.limits = self.find_limits(strain_masks[1, 0])
 
         rmin, rmax, cmin, cmax = self.limits
-        vmin, vmax = -1, 1  # strain_masks.min(), strain_masks.max()
+        vmin, vmax = strain_masks.min(), strain_masks.max()
         for i in range(9):
             axes = self.axes_lbl[i // 3]
             frame = int(markers[i // 3, i % 3, 0])
@@ -575,13 +575,14 @@ class StrainTaskView(TaskViewBase):
                         label=mlbl,
                         color=colors[j],
                         marker=str(j + 1),
-                        markeredgewidth=2,
+                        markeredgewidth=1.5,
+                        markersize=15,
                     )
                 )
 
-        self.axes["_long"].legend(frameon=False, markerscale=0.5)
-        self.axes["_rad"].legend(frameon=False, markerscale=0.5)
-        self.axes["_circ"].legend(frameon=False, markerscale=0.5)
+        self.axes["_long"].legend(frameon=False, markerscale=0.7)
+        self.axes["_rad"].legend(frameon=False, markerscale=0.7)
+        self.axes["_circ"].legend(frameon=False, markerscale=0.7)
 
         return markers_artists
 
