@@ -291,7 +291,7 @@ def write_hdf5_file(data, filename: Union[h5py.File, str]):
     metadata_to_hdf5(f, data.metadata())
 
     for s in data.stored:
-        if s == "sign_reversal":
+        if s in ("sign_reversal", "orientation"):
             if s in f:
                 f[s][...] = getattr(data, s)
             else:
