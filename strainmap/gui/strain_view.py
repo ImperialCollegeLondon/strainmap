@@ -4,7 +4,7 @@ import tkinter.filedialog
 
 import numpy as np
 from matplotlib import pyplot as plt
-from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
 from matplotlib.figure import Figure
 
 from .base_window_and_task import Requisites, TaskViewBase, register_view
@@ -36,6 +36,7 @@ class StrainTaskView(TaskViewBase):
         self.datasets_box = None
         self.datasets_var = tk.StringVar(value="")
         self.output_frame = None
+        self.gls_frame = None
         self.strain_var = tk.StringVar(value="")
         self.plot = None
         self.regional_fig = None
@@ -67,7 +68,7 @@ class StrainTaskView(TaskViewBase):
         """ Creates all the widgets of the view. """
         # Top frames
         control = ttk.Frame(master=self)
-        control.columnconfigure(2, weight=1)
+        control.columnconfigure(3, weight=1)
         self.visualise_frame = ttk.Frame(master=self)
         self.visualise_frame.columnconfigure(0, weight=1)
         self.visualise_frame.rowconfigure(0, weight=1)
@@ -89,7 +90,7 @@ class StrainTaskView(TaskViewBase):
         self.datasets_box.bind("<<ComboboxSelected>>", self.dataset_changed)
 
         # Strain frame
-        strain_frame = ttk.Labelframe(control, text="Strain control:")
+        strain_frame = ttk.Frame(control)
 
         ex_first = ttk.Checkbutton(
             master=strain_frame, text="Exclude first", variable=self.exclude[0]
@@ -99,26 +100,30 @@ class StrainTaskView(TaskViewBase):
         )
         effective = ttk.Checkbutton(
             master=strain_frame,
-            text="Effective displacement",
+            text="Eff. displacement.",
             variable=self.effective_disp,
         )
         resample = ttk.Checkbutton(
             master=strain_frame, text="Resample RR", variable=self.resample
         )
-        recalc = ttk.Button(
-            master=strain_frame, text="Recalculate strain", command=self.recalculate
+        recalc_btn = ttk.Button(
+            master=strain_frame, text="Recalculate", command=self.recalculate
         )
 
         # Strain frame
-        self.output_frame = ttk.Labelframe(control, text="Output:")
-        self.output_frame.columnconfigure(50, weight=1)
-        for v in self.gls:
-            self.gls_lbl.append(ttk.Label(master=self.output_frame, textvariable=v))
+        self.output_frame = ttk.Labelframe(control, text="Strain:")
+        self.gls_frame = ttk.Frame(control)
+        self.gls_frame.columnconfigure(0, weight=1)
+        self.gls_frame.columnconfigure(1, weight=1)
+        for i, v in enumerate(self.gls):
+            col, row = divmod(i, 2)
+            self.gls_lbl.append(ttk.Label(master=self.gls_frame, textvariable=v))
+            self.gls_lbl[-1].grid(row=row, column=col, sticky=tk.NSEW)
 
         # Information frame
         marker_lbl = (("PS", "ES", "P"),) * 3
         for labels in marker_lbl:
-            self.param_tables.append(ttk.Treeview(info, height=14))
+            self.param_tables.append(ttk.Treeview(info, height=8))
             self.param_tables[-1].tag_configure("current", background="#f8d568")
             self.param_tables[-1].tag_configure("others", background="#FFFFFF")
             self.param_tables[-1]["columns"] = labels
@@ -129,7 +134,7 @@ class StrainTaskView(TaskViewBase):
                 self.param_tables[-1].heading(l, text=l)
                 self.param_tables[-1].column(l, width=80, stretch=tk.YES, anchor=tk.E)
 
-        export_btn = ttk.Button(control, text="Export to Excel", command=self.export)
+        export_btn = ttk.Button(control, text="To Excel", command=self.export)
         export_twist_btn = ttk.Button(
             control, text="Export rotation", command=self.export_rotation
         )
@@ -137,22 +142,21 @@ class StrainTaskView(TaskViewBase):
         # Grid all the widgets
         control.grid(sticky=tk.NSEW, pady=5)
         self.visualise_frame.grid(sticky=tk.NSEW, padx=5, pady=5)
-        info.grid(sticky=tk.NSEW, padx=10, pady=10)
-        dataset_frame.grid(row=0, column=0, rowspan=3, sticky=tk.NSEW, padx=5)
+        info.grid(sticky=tk.NSEW, pady=5)
+        dataset_frame.grid(row=0, column=0, sticky=tk.NSEW, padx=5)
         self.datasets_box.grid(row=0, column=0, sticky=tk.NSEW)
-        strain_frame.grid(row=0, column=1, rowspan=3, sticky=tk.NSEW, padx=5)
+        strain_frame.grid(row=0, column=1, sticky=tk.NSEW, padx=5)
         ex_first.grid(row=0, column=0, sticky=tk.NSEW, padx=5)
         ex_last.grid(row=1, column=0, sticky=tk.NSEW, padx=5)
         effective.grid(row=0, column=1, sticky=tk.NSEW, padx=5)
         resample.grid(row=1, column=1, sticky=tk.NSEW, padx=5)
-        recalc.grid(row=2, column=0, columnspan=2, sticky=tk.NSEW, padx=5)
-        self.output_frame.grid(row=0, column=2, rowspan=3, sticky=tk.NSEW, padx=5)
-        for i, l in enumerate(self.gls_lbl):
-            l.grid(row=i, column=99, sticky=tk.NSEW, padx=5)
+        recalc_btn.grid(row=0, column=2, rowspan=2, sticky=tk.NSEW, padx=5)
+        self.output_frame.grid(row=0, column=2, sticky=tk.NSEW, padx=5)
+        self.gls_frame.grid(row=0, column=3, sticky=tk.NSEW)
+        export_btn.grid(row=0, column=98, sticky=tk.NSEW, padx=5)
+        export_twist_btn.grid(row=0, column=99, sticky=tk.NSEW, padx=5)
         for i, table in enumerate(self.param_tables):
             table.grid(row=0, column=i, sticky=tk.NSEW, padx=5)
-        export_btn.grid(row=0, column=99, sticky=tk.NSEW, padx=5)
-        export_twist_btn.grid(row=1, column=99, sticky=tk.NSEW, padx=5)
 
     def dataset_changed(self, *args):
         """Updates the view when the selected dataset is changed."""
@@ -317,17 +321,14 @@ class StrainTaskView(TaskViewBase):
 
         vel_list = [v for v in strain if "global" in v or "6" in v]
         for i, v in enumerate(vel_list):
-            col, row = divmod(i, 3)
+            text = v.split(" - ")[0]
             ttk.Radiobutton(
                 self.output_frame,
-                text=v,
+                text=text,
                 value=v,
                 variable=self.strain_var,
                 command=self.replot,
-            ).grid(row=row, column=col, sticky=tk.NSEW)
-
-        for i, l in enumerate(self.gls_lbl):
-            l.grid(row=i, column=99, sticky=tk.NSEW, padx=5)
+            ).grid(row=0, column=i, sticky=tk.NSEW)
 
         if self.strain_var.get() not in strain and len(strain) > 0:
             self.strain_var.set(vel_list[0])
@@ -417,6 +418,9 @@ class StrainTaskView(TaskViewBase):
         self.fig = Figure(constrained_layout=True)
         canvas = FigureCanvasTkAgg(self.fig, master=self.visualise_frame)
         canvas.get_tk_widget().grid(row=0, column=0, sticky=tk.NSEW)
+        toolbar_frame = ttk.Frame(master=self.visualise_frame)
+        toolbar_frame.grid(row=1, column=0, sticky=tk.NSEW)
+        NavigationToolbar2Tk(canvas, toolbar_frame)
 
         self.fig.actions_manager = FigureActionsManager(
             self.fig, Markers, SimpleScroller
@@ -428,7 +432,7 @@ class StrainTaskView(TaskViewBase):
             self.scroll
         )
 
-        gs = self.fig.add_gridspec(2, 9, height_ratios=[6, 2])
+        gs = self.fig.add_gridspec(2, 9, height_ratios=[5, 2])
         self.axes = self.add_strain_subplots(gs)
         self.maps = self.add_maps_subplots(gs)
         self.strain_lines = self.add_strain_lines(strain)

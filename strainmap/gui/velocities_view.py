@@ -166,17 +166,18 @@ class VelocitiesTaskView(TaskViewBase):
         dataset_frame.grid(row=0, column=0, sticky=tk.NSEW, padx=5)
         self.datasets_box.grid(row=0, column=0, sticky=tk.NSEW)
         # bg_frame.grid(row=1, column=0, sticky=tk.NSEW, padx=5)
-        self.bg_box.grid(row=0, column=0, sticky=tk.NSEW)
-        self.velocities_frame.grid(row=0, column=3, rowspan=3, sticky=tk.NSEW, padx=5)
-        for i, table in enumerate(self.param_tables):
-            table.grid(row=0, column=i, sticky=tk.NSEW, padx=5)
-        reversal_frame.grid(row=0, column=96, sticky=tk.NSEW, padx=5)
+        # self.bg_box.grid(row=0, column=0, sticky=tk.NSEW)
+        self.velocities_frame.grid(row=0, column=3, sticky=tk.NSEW, padx=5)
+        reversal_frame.grid(row=0, column=1, sticky=tk.NSEW, padx=5)
         x.grid(row=0, column=0, sticky=tk.NSEW, padx=5)
         y.grid(row=0, column=1, sticky=tk.NSEW, padx=5)
         z.grid(row=0, column=2, sticky=tk.NSEW, padx=5)
-        self.update_vel_btn.grid(row=0, column=97, sticky=tk.NSEW, padx=5)
+        self.update_vel_btn.grid(row=0, column=2, sticky=tk.NSEW, padx=5)
         export_btn.grid(row=0, column=98, sticky=tk.NSEW, padx=5)
         export_super_btn.grid(row=0, column=99, sticky=tk.NSEW, padx=5)
+
+        for i, table in enumerate(self.param_tables):
+            table.grid(row=0, column=i, sticky=tk.NSEW, padx=5)
 
     def dataset_changed(self, *args):
         """Updates the view when the selected dataset is changed."""
@@ -554,9 +555,9 @@ class VelocitiesTaskView(TaskViewBase):
         self.fig = Figure(constrained_layout=True)
         canvas = FigureCanvasTkAgg(self.fig, master=self.visualise_frame)
         canvas.get_tk_widget().grid(row=0, column=0, sticky=tk.NSEW)
-        toolbarFrame = ttk.Frame(master=self.visualise_frame)
-        toolbarFrame.grid(row=1, column=0, sticky=tk.NSEW)
-        NavigationToolbar2Tk(canvas, toolbarFrame)
+        toolbar_frame = ttk.Frame(master=self.visualise_frame)
+        toolbar_frame.grid(row=1, column=0, sticky=tk.NSEW)
+        NavigationToolbar2Tk(canvas, toolbar_frame)
 
         self.fig.actions_manager = FigureActionsManager(
             self.fig, Markers, SimpleScroller
