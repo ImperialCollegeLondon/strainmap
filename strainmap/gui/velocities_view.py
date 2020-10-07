@@ -5,7 +5,7 @@ import re
 
 import numpy as np
 from matplotlib import pyplot as plt
-from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
 from matplotlib.figure import Figure
 
 from .base_window_and_task import Requisites, TaskViewBase, register_view
@@ -57,6 +57,7 @@ class VelocitiesTaskView(TaskViewBase):
             tk.BooleanVar(value=False),
         )
         self.reverse_status = (False, False, False)
+        self.clockwise_var = tk.BooleanVar(value=False)
 
         # Figure-related variables
         self.fig = None
@@ -553,6 +554,9 @@ class VelocitiesTaskView(TaskViewBase):
         self.fig = Figure(constrained_layout=True)
         canvas = FigureCanvasTkAgg(self.fig, master=self.visualise_frame)
         canvas.get_tk_widget().grid(row=0, column=0, sticky=tk.NSEW)
+        toolbarFrame = ttk.Frame(master=self.visualise_frame)
+        toolbarFrame.grid(row=1, column=0, sticky=tk.NSEW)
+        NavigationToolbar2Tk(canvas, toolbarFrame)
 
         self.fig.actions_manager = FigureActionsManager(
             self.fig, Markers, SimpleScroller
