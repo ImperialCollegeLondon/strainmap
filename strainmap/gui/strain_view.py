@@ -47,6 +47,7 @@ class StrainTaskView(TaskViewBase):
         self.effective_disp = tk.BooleanVar(value=True)
         self.resample = tk.BooleanVar(value=True)
         self.gls = (tk.StringVar(), tk.StringVar(), tk.StringVar())
+        self.timeshift_var = tk.DoubleVar(value=0.0)
 
         # Figure-related variables
         self.fig = None
@@ -109,6 +110,11 @@ class StrainTaskView(TaskViewBase):
         recalc_btn = ttk.Button(
             master=strain_frame, text="Recalculate", command=self.recalculate
         )
+        timeshift_lbl = ttk.Label(strain_frame, text="Time shift (s):")
+        timeshift = ttk.Entry(strain_frame, textvariable=self.timeshift_var)
+        recalc = ttk.Button(
+            master=strain_frame, text="Recalculate strain", command=self.recalculate
+        )
 
         # Strain frame
         self.output_frame = ttk.Labelframe(control, text="Strain:")
@@ -151,8 +157,10 @@ class StrainTaskView(TaskViewBase):
         effective.grid(row=0, column=1, sticky=tk.NSEW, padx=5)
         resample.grid(row=1, column=1, sticky=tk.NSEW, padx=5)
         recalc_btn.grid(row=0, column=2, rowspan=2, sticky=tk.NSEW, padx=5)
-        self.output_frame.grid(row=0, column=2, sticky=tk.NSEW, padx=5)
-        self.gls_frame.grid(row=0, column=3, sticky=tk.NSEW)
+        timeshift_lbl.grid(row=0, column=2, sticky=tk.NSEW, padx=5)
+        timeshift.grid(row=1, column=2, sticky=tk.NSEW, padx=5)
+        self.output_frame.grid(row=0, column=3, sticky=tk.NSEW, padx=5)
+        self.gls_frame.grid(row=0, column=4, sticky=tk.NSEW)
         export_btn.grid(row=0, column=98, sticky=tk.NSEW, padx=5)
         export_twist_btn.grid(row=0, column=99, sticky=tk.NSEW, padx=5)
         for i, table in enumerate(self.param_tables):
@@ -162,6 +170,7 @@ class StrainTaskView(TaskViewBase):
         """Updates the view when the selected dataset is changed."""
         current = self.datasets_var.get()
         self.images = self.data.data_files.mag(current)
+        self.timeshift_var.set(self.data.timeshift)
         if self.data.strain.get(current):
             self.update_strain_list(current)
         else:
@@ -346,6 +355,7 @@ class StrainTaskView(TaskViewBase):
             effective_displacement=self.effective_disp.get(),
             resample=self.resample.get(),
             recalculate=recalculate,
+            timeshift=self.timeshift_var.get(),
         )
         lbl = ("psGLS", "esGLS", "pGLS")
         for i, v in enumerate(self.gls):
