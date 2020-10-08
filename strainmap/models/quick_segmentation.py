@@ -255,6 +255,7 @@ def update_and_find_next(
     zero_angle: np.ndarray,
     frame: int,
     images: Dict[str, np.ndarray],
+    replace_threshold=31,
 ) -> None:
     """Updates the segmentation for the current frame and starts the next one."""
     update_segmentation(data, dataset_name, segments, zero_angle, frame)
@@ -263,7 +264,15 @@ def update_and_find_next(
         "epicardium": data.segments[dataset_name]["epicardium"][frame],
     }
     frame += 1
-    find_segmentation(data, dataset_name, frame, images, initial, save=False)
+    find_segmentation(
+        data,
+        dataset_name,
+        frame,
+        images,
+        initial,
+        replace_threshold=replace_threshold,
+        save=False,
+    )
 
 
 def simple_segmentation(
