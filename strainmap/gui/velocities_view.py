@@ -5,7 +5,7 @@ import re
 
 import numpy as np
 from matplotlib import pyplot as plt
-from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
 from matplotlib.figure import Figure
 
 from .base_window_and_task import Requisites, TaskViewBase, register_view
@@ -57,6 +57,7 @@ class VelocitiesTaskView(TaskViewBase):
             tk.BooleanVar(value=False),
         )
         self.reverse_status = (False, False, False)
+        self.clockwise_var = tk.BooleanVar(value=False)
 
         # Figure-related variables
         self.fig = None
@@ -89,7 +90,6 @@ class VelocitiesTaskView(TaskViewBase):
         # Dataset frame
         dataset_frame = ttk.Labelframe(control, text="Datasets:", borderwidth=0)
         dataset_frame.columnconfigure(0, weight=1)
-        dataset_frame.rowconfigure(0, weight=1)
 
         self.datasets_box = ttk.Combobox(
             master=dataset_frame,
@@ -113,13 +113,11 @@ class VelocitiesTaskView(TaskViewBase):
 
         # Velocities frame
         self.velocities_frame = ttk.Labelframe(control, text="Velocities:")
-        for i in range(3):
-            self.velocities_frame.rowconfigure(i, weight=1)
 
         # Information frame
         marker_lbl = (("PS", "PD", "PAS"), ("PS", "PD", "PAS"), ("PC1", "PC2", "PC3"))
         for labels in marker_lbl:
-            self.param_tables.append(ttk.Treeview(info, height=14))
+            self.param_tables.append(ttk.Treeview(info, height=8))
             self.param_tables[-1].tag_configure("current", background="#f8d568")
             self.param_tables[-1].tag_configure("others", background="#FFFFFF")
             self.param_tables[-1]["columns"] = labels
@@ -132,7 +130,6 @@ class VelocitiesTaskView(TaskViewBase):
 
         # Sign reversal frame
         reversal_frame = ttk.Labelframe(control, text="Reverse sign:")
-        reversal_frame.rowconfigure(0, weight=1)
         x = ttk.Checkbutton(
             reversal_frame,
             text="X",
@@ -152,34 +149,35 @@ class VelocitiesTaskView(TaskViewBase):
             command=self.reversal_checked,
         )
         self.update_vel_btn = ttk.Button(
-            reversal_frame,
-            text="Update velocities",
+            control,
+            text="Update",
             command=self.recalculate_velocities,
             state="disabled",
         )
-        export_btn = ttk.Button(control, text="Export to Excel", command=self.export)
+        export_btn = ttk.Button(control, text="To Excel", command=self.export)
         export_super_btn = ttk.Button(
             control, text="Export superpixels", command=self.export_superpixel
         )
 
         # Grid all the widgets
-        control.grid(sticky=tk.NSEW, padx=10, pady=10)
-        self.visualise_frame.grid(sticky=tk.NSEW, padx=10, pady=5)
-        info.grid(sticky=tk.NSEW, padx=10, pady=10)
+        control.grid(sticky=tk.NSEW, pady=5)
+        self.visualise_frame.grid(sticky=tk.NSEW, padx=5, pady=5)
+        info.grid(sticky=tk.NSEW, pady=5)
         dataset_frame.grid(row=0, column=0, sticky=tk.NSEW, padx=5)
         self.datasets_box.grid(row=0, column=0, sticky=tk.NSEW)
-        bg_frame.grid(row=1, column=0, sticky=tk.NSEW, padx=5)
-        self.bg_box.grid(row=0, column=0, sticky=tk.NSEW)
-        self.velocities_frame.grid(row=0, column=3, rowspan=3, sticky=tk.NSEW, padx=5)
-        for i, table in enumerate(self.param_tables):
-            table.grid(row=0, column=i, sticky=tk.NSEW, padx=5)
-        reversal_frame.grid(row=0, column=98, rowspan=2, sticky=tk.NSEW, padx=5)
+        # bg_frame.grid(row=1, column=0, sticky=tk.NSEW, padx=5)
+        # self.bg_box.grid(row=0, column=0, sticky=tk.NSEW)
+        self.velocities_frame.grid(row=0, column=3, sticky=tk.NSEW, padx=5)
+        reversal_frame.grid(row=0, column=1, sticky=tk.NSEW, padx=5)
         x.grid(row=0, column=0, sticky=tk.NSEW, padx=5)
         y.grid(row=0, column=1, sticky=tk.NSEW, padx=5)
         z.grid(row=0, column=2, sticky=tk.NSEW, padx=5)
-        self.update_vel_btn.grid(row=1, column=0, columnspan=3, sticky=tk.NSEW, padx=5)
-        export_btn.grid(row=0, column=99, sticky=tk.NSEW, padx=5)
-        export_super_btn.grid(row=1, column=99, sticky=tk.NSEW, padx=5)
+        self.update_vel_btn.grid(row=0, column=2, sticky=tk.NSEW, padx=5)
+        export_btn.grid(row=0, column=98, sticky=tk.NSEW, padx=5)
+        export_super_btn.grid(row=0, column=99, sticky=tk.NSEW, padx=5)
+
+        for i, table in enumerate(self.param_tables):
+            table.grid(row=0, column=i, sticky=tk.NSEW, padx=5)
 
     def dataset_changed(self, *args):
         """Updates the view when the selected dataset is changed."""
@@ -407,15 +405,16 @@ class VelocitiesTaskView(TaskViewBase):
             v.grid_remove()
 
         vel_list = [v for v in velocities if "global" in v or "6" in v or "24" in v]
+        vel_list = sorted(vel_list, reverse=True)
         for i, v in enumerate(vel_list):
-            col, row = divmod(i, 3)
+            text = v.split(" - ")[0]
             ttk.Radiobutton(
                 self.velocities_frame,
-                text=v,
+                text=text,
                 value=v,
                 variable=self.velocities_var,
                 command=self.replot,
-            ).grid(row=row, column=col, sticky=tk.NSEW)
+            ).grid(row=0, column=i, sticky=tk.NSEW)
 
         if self.velocities_var.get() not in velocities and len(velocities) > 0:
             self.velocities_var.set(vel_list[0])
@@ -557,6 +556,9 @@ class VelocitiesTaskView(TaskViewBase):
         self.fig = Figure(constrained_layout=True)
         canvas = FigureCanvasTkAgg(self.fig, master=self.visualise_frame)
         canvas.get_tk_widget().grid(row=0, column=0, sticky=tk.NSEW)
+        toolbar_frame = ttk.Frame(master=self.visualise_frame)
+        toolbar_frame.grid(row=1, column=0, sticky=tk.NSEW)
+        NavigationToolbar2Tk(canvas, toolbar_frame)
 
         self.fig.actions_manager = FigureActionsManager(
             self.fig, Markers, SimpleScroller
@@ -568,7 +570,7 @@ class VelocitiesTaskView(TaskViewBase):
             self.scroll
         )
 
-        gs = self.fig.add_gridspec(2, 9, height_ratios=[6, 2])
+        gs = self.fig.add_gridspec(2, 9, height_ratios=[5, 2])
         self.axes = self.add_velocity_subplots(gs)
         self.maps = self.add_maps_subplots(gs)
         self.vel_lines = self.add_velocity_lines(velocities)
@@ -699,7 +701,8 @@ class VelocitiesTaskView(TaskViewBase):
                     label=marker_lbl[i],
                     color=colors[i],
                     marker=str(i % 3 + 1),
-                    markeredgewidth=2,
+                    markeredgewidth=1.5,
+                    markersize=15,
                 )
             )
 
@@ -721,9 +724,9 @@ class VelocitiesTaskView(TaskViewBase):
             )
         )
 
-        self.axes["_long"].legend(frameon=False, markerscale=0.5)
-        self.axes["_rad"].legend(frameon=False, markerscale=0.5)
-        self.axes["_circ"].legend(frameon=False, markerscale=0.5)
+        self.axes["_long"].legend(frameon=False, markerscale=0.7)
+        self.axes["_rad"].legend(frameon=False, markerscale=0.7)
+        self.axes["_circ"].legend(frameon=False, markerscale=0.7)
 
         return markers_artists
 
