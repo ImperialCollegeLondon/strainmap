@@ -224,13 +224,20 @@ def read_h5_file(stored: Tuple, filename: Union[Path, Text]) -> dict:
     attributes = dict(strainmap_file=sm_file)
 
     for s in stored:
-        if s not in sm_file:
+        if s not in sm_file and s not in sm_file.attrs:
             continue
 
         if s == "sign_reversal":
             attributes[s] = tuple(sm_file[s][...])
         elif s == "orientation":
             attributes[s] = str(sm_file[s][...])
+        elif s == "timeshift":
+            # TODO Simplify in the final version. Current design "heals" existing files
+            if s in sm_file.attrs:
+                attributes[s] = sm_file.attrs[s]
+            elif s in sm_file:
+                del sm_file[s]
+                continue
         elif "files" in s:
             base_dir = paths_from_hdf5(defaultdict(dict), filename, sm_file[s])
             if base_dir is None:
