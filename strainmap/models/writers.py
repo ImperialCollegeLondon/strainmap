@@ -5,6 +5,7 @@ from typing import List, Union, Dict, Sequence, Optional
 import os
 from pathlib import PurePosixPath, PurePath, Path
 import sparse
+from itertools import chain
 from .sm_data import LabelledArray
 
 
@@ -20,12 +21,16 @@ def velocity_to_xlsx(filename, data, dataset, vel_label):
         each of the regions.
     """
     wb = xlsx.Workbook()
-    background = vel_label.split(" - ")[-1]
-    labels = [label for label in data.velocities[dataset] if background in label]
+    if len(vel_label.split(" - ")) == 2:
+        background = vel_label.split(" - ")[-1]
+        labels = [label for label in data.velocities[dataset] if background in label]
+    else:
+        labels = list(data.velocities[dataset].keys())
 
     params_ws = wb.active
     params_ws.title = "Parameters"
-    add_metadata(data.metadata(dataset), background, params_ws)
+    add_metadata(data.metadata(dataset), params_ws)
+    params_ws.append(("Orientation", "", data.orientation))
     add_sign_reversal(data.sign_reversal, params_ws)
 
     colnames = (
@@ -44,16 +49,25 @@ def velocity_to_xlsx(filename, data, dataset, vel_label):
     )
 
     p = ("Frame", "Velocity (cm/s)", "Norm. Time (s)")
+    region_names = "AS", "A", "AL", "IL", "I", "IS"
+    if data.orientation == "CCW":
+        region_names = region_names[::-1]
 
     for l in labels:
         title = l.split(" - ")[0]
         try:
             add_markers(
-                data.markers[dataset][l], params_ws, colnames=colnames, p=p, title=title
+                data.markers[dataset][l],
+                params_ws,
+                colnames=colnames,
+                p=p,
+                region_names=region_names,
+                title=title,
             )
         except KeyError:
             print(f"Ignoring key '{l}' when exporting velocity markers.")
-        add_velocity(data.velocities[dataset][l], wb.create_sheet(title))
+
+        add_velocity(data.velocities[dataset][l], region_names, wb.create_sheet(title))
 
     wb.save(filename)
     wb.close()
@@ -71,16 +85,24 @@ def strain_to_xlsx(filename, data, dataset, vel_label):
         each of the regions.
     """
     wb = xlsx.Workbook()
-    background = vel_label.split(" - ")[-1]
-    labels = [
-        label
-        for label in data.strain[dataset]
-        if background in label and "cylindrical" not in label
-    ]
+    if len(vel_label.split(" - ")) == 2:
+        background = vel_label.split(" - ")[-1]
+        labels = [
+            label
+            for label in data.strain[dataset]
+            if background in label and "cylindrical" not in label
+        ]
+    else:
+        labels = [
+            label for label in data.velocities[dataset] if "cylindrical" not in label
+        ]
 
     params_ws = wb.active
     params_ws.title = "Parameters"
-    add_metadata(data.metadata(dataset), background, params_ws)
+    add_metadata(data.metadata(dataset), params_ws)
+    params_ws.append(("Orientation", "", data.orientation))
+    add_sign_reversal(data.sign_reversal, params_ws)
+    params_ws.append(("Timeshift (ms)", "", data.timeshift * 1000))
 
     colnames = (
         "Parameter",
@@ -97,6 +119,9 @@ def strain_to_xlsx(filename, data, dataset, vel_label):
     )
 
     p = ("Frame", "Strain (%)", "Time (s)")
+    region_names = "AS", "A", "AL", "IL", "I", "IS"
+    if data.orientation == "CCW":
+        region_names = region_names[::-1]
 
     for l in labels:
         title = l.split(" - ")[0]
@@ -106,23 +131,23 @@ def strain_to_xlsx(filename, data, dataset, vel_label):
                 params_ws,
                 colnames=colnames,
                 p=p,
+                region_names=region_names,
                 title=title,
             )
         except KeyError:
             print(f"Ignoring key '{l}' when exporting strain markers.")
-        add_velocity(data.strain[dataset][l], wb.create_sheet(title))
+
+        add_velocity(data.strain[dataset][l], region_names, wb.create_sheet(title))
 
     wb.save(filename)
     wb.close()
 
 
-def add_metadata(metadata, background, ws):
+def add_metadata(metadata, ws):
     """Prepares the metadata of interest to be exported."""
     ws.column_dimensions["A"].width = 15
     for key, value in metadata.items():
         ws.append((key, "", value))
-
-    ws.append(("Background Correction", "", background))
 
 
 def add_sign_reversal(sign_reversal, ws):
@@ -132,7 +157,7 @@ def add_sign_reversal(sign_reversal, ws):
         ws.append(("", key, str(sign_reversal[i])))
 
 
-def add_markers(markers, ws, colnames, p, title=None):
+def add_markers(markers, ws, colnames, p, region_names, title=None):
     """Adds the markers parameters to the sheet."""
     row = ws.max_row + 2
     ws.merge_cells(start_row=row, start_column=3, end_row=row, end_column=12)
@@ -153,14 +178,16 @@ def add_markers(markers, ws, colnames, p, title=None):
     m = np.array(markers).transpose((3, 0, 1, 2)).reshape((-1, 12))[:, mask]
 
     reg = len(markers)
+    divider = int(np.ceil(reg / 6))
 
     for j in range(len(m)):
+        rg = region_names[(j % reg) // divider] if reg > 1 else "Global"
         data = m[j].astype(int) if j // reg == 0 else np.around(m[j], 3)
-        row_data = [p[j // reg] if j % reg == 0 else "", j % reg + 1] + list(data)
+        row_data = [p[j // reg] if j % reg == 0 else "", rg] + list(data)
         ws.append(row_data)
 
 
-def add_strain_markers(markers, ws, colnames, p, title=None):
+def add_strain_markers(markers, ws, colnames, p, region_names, title=None):
     """Adds the markers parameters to the sheet."""
     row = ws.max_row + 2
     ws.merge_cells(start_row=row, start_column=3, end_row=row, end_column=9)
@@ -179,23 +206,33 @@ def add_strain_markers(markers, ws, colnames, p, title=None):
     m = np.array(markers).transpose((3, 0, 1, 2)).reshape((-1, 9))
 
     reg = len(markers)
+    divider = int(np.ceil(reg / 6))
 
     for j in range(len(m)):
+        rg = region_names[(j % reg) // divider] if reg > 1 else "Global"
         data = m[j].astype(int) if j // reg == 0 else np.around(m[j], 3)
-        row_data = [p[j // reg] if j % reg == 0 else "", j % reg + 1] + list(data)
+        row_data = [p[j // reg] if j % reg == 0 else "", rg] + list(data)
         ws.append(row_data)
 
 
-def add_velocity(velocity, ws):
+def add_velocity(velocity, region_names, ws):
     """Adds the velocities to the sheet."""
     reg = velocity.shape[0]
     frames = velocity.shape[-1]
-    headers = ("Longitudinal", "Radial", "Circumferential")
+    headers = ("Longitudinal (cm/s)", "Radial (cm/s)", "Circumferential (cm/s)")
     for i, header in enumerate(headers):
         ws.cell(column=i * reg + 1, row=1, value=header)
 
-    labels = ("z_Reg{}", "r_Reg{}", "theta_Reg{}")
-    ws.append([label.format(r + 1) for label in labels for r in range(reg)])
+    rg = region_names
+    if reg == 1:
+        rg = ["Global"]
+    elif reg == 3:
+        rg = list(range(1, reg+1))
+    elif reg == 24:
+        rg = list(chain.from_iterable(([r] * (reg // len(rg)) for r in rg)))
+
+    labels = ("z_{}", "r_{}", "theta_{}")
+    ws.append([label.format(r) for label in labels for r in rg])
 
     for f in range(frames):
         ws.append([velocity[r, i, f] for i in range(len(labels)) for r in range(reg)])

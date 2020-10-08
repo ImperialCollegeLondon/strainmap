@@ -53,7 +53,7 @@ class StrainMapData(object):
         "zero_angle",
         "markers",
         "strain_markers",
-        "timeshift"
+        "timeshift",
     )
 
     @classmethod
@@ -151,8 +151,10 @@ class StrainMapData(object):
                 self.zero_angle[d][..., 1] = effective_centroid(raw_centroids, window=3)
 
             except Exception as err:
-                raise RuntimeError(f"Error when regenerating COM for dataset '{d}'. "
-                                   f"Error message: {err}.")
+                raise RuntimeError(
+                    f"Error when regenerating COM for dataset '{d}'. "
+                    f"Error message: {err}."
+                )
 
         for dataset, markers in self.markers.items():
             for k in markers.keys():
@@ -172,8 +174,10 @@ class StrainMapData(object):
                     default = za[..., 0].copy()
 
             except Exception as err:
-                raise RuntimeError(f"Error when healing septum mid-point for "
-                                   f"dataset '{dataset}'. Error message: {err}.")
+                raise RuntimeError(
+                    f"Error when healing septum mid-point for "
+                    f"dataset '{dataset}'. Error message: {err}."
+                )
 
     def metadata(self, dataset=None):
         """Retrieve the metadata from the DICOM files"""
@@ -181,7 +185,7 @@ class StrainMapData(object):
             output = dict()
             dataset = self.data_files.datasets[0]
         else:
-            output = {"Dataset": dataset}
+            output = {"Cine": dataset}
 
         patient_data = self.data_files.tags(dataset)
         output.update(
@@ -189,6 +193,15 @@ class StrainMapData(object):
                 "Patient Name": str(patient_data.get("PatientName", "")),
                 "Patient DOB": str(patient_data.get("PatientBirthDate", "")),
                 "Date of Scan": str(patient_data.get("StudyDate", "")),
+                "Cine offset (mm)": str(self.data_files.slice_loc(dataset) * 10),
+                "Mean RR interval (ms)": str(
+                    patient_data.get("ImageComments", "")
+                    .strip("RR ")
+                    .replace(" +/- ", "±")
+                ),
+                "FOV size (rows x cols)": f"{patient_data.get('Rows', '')}x"
+                f"{patient_data.get('Columns', '')}",
+                "Pixel size (mm)": str(self.data_files.pixel_size(dataset) * 10),
             }
         )
         return output

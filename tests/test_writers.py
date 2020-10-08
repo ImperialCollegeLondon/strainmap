@@ -12,9 +12,8 @@ def test_add_metadata(strainmap_data):
     ws = wb.create_sheet("Parameters")
     assert "Parameters" in wb.sheetnames
 
-    add_metadata(strainmap_data.metadata(dataset), "Phantom", ws)
-    assert ws.max_row == 5
-    assert ws["C5"].value == "Phantom"
+    add_metadata(strainmap_data.metadata(dataset), ws)
+    assert ws.max_row == 8
 
 
 def test_add_markers(markers):
@@ -41,8 +40,15 @@ def test_add_markers(markers):
     )
 
     p = ("Frame", "Strain (%)", "Time (s)")
-
-    add_markers(markers[None, :, :, :], ws, colnames=colnames, p=p, title="Global")
+    region_names = "AS", "A", "AL", "IL", "I", "IS"
+    add_markers(
+        markers[None, :, :, :],
+        ws,
+        colnames=colnames,
+        p=p,
+        region_names=region_names,
+        title="Global",
+    )
     m = markers[None, :, :, :].transpose((3, 0, 1, 2)).reshape((-1, 12))
     expected = 5 + len(m)
     assert ws.max_row == expected
@@ -57,8 +63,9 @@ def test_add_velocity(velocity):
 
     wb = xlsx.Workbook()
     ws = wb.create_sheet("Velocity")
+    region_names = "AS", "A", "AL", "IL", "I", "IS"
 
-    add_velocity(velocity[None, :, :], ws)
+    add_velocity(velocity[None, :, :], region_names, ws)
     assert ws.max_row == 52
     assert ws["A52"].value == approx(np.around(velocity[0, -1], 3))
     assert ws["C52"].value == approx(np.around(velocity[1, -1], 3))
