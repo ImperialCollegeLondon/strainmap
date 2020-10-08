@@ -69,7 +69,7 @@ class StrainTaskView(TaskViewBase):
         """ Creates all the widgets of the view. """
         # Top frames
         control = ttk.Frame(master=self)
-        control.columnconfigure(3, weight=1)
+        control.columnconfigure(4, weight=1)
         self.visualise_frame = ttk.Frame(master=self)
         self.visualise_frame.columnconfigure(0, weight=1)
         self.visualise_frame.rowconfigure(0, weight=1)
@@ -100,9 +100,7 @@ class StrainTaskView(TaskViewBase):
             master=strain_frame, text="Exclude last", variable=self.exclude[1]
         )
         effective = ttk.Checkbutton(
-            master=strain_frame,
-            text="Eff. displacement.",
-            variable=self.effective_disp,
+            master=strain_frame, text="Eff. displacement.", variable=self.effective_disp
         )
         resample = ttk.Checkbutton(
             master=strain_frame, text="Resample RR", variable=self.resample
@@ -110,21 +108,22 @@ class StrainTaskView(TaskViewBase):
         recalc_btn = ttk.Button(
             master=strain_frame, text="Recalculate", command=self.recalculate
         )
-        timeshift_lbl = ttk.Label(strain_frame, text="Time shift (s):")
-        timeshift = ttk.Entry(strain_frame, textvariable=self.timeshift_var)
-        recalc = ttk.Button(
-            master=strain_frame, text="Recalculate strain", command=self.recalculate
-        )
+        timeshift_lbl = ttk.Label(strain_frame, text="Time shift (s):", width=10)
+        timeshift = ttk.Entry(strain_frame, textvariable=self.timeshift_var, width=10)
 
         # Strain frame
-        self.output_frame = ttk.Labelframe(control, text="Strain:")
-        self.gls_frame = ttk.Frame(control)
-        self.gls_frame.columnconfigure(0, weight=1)
-        self.gls_frame.columnconfigure(1, weight=1)
+        self.output_frame = ttk.Frame(master=control)
+        self.output_frame.rowconfigure(0, weight=1)
+        self.output_frame.rowconfigure(1, weight=1)
+        ttk.Label(self.output_frame, text="Strain:").grid(
+            row=0, column=0, sticky=tk.NSEW
+        )
         for i, v in enumerate(self.gls):
-            col, row = divmod(i, 2)
-            self.gls_lbl.append(ttk.Label(master=self.gls_frame, textvariable=v))
-            self.gls_lbl[-1].grid(row=row, column=col, sticky=tk.NSEW)
+            self.output_frame.columnconfigure(i, weight=1)
+            self.gls_lbl.append(
+                ttk.Label(master=self.output_frame, textvariable=v, width=10)
+            )
+            self.gls_lbl[-1].grid(row=1, column=i, sticky=tk.NSEW)
 
         # Information frame
         marker_lbl = (("PS", "ES", "P"),) * 3
@@ -152,15 +151,14 @@ class StrainTaskView(TaskViewBase):
         dataset_frame.grid(row=0, column=0, sticky=tk.NSEW, padx=5)
         self.datasets_box.grid(row=0, column=0, sticky=tk.NSEW)
         strain_frame.grid(row=0, column=1, sticky=tk.NSEW, padx=5)
-        ex_first.grid(row=0, column=0, sticky=tk.NSEW, padx=5)
-        ex_last.grid(row=1, column=0, sticky=tk.NSEW, padx=5)
+        ex_first.grid(row=0, column=0, sticky=tk.NSEW)
+        ex_last.grid(row=1, column=0, sticky=tk.NSEW)
         effective.grid(row=0, column=1, sticky=tk.NSEW, padx=5)
         resample.grid(row=1, column=1, sticky=tk.NSEW, padx=5)
-        recalc_btn.grid(row=0, column=2, rowspan=2, sticky=tk.NSEW, padx=5)
-        timeshift_lbl.grid(row=0, column=2, sticky=tk.NSEW, padx=5)
-        timeshift.grid(row=1, column=2, sticky=tk.NSEW, padx=5)
-        self.output_frame.grid(row=0, column=3, sticky=tk.NSEW, padx=5)
-        self.gls_frame.grid(row=0, column=4, sticky=tk.NSEW)
+        timeshift_lbl.grid(row=0, column=2, sticky=tk.NSEW)
+        timeshift.grid(row=1, column=2, sticky=tk.NSEW)
+        recalc_btn.grid(row=0, column=3, rowspan=2, sticky=tk.NSEW, padx=5)
+        self.output_frame.grid(row=0, column=4, sticky=tk.NSEW)
         export_btn.grid(row=0, column=98, sticky=tk.NSEW, padx=5)
         export_twist_btn.grid(row=0, column=99, sticky=tk.NSEW, padx=5)
         for i, table in enumerate(self.param_tables):
@@ -325,8 +323,8 @@ class StrainTaskView(TaskViewBase):
         """Updates the list of radio buttons with the currently available strains."""
         strain = self.data.strain[dataset]
 
-        for v in self.output_frame.winfo_children():
-            v.grid_remove()
+        # for v in self.output_frame.winfo_children():
+        #     v.grid_remove()
 
         vel_list = [v for v in strain if "global" in v or "6" in v]
         for i, v in enumerate(vel_list):
@@ -337,7 +335,7 @@ class StrainTaskView(TaskViewBase):
                 value=v,
                 variable=self.strain_var,
                 command=self.replot,
-            ).grid(row=0, column=i, sticky=tk.NSEW)
+            ).grid(row=0, column=i + 1, sticky=tk.NSEW)
 
         if self.strain_var.get() not in strain and len(strain) > 0:
             self.strain_var.set(vel_list[0])
@@ -357,7 +355,7 @@ class StrainTaskView(TaskViewBase):
             recalculate=recalculate,
             timeshift=self.timeshift_var.get(),
         )
-        lbl = ("psGLS", "esGLS", "pGLS")
+        lbl = ("PSS", "PES", "PS")
         for i, v in enumerate(self.gls):
             v.set(value=f"{lbl[i]}: {round(self.data.gls[i] * 100, 1)}%")
         self.populate_dataset_box(datasets)
