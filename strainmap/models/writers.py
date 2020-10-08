@@ -219,7 +219,9 @@ def export_superpixel(data, dataset, filename):
     from .strain import coordinates
 
     vels = px_velocity_curves(data, dataset)
-    loc = np.take(coordinates(data, (dataset,), resample=False), 0, axis=2)
+    loc = np.take(
+        coordinates(data, (dataset,), resample=False, use_frame_zero=False), 0, axis=2
+    )
 
     rad = ["endo", "mid", "epi"]
     label = "{} {}"
@@ -291,11 +293,13 @@ def write_hdf5_file(data, filename: Union[h5py.File, str]):
     metadata_to_hdf5(f, data.metadata())
 
     for s in data.stored:
-        if s == "sign_reversal":
+        if s in ("sign_reversal", "orientation"):
             if s in f:
                 f[s][...] = getattr(data, s)
             else:
                 f.create_dataset(s, data=getattr(data, s))
+        elif s == "timeshift":
+            f.attrs[s] = getattr(data, s)
         elif "files" in s:
             if getattr(data, s) is not None:
                 paths_to_hdf5(f, f.filename, s, getattr(data, s).files)

@@ -9,6 +9,9 @@ from .readers import read_strainmap_file, DICOMReaderBase, read_folder
 from .writers import write_hdf5_file
 from .sm_data import LabelledArray
 
+TIMESHIFT = -0.045
+"""Default timeshift"""
+
 
 class StrainMapLoadError(Exception):
     pass
@@ -45,10 +48,12 @@ class StrainMapData(object):
         "data_files",
         "bg_files",
         "sign_reversal",
+        "orientation",
         "segments",
         "zero_angle",
         "markers",
         "strain_markers",
+        "timeshift"
     )
 
     @classmethod
@@ -81,6 +86,7 @@ class StrainMapData(object):
         self.bg_files = bg_files
         self.strainmap_file = strainmap_file
         self.sign_reversal: Tuple[bool, ...] = (False, False, False)
+        self.orientation: str = "CW"
         self.segments: dict = defaultdict(dict)
         self.zero_angle: dict = {}
         self.velocities: dict = defaultdict(dict)
@@ -90,6 +96,7 @@ class StrainMapData(object):
         self.strain_markers: dict = defaultdict(dict)
         self.gls: np.ndarray = np.array([])
         self.twist: Optional[LabelledArray] = None
+        self.timeshift: float = TIMESHIFT
 
     @property
     def rebuilt(self):
@@ -120,6 +127,11 @@ class StrainMapData(object):
         self.strainmap_file = h5py.File(strainmap_file, "a")
         self.save_all()
         return True
+
+    def set_orientation(self, orientation):
+        """Sets the angular regions orientation (CW or CCW) and saves the data"""
+        self.orientation = orientation
+        self.save(["orientation"])
 
     def regenerate(self):
         """We create placeholders for the velocities that were expected.
@@ -198,14 +210,18 @@ class StrainMapData(object):
             return
 
         for keys in args:
-            assert keys[0] in self.stored, f"{keys[0]} is not storable."
-            s = "/".join(keys)
-            names = [getattr(self, keys[0])] + keys[1:]
-            if s in self.strainmap_file:
-                del self.strainmap_file[s]
-            self.strainmap_file.create_dataset(
-                s, data=reduce(lambda x, y: x[y], names), track_order=True
-            )
+            if keys[0] not in self.stored:
+                raise KeyError(f"{keys[0]} is not storable.")
+            elif keys[0] == "timeshift":
+                self.strainmap_file.attrs[keys[0]] = getattr(self, keys[0])
+            else:
+                s = "/".join(keys)
+                names = [getattr(self, keys[0])] + keys[1:]
+                if s in self.strainmap_file:
+                    del self.strainmap_file[s]
+                self.strainmap_file.create_dataset(
+                    s, data=reduce(lambda x, y: x[y], names), track_order=True
+                )
 
     def delete(self, *args):
         """ Deletes the chosen dataset or group from the hdf5 file.

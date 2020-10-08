@@ -357,12 +357,15 @@ class AtlasTaskView(TaskViewBase):
             self.controller.progress("No patient data available. Load data to proceed.")
             return None
 
+        step = (
+            slice(2, None, 1) if self.data.orientation == "CW" else slice(None, 1, -1)
+        )
         data = extract_strain_markers(
             h5file=self.data.strainmap_file,
             datasets={k.get(): v for k, v in zip(self.dataset_box, SLICES)},
             regions={
                 "global - Estimated": REGIONS[:1],
-                "angular x6 - Estimated": REGIONS[2:],
+                "angular x6 - Estimated": REGIONS[step],
             },
         )
         data["Record"] = (
@@ -399,7 +402,7 @@ def buttons_frame(
     for i, (text, callback) in enumerate(buttons.items()):
         row, col = (i, 0) if vert else (i, 0)
         ttk.Button(master=frame, text=text, command=callback).grid(
-            row=row, column=col, sticky=tk.NSEW, padx=5, pady=5,
+            row=row, column=col, sticky=tk.NSEW, padx=5, pady=5
         )
 
     return frame
