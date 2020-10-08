@@ -46,6 +46,7 @@ class StrainTaskView(TaskViewBase):
         self.effective_disp = tk.BooleanVar(value=True)
         self.resample = tk.BooleanVar(value=True)
         self.gls = (tk.StringVar(), tk.StringVar(), tk.StringVar())
+        self.timeshift_var = tk.DoubleVar(value=0.0)
 
         # Figure-related variables
         self.fig = None
@@ -105,6 +106,8 @@ class StrainTaskView(TaskViewBase):
         resample = ttk.Checkbutton(
             master=strain_frame, text="Resample RR", variable=self.resample
         )
+        timeshift_lbl = ttk.Label(strain_frame, text="Time shift (s):")
+        timeshift = ttk.Entry(strain_frame, textvariable=self.timeshift_var)
         recalc = ttk.Button(
             master=strain_frame, text="Recalculate strain", command=self.recalculate
         )
@@ -146,6 +149,8 @@ class StrainTaskView(TaskViewBase):
         effective.grid(row=0, column=1, sticky=tk.NSEW, padx=5)
         resample.grid(row=1, column=1, sticky=tk.NSEW, padx=5)
         recalc.grid(row=2, column=0, columnspan=2, sticky=tk.NSEW, padx=5)
+        timeshift_lbl.grid(row=0, column=2, sticky=tk.NSEW, padx=5)
+        timeshift.grid(row=1, column=2, sticky=tk.NSEW, padx=5)
         self.output_frame.grid(row=0, column=2, rowspan=3, sticky=tk.NSEW, padx=5)
         for i, l in enumerate(self.gls_lbl):
             l.grid(row=i, column=99, sticky=tk.NSEW, padx=5)
@@ -158,6 +163,7 @@ class StrainTaskView(TaskViewBase):
         """Updates the view when the selected dataset is changed."""
         current = self.datasets_var.get()
         self.images = self.data.data_files.mag(current)
+        self.timeshift_var.set(self.data.timeshift)
         if self.data.strain.get(current):
             self.update_strain_list(current)
         else:
@@ -345,6 +351,7 @@ class StrainTaskView(TaskViewBase):
             effective_displacement=self.effective_disp.get(),
             resample=self.resample.get(),
             recalculate=recalculate,
+            timeshift=self.timeshift_var.get(),
         )
         lbl = ("psGLS", "esGLS", "pGLS")
         for i, v in enumerate(self.gls):
