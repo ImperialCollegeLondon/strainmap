@@ -95,6 +95,10 @@ class SegmentationTaskView(TaskViewBase):
 
         self.create_controls()
 
+    def tkraise(self, *args):
+        super(SegmentationTaskView, self).tkraise()
+        self.master.bind("<Control_L><p>", self.copy_previous)
+
     def create_controls(self):
         """ Creates all the widgets of the view. """
         # Top frames
@@ -422,16 +426,16 @@ class SegmentationTaskView(TaskViewBase):
                 self.ax_mag.plot(*self.initial_segments[side], **style)
                 self.ax_vel.plot(*self.initial_segments[side], **style)
 
-    def refresh_data(self):
+    def refresh_data(self, offset=0):
         """Refresh the data available in the local variables."""
         dataset = self.datasets_var.get()
         self.zero_angle[self.current_frame] = self.data.zero_angle[dataset][
-            self.current_frame
+            self.current_frame - abs(offset)
         ][:]
         for i, side in enumerate(["endocardium", "epicardium"]):
             self.final_segments[side][self.current_frame] = self.data.segments[dataset][
                 side
-            ][self.current_frame][:]
+            ][self.current_frame - abs(offset)][:]
 
     @property
     def centroid(self):
@@ -495,6 +499,15 @@ class SegmentationTaskView(TaskViewBase):
         frame = self.working_frame_var.get()
         self.fig.actions_manager.ScrollFrames.go_to_frame(frame, self.fig.axes[0])
         self.fig.canvas.draw_idle()
+
+    def copy_previous(self, *args):
+        """Copies the segmentation of the previous frame into this one."""
+        wf = self.working_frame_var.get()
+        if wf == 0 or wf != self.current_frame:
+            return
+
+        self.refresh_data(-1)
+        self.go_to_frame()
 
     def first_frame(self):
         """Triggers the segmentation when frame is 0."""
