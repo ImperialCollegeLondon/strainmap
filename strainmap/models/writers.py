@@ -32,6 +32,7 @@ def velocity_to_xlsx(filename, data, dataset, vel_label):
     add_metadata(data.metadata(dataset), params_ws)
     params_ws.append(("Orientation", "", data.orientation))
     add_sign_reversal(data.sign_reversal, params_ws)
+    params_ws.append(("Timeshift (ms)", "", data.timeshift * 1000))
 
     colnames = (
         "Parameter",
