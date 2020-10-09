@@ -313,6 +313,7 @@ class SegmentationTaskView(TaskViewBase):
     def dataset_changed(self, *args):
         """Updates the GUI when a new dataset is chosen."""
         dataset = self.datasets_var.get()
+        self.clear_segment_variables(button_pressed=False)
         self.images = self.get_data_to_segment(dataset)
         self.update_state(dataset)
         self.replot(dataset)
