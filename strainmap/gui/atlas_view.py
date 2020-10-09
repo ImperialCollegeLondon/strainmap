@@ -152,7 +152,7 @@ class AtlasTaskView(TaskViewBase):
         table_frame.rowconfigure(0, weight=1)
 
         treeview = ttk.Treeview(table_frame, selectmode="browse")
-        vsb = ttk.Scrollbar(table_frame, orient="vertical", command=treeview.yview())
+        vsb = ttk.Scrollbar(table_frame, orient="vertical", command=treeview.yview)
         treeview.configure(yscrollcommand=vsb.set)
         treeview.grid(column=0, row=0, sticky=tk.NSEW, padx=5, pady=5)
         vsb.grid(column=1, row=0, sticky=tk.NSEW)
