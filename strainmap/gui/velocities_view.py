@@ -177,9 +177,9 @@ class VelocitiesTaskView(TaskViewBase):
         )
 
         # Grid all the widgets
-        control.grid(sticky=tk.NSEW, pady=5)
-        self.visualise_frame.grid(sticky=tk.NSEW, padx=5, pady=5)
-        info.grid(sticky=tk.NSEW, pady=5)
+        control.grid(row=0, column=0, sticky=tk.NSEW, pady=5)
+        self.visualise_frame.grid(row=1, column=0, sticky=tk.NSEW, padx=5, pady=5)
+        info.grid(row=2, column=0, sticky=tk.NSEW, pady=5)
         dataset_frame.grid(row=0, column=0, sticky=tk.NSEW, padx=5)
         self.datasets_box.grid(row=0, column=0, sticky=tk.NSEW)
         # bg_frame.grid(row=1, column=0, sticky=tk.NSEW, padx=5)
@@ -251,6 +251,15 @@ class VelocitiesTaskView(TaskViewBase):
             m = (vel[:, i, :].max() - vel[:, i, :].min()) * 0.10
             self.vel_lim[label] = (vel[:, i, :].min() - m, vel[:, i, :].max() + m)
 
+    def display_plots(self, show=True):
+        """Show/hide the plots"""
+        if show:
+            self.visualise_frame.grid(row=1, column=0, sticky=tk.NSEW, padx=5, pady=5)
+            self.controller.window.update()
+        else:
+            self.visualise_frame.grid_forget()
+            self.controller.window.update()
+
     def replot(self):
         """Updates the plot to show the chosen velocity."""
         dataset = self.datasets_var.get()
@@ -277,6 +286,7 @@ class VelocitiesTaskView(TaskViewBase):
             self.draw()
             self.populate_tables()
 
+        self.display_plots(True)
         self.bg_var.set(self.velocities_var.get().split(" - ")[-1])
 
     def color_plots(self, dataset, vel_label):
@@ -452,6 +462,7 @@ class VelocitiesTaskView(TaskViewBase):
 
     def calculate_velocities(self, dataset, bg=None, init_markers=True):
         """Calculate pre-defined velocities for the chosen dataset."""
+        self.display_plots(False)
         self.controller.calculate_velocities(
             dataset_name=dataset,
             global_velocity=True,
