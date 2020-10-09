@@ -154,6 +154,7 @@ def velocities_view(main_window, data_with_velocities):
     import weakref
 
     StrainMap.data = data_with_velocities
+    StrainMap.window = main_window
     return VelocitiesTaskView(main_window, weakref.ref(StrainMap))
 
 

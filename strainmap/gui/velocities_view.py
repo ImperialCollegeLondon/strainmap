@@ -51,6 +51,8 @@ class VelocitiesTaskView(TaskViewBase):
         self.current_region = 0
         self.images = None
         self.update_vel_btn = None
+        self.export_btn = None
+        self.export_super_btn = None
         self.reverse_vel_var = (
             tk.BooleanVar(value=False),
             tk.BooleanVar(value=False),
@@ -171,9 +173,14 @@ class VelocitiesTaskView(TaskViewBase):
             command=self.change_orientation,
         ).grid(row=0, column=1, sticky=tk.NSEW)
 
-        export_btn = ttk.Button(control, text="To Excel", command=self.export)
-        export_super_btn = ttk.Button(
-            control, text="Export superpixels", command=self.export_superpixel
+        self.export_btn = ttk.Button(
+            control, text="To Excel", command=self.export, state="disabled"
+        )
+        self.export_super_btn = ttk.Button(
+            control,
+            text="Export superpixels",
+            command=self.export_superpixel,
+            state="disabled",
         )
 
         # Grid all the widgets
@@ -191,8 +198,8 @@ class VelocitiesTaskView(TaskViewBase):
         self.update_vel_btn.grid(row=0, column=2, sticky=tk.NSEW, padx=5)
         orientation_frame.grid(row=0, column=3, sticky=tk.NSEW, padx=5)
         self.velocities_frame.grid(row=0, column=4, sticky=tk.NSEW, padx=5)
-        export_btn.grid(row=0, column=98, sticky=tk.NSEW, padx=5)
-        export_super_btn.grid(row=0, column=99, sticky=tk.NSEW, padx=5)
+        self.export_btn.grid(row=0, column=98, sticky=tk.NSEW, padx=5)
+        self.export_super_btn.grid(row=0, column=99, sticky=tk.NSEW, padx=5)
 
         for i, table in enumerate(self.param_tables):
             table.grid(row=0, column=i, sticky=tk.NSEW, padx=5)
@@ -255,9 +262,13 @@ class VelocitiesTaskView(TaskViewBase):
         """Show/hide the plots"""
         if show:
             self.visualise_frame.grid(row=1, column=0, sticky=tk.NSEW, padx=5, pady=5)
+            self.export_btn.state(["!disabled"])
+            self.export_super_btn.state(["!disabled"])
             self.controller.window.update()
         else:
             self.visualise_frame.grid_forget()
+            self.export_btn.state(["disabled"])
+            self.export_super_btn.state(["disabled"])
             self.controller.window.update()
 
     def replot(self):
