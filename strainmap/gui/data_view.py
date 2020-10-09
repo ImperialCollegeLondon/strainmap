@@ -486,8 +486,8 @@ class DataTaskView(TaskViewBase):
         self.create_data_viewer()
         if self.data.data_files is not None:
             self.update_visualization()
-        self.datafolder_entry.xview(tk.END)
-        self.outputfile_entry.xview(tk.END)
+        self.datafolder_entry.xview(len(self.data_folder.get()))
+        self.outputfile_entry.xview(len(self.output_file.get()))
 
     def update_phantom_widgets(self):
         """Updates the widgets related to the Phantom"""
