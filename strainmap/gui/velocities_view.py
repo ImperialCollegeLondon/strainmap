@@ -57,7 +57,7 @@ class VelocitiesTaskView(TaskViewBase):
             tk.BooleanVar(value=False),
         )
         self.reverse_status = (False, False, False)
-        self.clockwise_var = tk.BooleanVar(value=False)
+        self.orientation_var = tk.StringVar(value=self.data.orientation)
 
         # Figure-related variables
         self.fig = None
@@ -154,6 +154,23 @@ class VelocitiesTaskView(TaskViewBase):
             command=self.recalculate_velocities,
             state="disabled",
         )
+
+        orientation_frame = ttk.Labelframe(control, text="Orientation:")
+        ttk.Radiobutton(
+            orientation_frame,
+            text="CW",
+            value="CW",
+            variable=self.orientation_var,
+            command=self.change_orientation,
+        ).grid(row=0, column=0, sticky=tk.NSEW)
+        ttk.Radiobutton(
+            orientation_frame,
+            text="CCW",
+            value="CCW",
+            variable=self.orientation_var,
+            command=self.change_orientation,
+        ).grid(row=0, column=1, sticky=tk.NSEW)
+
         export_btn = ttk.Button(control, text="To Excel", command=self.export)
         export_super_btn = ttk.Button(
             control, text="Export superpixels", command=self.export_superpixel
@@ -167,12 +184,13 @@ class VelocitiesTaskView(TaskViewBase):
         self.datasets_box.grid(row=0, column=0, sticky=tk.NSEW)
         # bg_frame.grid(row=1, column=0, sticky=tk.NSEW, padx=5)
         # self.bg_box.grid(row=0, column=0, sticky=tk.NSEW)
-        self.velocities_frame.grid(row=0, column=3, sticky=tk.NSEW, padx=5)
         reversal_frame.grid(row=0, column=1, sticky=tk.NSEW, padx=5)
         x.grid(row=0, column=0, sticky=tk.NSEW, padx=5)
         y.grid(row=0, column=1, sticky=tk.NSEW, padx=5)
         z.grid(row=0, column=2, sticky=tk.NSEW, padx=5)
         self.update_vel_btn.grid(row=0, column=2, sticky=tk.NSEW, padx=5)
+        orientation_frame.grid(row=0, column=3, sticky=tk.NSEW, padx=5)
+        self.velocities_frame.grid(row=0, column=4, sticky=tk.NSEW, padx=5)
         export_btn.grid(row=0, column=98, sticky=tk.NSEW, padx=5)
         export_super_btn.grid(row=0, column=99, sticky=tk.NSEW, padx=5)
 
@@ -216,6 +234,15 @@ class VelocitiesTaskView(TaskViewBase):
             self.update_vel_btn.state(["!disabled"])
         else:
             self.update_vel_btn.state(["disabled"])
+
+    def change_orientation(self):
+        """Change the orientation CW <-> CCW of the angular regions of all cines"""
+        if self.orientation_var.get() != self.data.orientation:
+            self.data.set_orientation(self.orientation_var.get())
+            if "24" in self.velocities_var.get():
+                self.replot()
+            else:
+                self.populate_tables()
 
     def find_velocity_limits(self, vel_label):
         """Finds suitable maximum and minimum for the velocity plots."""
@@ -340,11 +367,13 @@ class VelocitiesTaskView(TaskViewBase):
         bmask = np.broadcast_to(self.masks, cylindrical.shape)
         return np.ma.masked_where(bmask, cylindrical)
 
-    @staticmethod
-    def region_labels(regions):
+    def region_labels(self, regions):
         """Provides the region labels, if any."""
         if regions == 6:
-            return "AS", "A", "AL", "IL", "I", "IS"
+            labels = "AS", "A", "AL", "IL", "I", "IS"
+            if self.data.orientation == "CCW":
+                labels = labels[::-1]
+            return labels
         else:
             return list(range(1, regions + 1))
 

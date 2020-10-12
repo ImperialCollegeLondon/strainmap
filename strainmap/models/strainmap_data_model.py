@@ -48,6 +48,7 @@ class StrainMapData(object):
         "data_files",
         "bg_files",
         "sign_reversal",
+        "orientation",
         "segments",
         "zero_angle",
         "markers",
@@ -85,6 +86,7 @@ class StrainMapData(object):
         self.bg_files = bg_files
         self.strainmap_file = strainmap_file
         self.sign_reversal: Tuple[bool, ...] = (False, False, False)
+        self.orientation: str = "CW"
         self.segments: dict = defaultdict(dict)
         self.zero_angle: dict = {}
         self.velocities: dict = defaultdict(dict)
@@ -125,6 +127,11 @@ class StrainMapData(object):
         self.strainmap_file = h5py.File(strainmap_file, "a")
         self.save_all()
         return True
+
+    def set_orientation(self, orientation):
+        """Sets the angular regions orientation (CW or CCW) and saves the data"""
+        self.orientation = orientation
+        self.save(["orientation"])
 
     def regenerate(self):
         """We create placeholders for the velocities that were expected.

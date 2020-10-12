@@ -65,6 +65,11 @@ class StrainTaskView(TaskViewBase):
 
         self.create_controls()
 
+    def tkraise(self, *args):
+        """Brings the frame to the front."""
+        super().tkraise()
+        self.populate_tables()
+
     def create_controls(self):
         """ Creates all the widgets of the view. """
         # Top frames
@@ -273,11 +278,13 @@ class StrainTaskView(TaskViewBase):
         bmask = np.broadcast_to(self.masks, cylindrical.shape)
         return np.ma.masked_where(bmask, cylindrical)
 
-    @staticmethod
-    def region_labels(regions):
+    def region_labels(self, regions):
         """Provides the region labels, if any."""
         if regions == 6:
-            return "AS", "A", "AL", "IL", "I", "IS"
+            labels = "AS", "A", "AL", "IL", "I", "IS"
+            if self.data.orientation == "CCW":
+                labels = labels[::-1]
+            return labels
         else:
             return list(range(1, regions + 1))
 

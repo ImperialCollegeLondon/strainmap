@@ -1,4 +1,5 @@
 from pytest import mark
+from unittest.mock import MagicMock
 import sys
 
 
@@ -61,3 +62,11 @@ def test_from_file(dicom_data_path, h5_file_path):
                 h5_file_path, data.strainmap_file["data_files"][d][v][:]
             )
             assert variable == paths
+
+
+def test_set_orientation(strainmap_data):
+    strainmap_data.save = MagicMock()
+    strainmap_data.orientation = "CW"
+    strainmap_data.set_orientation("CCW")
+    assert strainmap_data.orientation == "CCW"
+    assert strainmap_data.save.called_once()

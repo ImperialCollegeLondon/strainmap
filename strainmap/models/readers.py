@@ -93,7 +93,7 @@ def velocity_sensitivity(header) -> np.ndarray:
     return np.array((z, r, theta)) * 2
 
 
-def image_orientation(filename) -> tuple:
+def phase_encoding(filename) -> tuple:
     """Indicates if X and Y Phases should be swapped and the velocity sign factors."""
     ds = pydicom.dcmread(filename)
     swap = ds.InPlanePhaseEncodingDirection == "ROW"
@@ -224,8 +224,13 @@ def read_h5_file(stored: Tuple, filename: Union[Path, Text]) -> dict:
     attributes = dict(strainmap_file=sm_file)
 
     for s in stored:
+        if s not in sm_file and s not in sm_file.attrs:
+            continue
+
         if s == "sign_reversal":
             attributes[s] = tuple(sm_file[s][...])
+        elif s == "orientation":
+            attributes[s] = str(sm_file[s][...])
         elif s == "timeshift":
             # TODO Simplify in the final version. Current design "heals" existing files
             if s in sm_file.attrs:
@@ -233,13 +238,13 @@ def read_h5_file(stored: Tuple, filename: Union[Path, Text]) -> dict:
             elif s in sm_file:
                 del sm_file[s]
                 continue
-        elif "files" in s and s in sm_file:
+        elif "files" in s:
             base_dir = paths_from_hdf5(defaultdict(dict), filename, sm_file[s])
             if base_dir is None:
                 attributes[s] = ()
             else:
                 attributes[s] = read_folder(base_dir)
-        elif s in sm_file:
+        else:
             attributes[s] = defaultdict(dict)
             read_data_structure(attributes[s], sm_file[s])
 
@@ -390,9 +395,9 @@ class DICOMReaderBase(ABC):
     def sensitivity(self) -> np.ndarray:
         """Obtains the in-plane and out of plane velocity sensitivity (scale)."""
 
-    def orientation(self, dataset: str) -> tuple:
+    def phase_encoding(self, dataset: str) -> tuple:
         """Indicates if X-Y Phases should be swapped and the velocity sign factors."""
-        return image_orientation(list(self.files[dataset].values())[0][0])
+        return phase_encoding(list(self.files[dataset].values())[0][0])
 
     def tags(self, dataset: str, var: Optional[str] = None) -> dict:
         """Dictionary with the tags available in the DICOM files."""
