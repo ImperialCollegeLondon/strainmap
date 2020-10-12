@@ -191,7 +191,7 @@ def test_scroll(segmentation_view, strainmap_data):
     # segmentation_view.update_widgets()
     rdata = np.random.random((1, 2, 5, 5))
     segmentation_view.data.data_files.images = lambda x: xr.DataArray(
-        rdata, dims=["comp", "frame", "row", "col"], coords={"comp": ["mag"]},
+        rdata, dims=["comp", "frame", "row", "col"], coords={"comp": ["mag"]}
     )
     segmentation_view._septum = _init_septum_and_centroid(
         cine=dataset, frames=2, name="septum"
@@ -266,13 +266,16 @@ def test_next_frames(segmentation_view, strainmap_data):
 
     # First frame
     segmentation_view.first_frame()
-    segmentation_view.find_segmentation.assert_called_with(0, unlock=False, replace_threshold=31)
+    segmentation_view.new_segmentation.assert_called_with(
+        0, unlock=False, replace_threshold=31
+    )
     assert segmentation_view.go_to_frame.call_count == 1
 
     # Other frames
     segmentation_view.next()
     segmentation_view.update_and_find_next.assert_called()
     assert segmentation_view.go_to_frame.call_count == 2
+
 
 def test_finish_segmentation(segmentation_view):
     segmentation_view.controller.update_segmentation = MagicMock()

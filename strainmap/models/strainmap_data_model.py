@@ -101,9 +101,7 @@ class StrainMapData(object):
         """Flag to indicate if data structure has been rebuilt after loading."""
         return all([k in self.velocities.keys() for k in self.markers.keys()])
 
-    def add_paths(
-        self, data_files: Union[Path, Text, None] = None,
-    ):
+    def add_paths(self, data_files: Union[Path, Text, None] = None):
         """Adds data and/or phantom paths to the object."""
         if data_files is None:
             return False
@@ -140,9 +138,10 @@ class StrainMapData(object):
         # TODO: Remove when consolidated. Regenerate the centroid
         for d in self.septum:
             try:
-                img_shape = self.data_files.mag(d).shape[1:]
-                raw_centroids = _calc_centroids(self.segments[d], slice(None), img_shape)
-                self.septum[d][..., 1] = _calc_effective_centroids(raw_centroids, window=3)
+                raw_centroids = _calc_centroids(self.segments.sel(cine=d))
+                self.septum[d][..., 1] = _calc_effective_centroids(
+                    raw_centroids, window=3
+                )
 
             except Exception as err:
                 raise RuntimeError(
@@ -187,7 +186,7 @@ class StrainMapData(object):
                 "Patient Name": str(patient_data.get("PatientName", "")),
                 "Patient DOB": str(patient_data.get("PatientBirthDate", "")),
                 "Date of Scan": str(patient_data.get("StudyDate", "")),
-                "Cine offset (mm)": str(self.data_files.slice_loc(dataset) * 10),
+                "Cine offset (mm)": str(self.data_files.cine_loc(dataset) * 10),
                 "Mean RR interval (ms)": str(
                     patient_data.get("ImageComments", "")
                     .strip("RR ")

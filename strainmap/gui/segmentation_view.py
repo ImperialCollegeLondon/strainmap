@@ -2,7 +2,7 @@ import tkinter as tk
 from tkinter import ttk
 from collections import defaultdict
 
-from typing import Optional, Dict, Union
+from typing import Optional, Dict
 from functools import partial
 
 import matplotlib.pyplot as plt
@@ -30,7 +30,6 @@ from .figure_actions_manager import (
     MouseAction,
     TriggerSignature,
 )
-from ..models.contour_mask import Contour
 
 
 def change_state(widget, enabled=True):
@@ -116,7 +115,7 @@ class SegmentationTaskView(TaskViewBase):
         cine_frame.columnconfigure(0, weight=1)
 
         self.cines_box = ttk.Combobox(
-            master=cine_frame, textvariable=self.cines_var, values=[], state="readonly",
+            master=cine_frame, textvariable=self.cines_var, values=[], state="readonly"
         )
         self.cines_box.bind("<<ComboboxSelected>>", self.cine_changed)
 
@@ -423,10 +422,10 @@ class SegmentationTaskView(TaskViewBase):
         """Refresh the data available in the local variables."""
         cine = self.cines_var.get()
         self._septum.loc[{"frame": self.current_frame}] = self.data.septum.sel(
-            cine=cine, frame=self.current_frame- abs(offset)
+            cine=cine, frame=self.current_frame - abs(offset)
         )
         self._segments.loc[{"frame": self.current_frame}] = self.data.segments.sel(
-            cine=cine, frame=self.current_frame- abs(offset)
+            cine=cine, frame=self.current_frame - abs(offset)
         )
 
     @property
@@ -514,60 +513,6 @@ class SegmentationTaskView(TaskViewBase):
 
         self.refresh_data(-1)
         self.go_to_frame()
-
-    def first_frame(self, replace_threshold=31):
-        """Triggers the segmentation when frame is 0."""
-        self.next_btn.config(
-            text="Next \u25B6",
-            command=partial(self.next, replace_threshold=replace_threshold),
-        )
-        self.find_segmentation(
-            0, self.initial_segments, replace_threshold=replace_threshold
-        )
-        self.replot(self.datasets_var.get())
-        self.zero_angle[self.current_frame] = np.array((self.septum, self.centroid)).T
-        self.go_to_frame()
-
-    def next(self, replace_threshold=31):
-        """Triggers the segmentation in the rest of the frames."""
-        self.next_btn.state(["disabled"])
-        self.update_and_find_next(replace_threshold=replace_threshold)
-        self.refresh_data()
-        self.zero_angle[self.current_frame] = np.array((self.septum, self.centroid)).T
-
-        frame = self.working_frame_var.get()
-        if frame == self.num_frames - 2:
-            self.next_btn.config(command=self.finish_segmentation)
-
-        self.working_frame_var.set(frame + 1)
-        self.current_frame = frame + 1
-        self.zero_angle[self.current_frame] = np.array((self.septum, self.centroid)).T
-        self.go_to_frame()
-        self.next_btn.state(["!disabled"])
-
-    def quick_segmentation(self):
-        """Triggers a quick segmentation of the whole dataset."""
-        self.find_segmentation(
-            slice(None), self.initial_segments, self.septum, unlock=True
-        )
-        self.finish_segmentation(update=False)
-        self.replot(self.datasets_var.get())
-        self.working_frame_var.set(self.num_frames - 1)
-        self.go_to_frame()
-
-    def finish_segmentation(self, update=True):
-        """Finish the segmentation, updating values and state of buttons."""
-        if update:
-            self.controller.update_segmentation(
-                dataset_name=self.datasets_var.get(),
-                segments=self.final_segments,
-                zero_angle=self.zero_angle,
-                frame=slice(None),
-            )
-        self.next_btn.config(text="Done!")
-        self.next_btn.state(["disabled"])
-        self.datasets_box.state(["!disabled"])
-        self.completed = True
 
     def scroll(self, frame, image=None):
         """Provides the next images and lines to plot when scrolling."""
@@ -692,10 +637,7 @@ class SegmentationTaskView(TaskViewBase):
             self.initial_segments = xr.DataArray(
                 np.full((2, 2, max(contour[-1].shape)), np.nan),
                 dims=("side", "coord", "point"),
-                coords={
-                    "side": ["endocardium", "epicardium"],
-                    "coord": ["row", "col"],
-                },
+                coords={"side": ["endocardium", "epicardium"], "coord": ["row", "col"]},
             )
         self.initial_segments.loc[{"side": side}] = contour[-1]
         self.switch_mark_state(side, "ready")
@@ -722,7 +664,7 @@ class SegmentationTaskView(TaskViewBase):
             self._septum = xr.DataArray(
                 np.full((self.num_frames, 2), np.nan),
                 dims=("frame", "coord"),
-                coords={"coord": ["row", "col"], "frame": np.arange(self.num_frames),},
+                coords={"coord": ["row", "col"], "frame": np.arange(self.num_frames)},
             )
         self._septum.loc[{"frame": self.current_frame}] = data[-1]
 
@@ -800,7 +742,7 @@ class SegmentationTaskView(TaskViewBase):
         self.current_frame = 0
         change_state(self.next_btn, enabled=False)
         change_state(self.confirm_btn, enabled=False)
-        change_state(self.datasets_box, enabled=True)
+        change_state(self.cines_box, enabled=True)
         change_state(self.segment_mode_frame, enabled=True)
         self.completed = False
         self.next_btn.config(text="Next \u25B6", command=self.first_frame)
@@ -818,13 +760,54 @@ class SegmentationTaskView(TaskViewBase):
         self.working_frame_var.set(self.num_frames - 1)
         self.go_to_frame()
 
-    def first_frame(self):
+    def first_frame(self, replace_threshold=31):
         """Triggers the segmentation when frame is 0."""
-        self.next_btn.config(text="Next \u25B6", command=self.next)
-        self.new_segmentation(0, unlock=False)
+        self.next_btn.config(
+            text="Next \u25B6",
+            command=partial(self.next, replace_threshold=replace_threshold),
+        )
+        self.new_segmentation(0, unlock=False, replace_threshold=replace_threshold)
         self.replot(self.cines_var.get())
         self.go_to_frame()
 
+    def next(self, replace_threshold=31):
+        """Triggers the segmentation in the rest of the frames."""
+        self.next_btn.state(["disabled"])
+        self.confirm_btn.state(["disabled"])
+        self.undo_last_btn.state(["disabled"])
+        self.undo_all_btn.state(["disabled"])
+        self.undo_stack = defaultdict(list)
+
+        self.update_and_find_next(replace_threshold=replace_threshold)
+        self.refresh_data()
+
+        frame = self.working_frame_var.get()
+        if frame == self.num_frames - 2:
+            self.next_btn.config(command=self.finish_segmentation)
+
+        self.working_frame_var.set(frame + 1)
+        self.current_frame = frame + 1
+        self.refresh_data()
+        self.go_to_frame()
+        self.next_btn.state(["!disabled"])
+
+    def finish_segmentation(self, update=True):
+        """Finish the segmentation, updating values and state of buttons."""
+        if update:
+            self.controller.update_segmentation(
+                cine=self.cines_var.get(),
+                new_segments=self._segments,
+                new_septum=self._septum,
+                unlock=True,
+            )
+        self.next_btn.config(text="Done!")
+        self.next_btn.state(["disabled"])
+        self.cines_box.state(["!disabled"])
+        self.confirm_btn.state(["disabled"])
+        self.undo_last_btn.state(["disabled"])
+        self.undo_all_btn.state(["disabled"])
+        self.undo_stack = defaultdict(list)
+        self.completed = True
 
     def new_segmentation(
         self, frame: Optional[int], unlock: bool, replace_threshold=31

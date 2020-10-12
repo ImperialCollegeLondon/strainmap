@@ -61,26 +61,39 @@ def strainmap_data(dicom_data_path):
 def segmented_data(strainmap_data):
     """Returns a StrainMapData object with segmented data."""
     from strainmap.models.contour_mask import Contour
-    from strainmap.models.segmentation import _find_segmentation
+    from strainmap.models.segmentation import new_segmentation
     import numpy as np
 
     cine = strainmap_data.data_files.datasets[0]
     image = strainmap_data.data_files.mag(cine)
 
     # Create the initial contour
-    init_epi = Contour.circle(center=(270, 308), radius=50, shape=image.shape).xy
-    init_endo = Contour.circle(center=(270, 308), radius=30, shape=image.shape).xy
+    init_epi = Contour.circle(center=(270, 308), radius=50, shape=image.shape).xy.T
+    init_endo = Contour.circle(center=(270, 308), radius=30, shape=image.shape).xy.T
 
-    # Launch the segmentation process
-    _find_segmentation(
-        data=strainmap_data,
-        cine=cine,
-        images={"endocardium": image, "epicardium": image},
-        frame=None,
-        initials={"epicardium": init_epi, "endocardium": init_endo},
+    initial_segments = xr.DataArray(
+        np.array((init_endo, init_epi)),
+        dims=("side", "coord", "point"),
+        coords={"side": ["endocardium", "epicardium"], "coord": ["row", "col"]},
     )
 
-    strainmap_data.septum.loc[{"cine": cine}] = np.array([260, 230])
+    frames = strainmap_data.data_files.frames
+    septum = xr.DataArray(
+        np.full((frames, 2), np.nan),
+        dims=("frame", "coord"),
+        coords={"coord": ["row", "col"], "frame": np.arange(frames)},
+    )
+    septum.loc[{"frame": 0}] = np.array([260, 230])
+
+    # Launch the segmentation process
+    new_segmentation(
+        data=strainmap_data,
+        cine=cine,
+        frame=None,
+        initials=initial_segments,
+        new_septum=septum,
+    )
+
     return strainmap_data
 
 
@@ -339,10 +352,7 @@ def atlas_view_with_data(atlas_view, dummy_data):
 def segments_arrays():
     import numpy as np
     import xarray as xr
-    from strainmap.models.segmentation import (
-        _init_septum_and_centroid,
-        _init_segments,
-    )
+    from strainmap.models.segmentation import _init_septum_and_centroid, _init_segments
 
     frames, points = np.random.randint(20, 51, 2)
     segments = xr.concat(
