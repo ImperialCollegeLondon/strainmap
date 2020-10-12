@@ -120,7 +120,7 @@ def test_cartesian_to_cylindrical(segmented_data, masks, theta0):
 
     cine = segmented_data.data_files.datasets[0]
     centroid = segmented_data.centroid.isel(cine=0)
-    global_mask = masks.isel(cine=0).sel(region=Region.GLOBAL).drop("region")
+    global_mask = masks.sel(region=Region.GLOBAL).drop("region")
     phase = process_phases(
         segmented_data.data_files.images(cine).sel(comp=[Comp.X, Comp.Y, Comp.Z]),
         segmented_data.sign_reversal,
@@ -147,6 +147,7 @@ def test_cartesian_to_cylindrical(segmented_data, masks, theta0):
 
     return
 
+
 def test_calculate_velocities(segmented_data):
     from strainmap.models.velocities import calculate_velocities
 
@@ -154,6 +155,12 @@ def test_calculate_velocities(segmented_data):
     calculate_velocities(segmented_data, cine)
 
 
+def test_initialise_markers(segmented_data):
+    from strainmap.models.velocities import calculate_velocities, initialise_markers
+
+    cine = segmented_data.data_files.datasets[0]
+    velocity = calculate_velocities(segmented_data, cine)
+    markers = initialise_markers(velocity)
 
 
 def test_marker():

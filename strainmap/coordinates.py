@@ -1,5 +1,4 @@
 from enum import Enum, auto
-from typing import Tuple
 
 
 class Region(Enum):
@@ -19,13 +18,17 @@ class Comp(Enum):
     LONG = "Longitudinal"
 
 
-class Mark(Enum):
-    PS: Tuple[int, int, bool] = (1, 15, True)
-    PD: Tuple[int, int, bool] = (15, 35, False)
-    PAS: Tuple[int, int, bool] = (35, 47, False)
-    PC1: Tuple[int, int, bool] = (1, 5, False)
-    PC2: Tuple[int, int, bool] = (6, 12, True)
-    PC3: auto()
-    ES: Tuple[int, int] = (14, 21)
+class VelMark(Enum):
+    PS = auto()
+    PD = auto()
+    PAS = auto()
+    ES = auto()
+    PC1 = auto()
+    PC2 = auto()
+    PC3 = auto()
+
+
+class StrainMark(Enum):
+    PS = auto()
     PSS = auto()
     ESS = auto()

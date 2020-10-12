@@ -1,6 +1,6 @@
 from typing import (
     Dict,
-    List,
+    NamedTuple,
     Optional,
     Sequence,
     Text,
@@ -15,7 +15,7 @@ from skimage.draw import polygon2mask
 
 from .strainmap_data_model import StrainMapData
 from .writers import terminal
-from ..coordinates import Comp, Mark, Region
+from ..coordinates import Comp, VelMark, Region
 
 
 def theta_origin(centroid: xr.DataArray, septum: xr.DataArray):
@@ -145,28 +145,22 @@ def find_masks(
     reg = list(chain.from_iterable(([r] * r.value for r in Region)))
 
     mask = xr.DataArray(
-        np.full(
-            (1, len(reg), len(segments.frame), shape[0], shape[1]), False, dtype=bool
-        ),
-        dims=["cine", "region", "frame", "row", "col"],
-        coords={
-            "cine": [segments.cine.item()],
-            "region": reg,
-            "frame": segments.frame,
-        },
+        np.full((len(reg), len(segments.frame), shape[0], shape[1]), False, dtype=bool),
+        dims=["region", "frame", "row", "col"],
+        coords={"region": reg, "frame": segments.frame,},
     )
 
-    gmask = mask.sel(cine=segments.cine.item(), region=Region.GLOBAL)
+    gmask = mask.sel(region=Region.GLOBAL)
     global_mask(segments, shape, gmask)
 
     for region in (Region.ANGULAR_x6, Region.ANGULAR_x24):
-        amask = mask.sel(cine=segments.cine.item(), region=region)
+        amask = mask.sel(region=region)
         angular_mask(centroid, theta0, gmask, amask)
-        mask.loc[{"cine": segments.cine.item(), "region": region}] = amask
+        mask.loc[{"region": region}] = amask
 
-    rmask = mask.sel(cine=segments.cine.item(), region=Region.RADIAL_x3)
+    rmask = mask.sel(region=Region.RADIAL_x3)
     radial_mask(segments, shape, rmask)
-    mask.loc[{"cine": segments.cine.item(), "region": Region.RADIAL_x3}] = rmask
+    mask.loc[{"region": Region.RADIAL_x3}] = rmask
 
     return mask
 
@@ -265,9 +259,9 @@ def calculate_velocities(
 
     # Now we calculate all the masks
     shape = raw_phase.sizes["row"], raw_phase.sizes["col"]
-    segments = data.segments.sel(cine=cine)
-    centroid = data.centroid.sel(cine=cine)
-    septum = data.septum.sel(cine=cine)
+    segments = data.segments.sel(cine=cine).drop_vars("cine")
+    centroid = data.centroid.sel(cine=cine).drop_vars("cine")
+    septum = data.septum.sel(cine=cine).drop_vars("cine")
     theta0 = theta_origin(centroid, septum)
     masks = find_masks(segments, centroid, theta0, shape)
 
@@ -276,7 +270,7 @@ def calculate_velocities(
         cartesian_to_cylindrical(
             centroid,
             theta0,
-            masks.sel(cine=cine).sel(region=Region.GLOBAL).drop_vars("region"),
+            masks.sel(region=Region.GLOBAL).drop_vars("region"),
             phase,
         )
         * data.data_files.sensitivity
@@ -286,9 +280,96 @@ def calculate_velocities(
     # We are now ready to calculate the velocities
     velocity = xr.where(masks, cylindrical, np.nan).mean(dim=["row", "col"])
 
-    if init_markers:
-        initialise_markers(data, cine, vel_labels)
-        data.save(*[["markers", cine, vel] for vel in vel_labels], ["sign_reversal"])
+    return velocity
+
+
+def initialise_markers(velocity: xr.DataArray) -> xr.DataArray:
+    result = xr.DataArray(
+        np.full((velocity.sizes["comp"], velocity.sizes["region"], 7, 3), np.nan),
+        dims=["comp", "region", "marker", "quantity"],
+        coords={
+            "comp": velocity.comp,
+            "region": velocity.region,
+            "marker": list(VelMark),
+            "quantity": ["frame", "velocity", "time"],
+        },
+    )
+
+    for m, opt in markers_options.items():
+        if opt.fun is None:
+            continue
+
+        low = min(opt.low, velocity.sizes["frame"] - 1)
+        high = min(opt.high, velocity.sizes["frame"] - 1)
+        vel = velocity.sel(frame=slice(low, high), comp=opt.comp)
+
+        idx = opt.fun(vel, dim="frame")
+        result.loc[{"marker": m, "quantity": "frame", "comp": opt.comp}] = idx.T + low
+        result.loc[{"marker": m, "quantity": "velocity", "comp": opt.comp}] = vel.isel(
+            frame=idx
+        ).T
+
+    # Search for ES
+    opt = markers_options[VelMark.ES]
+    pdidx = int(
+        result.sel(
+            marker=VelMark.PD, quantity="frame", comp=Comp.RAD, region=Region.GLOBAL
+        ).item()
+    )
+    low = min(opt.low, pdidx)
+    high = min(opt.high, pdidx)
+    if high - low == 0:
+        low = 0
+    vel = velocity.sel(frame=slice(low, high), comp=opt.comp, region=Region.GLOBAL)
+    dvel = vel.differentiate("frame")
+    idx = dvel.argmin(dim="frame")
+    if idx == pdidx or xr.ufuncs.fabs(vel).isel(frame=idx).item() < -2.5:
+        idx = vel.argmin(dim="frame")
+
+    result.loc[{"marker": VelMark.ES, "quantity": "frame", "comp": opt.comp}] = (
+        idx.T + low
+    )
+    result.loc[
+        {"marker": VelMark.ES, "quantity": "velocity", "comp": opt.comp}
+    ] = vel.isel(frame=idx).T
+
+    return result
+
+
+class _MSearch(NamedTuple):
+    low: int = 0
+    high: int = 50
+    fun: Optional[Callable] = None
+    comp: Sequence[Comp] = ()
+
+
+markers_options: Dict[VelMark, _MSearch] = {
+    VelMark.PS: _MSearch(1, 15, xr.DataArray.argmax, [Comp.RAD, Comp.LONG]),
+    VelMark.PD: _MSearch(15, 35, xr.DataArray.argmin, [Comp.RAD, Comp.LONG]),
+    VelMark.PAS: _MSearch(35, 47, xr.DataArray.argmin, [Comp.RAD, Comp.LONG]),
+    VelMark.ES: _MSearch(14, 21, None, [Comp.RAD]),
+    VelMark.PC1: _MSearch(1, 5, xr.DataArray.argmin, [Comp.CIRC]),
+    VelMark.PC2: _MSearch(6, 12, xr.DataArray.argmax, [Comp.CIRC]),
+    VelMark.PC3: _MSearch(0, 0, None, [Comp.CIRC]),
+}
+
+
+def px_velocity_curves(
+    data: StrainMapData, cine: str, nrad: int = 3, nang: int = 24,
+) -> np.ndarray:
+    """ TODO: Remove in the final version. """
+    from .strain import masked_reduction
+
+    vkey = f"cylindrical"
+    rkey = f"radial x{nrad}"
+    akey = f"angular x{nang}"
+    img_axis = tuple(range(len(data.masks[cine][vkey].shape)))[-2:]
+
+    cyl = data.masks[cine][vkey]
+    m = data.masks[cine][rkey] + 100 * data.masks[cine][akey]
+    r = masked_reduction(cyl, m, axis=img_axis)
+
+    return r - r.mean(axis=(1, 2, 3), keepdims=True)
 
 
 def regenerate(data, cines, callback: Callable = terminal):
@@ -319,34 +400,6 @@ def regenerate(data, cines, callback: Callable = terminal):
             **regions,
         )
     callback(f"Regeneration complete!", 1)
-
-
-markers_options = {
-    "PS": dict(low=1, high=15, maximum=True),
-    "PD": dict(low=15, high=30, maximum=False),
-    "PAS": dict(low=35, high=47, maximum=False),
-    "PC1": dict(low=1, high=5, maximum=False),
-    "PC2": dict(low=6, high=12, maximum=True),
-    "ES": dict(low=14, high=21),
-}
-
-
-def px_velocity_curves(
-    data: StrainMapData, cine: str, nrad: int = 3, nang: int = 24,
-) -> np.ndarray:
-    """ TODO: Remove in the final version. """
-    from .strain import masked_reduction
-
-    vkey = f"cylindrical"
-    rkey = f"radial x{nrad}"
-    akey = f"angular x{nang}"
-    img_axis = tuple(range(len(data.masks[cine][vkey].shape)))[-2:]
-
-    cyl = data.masks[cine][vkey]
-    m = data.masks[cine][rkey] + 100 * data.masks[cine][akey]
-    r = masked_reduction(cyl, m, axis=img_axis)
-
-    return r - r.mean(axis=(1, 2, 3), keepdims=True)
 
 
 def marker(comp, low=1, high=49, maximum=True):
@@ -557,13 +610,13 @@ def update_marker(
     data.save(["markers", cine, vel_label])
 
 
-def initialise_markers(data: StrainMapData, cine: str, vel_labels: list):
-    """Initialises the markers for all the available velocities."""
-    data.markers[cine]["global"] = markers_positions(data.velocities[cine]["global"])
-
-    rvel = (key for key in vel_labels if key != "global")
-    for vel_label in rvel:
-        data.markers[cine][vel_label] = markers_positions(
-            data.velocities[cine][vel_label], data.markers[cine]["global"][0][1, 3],
-        )
-    return data
+# def initialise_markers(data: StrainMapData, cine: str, vel_labels: list):
+#     """Initialises the markers for all the available velocities."""
+#     data.markers[cine]["global"] = markers_positions(data.velocities[cine]["global"])
+#
+#     rvel = (key for key in vel_labels if key != "global")
+#     for vel_label in rvel:
+#         data.markers[cine][vel_label] = markers_positions(
+#             data.velocities[cine][vel_label], data.markers[cine]["global"][0][1, 3],
+#         )
+#     return data
