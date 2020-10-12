@@ -7,6 +7,7 @@ tests_require = [
     "pytest-mypy",
     "pytest-mock",
     "flake8<3.8.0",
+    "pytest-runner",
 ]
 pyinstaller = ["pyinstaller"]
 

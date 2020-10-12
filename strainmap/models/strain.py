@@ -642,9 +642,12 @@ def initialise_markers(data: StrainMapData, dataset: str, str_labels: list):
     In a healthy patient, the three markers should be roughly at the same position.
     """
     # The location of the ES marker is shifted by an approximate number of frames
-    pos_es = int(
-        data.markers[dataset]["global - Estimated"][0, 1, 3, 0]
-        - round(data.timeshift / data.data_files.time_interval(dataset))
+    pos_es = min(
+        int(
+            data.markers[dataset]["global - Estimated"][0, 1, 3, 0]
+            - round(data.timeshift / data.data_files.time_interval(dataset))
+        ),
+        data.data_files.frames - 1,
     )
 
     # Loop over the region types (global, angular, etc)
@@ -747,7 +750,7 @@ def shift_data(
     remainder = timeshift - time_interval * shift_frames
     new_time = np.arange(data.shape[axis]) + remainder
     new_data = np.roll(
-        interpolate.interp1d(time, d, axis=0)(new_time), -shift_frames, axis=0,
+        interpolate.interp1d(time, d, axis=0)(new_time), -shift_frames, axis=0
     )
     return np.moveaxis(new_data, 0, axis)
 
