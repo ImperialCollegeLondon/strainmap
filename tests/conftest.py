@@ -121,12 +121,16 @@ def control_with_mock_window(registered_views):
 @fixture
 def main_window():
     from strainmap.gui.base_window_and_task import MainWindow
+    from tkinter import _default_root
+
+    if _default_root is not None:
+        _default_root.destroy()
+        _default_root = None
 
     root = MainWindow()
     root.withdraw()
 
-    yield root
-    root.destroy()
+    return root
 
 
 @fixture
@@ -154,6 +158,7 @@ def velocities_view(main_window, data_with_velocities):
     import weakref
 
     StrainMap.data = data_with_velocities
+    StrainMap.window = main_window
     return VelocitiesTaskView(main_window, weakref.ref(StrainMap))
 
 

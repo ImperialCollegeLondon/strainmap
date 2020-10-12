@@ -48,6 +48,8 @@ class StrainTaskView(TaskViewBase):
         self.resample = tk.BooleanVar(value=True)
         self.gls = (tk.StringVar(), tk.StringVar(), tk.StringVar())
         self.timeshift_var = tk.DoubleVar(value=0.0)
+        self.export_btn = None
+        self.export_twist_btn = None
 
         # Figure-related variables
         self.fig = None
@@ -144,9 +146,14 @@ class StrainTaskView(TaskViewBase):
                 self.param_tables[-1].heading(l, text=l)
                 self.param_tables[-1].column(l, width=80, stretch=tk.YES, anchor=tk.E)
 
-        export_btn = ttk.Button(control, text="To Excel", command=self.export)
-        export_twist_btn = ttk.Button(
-            control, text="Export rotation", command=self.export_rotation
+        self.export_btn = ttk.Button(
+            control, text="To Excel", command=self.export, state="disabled"
+        )
+        self.export_twist_btn = ttk.Button(
+            control,
+            text="Export rotation",
+            command=self.export_rotation,
+            state="disabled",
         )
 
         # Grid all the widgets
@@ -164,8 +171,8 @@ class StrainTaskView(TaskViewBase):
         timeshift.grid(row=1, column=2, sticky=tk.NSEW)
         recalc_btn.grid(row=0, column=3, rowspan=2, sticky=tk.NSEW, padx=5)
         self.output_frame.grid(row=0, column=4, sticky=tk.NSEW)
-        export_btn.grid(row=0, column=98, sticky=tk.NSEW, padx=5)
-        export_twist_btn.grid(row=0, column=99, sticky=tk.NSEW, padx=5)
+        self.export_btn.grid(row=0, column=98, sticky=tk.NSEW, padx=5)
+        self.export_twist_btn.grid(row=0, column=99, sticky=tk.NSEW, padx=5)
         for i, table in enumerate(self.param_tables):
             table.grid(row=0, column=i, sticky=tk.NSEW, padx=5)
 
@@ -190,6 +197,19 @@ class StrainTaskView(TaskViewBase):
                 strain[:, i, :].max() + m,
             )
 
+    def display_plots(self, show=True):
+        """Show/hide the plots"""
+        if show:
+            self.visualise_frame.grid(row=1, column=0, sticky=tk.NSEW, padx=5, pady=5)
+            self.export_btn.state(["!disabled"])
+            self.export_twist_btn.state(["!disabled"])
+            self.controller.window.update()
+        else:
+            self.visualise_frame.grid_forget()
+            self.export_btn.state(["disabled"])
+            self.export_twist_btn.state(["disabled"])
+            self.controller.window.update()
+
     def replot(self):
         """Updates the plot to show the chosen strain."""
         strain_label = self.strain_var.get()
@@ -208,6 +228,8 @@ class StrainTaskView(TaskViewBase):
             self.scroll()
             self.draw()
             self.populate_tables()
+
+        self.display_plots(True)
 
     def marker_moved(self, table, marker):
         """Updates plot and table after a marker has been moved."""
@@ -355,6 +377,7 @@ class StrainTaskView(TaskViewBase):
         if self.exclude[1].get():
             datasets.pop(-1)
 
+        self.display_plots(False)
         self.controller.calculate_strain(
             datasets=datasets,
             effective_displacement=self.effective_disp.get(),

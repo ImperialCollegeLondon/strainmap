@@ -1,11 +1,14 @@
-import openpyxl as xlsx
-import h5py
-import numpy as np
-from typing import List, Union, Dict, Sequence, Optional
 import os
-from pathlib import PurePosixPath, PurePath, Path
-import sparse
 from itertools import chain
+from pathlib import Path, PurePath, PurePosixPath
+from typing import Dict, List, Optional, Sequence, Union
+
+import numpy as np
+import openpyxl as xlsx
+
+import h5py
+import sparse
+
 from .sm_data import LabelledArray
 
 

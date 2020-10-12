@@ -51,6 +51,8 @@ class VelocitiesTaskView(TaskViewBase):
         self.current_region = 0
         self.images = None
         self.update_vel_btn = None
+        self.export_btn = None
+        self.export_super_btn = None
         self.reverse_vel_var = (
             tk.BooleanVar(value=False),
             tk.BooleanVar(value=False),
@@ -171,15 +173,20 @@ class VelocitiesTaskView(TaskViewBase):
             command=self.change_orientation,
         ).grid(row=0, column=1, sticky=tk.NSEW)
 
-        export_btn = ttk.Button(control, text="To Excel", command=self.export)
-        export_super_btn = ttk.Button(
-            control, text="Export superpixels", command=self.export_superpixel
+        self.export_btn = ttk.Button(
+            control, text="To Excel", command=self.export, state="disabled"
+        )
+        self.export_super_btn = ttk.Button(
+            control,
+            text="Export superpixels",
+            command=self.export_superpixel,
+            state="disabled",
         )
 
         # Grid all the widgets
-        control.grid(sticky=tk.NSEW, pady=5)
-        self.visualise_frame.grid(sticky=tk.NSEW, padx=5, pady=5)
-        info.grid(sticky=tk.NSEW, pady=5)
+        control.grid(row=0, column=0, sticky=tk.NSEW, pady=5)
+        self.visualise_frame.grid(row=1, column=0, sticky=tk.NSEW, padx=5, pady=5)
+        info.grid(row=2, column=0, sticky=tk.NSEW, pady=5)
         dataset_frame.grid(row=0, column=0, sticky=tk.NSEW, padx=5)
         self.datasets_box.grid(row=0, column=0, sticky=tk.NSEW)
         # bg_frame.grid(row=1, column=0, sticky=tk.NSEW, padx=5)
@@ -191,8 +198,8 @@ class VelocitiesTaskView(TaskViewBase):
         self.update_vel_btn.grid(row=0, column=2, sticky=tk.NSEW, padx=5)
         orientation_frame.grid(row=0, column=3, sticky=tk.NSEW, padx=5)
         self.velocities_frame.grid(row=0, column=4, sticky=tk.NSEW, padx=5)
-        export_btn.grid(row=0, column=98, sticky=tk.NSEW, padx=5)
-        export_super_btn.grid(row=0, column=99, sticky=tk.NSEW, padx=5)
+        self.export_btn.grid(row=0, column=98, sticky=tk.NSEW, padx=5)
+        self.export_super_btn.grid(row=0, column=99, sticky=tk.NSEW, padx=5)
 
         for i, table in enumerate(self.param_tables):
             table.grid(row=0, column=i, sticky=tk.NSEW, padx=5)
@@ -251,6 +258,19 @@ class VelocitiesTaskView(TaskViewBase):
             m = (vel[:, i, :].max() - vel[:, i, :].min()) * 0.10
             self.vel_lim[label] = (vel[:, i, :].min() - m, vel[:, i, :].max() + m)
 
+    def display_plots(self, show=True):
+        """Show/hide the plots"""
+        if show:
+            self.visualise_frame.grid(row=1, column=0, sticky=tk.NSEW, padx=5, pady=5)
+            self.export_btn.state(["!disabled"])
+            self.export_super_btn.state(["!disabled"])
+            self.controller.window.update()
+        else:
+            self.visualise_frame.grid_forget()
+            self.export_btn.state(["disabled"])
+            self.export_super_btn.state(["disabled"])
+            self.controller.window.update()
+
     def replot(self):
         """Updates the plot to show the chosen velocity."""
         dataset = self.datasets_var.get()
@@ -277,6 +297,7 @@ class VelocitiesTaskView(TaskViewBase):
             self.draw()
             self.populate_tables()
 
+        self.display_plots(True)
         self.bg_var.set(self.velocities_var.get().split(" - ")[-1])
 
     def color_plots(self, dataset, vel_label):
@@ -452,6 +473,7 @@ class VelocitiesTaskView(TaskViewBase):
 
     def calculate_velocities(self, dataset, bg=None, init_markers=True):
         """Calculate pre-defined velocities for the chosen dataset."""
+        self.display_plots(False)
         self.controller.calculate_velocities(
             dataset_name=dataset,
             global_velocity=True,
