@@ -31,6 +31,8 @@ class DataTaskView(TaskViewBase):
 
         self.data_folder = tk.StringVar(value="")
         self.output_file = tk.StringVar(value="")
+        self.datafolder_entry = None
+        self.outputfile_entry = None
         self.current_dir = os.path.expanduser("~")
         self.control = None
         self.dataselector = None
@@ -49,13 +51,13 @@ class DataTaskView(TaskViewBase):
     def create_controls(self) -> None:
         """ Creates the controls to load and save data."""
         self.control = ttk.Frame(master=self, width=300, name="control")
-        self.control.grid(column=0, row=0, sticky=tk.NSEW, padx=10, pady=10)
+        self.control.grid(column=0, row=0, sticky=tk.NSEW, pady=5)
         self.control.rowconfigure(50, weight=1)
         self.control.grid_propagate(flag=False)
         self.control.columnconfigure(1, weight=1)
 
         self.visualise = ttk.Frame(master=self, name="visualise")
-        self.visualise.grid(column=1, row=0, sticky=tk.NSEW, padx=10, pady=10)
+        self.visualise.grid(column=1, row=0, sticky=tk.NSEW, padx=5, pady=5)
         self.visualise.columnconfigure(0, weight=1)
         self.visualise.rowconfigure(0, weight=1)
         self.visualise.grid_propagate(flag=False)
@@ -87,15 +89,18 @@ class DataTaskView(TaskViewBase):
             row=4, sticky=tk.W, pady=5
         )
 
-        ttk.Entry(
-            master=self.control, textvariable=self.data_folder, state="disabled"
-        ).grid(row=4, column=1, sticky=tk.NSEW, pady=5)
+        self.datafolder_entry = ttk.Entry(
+            master=self.control, textvariable=self.data_folder, state="readonly"
+        )
+        self.datafolder_entry.grid(
+            row=5, column=0, columnspan=2, sticky=tk.NSEW, pady=5
+        )
+        ttk.Label(master=self.control, text="Output file: ").grid(row=6, sticky=tk.W)
 
-        ttk.Label(master=self.control, text="Output file: ").grid(row=5, sticky=tk.W)
-
-        ttk.Entry(
-            master=self.control, textvariable=self.output_file, state="disabled"
-        ).grid(row=5, column=1, sticky=tk.NSEW)
+        self.outputfile_entry = ttk.Entry(
+            master=self.control, textvariable=self.output_file, state="readonly"
+        )
+        self.outputfile_entry.grid(row=7, column=0, columnspan=2, sticky=tk.NSEW)
 
         ttk.Button(
             master=self.control,
@@ -195,7 +200,7 @@ class DataTaskView(TaskViewBase):
         frame.rowconfigure(0, weight=1)
 
         treeview = ttk.Treeview(frame, selectmode="browse")
-        vsb = ttk.Scrollbar(frame, orient="vertical", command=treeview.yview())
+        vsb = ttk.Scrollbar(frame, orient="vertical", command=treeview.yview)
         treeview.configure(yscrollcommand=vsb.set)
         treeview.grid(column=0, row=0, sticky=tk.NSEW, padx=5, pady=5)
         vsb.grid(column=1, row=0, sticky=tk.NSEW)
@@ -340,6 +345,12 @@ class DataTaskView(TaskViewBase):
         self.fig.actions_manager.ScrollFrames.clear()
 
         ax = self.fig.axes[-1]
+        clim = xlim = ylim = None
+        if len(ax.images) > 0:
+            clim = ax.images[0].get_clim()
+            xlim = ax.get_xlim()
+            ylim = ax.get_ylim()
+
         ax.clear()
         ax.get_xaxis().set_visible(False)
         ax.get_yaxis().set_visible(False)
@@ -354,6 +365,12 @@ class DataTaskView(TaskViewBase):
         )
 
         self.fig.canvas.draw_idle()
+        if clim is not None:
+            ax.images[0].set_clim(*clim)
+            ax.set_xlim(*xlim)
+            ax.set_ylim(*ylim)
+
+        self.fig.canvas.draw()
 
     def update_dicom_data_view(self):
         """ Updates the treeview with data from the selected options.
@@ -367,7 +384,10 @@ class DataTaskView(TaskViewBase):
         data = self.data.data_files.tags(series, variable) if series != "" else []
 
         for d in data:
-            self.treeview.insert("", tk.END, values=(d, data.get(d)))
+            value = data.get(d)
+            if isinstance(value, bytes):
+                value = "{binary data}"
+            self.treeview.insert("", tk.END, values=(d, value))
 
     def stop_animation(self):
         """Stops an animation, if there is one running."""
@@ -382,6 +402,8 @@ class DataTaskView(TaskViewBase):
         self.create_data_viewer()
         if self.data.data_files is not None:
             self.update_visualization()
+        self.datafolder_entry.xview(len(self.data_folder.get()))
+        self.outputfile_entry.xview(len(self.output_file.get()))
 
     def clear_widgets(self):
         """ Clear widgets after removing the data. """

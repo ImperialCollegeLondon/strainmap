@@ -1,4 +1,5 @@
 from pytest import mark, approx
+from unittest.mock import MagicMock
 
 
 def test_from_folder(dicom_data_path):
@@ -35,7 +36,6 @@ def test_save(tmpdir, segmented_data):
     assert not segmented_data.strainmap_file[s][()] == approx(42)
 
 
-# @mark.skipif(sys.platform == "win32", reason="does not run on windows in Azure")
 @mark.xfail
 def test_from_file(dicom_data_path, h5_file_path):
     from strainmap.models.strainmap_data_model import StrainMapData
@@ -55,3 +55,11 @@ def test_from_file(dicom_data_path, h5_file_path):
                 h5_file_path, data.strainmap_file[f"/data_files/{cine}/{comp}"][:]
             )
             assert (variable == paths).all()
+
+
+def test_set_orientation(strainmap_data):
+    strainmap_data.save = MagicMock()
+    strainmap_data.orientation = "CW"
+    strainmap_data.set_orientation("CCW")
+    assert strainmap_data.orientation == "CCW"
+    assert strainmap_data.save.called_once()

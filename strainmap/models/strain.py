@@ -215,7 +215,7 @@ def coordinates(
     akey = f"angular x{nang}"
 
     m_iter = (data.masks[d][rkey] + 100 * data.masks[d][akey] for d in datasets)
-    z_loc = np.array([data.data_files.slice_loc(d) for d in datasets])
+    z_loc = np.array([data.data_files.cine_loc(d) for d in datasets])
     theta0_iter = (find_theta0(data.septum[d]) for d in datasets)
     origin_iter = (data.septum[d][..., 1] for d in datasets)
     px_size = data.data_files.pixel_size(datasets[0])
@@ -743,7 +743,7 @@ def shift_data(
     remainder = timeshift - time_interval * shift_frames
     new_time = np.arange(data.shape[axis]) + remainder
     new_data = np.roll(
-        interpolate.interp1d(time, d, axis=0)(new_time), -shift_frames, axis=0,
+        interpolate.interp1d(time, d, axis=0)(new_time), -shift_frames, axis=0
     )
     return np.moveaxis(new_data, 0, axis)
 

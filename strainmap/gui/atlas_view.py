@@ -95,6 +95,7 @@ class AtlasTaskView(TaskViewBase):
 
     def update_plots(self):
         """Updates the plots with the new data."""
+        self.controller.progress(f"Updating plots...")
         self.pss.update_plot(self.atlas_data)
         self.ess.update_plot(self.atlas_data)
         self.ps.update_plot(self.atlas_data)
@@ -152,7 +153,7 @@ class AtlasTaskView(TaskViewBase):
         table_frame.rowconfigure(0, weight=1)
 
         treeview = ttk.Treeview(table_frame, selectmode="browse")
-        vsb = ttk.Scrollbar(table_frame, orient="vertical", command=treeview.yview())
+        vsb = ttk.Scrollbar(table_frame, orient="vertical", command=treeview.yview)
         treeview.configure(yscrollcommand=vsb.set)
         treeview.grid(column=0, row=0, sticky=tk.NSEW, padx=5, pady=5)
         vsb.grid(column=1, row=0, sticky=tk.NSEW)
@@ -163,7 +164,7 @@ class AtlasTaskView(TaskViewBase):
             treeview.column(v, width=80, stretch=True)
             treeview.heading(v, text=v)
 
-        for i, row in data.iterrows():
+        for i, row in data.round(decimals=2).iterrows():
             treeview.insert("", tk.END, values=tuple(row))
 
         self.notebook.add(frame, text="Data")
@@ -175,8 +176,9 @@ class AtlasTaskView(TaskViewBase):
         Args:
             data (pd.DataFrame): Dataframe containing all the data.
         """
+        self.controller.progress(f"Updating table...")
         self.table.delete(*self.table.get_children())
-        for i, row in data.iterrows():
+        for i, row in data.round(decimals=2).iterrows():
             self.table.insert("", tk.END, values=tuple(row))
 
     def create_datasets_selector(self) -> SliceBoxes:
@@ -236,6 +238,7 @@ class AtlasTaskView(TaskViewBase):
         self.save_atlas(self.path)
         self.update_table(self.atlas_data)
         self.update_plots()
+        self.controller.progress(f"Record {record} removed!")
 
     def include_exclude_record(self, *args):
         """Include and exclude a record from the plots without deleting it."""
@@ -250,6 +253,7 @@ class AtlasTaskView(TaskViewBase):
         self.save_atlas(self.path)
         self.update_table(self.atlas_data)
         self.update_plots()
+        self.controller.progress(f"Record {record} inclusion/exclusion updated!")
 
     def include_exclude_selected(self, *args):
         """Include and exclude selected row from the plots without deleting it."""
@@ -261,6 +265,7 @@ class AtlasTaskView(TaskViewBase):
         self.save_atlas(self.path)
         self.update_table(self.atlas_data)
         self.update_plots()
+        self.controller.progress(f"Selection inclusion/exclusion updated!")
 
     def load_atlas(self, *args, path: Optional[Path] = None):
         """Loads atlas database and updates the plots and table.
@@ -282,6 +287,7 @@ class AtlasTaskView(TaskViewBase):
 
         self.update_table(self.atlas_data)
         self.update_plots()
+        self.controller.progress(f"Atlas loaded from '{path}'.")
 
     def save_as_atlas(self, *args):
         """Save the atlas with a new name."""
@@ -296,10 +302,12 @@ class AtlasTaskView(TaskViewBase):
             return
 
         self.save_atlas(filename)
+        self.controller.progress(f"Atlas saved at '{filename}!")
 
     def save_atlas(self, filename: Path):
         """Save the atlas using the currently selected filename."""
         try:
+            self.controller.progress(f"Saving atlas...")
             self.atlas_data.to_csv(filename, index=False)
             self.path = Path(filename)
         except ValueError as err:
@@ -349,6 +357,7 @@ class AtlasTaskView(TaskViewBase):
         self.update_table(self.atlas_data)
         self.update_plots()
         self.overlay(data)
+        self.controller.progress(f"New record added to the atlas!")
 
     def get_new_data(self) -> Optional[pd.DataFrame]:
         """Get new data from the current patient and add it to the database."""
@@ -358,12 +367,15 @@ class AtlasTaskView(TaskViewBase):
             self.controller.progress("No patient data available. Load data to proceed.")
             return None
 
+        step = (
+            slice(2, None, 1) if self.data.orientation == "CW" else slice(None, 1, -1)
+        )
         data = extract_strain_markers(
             h5file=self.data.strainmap_file,
             datasets={k.get(): v for k, v in zip(self.dataset_box, SLICES)},
             regions={
                 "global - Estimated": REGIONS[:1],
-                "angular x6 - Estimated": REGIONS[2:],
+                "angular x6 - Estimated": REGIONS[step],
             },
         )
         data["Record"] = (
@@ -400,7 +412,7 @@ def buttons_frame(
     for i, (text, callback) in enumerate(buttons.items()):
         row, col = (i, 0) if vert else (i, 0)
         ttk.Button(master=frame, text=text, command=callback).grid(
-            row=row, column=col, sticky=tk.NSEW, padx=5, pady=5,
+            row=row, column=col, sticky=tk.NSEW, padx=5, pady=5
         )
 
     return frame

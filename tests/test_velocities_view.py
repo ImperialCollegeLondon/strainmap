@@ -66,3 +66,13 @@ def test_color_plot(velocities_view, data_with_velocities):
 
     assert len(velocities_view.fig.axes) == 6  # 3 axes + 3 colorbars
     assert actual == approx(expected)
+
+
+def test_change_orientation(velocities_view):
+    velocities_view.data.orientation = "CCW"
+    velocities_view.data.set_orientation = MagicMock()
+    velocities_view.populate_tables = MagicMock()
+
+    velocities_view.change_orientation()
+    assert velocities_view.data.set_orientation.called_once()
+    assert velocities_view.populate_tables.called_once()
