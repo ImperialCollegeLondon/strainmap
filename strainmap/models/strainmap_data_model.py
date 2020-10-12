@@ -47,6 +47,7 @@ class StrainMapData(object):
     stored = (
         "data_files",
         "sign_reversal",
+        "orientation",
         "segments",
         "septum",
         "markers",
@@ -85,6 +86,7 @@ class StrainMapData(object):
         self.segments: xr.DataArray = xr.DataArray()
         self.centroid: xr.DataArray = xr.DataArray()
         self.septum: xr.DataArray = xr.DataArray()
+        self.orientation: str = "CW"
         self.velocities: dict = defaultdict(dict)
         self.masks: dict = defaultdict(dict)
         self.markers: dict = defaultdict(dict)
@@ -119,6 +121,11 @@ class StrainMapData(object):
         self.strainmap_file = h5py.File(strainmap_file, "a")
         self.save_all()
         return True
+
+    def set_orientation(self, orientation):
+        """Sets the angular regions orientation (CW or CCW) and saves the data"""
+        self.orientation = orientation
+        self.save(["orientation"])
 
     def regenerate(self):
         """We create placeholders for the velocities that were expected.
@@ -172,7 +179,7 @@ class StrainMapData(object):
             output = dict()
             dataset = self.data_files.datasets[0]
         else:
-            output = {"Dataset": dataset}
+            output = {"Cine": dataset}
 
         patient_data = self.data_files.tags(dataset)
         output.update(
@@ -180,6 +187,15 @@ class StrainMapData(object):
                 "Patient Name": str(patient_data.get("PatientName", "")),
                 "Patient DOB": str(patient_data.get("PatientBirthDate", "")),
                 "Date of Scan": str(patient_data.get("StudyDate", "")),
+                "Cine offset (mm)": str(self.data_files.slice_loc(dataset) * 10),
+                "Mean RR interval (ms)": str(
+                    patient_data.get("ImageComments", "")
+                    .strip("RR ")
+                    .replace(" +/- ", "±")
+                ),
+                "FOV size (rows x cols)": f"{patient_data.get('Rows', '')}x"
+                f"{patient_data.get('Columns', '')}",
+                "Pixel size (mm)": str(self.data_files.pixel_size(dataset) * 10),
             }
         )
         return output
@@ -197,7 +213,7 @@ class StrainMapData(object):
         Each dataset to be saved must be defined as a list of keys, where key[0] must be
         one of the StrainMapData attributes (segments, velocities, etc.)
 
-        TODO: Datya saving is now done by whole attributes
+        TODO: Data saving is now done by whole attributes
         """
         from .writers import write_data_structure
 

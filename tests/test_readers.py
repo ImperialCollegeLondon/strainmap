@@ -131,7 +131,7 @@ def test_dicom_reader():
     assert files.is_avail
     assert len(files.datasets) == 5
     assert list(files.sensitivity) == [60.0, 40.0, 40.0]
-    swap, signs = files.orientation(files.datasets[0])
+    swap, signs = files.phase_encoding(files.datasets[0])
     assert not swap
     assert list(signs) == [1, -1, 1]
     assert files.tags(files.datasets[0])["PatientName"] == "CM"

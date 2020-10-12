@@ -121,7 +121,7 @@ def test_quick_segmentation(septum, centroid, segmentation_view, strainmap_data)
     septum.return_value = 0
     segmentation_view.septum = np.zeros((3, 2, 2))
 
-    segmentation_view.quick_segment_var.set(True)
+    segmentation_view.segment_mode_var.set("Automatic")
     contour = np.random.random((2, 5))
     points = np.random.random((2, 2))
 
@@ -266,8 +266,7 @@ def test_next_frames(segmentation_view, strainmap_data):
 
     # First frame
     segmentation_view.first_frame()
-    segmentation_view.new_segmentation.assert_called_with(0, unlock=False)
-    segmentation_view.replot.assert_called_with("")
+    segmentation_view.find_segmentation.assert_called_with(0, unlock=False, replace_threshold=31)
     assert segmentation_view.go_to_frame.call_count == 1
 
     # Other frames

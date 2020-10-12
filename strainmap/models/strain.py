@@ -743,7 +743,7 @@ def shift_data(
     remainder = timeshift - time_interval * shift_frames
     new_time = np.arange(data.shape[axis]) + remainder
     new_data = np.roll(
-        interpolate.interp1d(time, d, axis=0)(new_time), -shift_frames, axis=0,
+        interpolate.interp1d(time, d, axis=0)(new_time), -shift_frames, axis=0
     )
     return np.moveaxis(new_data, 0, axis)
 

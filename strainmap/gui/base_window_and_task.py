@@ -65,7 +65,7 @@ class TaskViewBase(ABC, ttk.Frame):
         if button_image is not None:
             self.image = Image.open(ICONS_DIRECTORY / button_image)
         else:
-            self.image = Image.new("RGB", (80, 80))
+            self.image = Image.new("RGB", (40, 40))
 
         self.image = ImageTk.PhotoImage(self.image)
 
@@ -80,6 +80,8 @@ class TaskViewBase(ABC, ttk.Frame):
     def tkraise(self, *args):
         """Brings the frame to the front."""
         super().tkraise()
+        self.master.bind("<Control_L><p>", lambda x: None)
+        self.controller.progress("")
         if self.is_stale:
             self.update_widgets()
             self.is_stale = False
@@ -131,7 +133,7 @@ def fixed_map(option, style):
     return [
         elm
         for elm in style.map("Treeview", query_opt=option)
-        if elm[:2] != ("!disabled", "!selected")
+        if elm[0] != "!disabled !selected"
     ]
 
 
@@ -152,18 +154,14 @@ class MainWindow(tk.Tk):
 
         self.title("StrainMap")
         self.minsize(1280, 720)
-        self.geometry(
-            "{0}x{1}+0+0".format(
-                self.winfo_screenwidth() - 3, self.winfo_screenheight() - 3
-            )
-        )
+        self.geometry(f"{0}x{1}+0+0".format(1280, 720))
         self.protocol("WM_DELETE_WINDOW", self.__quit)
         self.closed = False
 
         self.rowconfigure(1, weight=1)
         self.columnconfigure(1, weight=1)
 
-        self.button_frame = ttk.Frame(self, width=150)
+        self.button_frame = ttk.Frame(self, width=90)
         self.button_frame.grid(column=0, row=1, sticky=tk.NS)
         self.button_frame.columnconfigure(0, weight=1)
         self.button_frame.rowconfigure(50, weight=1)
@@ -184,8 +182,8 @@ class MainWindow(tk.Tk):
             length=300,
         )
         self.msg_frame.grid(column=0, row=99, columnspan=2, sticky=tk.EW)
-        self.bar.grid(column=0, row=0, sticky=tk.EW, padx=10, pady=5)
-        self.msg.grid(column=1, row=0, sticky=tk.EW, padx=10, pady=5)
+        self.bar.grid(column=0, row=0, sticky=tk.EW, padx=5, pady=5)
+        self.msg.grid(column=1, row=0, sticky=tk.EW, padx=5, pady=5)
         self.msg_frame.columnconfigure(1, weight=1)
 
     @property
@@ -202,10 +200,10 @@ class MainWindow(tk.Tk):
             v = view(root=self, controller=controller)
             if v.button_row is not None:
                 v.button.grid(
-                    column=0, row=v.button_row, sticky=(tk.EW, tk.N), padx=10, pady=10
+                    column=0, row=v.button_row, sticky=(tk.EW, tk.N), padx=5, pady=5
                 )
             else:
-                v.button.grid(column=0, sticky=(tk.EW, tk.N), padx=10, pady=10)
+                v.button.grid(column=0, sticky=(tk.EW, tk.N), padx=5, pady=5)
             v.grid(column=1, row=1, sticky=tk.NSEW)
             v.lower()
 

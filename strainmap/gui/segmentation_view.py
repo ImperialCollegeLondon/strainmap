@@ -15,22 +15,35 @@ from matplotlib.figure import Figure
 from .base_window_and_task import Requisites, TaskViewBase, register_view
 from .figure_actions import (
     BrightnessAndContrast,
+    DragContours,
     DrawContours,
+    Markers,
     ScrollFrames,
     ZoomAndPan,
-    DragContours,
-    Markers,
     circle,
     single_point,
 )
 from .figure_actions_manager import (
-    FigureActionsManager,
-    TriggerSignature,
     Button,
-    MouseAction,
+    FigureActionsManager,
     Location,
+    MouseAction,
+    TriggerSignature,
 )
 from ..models.contour_mask import Contour
+
+
+def change_state(widget, enabled=True):
+    """Change the state of a widget and all its children - if any - recursively."""
+    state = "!disabled" if enabled else "disabled"
+    # Is this widget a container?
+    if widget.winfo_children:
+        # It's a container, so iterate through its children
+        for w in widget.winfo_children():
+            w.state((state,))
+            change_state(w, enabled)
+    else:
+        widget.state((state,))
 
 
 @register_view
@@ -43,7 +56,7 @@ class SegmentationTaskView(TaskViewBase):
         super().__init__(
             root,
             controller,
-            button_text="Segmentation",
+            button_text="Segment",
             button_image="molecules.gif",
             button_row=1,
         )
@@ -64,7 +77,7 @@ class SegmentationTaskView(TaskViewBase):
         self.undo_stack = defaultdict(list)
         self.working_frame_var = tk.IntVar(value=0)
         self.initialization = None
-        self.quick_segment_var = tk.BooleanVar(value=False)
+        self.segment_mode_var = tk.StringVar(value="Assisted")
         self.completed = False
 
         # Visualization-related attributes
@@ -85,6 +98,10 @@ class SegmentationTaskView(TaskViewBase):
 
         self.create_controls()
 
+    def tkraise(self, *args):
+        super(SegmentationTaskView, self).tkraise()
+        self.master.bind("<Control_L><p>", self.copy_previous)
+
     def create_controls(self):
         """ Creates all the widgets of the view. """
         # Top frames
@@ -97,54 +114,59 @@ class SegmentationTaskView(TaskViewBase):
         # Dataset frame
         cine_frame = ttk.Labelframe(control, text="Cines:")
         cine_frame.columnconfigure(0, weight=1)
-        cine_frame.rowconfigure(0, weight=1)
 
         self.cines_box = ttk.Combobox(
             master=cine_frame, textvariable=self.cines_var, values=[], state="readonly",
         )
         self.cines_box.bind("<<ComboboxSelected>>", self.cine_changed)
 
+        # Confirm/clear buttons
+        button_frame = ttk.Frame(master=control)
+        button_frame.columnconfigure(0, weight=1)
+        button_frame.rowconfigure(0, weight=1)
         self.clear_btn = ttk.Button(
-            master=control,
+            master=button_frame,
             text="Clear segmentation",
             state="disabled",
             width=20,
             command=self.clear_segment_variables,
         )
-
+        self.clear_btn.grid(row=1, column=0, sticky=(tk.N, tk.E, tk.S))
         self.confirm_btn = ttk.Button(
-            master=control,
+            master=button_frame,
             text="Confirm segmentation",
             state="disabled",
             width=20,
             command=self.confirm_segmentation,
         )
+        self.confirm_btn.grid(row=2, column=0, sticky=(tk.N, tk.E, tk.S))
 
-        # Automatic segmentation frame
-        segment_frame = ttk.Labelframe(control, text="Automatic segmentation:")
-        segment_frame.columnconfigure(0, weight=1)
-        segment_frame.rowconfigure(0, weight=1)
-        segment_frame.rowconfigure(1, weight=1)
+        # Init frame
+        init_frame = ttk.Labelframe(control, text="Initial values:")
+        init_frame.columnconfigure(0, weight=1)
+        for i, var in enumerate(
+            (self.endo_redy_var, self.epi_redy_var, self.septum_redy_var)
+        ):
+            init_frame.rowconfigure(i, weight=1)
+            ttk.Label(master=init_frame, textvariable=var, width=18).grid(
+                row=i, column=0, sticky=tk.NSEW
+            )
 
-        endo_redy_lbl = ttk.Label(
-            master=segment_frame, textvariable=self.endo_redy_var, width=18
-        )
-        epi_redy_lbl = ttk.Label(
-            master=segment_frame, textvariable=self.epi_redy_var, width=18
-        )
-        septum_redy_lbl = ttk.Label(
-            master=segment_frame, textvariable=self.septum_redy_var, width=18
-        )
+        # Mode frame
+        self.segment_mode_frame = ttk.Labelframe(control, text="Segmentation mode:")
+        for i, mode in enumerate(("Manual", "Assisted", "Automatic")):
+            self.segment_mode_frame.rowconfigure(i, weight=1)
+            ttk.Radiobutton(
+                self.segment_mode_frame,
+                text=mode,
+                value=mode,
+                variable=self.segment_mode_var,
+                state="enable",
+                width=18,
+            ).grid(row=i, column=0, sticky=tk.NSEW)
 
-        self.quick_checkbox = ttk.Checkbutton(
-            master=segment_frame,
-            text="Quick segmentation",
-            variable=self.quick_segment_var,
-            state="enable",
-        )
-
-        # Manual segmentation frame
-        manual_frame = ttk.Labelframe(control, text="Manual segmentation:")
+        # Corrections frame
+        manual_frame = ttk.Labelframe(control, text="Manual corrections:")
         manual_frame.columnconfigure(0, weight=1)
 
         drag_lbl = ttk.Label(manual_frame, text="Drag width: ")
@@ -201,28 +223,24 @@ class SegmentationTaskView(TaskViewBase):
             maximum=49.0,
         )
 
-        control.grid(sticky=tk.NSEW, padx=10, pady=10)
-        visualise_frame.grid(sticky=tk.NSEW, padx=10)
+        control.grid(sticky=tk.NSEW, pady=5)
+        visualise_frame.grid(sticky=tk.NSEW, padx=5, pady=5)
         cine_frame.grid(row=0, column=0, sticky=tk.NSEW, padx=5)
         self.cines_box.grid(row=0, column=0, sticky=tk.NSEW)
-        self.clear_btn.grid(row=0, column=50, sticky=(tk.N, tk.E, tk.S))
-        self.confirm_btn.grid(row=1, column=50, sticky=(tk.N, tk.E, tk.S))
-        segment_frame.grid(row=0, column=1, rowspan=3, sticky=tk.NSEW, padx=5)
-        endo_redy_lbl.grid(row=0, column=0, sticky=tk.NSEW)
-        epi_redy_lbl.grid(row=1, column=0, sticky=tk.NSEW)
-        septum_redy_lbl.grid(row=0, column=1, sticky=tk.NSEW)
-        self.quick_checkbox.grid(row=1, column=1, sticky=tk.NSEW)
-        manual_frame.grid(row=0, column=3, rowspan=3, sticky=tk.NSEW, padx=5)
+        init_frame.grid(row=0, column=1, sticky=tk.NSEW, padx=5)
+        self.segment_mode_frame.grid(row=0, column=2, sticky=tk.NSEW, padx=5)
+        manual_frame.grid(row=0, column=3, sticky=tk.NSEW, padx=5)
+        button_frame.grid(row=0, column=99, sticky=tk.NSEW, padx=5)
         drag_lbl.grid(row=0, sticky=tk.NSEW, padx=5, pady=5)
         width_lbl.grid(row=0, column=1, sticky=tk.E, padx=5, pady=5)
-        scale.grid(row=1, column=0, columnspan=2, sticky=tk.NSEW, padx=5, pady=5)
+        scale.grid(row=1, column=0, columnspan=2, sticky=tk.NSEW, padx=5)
         self.undo_last_btn.grid(row=0, column=2, sticky=tk.NSEW)
         self.undo_all_btn.grid(row=1, column=2, sticky=tk.NSEW)
-        progress_frame.grid(row=0, column=0, columnspan=4, sticky=tk.NSEW, padx=5)
-        progress_lbl.grid(row=0, column=0, sticky=tk.NSEW, padx=5, pady=5)
-        frame_btn.grid(row=0, column=1, sticky=tk.NSEW, padx=5, pady=5)
-        self.next_btn.grid(row=0, column=2, sticky=tk.NSEW, padx=5, pady=5)
-        self.pbar.grid(row=0, column=3, sticky=tk.NSEW, pady=5)
+        progress_frame.grid(row=0, column=0, columnspan=4, sticky=tk.NSEW)
+        progress_lbl.grid(row=0, column=0, sticky=tk.NSEW, padx=5)
+        frame_btn.grid(row=0, column=1, sticky=tk.NSEW)
+        self.next_btn.grid(row=0, column=2, sticky=tk.NSEW, padx=5)
+        self.pbar.grid(row=0, column=3, sticky=tk.NSEW)
 
         self.create_plots(visualise_frame)
         self.update_drag_width()
@@ -282,6 +300,7 @@ class SegmentationTaskView(TaskViewBase):
     def cine_changed(self, *args):
         """Updates the GUI when a new cine is chosen."""
         cine = self.cines_var.get()
+        self.clear_segment_variables(button_pressed=False)
         self.update_state(cine)
         self.replot(cine)
 
@@ -299,6 +318,7 @@ class SegmentationTaskView(TaskViewBase):
             xlim = self.ax_mag.get_xlim()
             ylim = self.ax_mag.get_ylim()
 
+        self.fig.suptitle("")
         self.ax_mag.lines.clear()
         self.ax_vel.lines.clear()
         self.ax_mag.images.clear()
@@ -399,14 +419,14 @@ class SegmentationTaskView(TaskViewBase):
                 self.ax_mag.plot(*self.initial_segments.sel(side=side), **style)
                 self.ax_vel.plot(*self.initial_segments.sel(side=side), **style)
 
-    def refresh_data(self):
+    def refresh_data(self, offset=0):
         """Refresh the data available in the local variables."""
         cine = self.cines_var.get()
         self._septum.loc[{"frame": self.current_frame}] = self.data.septum.sel(
-            cine=cine, frame=self.current_frame
+            cine=cine, frame=self.current_frame- abs(offset)
         )
         self._segments.loc[{"frame": self.current_frame}] = self.data.segments.sel(
-            cine=cine, frame=self.current_frame
+            cine=cine, frame=self.current_frame- abs(offset)
         )
 
     @property
@@ -485,6 +505,69 @@ class SegmentationTaskView(TaskViewBase):
         frame = self.working_frame_var.get()
         self.fig.actions_manager.ScrollFrames.go_to_frame(frame, self.fig.axes[0])
         self.fig.canvas.draw_idle()
+
+    def copy_previous(self, *args):
+        """Copies the segmentation of the previous frame into this one."""
+        wf = self.working_frame_var.get()
+        if wf == 0 or wf != self.current_frame or self.completed:
+            return
+
+        self.refresh_data(-1)
+        self.go_to_frame()
+
+    def first_frame(self, replace_threshold=31):
+        """Triggers the segmentation when frame is 0."""
+        self.next_btn.config(
+            text="Next \u25B6",
+            command=partial(self.next, replace_threshold=replace_threshold),
+        )
+        self.find_segmentation(
+            0, self.initial_segments, replace_threshold=replace_threshold
+        )
+        self.replot(self.datasets_var.get())
+        self.zero_angle[self.current_frame] = np.array((self.septum, self.centroid)).T
+        self.go_to_frame()
+
+    def next(self, replace_threshold=31):
+        """Triggers the segmentation in the rest of the frames."""
+        self.next_btn.state(["disabled"])
+        self.update_and_find_next(replace_threshold=replace_threshold)
+        self.refresh_data()
+        self.zero_angle[self.current_frame] = np.array((self.septum, self.centroid)).T
+
+        frame = self.working_frame_var.get()
+        if frame == self.num_frames - 2:
+            self.next_btn.config(command=self.finish_segmentation)
+
+        self.working_frame_var.set(frame + 1)
+        self.current_frame = frame + 1
+        self.zero_angle[self.current_frame] = np.array((self.septum, self.centroid)).T
+        self.go_to_frame()
+        self.next_btn.state(["!disabled"])
+
+    def quick_segmentation(self):
+        """Triggers a quick segmentation of the whole dataset."""
+        self.find_segmentation(
+            slice(None), self.initial_segments, self.septum, unlock=True
+        )
+        self.finish_segmentation(update=False)
+        self.replot(self.datasets_var.get())
+        self.working_frame_var.set(self.num_frames - 1)
+        self.go_to_frame()
+
+    def finish_segmentation(self, update=True):
+        """Finish the segmentation, updating values and state of buttons."""
+        if update:
+            self.controller.update_segmentation(
+                dataset_name=self.datasets_var.get(),
+                segments=self.final_segments,
+                zero_angle=self.zero_angle,
+                frame=slice(None),
+            )
+        self.next_btn.config(text="Done!")
+        self.next_btn.state(["disabled"])
+        self.datasets_box.state(["!disabled"])
+        self.completed = True
 
     def scroll(self, frame, image=None):
         """Provides the next images and lines to plot when scrolling."""
@@ -646,7 +729,7 @@ class SegmentationTaskView(TaskViewBase):
         markers = self.fig.actions_manager.Markers
         drag = self.fig.actions_manager.DragContours
         self.switch_mark_state("septum mid-point", "ready")
-        self.quick_checkbox.state(["disabled"])
+        change_state(self.segment_mode_frame, enabled=False)
 
         options = dict(marker="o", markersize=8, color="r")
 
@@ -695,10 +778,12 @@ class SegmentationTaskView(TaskViewBase):
         self.fig.actions_manager.DrawContours.num_contours = 0
         self.next_btn.state(["!disabled"])
 
-        if self.quick_segment_var.get():
+        if self.segment_mode_var.get() == "Automatic":
             self.quick_segmentation()
-        else:
+        elif self.segment_mode_var.get() == "Assisted":
             self.first_frame()
+        else:
+            self.first_frame(replace_threshold=1)
 
     def clear_segment_variables(self, button_pressed=True):
         """Clears all segmentation when a cine with no segmentation is loaded."""
@@ -713,10 +798,10 @@ class SegmentationTaskView(TaskViewBase):
         self.undo_stack = defaultdict(list)
         self.working_frame_var.set(0)
         self.current_frame = 0
-        self.next_btn.state(["disabled"])
-        self.cines_box.state(["!disabled"])
-        self.quick_checkbox.state(["!disabled"])
-        self.confirm_btn.state(["disabled"])
+        change_state(self.next_btn, enabled=False)
+        change_state(self.confirm_btn, enabled=False)
+        change_state(self.datasets_box, enabled=True)
+        change_state(self.segment_mode_frame, enabled=True)
         self.completed = False
         self.next_btn.config(text="Next \u25B6", command=self.first_frame)
         self.fig.actions_manager.DragContours.disabled = False
@@ -740,47 +825,9 @@ class SegmentationTaskView(TaskViewBase):
         self.replot(self.cines_var.get())
         self.go_to_frame()
 
-    def next(self):
-        """Triggers the segmentation in the rest of the frames."""
-        self.next_btn.state(["disabled"])
-        self.confirm_btn.state(["disabled"])
-        self.undo_last_btn.state(["disabled"])
-        self.undo_all_btn.state(["disabled"])
-        self.undo_stack = defaultdict(list)
-
-        self.update_and_find_next()
-        self.refresh_data()
-
-        frame = self.working_frame_var.get()
-        if frame == self.num_frames - 2:
-            self.next_btn.config(command=self.finish_segmentation)
-
-        self.working_frame_var.set(frame + 1)
-        self.current_frame = frame + 1
-        self.refresh_data()
-        self.go_to_frame()
-        self.next_btn.state(["!disabled"])
-
-    def finish_segmentation(self, update=True):
-        """Finish the segmentation, updating values and state of buttons."""
-        if update:
-            self.controller.update_segmentation(
-                cine=self.cines_var.get(),
-                new_segments=self._segments,
-                new_septum=self._septum,
-                unlock=True,
-            )
-        self.next_btn.config(text="Done!")
-        self.next_btn.state(["disabled"])
-        self.cines_box.state(["!disabled"])
-        self.confirm_btn.state(["disabled"])
-        self.undo_last_btn.state(["disabled"])
-        self.undo_all_btn.state(["disabled"])
-        self.undo_stack = defaultdict(list)
-        self.completed = True
 
     def new_segmentation(
-        self, frame: Optional[int], unlock: bool,
+        self, frame: Optional[int], unlock: bool, replace_threshold=31
     ):
         """Runs an automatic segmentation sequence."""
         self.controller.new_segmentation(
@@ -789,15 +836,17 @@ class SegmentationTaskView(TaskViewBase):
             initials=self.initial_segments,
             new_septum=self._septum,
             unlock=unlock,
+            replace_threshold=replace_threshold,
         )
 
-    def update_and_find_next(self):
+    def update_and_find_next(self, replace_threshold=31):
         """Confirm the new segments and moves to the next."""
         self.controller.update_and_find_next(
             cine=self.cines_var.get(),
             frame=self.current_frame + 1,
             new_segments=self._segments,
             new_septum=self._septum,
+            replace_threshold=replace_threshold,
         )
 
     def confirm_segmentation(self, *args):

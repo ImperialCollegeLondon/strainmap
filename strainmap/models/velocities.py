@@ -177,7 +177,7 @@ def calculate_velocities(
     init_markers: bool = True,
 ):
     """Calculates the velocity of the chosen dataset and regions."""
-    swap, signs = data.data_files.orientation(dataset_name)  # type: ignore
+    swap, signs = data.data_files.phase_encoding(dataset_name)  # type: ignore
     phase = scale_phase(data, dataset_name, swap, sign_reversal)  # type: ignore
     mask, orig, (xmin, xmax, ymin, ymax) = global_masks_and_origin(
         outer=data.segments[dataset_name]["epicardium"],
