@@ -94,6 +94,7 @@ class AtlasTaskView(TaskViewBase):
 
     def update_plots(self):
         """Updates the plots with the new data."""
+        self.controller.progress(f"Updating plots...")
         self.pss.update_plot(self.atlas_data)
         self.ess.update_plot(self.atlas_data)
         self.ps.update_plot(self.atlas_data)
@@ -151,7 +152,7 @@ class AtlasTaskView(TaskViewBase):
         table_frame.rowconfigure(0, weight=1)
 
         treeview = ttk.Treeview(table_frame, selectmode="browse")
-        vsb = ttk.Scrollbar(table_frame, orient="vertical", command=treeview.yview())
+        vsb = ttk.Scrollbar(table_frame, orient="vertical", command=treeview.yview)
         treeview.configure(yscrollcommand=vsb.set)
         treeview.grid(column=0, row=0, sticky=tk.NSEW, padx=5, pady=5)
         vsb.grid(column=1, row=0, sticky=tk.NSEW)
@@ -174,6 +175,7 @@ class AtlasTaskView(TaskViewBase):
         Args:
             data (pd.DataFrame): Dataframe containing all the data.
         """
+        self.controller.progress(f"Updating table...")
         self.table.delete(*self.table.get_children())
         for i, row in data.iterrows():
             self.table.insert("", tk.END, values=tuple(row))
@@ -235,6 +237,7 @@ class AtlasTaskView(TaskViewBase):
         self.save_atlas(self.path)
         self.update_table(self.atlas_data)
         self.update_plots()
+        self.controller.progress(f"Record {record} removed!")
 
     def include_exclude_record(self, *args):
         """Include and exclude a record from the plots without deleting it."""
@@ -249,6 +252,7 @@ class AtlasTaskView(TaskViewBase):
         self.save_atlas(self.path)
         self.update_table(self.atlas_data)
         self.update_plots()
+        self.controller.progress(f"Record {record} inclusion/exclusion updated!")
 
     def include_exclude_selected(self, *args):
         """Include and exclude selected row from the plots without deleting it."""
@@ -260,6 +264,7 @@ class AtlasTaskView(TaskViewBase):
         self.save_atlas(self.path)
         self.update_table(self.atlas_data)
         self.update_plots()
+        self.controller.progress(f"Selection inclusion/exclusion updated!")
 
     def load_atlas(self, *args, path: Optional[Path] = None):
         """Loads atlas database and updates the plots and table.
@@ -281,6 +286,7 @@ class AtlasTaskView(TaskViewBase):
 
         self.update_table(self.atlas_data)
         self.update_plots()
+        self.controller.progress(f"Atlas loaded from '{path}'.")
 
     def save_as_atlas(self, *args):
         """Save the atlas with a new name."""
@@ -295,10 +301,12 @@ class AtlasTaskView(TaskViewBase):
             return
 
         self.save_atlas(filename)
+        self.controller.progress(f"Atlas saved at '{filename}!")
 
     def save_atlas(self, filename: Path):
         """Save the atlas using the currently selected filename."""
         try:
+            self.controller.progress(f"Saving atlas...")
             self.atlas_data.to_csv(filename, index=False)
             self.path = Path(filename)
         except ValueError as err:
@@ -348,6 +356,7 @@ class AtlasTaskView(TaskViewBase):
         self.update_table(self.atlas_data)
         self.update_plots()
         self.overlay(data)
+        self.controller.progress(f"New record added to the atlas!")
 
     def get_new_data(self) -> Optional[pd.DataFrame]:
         """Get new data from the current patient and add it to the database."""

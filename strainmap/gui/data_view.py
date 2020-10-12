@@ -221,7 +221,7 @@ class DataTaskView(TaskViewBase):
         frame.rowconfigure(0, weight=1)
 
         treeview = ttk.Treeview(frame, selectmode="browse")
-        vsb = ttk.Scrollbar(frame, orient="vertical", command=treeview.yview())
+        vsb = ttk.Scrollbar(frame, orient="vertical", command=treeview.yview)
         treeview.configure(yscrollcommand=vsb.set)
         treeview.grid(column=0, row=0, sticky=tk.NSEW, padx=5, pady=5)
         vsb.grid(column=1, row=0, sticky=tk.NSEW)
@@ -440,7 +440,10 @@ class DataTaskView(TaskViewBase):
             data = []
 
         for d in data:
-            self.treeview.insert("", tk.END, values=(d, data.get(d)))
+            value = data.get(d)
+            if isinstance(value, bytes):
+                value = "{binary data}"
+            self.treeview.insert("", tk.END, values=(d, value))
 
     def update_dicom_bg_view(self, series, variable):
         """ Updates the phantom treeview with data from the selected options.
