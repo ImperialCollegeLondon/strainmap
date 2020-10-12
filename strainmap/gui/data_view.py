@@ -1,11 +1,11 @@
+import os
 import tkinter as tk
 import tkinter.filedialog
-from tkinter import messagebox, ttk
-import os
+from datetime import datetime
 from functools import partial
 from pathlib import Path
+from tkinter import messagebox, ttk
 from traceback import print_exc
-from datetime import datetime
 
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
@@ -28,6 +28,8 @@ class DataTaskView(TaskViewBase):
 
         self.data_folder = tk.StringVar(value="")
         self.output_file = tk.StringVar(value="")
+        self.datafolder_entry = None
+        self.outputfile_entry = None
         self.current_dir = os.path.expanduser("~")
         self.phantom_check = tk.BooleanVar(value=False)
         self.control = None
@@ -89,15 +91,18 @@ class DataTaskView(TaskViewBase):
             row=4, sticky=tk.W, pady=5
         )
 
-        ttk.Entry(
-            master=self.control, textvariable=self.data_folder, state="disabled"
-        ).grid(row=4, column=1, sticky=tk.NSEW, pady=5)
+        self.datafolder_entry = ttk.Entry(
+            master=self.control, textvariable=self.data_folder, state="readonly"
+        )
+        self.datafolder_entry.grid(
+            row=5, column=0, columnspan=2, sticky=tk.NSEW, pady=5
+        )
+        ttk.Label(master=self.control, text="Output file: ").grid(row=6, sticky=tk.W)
 
-        ttk.Label(master=self.control, text="Output file: ").grid(row=5, sticky=tk.W)
-
-        ttk.Entry(
-            master=self.control, textvariable=self.output_file, state="disabled"
-        ).grid(row=5, column=1, sticky=tk.NSEW)
+        self.outputfile_entry = ttk.Entry(
+            master=self.control, textvariable=self.output_file, state="readonly"
+        )
+        self.outputfile_entry.grid(row=7, column=0, columnspan=2, sticky=tk.NSEW)
 
         ttk.Button(
             master=self.control,
@@ -481,6 +486,8 @@ class DataTaskView(TaskViewBase):
         self.create_data_viewer()
         if self.data.data_files is not None:
             self.update_visualization()
+        self.datafolder_entry.xview(len(self.data_folder.get()))
+        self.outputfile_entry.xview(len(self.output_file.get()))
 
     def update_phantom_widgets(self):
         """Updates the widgets related to the Phantom"""

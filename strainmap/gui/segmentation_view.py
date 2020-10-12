@@ -1,37 +1,36 @@
 import tkinter as tk
-from tkinter import ttk
-from copy import copy
 from collections import defaultdict
-
-from typing import Optional, Dict
+from copy import copy
 from functools import partial
+from tkinter import ttk
+from typing import Dict, Optional
 
 import matplotlib.pyplot as plt
 import numpy as np
-from scipy import ndimage
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
-from matplotlib.widgets import Cursor
 from matplotlib.figure import Figure
+from matplotlib.widgets import Cursor
+from scipy import ndimage
 
+from ..models.contour_mask import Contour
 from .base_window_and_task import Requisites, TaskViewBase, register_view
 from .figure_actions import (
     BrightnessAndContrast,
+    DragContours,
     DrawContours,
+    Markers,
     ScrollFrames,
     ZoomAndPan,
-    DragContours,
-    Markers,
     circle,
     single_point,
 )
 from .figure_actions_manager import (
-    FigureActionsManager,
-    TriggerSignature,
     Button,
-    MouseAction,
+    FigureActionsManager,
     Location,
+    MouseAction,
+    TriggerSignature,
 )
-from ..models.contour_mask import Contour
 
 
 def change_state(widget, enabled=True):
