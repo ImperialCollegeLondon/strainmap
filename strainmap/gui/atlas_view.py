@@ -163,7 +163,7 @@ class AtlasTaskView(TaskViewBase):
             treeview.column(v, width=80, stretch=True)
             treeview.heading(v, text=v)
 
-        for i, row in data.iterrows():
+        for i, row in data.round(decimals=2).iterrows():
             treeview.insert("", tk.END, values=tuple(row))
 
         self.notebook.add(frame, text="Data")
@@ -177,7 +177,7 @@ class AtlasTaskView(TaskViewBase):
         """
         self.controller.progress(f"Updating table...")
         self.table.delete(*self.table.get_children())
-        for i, row in data.iterrows():
+        for i, row in data.round(decimals=2).iterrows():
             self.table.insert("", tk.END, values=tuple(row))
 
     def create_datasets_selector(self) -> SliceBoxes:
