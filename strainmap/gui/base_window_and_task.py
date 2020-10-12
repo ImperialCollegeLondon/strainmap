@@ -80,6 +80,7 @@ class TaskViewBase(ABC, ttk.Frame):
     def tkraise(self, *args):
         """Brings the frame to the front."""
         super().tkraise()
+        self.master.bind("<Control_L><p>", lambda x: None)
         if self.is_stale:
             self.update_widgets()
             self.is_stale = False

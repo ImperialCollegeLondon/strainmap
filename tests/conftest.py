@@ -1,8 +1,8 @@
 from pathlib import Path
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
-from pytest import fixture
 import pandas as pd
+from pytest import fixture
 
 
 def patch_dialogs(function):
