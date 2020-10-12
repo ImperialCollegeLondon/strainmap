@@ -267,8 +267,9 @@ def export_superpixel(data, dataset, filename):
     rad = ["endo", "mid", "epi"]
     label = "{} {}"
 
-    def add_superpixel_data(values, ws):
-
+    def add_superpixel_data(values, ws, description):
+        ws.append([description])
+        ws.append([""])
         ws.append(
             [
                 label.format(rad[r], a + 1)
@@ -289,11 +290,15 @@ def export_superpixel(data, dataset, filename):
 
     wb = xlsx.Workbook()
     ws = wb.active
-    ws.title = "Radial"
-    add_superpixel_data(vels[1], ws)
-    add_superpixel_data(vels[2], wb.create_sheet("Circumferential"))
-    add_superpixel_data(loc[1], wb.create_sheet("Loc. radial"))
-    add_superpixel_data(loc[2], wb.create_sheet("Loc. angular"))
+    ws.title = "Radial velocity"
+    msg = "Radial velocity as a function of frame for each superpixel (cm/s)."
+    add_superpixel_data(vels[1], ws, msg)
+    msg = "Circumferential velocity as a function of frame for each superpixel (cm/s)."
+    add_superpixel_data(vels[2], wb.create_sheet("Circumferential velocity"), msg)
+    msg = "Radial location of each superpixel (cm)."
+    add_superpixel_data(loc[1], wb.create_sheet("Radial location"), msg)
+    msg = "Angular location of each superpixel (radian)."
+    add_superpixel_data(loc[2], wb.create_sheet("Angular location"), msg)
 
     wb.save(filename)
     wb.close()
@@ -305,7 +310,9 @@ def rotation_to_xlsx(data, filename):
     wb = xlsx.Workbook()
 
     ws = wb.active
-    ws.title = "angular_velocity"
+    ws.title = "Mean angular velocity"
+    ws.append(["Mean angular velocity (radian/s) as a function of frame and cine."])
+    ws.append([""])
     ws.append(data.twist.coords["dataset"])
     ws.append(
         tuple((data.data_files.time_interval(d) for d in data.twist.coords["dataset"]))
@@ -316,7 +323,9 @@ def rotation_to_xlsx(data, filename):
     ):
         ws.append(tuple(values))
 
-    ws = wb.create_sheet("radius")
+    ws = wb.create_sheet("Mean radius")
+    ws.append(["Mean radius of myocardium (cm) as a function of frame and cine."])
+    ws.append([""])
     ws.append(data.twist.coords["dataset"])
     ws.append(())
     ws.append(())
