@@ -276,9 +276,7 @@ class DataTaskView(TaskViewBase):
             with log.open("a") as f:
                 print_exc(file=f)
             self.controller.load_data_from_folder(data_files=path)
-            self.controller.window.progress(
-                f"{err} - Log info in {str(log)}"
-            )
+            self.controller.window.progress(f"{err} - Log info in {str(log)}")
             self.update_widgets()
 
     def load_phantom(self):
@@ -404,6 +402,12 @@ class DataTaskView(TaskViewBase):
         self.fig.actions_manager.ScrollFrames.clear()
 
         ax = self.fig.axes[-1]
+        clim = xlim = ylim = None
+        if len(ax.images) > 0:
+            clim = ax.images[0].get_clim()
+            xlim = ax.get_xlim()
+            ylim = ax.get_ylim()
+
         ax.clear()
         ax.get_xaxis().set_visible(False)
         ax.get_yaxis().set_visible(False)
@@ -416,6 +420,11 @@ class DataTaskView(TaskViewBase):
         self.fig.actions_manager.ScrollFrames.set_scroller(
             partial(self.scroll, images), ax
         )
+
+        if clim is not None:
+            ax.images[0].set_clim(*clim)
+            ax.set_xlim(*xlim)
+            ax.set_ylim(*ylim)
 
         self.fig.canvas.draw()
 

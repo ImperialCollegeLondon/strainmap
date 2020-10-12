@@ -331,6 +331,7 @@ class SegmentationTaskView(TaskViewBase):
             xlim = self.ax_mag.get_xlim()
             ylim = self.ax_mag.get_ylim()
 
+        self.fig.suptitle("")
         self.ax_mag.lines.clear()
         self.ax_vel.lines.clear()
         self.ax_mag.images.clear()
