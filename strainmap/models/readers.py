@@ -5,20 +5,20 @@ import os
 import re
 from abc import ABC, abstractmethod
 from collections import defaultdict
+from functools import lru_cache
 from pathlib import Path, PurePath, PurePosixPath
-from typing import Dict, List, Optional, Text, Tuple, Union, Sequence, Any
+from typing import Any, Dict, List, Optional, Sequence, Text, Tuple, Union
 
 import h5py
 import numpy as np
 import pandas as pd
-import xarray as xr
-import sparse
 import pydicom
+import sparse
+import xarray as xr
 from natsort import natsorted
-from functools import lru_cache
 
-from .sm_data import LabelledArray
 from ..coordinates import Comp
+from .sm_data import LabelledArray
 
 
 def chunks(lst, n):

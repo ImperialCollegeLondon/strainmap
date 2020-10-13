@@ -1,11 +1,11 @@
 import os
 from itertools import chain
 from pathlib import Path, PurePath, PurePosixPath
-from typing import Dict, Optional, Sequence, Union, Iterable
+from typing import Dict, Iterable, Optional, Sequence, Union
 
-import openpyxl as xlsx
 import h5py
 import numpy as np
+import openpyxl as xlsx
 import sparse
 import xarray as xr
 
@@ -231,7 +231,7 @@ def add_velocity(velocity, region_names, ws):
     if reg == 1:
         rg = ["Global"]
     elif reg == 3:
-        rg = list(range(1, reg+1))
+        rg = list(range(1, reg + 1))
     elif reg == 24:
         rg = list(chain.from_iterable(([r] * (reg // len(rg)) for r in rg)))
 

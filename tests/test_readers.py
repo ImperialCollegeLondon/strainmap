@@ -1,5 +1,6 @@
-from pytest import approx, mark
 import sys
+
+from pytest import approx, mark
 
 
 def test_read_images(data_tree):
@@ -33,7 +34,7 @@ def test_velocity_sensitivity(dicom_data_path):
     header = ds[("0021", "1019")].value.decode()
 
     actual = velocity_sensitivity(header)
-    assert expected == approx(actual)
+    assert expected == approx(actual.data)
 
 
 def test_read_data_structure(tmpdir, segmented_data):
@@ -53,9 +54,7 @@ def test_read_data_structure(tmpdir, segmented_data):
 
     assert all([key in d for key in f["segments"]])
     assert all([value.keys() == d[key].keys() for key, value in f["segments"].items()])
-    assert d[cine]["endocardium"] == approx(
-        f["segments"][cine]["endocardium"][...]
-    )
+    assert d[cine]["endocardium"] == approx(f["segments"][cine]["endocardium"][...])
 
 
 @mark.skipif(sys.platform == "win32", reason="does not run on windows in Azure")
@@ -80,10 +79,11 @@ def test_paths_from_hdf5(strainmap_data, tmpdir):
     from strainmap.models.writers import paths_to_hdf5
     from strainmap.models.readers import paths_from_hdf5
     from collections import defaultdict
+    from strainmap.coordinates import Comp
 
     import h5py
 
-    mag = strainmap_data.data_files.vars["mag"]
+    mag = strainmap_data.data_files.vars[Comp.MAG]
     cine = strainmap_data.data_files.datasets[0]
     filename = tmpdir / "strain_map_file.h5"
 
@@ -96,10 +96,7 @@ def test_paths_from_hdf5(strainmap_data, tmpdir):
 
     assert cine in d
     assert all(
-        [
-            key in d[cine]
-            for key in strainmap_data.data_files.files.raw_comp.values
-        ]
+        [key in d[cine] for key in strainmap_data.data_files.files.raw_comp.values]
     )
     assert (d[cine][mag] == abs_paths).all()
 
@@ -117,7 +114,7 @@ def test_read_h5_file(tmpdir, segmented_data):
     new_data = StrainMapData.from_folder()
     new_data.__dict__.update(attributes)
 
-    assert segmented_data == new_data
+    assert all(segmented_data == new_data)
 
 
 def test_dicom_reader():

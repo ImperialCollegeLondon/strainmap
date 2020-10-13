@@ -5,15 +5,13 @@ from typing import Callable
 
 from .gui import *  # noqa: F403,F401
 from .gui.base_window_and_task import REGISTERED_VIEWS, Requisites
-from .models.strainmap_data_model import StrainMapData
 from .models import segmentation
-from .models.velocities import calculate_velocities, update_marker, regenerate
-from .models.writers import velocity_to_xlsx, strain_to_xlsx, rotation_to_xlsx
-from .models.strain import (
-    calculate_strain,
-    update_strain_es_marker,
-    update_marker as update_strain_marker,
-)
+from .models.strain import calculate_strain
+from .models.strain import update_marker as update_strain_marker
+from .models.strain import update_strain_es_marker
+from .models.strainmap_data_model import StrainMapData
+from .models.velocities import calculate_velocities, regenerate, update_marker
+from .models.writers import rotation_to_xlsx, strain_to_xlsx, velocity_to_xlsx
 
 
 class StrainMap(object):

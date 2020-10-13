@@ -2,15 +2,15 @@ from __future__ import annotations
 
 import tkinter as tk
 import tkinter.filedialog
-from tkinter import messagebox, ttk
 from pathlib import Path
-from typing import Dict, Callable, Union, Optional, Tuple, NamedTuple
+from tkinter import messagebox, ttk
+from typing import Callable, Dict, NamedTuple, Optional, Tuple, Union
 
 import matplotlib.pyplot as plt
-import strainmap.coordinates
-from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import pandas as pd
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
+import strainmap.coordinates
 
 from .base_window_and_task import TaskViewBase, register_view
 

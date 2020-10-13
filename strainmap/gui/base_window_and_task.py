@@ -6,13 +6,13 @@ end related aspect of any StrainMap action and the registers needed to register 
 views.
 """
 import tkinter as tk
+import weakref
 from abc import ABC, abstractmethod
 from enum import Flag, auto
 from pathlib import Path
 from tkinter import ttk
 from typing import List, Optional, Text, Type
 
-import weakref
 from PIL import Image, ImageTk
 
 ICONS_DIRECTORY = Path(__file__).parent / "icons"

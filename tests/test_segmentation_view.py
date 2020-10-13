@@ -1,6 +1,6 @@
-from pytest import approx
+from unittest.mock import MagicMock, PropertyMock, patch
 
-from unittest.mock import MagicMock, patch, PropertyMock
+from pytest import approx
 
 
 def test_update_and_clear_widgets(segmentation_view, strainmap_data):
@@ -176,6 +176,7 @@ def test_scroll(segmentation_view, strainmap_data):
     import numpy as np
     import xarray as xr
     from strainmap.models.segmentation import _init_septum_and_centroid
+    from strainmap.coordinates import Comp
 
     dataset = strainmap_data.data_files.datasets[0]
     segmentation_view.controller.data = strainmap_data
@@ -191,17 +192,17 @@ def test_scroll(segmentation_view, strainmap_data):
     # segmentation_view.update_widgets()
     rdata = np.random.random((1, 2, 5, 5))
     segmentation_view.data.data_files.images = lambda x: xr.DataArray(
-        rdata, dims=["comp", "frame", "row", "col"], coords={"comp": ["mag"]}
+        rdata, dims=["comp", "frame", "row", "col"], coords={"comp": [Comp.MAG]}
     )
     segmentation_view._septum = _init_septum_and_centroid(
         cine=dataset, frames=2, name="septum"
     ).sel(cine=dataset)
     segmentation_view._septum[...] = np.random.random((2, 2))
 
-    frame, img, (endo, epi, septum_line, septum) = segmentation_view.scroll(1, "mag")
+    frame, img, (endo, epi, septum_line, septum) = segmentation_view.scroll(1, Comp.MAG)
 
     assert frame == 1
-    assert (img == segmentation_view.images.sel(comp="mag", frame=1)).all()
+    assert (img == segmentation_view.images.sel(comp=Comp.MAG, frame=1)).all()
     assert endo == approx(contour[0, 1])
     assert epi == approx(contour[1, 1])
     assert approx(septum) == segmentation_view._septum.sel(frame=1)

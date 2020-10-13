@@ -1,17 +1,17 @@
 import tkinter as tk
-from tkinter import ttk
 from collections import defaultdict
-
-from typing import Optional, Dict
 from functools import partial
+from tkinter import ttk
+from typing import Dict, Optional
 
 import matplotlib.pyplot as plt
 import numpy as np
 import xarray as xr
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
-from matplotlib.widgets import Cursor
 from matplotlib.figure import Figure
+from matplotlib.widgets import Cursor
 
+from ..coordinates import Comp
 from .base_window_and_task import Requisites, TaskViewBase, register_view
 from .figure_actions import (
     BrightnessAndContrast,
@@ -30,7 +30,6 @@ from .figure_actions_manager import (
     MouseAction,
     TriggerSignature,
 )
-from ..coordinates import Comp
 
 
 def change_state(widget, enabled=True):

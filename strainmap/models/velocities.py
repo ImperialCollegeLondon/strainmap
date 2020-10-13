@@ -1,21 +1,13 @@
-from typing import (
-    Dict,
-    NamedTuple,
-    Optional,
-    Sequence,
-    Text,
-    Callable,
-    Tuple,
-)
 from itertools import chain
+from typing import Callable, Dict, NamedTuple, Optional, Sequence, Text, Tuple
 
 import numpy as np
 import xarray as xr
 from skimage.draw import polygon2mask
 
+from ..coordinates import Comp, Region, VelMark
 from .strainmap_data_model import StrainMapData
 from .writers import terminal
-from ..coordinates import Comp, VelMark, Region
 
 
 def theta_origin(centroid: xr.DataArray, septum: xr.DataArray):
@@ -116,7 +108,7 @@ def angular_mask(
 
 
 def radial_mask(
-    segments: xr.DataArray, shape: Tuple[int, int], radial_mask: xr.DataArray,
+    segments: xr.DataArray, shape: Tuple[int, int], radial_mask: xr.DataArray
 ):
     """Calculates the angular mask for the requested radial region."""
     nsegments = radial_mask.region[0].item().value
@@ -147,7 +139,7 @@ def find_masks(
     mask = xr.DataArray(
         np.full((len(reg), len(segments.frame), shape[0], shape[1]), False, dtype=bool),
         dims=["region", "frame", "row", "col"],
-        coords={"region": reg, "frame": segments.frame,},
+        coords={"region": reg, "frame": segments.frame},
     )
 
     gmask = mask.sel(region=Region.GLOBAL)
@@ -253,7 +245,7 @@ def calculate_velocities(
     data.sign_reversal[...] = np.array(sign_reversal)
 
     # We start by processing the phase images
-    swap, signs = data.data_files.orientation(cine)
+    swap, signs = data.data_files.phase_encoding(cine)
     raw_phase = data.data_files.images(cine).sel(comp=[Comp.X, Comp.Y, Comp.Z])
     phase = process_phases(raw_phase, data.sign_reversal, swap)
 
@@ -268,10 +260,7 @@ def calculate_velocities(
     # Next we calculate the velocities in cylindrical coordinates
     cylindrical = (
         cartesian_to_cylindrical(
-            centroid,
-            theta0,
-            masks.sel(region=Region.GLOBAL).drop_vars("region"),
-            phase,
+            centroid, theta0, masks.sel(region=Region.GLOBAL).drop_vars("region"), phase
         )
         * data.data_files.sensitivity
         * signs
@@ -355,7 +344,7 @@ markers_options: Dict[VelMark, _MSearch] = {
 
 
 def px_velocity_curves(
-    data: StrainMapData, cine: str, nrad: int = 3, nang: int = 24,
+    data: StrainMapData, cine: str, nrad: int = 3, nang: int = 24
 ) -> np.ndarray:
     """ TODO: Remove in the final version. """
     from .strain import masked_reduction
@@ -376,7 +365,7 @@ def regenerate(data, cines, callback: Callable = terminal):
     """Regenerate velocities and masks information after loading from h5 file."""
     for i, d in enumerate(cines):
         callback(
-            f"Regenerating existing velocities {i+1}/{len(cines)}.", i / len(cines),
+            f"Regenerating existing velocities {i+1}/{len(cines)}.", i / len(cines)
         )
         vels = data.velocities[d]
         regions: Dict = {}
@@ -388,9 +377,7 @@ def regenerate(data, cines, callback: Callable = terminal):
                 if f"{rtype}_regions" in regions:
                     regions[f"{rtype}_regions"].append(int(num))
                 else:
-                    regions[f"{rtype}_regions"] = [
-                        int(num),
-                    ]
+                    regions[f"{rtype}_regions"] = [int(num)]
 
         calculate_velocities(
             data=data,

@@ -1,5 +1,6 @@
-from pytest import approx, raises
 from unittest.mock import MagicMock, patch
+
+from pytest import approx, raises
 
 
 def test_segmenter_global_segmenter():

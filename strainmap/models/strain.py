@@ -1,15 +1,15 @@
-from typing import Dict, Text, Tuple, Callable, Optional
-from itertools import product
-from functools import partial
 from collections import defaultdict
+from functools import partial
+from itertools import product
+from typing import Callable, Dict, Optional, Text, Tuple
 
 import numpy as np
 from scipy import interpolate
 
+from .sm_data import LabelledArray
 from .strainmap_data_model import StrainMapData
 from .velocities import regenerate
 from .writers import terminal
-from .sm_data import LabelledArray
 
 
 def masked_reduction(data: np.ndarray, masks: np.ndarray, axis: tuple) -> np.ndarray:
@@ -704,7 +704,7 @@ def global_longitudinal_strain(
 
 
 def twist(
-    data: StrainMapData, datasets: Tuple[str, ...], nrad: int = 3, nang: int = 24,
+    data: StrainMapData, datasets: Tuple[str, ...], nrad: int = 3, nang: int = 24
 ) -> LabelledArray:
 
     vkey = f"cylindrical"

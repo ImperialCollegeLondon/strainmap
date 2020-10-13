@@ -1,5 +1,6 @@
-from pytest import approx
 from unittest.mock import MagicMock
+
+from pytest import approx
 
 
 def test_get_deltas(figure):

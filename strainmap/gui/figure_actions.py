@@ -1,6 +1,6 @@
 from collections import defaultdict
 from functools import partial
-from typing import Callable, Dict, Optional, Tuple, Union, List, Sequence
+from typing import Callable, Dict, List, Optional, Sequence, Tuple, Union
 
 import matplotlib.animation as animation
 import numpy as np

@@ -1,5 +1,6 @@
-from pytest import approx, mark
 import sys
+
+from pytest import approx, mark
 
 
 def test_add_metadata(strainmap_data):
@@ -137,12 +138,13 @@ def test_to_relative_paths():
 @mark.skipif(sys.platform == "win32", reason="does not run on windows in Azure")
 def test_paths_to_hdf5(strainmap_data, tmpdir):
     from strainmap.models.writers import paths_to_hdf5, to_relative_paths
+    from strainmap.coordinates import Comp
     import h5py
 
     cine = strainmap_data.data_files.datasets[0]
     filename = tmpdir / "strain_map_file.h5"
 
-    mag = strainmap_data.data_files.vars["mag"]
+    mag = strainmap_data.data_files.vars[Comp.MAG]
     abs_paths = strainmap_data.data_files.files.sel(cine=cine, raw_comp=mag).values
     rel_paths = to_relative_paths(filename, abs_paths)
 

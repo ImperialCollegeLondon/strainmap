@@ -82,7 +82,7 @@ def test_update_segmentation(segments_arrays):
     frame, other = default_rng().choice(frames, size=2, replace=False)
     new_segments = segments.sel(cine="base", frame=frame) * 2
     _update_segmentation(
-        segments.sel(cine="base"), centroid.sel(cine="base"), new_segments=new_segments,
+        segments.sel(cine="base"), centroid.sel(cine="base"), new_segments=new_segments
     )
     xr.testing.assert_equal(segments.sel(cine="base", frame=frame), new_segments)
     with raises(AssertionError):
@@ -91,6 +91,6 @@ def test_update_segmentation(segments_arrays):
     # Checks updating the segmentation of all frames
     new_segments = segments.sel(cine="apex") * 2
     _update_segmentation(
-        segments.sel(cine="apex"), centroid.sel(cine="apex"), new_segments=new_segments,
+        segments.sel(cine="apex"), centroid.sel(cine="apex"), new_segments=new_segments
     )
     xr.testing.assert_equal(segments.sel(cine="apex"), new_segments)

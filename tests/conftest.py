@@ -1,9 +1,9 @@
 from pathlib import Path
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
-from pytest import fixture
 import pandas as pd
 import xarray as xr
+from pytest import fixture
 
 
 def patch_dialogs(function):
@@ -67,7 +67,6 @@ def segmented_data(strainmap_data):
 
     cine = strainmap_data.data_files.datasets[0]
     image = strainmap_data.data_files.images(cine).sel(comp=Comp.MAG)
-    shape = image.sizes["row"], image.sizes["col"]
 
     # Create the initial contour
     initial_segments = xr.DataArray(
@@ -78,14 +77,14 @@ def segmented_data(strainmap_data):
             ]
         ),
         dims=("side", "coord", "point"),
-        coords={"side": ["endocardium", "epicardium"], "coord": ["row", "col"],},
+        coords={"side": ["endocardium", "epicardium"], "coord": ["row", "col"]},
     )
 
     # Create septum
     septum = xr.DataArray(
         np.full((image.sizes["frame"], 2), np.nan),
         dims=("frame", "coord"),
-        coords={"coord": ["row", "col"], "frame": np.arange(image.sizes["frame"]),},
+        coords={"coord": ["row", "col"], "frame": np.arange(image.sizes["frame"])},
     )
 
     # Launch the segmentation process
@@ -393,6 +392,7 @@ def theta0(segmented_data):
     centroid = segmented_data.centroid.isel(cine=0)
     septum = segmented_data.septum.isel(cine=0)
     return theta_origin(centroid, septum)
+
 
 @fixture
 def masks(segmented_data, theta0):

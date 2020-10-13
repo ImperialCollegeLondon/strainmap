@@ -1,5 +1,6 @@
-from pytest import raises, mark
 import operator as op
+
+from pytest import mark, raises
 
 
 def test_regional_labels():

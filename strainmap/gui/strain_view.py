@@ -1,6 +1,6 @@
 import tkinter as tk
-from tkinter import ttk
 import tkinter.filedialog
+from tkinter import ttk
 
 import numpy as np
 from matplotlib import pyplot as plt
@@ -8,8 +8,8 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolb
 from matplotlib.figure import Figure
 
 from .base_window_and_task import Requisites, TaskViewBase, register_view
-from .figure_actions_manager import FigureActionsManager
 from .figure_actions import Markers, SimpleScroller
+from .figure_actions_manager import FigureActionsManager
 from .velocities_view import get_sa_location
 
 

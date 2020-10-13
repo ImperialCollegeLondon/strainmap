@@ -1,16 +1,15 @@
 from copy import copy
-from typing import Text, Dict, Any, Union, List, Callable, Tuple, Optional
 from functools import partial, reduce
+from typing import Any, Callable, Dict, List, Optional, Text, Tuple, Union
 
 import numpy as np
-from scipy import ndimage
 import xarray as xr
+from scipy import ndimage
 
+from ..coordinates import Comp
+from .contour_mask import Contour, dilate
 from .segmenters import Segmenter
 from .strainmap_data_model import StrainMapData
-from .contour_mask import Contour, dilate
-from ..coordinates import Comp
-
 
 model = "AC"
 model_params = {
@@ -234,7 +233,7 @@ def _find_segmentation(
             frame.item(), segments, (images.sizes["row"], images.sizes["col"])
         )
         if frame.shape == ()
-        else _create_rules_all_frames()
+        else _create_rules_all_frames(replace_threshold)
     )
 
     for side in ("endocardium", "epicardium"):
@@ -347,7 +346,7 @@ def _create_rules_one_frame(
     return rules
 
 
-def _create_rules_all_frames():
+def _create_rules_all_frames(replace_threshold: int = 31):
     """Create the rules to apply to the segments to ensure their 'quality'.
 
     - Expand/contract the contour

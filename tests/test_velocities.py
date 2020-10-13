@@ -12,12 +12,12 @@ def test_theta_origin():
     centroid = xr.DataArray(
         np.zeros((N, 2)),
         dims=("frame", "coord"),
-        coords={"coord": ["row", "col"], "frame": np.arange(N),},
+        coords={"coord": ["row", "col"], "frame": np.arange(N)},
     )
     septum = xr.DataArray(
         np.stack((np.cos(expected), np.sin(expected)), axis=1),
         dims=("frame", "coord"),
-        coords={"coord": ["row", "col"], "frame": np.arange(N),},
+        coords={"coord": ["row", "col"], "frame": np.arange(N)},
     )
 
     assert theta_origin(centroid, septum).data == approx(expected)
@@ -63,7 +63,7 @@ def test_global_mask(segmented_data):
     mask = xr.DataArray(
         np.full((len(segments.frame), shape[0], shape[1]), False, dtype=bool),
         dims=["frame", "row", "col"],
-        coords={"frame": segments.frame,},
+        coords={"frame": segments.frame},
     )
     global_mask(segments, shape, mask)
 
@@ -71,15 +71,14 @@ def test_global_mask(segmented_data):
     for i in segments.frame:
         mid = segments.isel(frame=i).mean("side").astype(int)
         assert (
-            mask.isel(frame=i).sel(row=mid.sel(coord="row"), col=mid.sel(coord="col"))
-            == True
-        ).all()
+            mask.isel(frame=i)
+            .sel(row=mid.sel(coord="row"), col=mid.sel(coord="col"))
+            .all()
+        )
 
     # The centroid should be outside of the mask
     centroid = segmented_data.septum.isel(cine=0).astype(int)
-    assert (
-        mask.sel(row=centroid.sel(coord="row"), col=centroid.sel(coord="col")) == False
-    ).all()
+    assert ~mask.sel(row=centroid.sel(coord="row"), col=centroid.sel(coord="col")).all()
 
 
 def test_find_masks(segmented_data):
@@ -112,10 +111,7 @@ def test_find_masks(segmented_data):
 def test_cartesian_to_cylindrical(segmented_data, masks, theta0):
     import numpy as np
     import xarray as xr
-    from strainmap.models.velocities import (
-        process_phases,
-        cartesian_to_cylindrical,
-    )
+    from strainmap.models.velocities import process_phases, cartesian_to_cylindrical
     from strainmap.coordinates import Region, Comp
 
     cine = segmented_data.data_files.datasets[0]
@@ -160,7 +156,7 @@ def test_initialise_markers(segmented_data):
 
     cine = segmented_data.data_files.datasets[0]
     velocity = calculate_velocities(segmented_data, cine)
-    markers = initialise_markers(velocity)
+    initialise_markers(velocity)
 
 
 def test_marker():

@@ -1,5 +1,6 @@
-from pytest import mark, approx
 from unittest.mock import MagicMock
+
+from pytest import approx, mark
 
 
 def test_from_folder(dicom_data_path):

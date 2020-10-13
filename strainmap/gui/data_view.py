@@ -1,23 +1,23 @@
+import os
 import tkinter as tk
 import tkinter.filedialog
-from tkinter import messagebox, ttk
-import os
+from datetime import datetime
 from functools import partial
 from pathlib import Path
+from tkinter import messagebox, ttk
 from traceback import print_exc
-from datetime import datetime
-from typing import Tuple, Optional
+from typing import Optional, Tuple
 
-import numpy as np
 import matplotlib.pyplot as plt
+import numpy as np
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.figure import Figure
 
+from ..coordinates import Comp
+from ..models.sm_data import LabelledArray
 from .base_window_and_task import TaskViewBase, register_view
 from .figure_actions import BrightnessAndContrast, ScrollFrames, ZoomAndPan
 from .figure_actions_manager import FigureActionsManager
-from ..coordinates import Comp
-from ..models.sm_data import LabelledArray
 
 
 @register_view

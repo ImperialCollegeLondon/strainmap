@@ -1,14 +1,15 @@
-from pathlib import Path
-from typing import Optional, Text, Union, Tuple
 from collections import defaultdict
+from pathlib import Path
+from typing import Optional, Text, Union
+
+import h5py
 import numpy as np
 import xarray as xr
-import h5py
 
-from .readers import read_strainmap_file, DICOMReaderBase, read_folder
-from .writers import write_hdf5_file
-from .sm_data import LabelledArray
 from ..coordinates import Comp
+from .readers import DICOMReaderBase, read_folder, read_strainmap_file
+from .sm_data import LabelledArray
+from .writers import write_hdf5_file
 
 TIMESHIFT = -0.045
 """Default timeshift"""
@@ -84,9 +85,7 @@ class StrainMapData(object):
         self.data_files = data_files
         self.strainmap_file = strainmap_file
         self.sign_reversal: xr.DataArray = xr.DataArray(
-            [1, 1, 1],
-            dims=["comp"],
-            coords={"comp": [Comp.X, Comp.Y, Comp.Z]},
+            [1, 1, 1], dims=["comp"], coords={"comp": [Comp.X, Comp.Y, Comp.Z]}
         )
         self.segments: xr.DataArray = xr.DataArray()
         self.centroid: xr.DataArray = xr.DataArray()

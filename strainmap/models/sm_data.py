@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-from typing import Union, Dict, Sequence, Tuple, Optional, Callable, List
-from copy import deepcopy
-from enum import Enum, auto
-from dataclasses import dataclass
-from itertools import chain
 import operator as op
+from copy import deepcopy
+from dataclasses import dataclass
+from enum import Enum, auto
+from itertools import chain
+from typing import Callable, Dict, List, Optional, Sequence, Tuple, Union
 
 import numpy as np
 import sparse
