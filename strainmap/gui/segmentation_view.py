@@ -30,6 +30,7 @@ from .figure_actions_manager import (
     MouseAction,
     TriggerSignature,
 )
+from ..coordinates import Comp
 
 
 def change_state(widget, enabled=True):
@@ -341,11 +342,11 @@ class SegmentationTaskView(TaskViewBase):
         self.pbar.config(maximum=self.data.data_files.frames - 1)
 
         self.ax_mag.imshow(
-            self.images.sel(comp="mag", frame=self.current_frame),
+            self.images.sel(comp=Comp.MAG, frame=self.current_frame),
             cmap=plt.get_cmap("binary_r"),
         )
         self.ax_vel.imshow(
-            self.images.sel(comp="z", frame=self.current_frame),
+            self.images.sel(comp=Comp.Z, frame=self.current_frame),
             cmap=plt.get_cmap("binary_r"),
         )
 
@@ -364,17 +365,19 @@ class SegmentationTaskView(TaskViewBase):
             self.ax_mag.plot(
                 *self._segments.sel(side=side, frame=self.current_frame),
                 dashes=(5, 5),
-                picker=6,
+                pickradius=6,
                 label=side,
                 color=colors[i],
             )
+            self.ax_mag.lines[-1].set_picker(True)
             self.ax_vel.plot(
                 *self._segments.sel(side=side, frame=self.current_frame),
                 dashes=(5, 5),
-                picker=6,
+                pickradius=6,
                 label=side,
                 color=colors[i],
             )
+            self.ax_vel.lines[-1].set_picker(True)
 
     def plot_septum(self, cine):
         """Plots the centroid - septum mid-point line."""
@@ -384,12 +387,8 @@ class SegmentationTaskView(TaskViewBase):
         self._septum = self.data.septum.sel(cine=cine).copy()
 
         options = dict(marker="+", color="r", markersize=10, label="septum")
-        self.septum_lines[0] = self.ax_mag.plot(
-            *self._septum.sel(frame=self.current_frame), **options
-        )[0]
-        self.septum_lines[1] = self.ax_vel.plot(
-            *self._septum.sel(frame=self.current_frame), **options
-        )[0]
+        self.septum_lines[0] = self.ax_mag.plot(*self.septum_line, **options)[0]
+        self.septum_lines[1] = self.ax_vel.plot(*self.septum_line, **options)[0]
 
     def plot_markers(self):
         """Adds the existing mid-septum markers, if already created, or creat new."""
@@ -528,7 +527,7 @@ class SegmentationTaskView(TaskViewBase):
             self.next_btn.state(["!disabled"])
 
         img = endo = epi = septum = septum_line = None
-        if image in ("mag", "z"):
+        if image in (Comp.MAG, Comp.Z):
             img = self.images.sel(comp=image, frame=self.current_frame)
 
         if self._segments.shape != ():

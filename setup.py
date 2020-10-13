@@ -1,7 +1,7 @@
 from setuptools import setup, find_packages
 
 tests_require = [
-    "pytest",
+    "pytest<6.0.0",
     "pytest-cov",
     "pytest-flake8",
     "pytest-mypy",

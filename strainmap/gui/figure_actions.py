@@ -404,7 +404,8 @@ class DrawContours(ActionBase):
 
         self.points[ax].append((xdata, ydata))
 
-        line = Line2D([xdata], [ydata], marker="o", color="r", picker=4)
+        line = Line2D([xdata], [ydata], marker="o", color="r", pickradius=4)
+        line.set_picker(True)
         ax.add_line(line)
         self.marks[ax].append(line)
         self.add_contour(ax)
@@ -498,7 +499,8 @@ class DrawContours(ActionBase):
 
             self.contour_data[axes].append(data)
 
-            line = Line2D(*data, color="r", picker=2)
+            line = Line2D(*data, color="r", pickradius=2)
+            line.set_picker(True)
             axes.add_line(line)
             self.contours[axes].append(line)
 
@@ -685,13 +687,15 @@ class Markers(ActionBase):
             x, y = xy[0], xy[1]
 
         if vline:
-            options = dict(picker=6, linewidth=3, linestyle="--")
+            options = dict(pickradius=6, linewidth=3, linestyle="--")
             options.update(kwargs)
             marker = axes.axvline(x, **options)
+            marker.set_picker(True)
         else:
-            options = dict(picker=6, marker="x", markersize=20, linestyle="None")
+            options = dict(pickradius=6, marker="x", markersize=20, linestyle="None")
             options.update(kwargs)
             marker = axes.plot(x, y, **options)[0]
+            marker.set_picker(True)
 
         self._linked_data[marker] = line
 

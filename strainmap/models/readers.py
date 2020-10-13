@@ -6,16 +6,7 @@ import re
 from abc import ABC, abstractmethod
 from collections import defaultdict
 from pathlib import Path, PurePath, PurePosixPath
-from typing import (
-    Dict,
-    List,
-    Optional,
-    Text,
-    Tuple,
-    Union,
-    Sequence,
-    Any,
-)
+from typing import Dict, List, Optional, Text, Tuple, Union, Sequence, Any
 
 import h5py
 import numpy as np
@@ -71,9 +62,7 @@ def phase_encoding(filename) -> Tuple[bool, xr.DataArray]:
     swap = ds.InPlanePhaseEncodingDirection == "ROW"
     signs = (
         xr.DataArray(
-            [1, -1, 1],
-            dims=["comp"],
-            coords={"comp": [Comp.RAD, Comp.CIRC, Comp.LONG]},
+            [1, -1, 1], dims=["comp"], coords={"comp": [Comp.RAD, Comp.CIRC, Comp.LONG]}
         )
         * (-1) ** swap
     )
@@ -182,7 +171,7 @@ def extract_strain_markers(
     h5file: Union[Path, h5py.File],
     datasets: Dict[str, str],
     regions: Dict[str, Sequence[str]],
-    colnames: Sequence[str] = ("Slice", "Region", "Component", "PSS", "ESS", "PS",),
+    colnames: Sequence[str] = ("Slice", "Region", "Component", "PSS", "ESS", "PS"),
 ) -> pd.DataFrame:
     """Extracts as a DataFrame from a h5 file the strain markers.
 
@@ -349,10 +338,10 @@ DICOM_READERS = []
 def register_dicom_reader(reader_class):
     """Registers the reader_class in the list of available readers."""
     if issubclass(reader_class, DICOMReaderBase) and set(reader_class.vars.keys()) == {
-        "mag",
-        "x",
-        "y",
-        "z",
+        Comp.MAG,
+        Comp.X,
+        Comp.Y,
+        Comp.Z,
     }:
         DICOM_READERS.append(reader_class)
     return reader_class
@@ -371,7 +360,7 @@ class DICOM(DICOMReaderBase):
 
     variables = ["MagAvg", "PhaseZ", "PhaseX", "PhaseY", "RefMag"]
 
-    vars = {"mag": "MagAvg", "z": "PhaseZ", "x": "PhaseX", "y": "PhaseY"}
+    vars = {Comp.MAG: "MagAvg", Comp.Z: "PhaseZ", Comp.X: "PhaseX", Comp.Y: "PhaseY"}
 
     @staticmethod
     def belongs(path: Union[Path, Text]) -> bool:

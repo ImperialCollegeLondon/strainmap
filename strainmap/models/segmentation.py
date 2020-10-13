@@ -29,7 +29,6 @@ propagator_params: Dict[str, Dict] = {"endocardium": dict(), "epicardium": dict(
 
 rtol_endo: float = 0.15
 rtol_epi: float = 0.10
-replace_threshold: int = 31
 
 
 def new_segmentation(
@@ -38,6 +37,7 @@ def new_segmentation(
     frame: Union[int, None],
     initials: xr.DataArray,
     new_septum: xr.DataArray,
+    replace_threshold: int = 31,
 ) -> None:
     """Starts a new segmentation, either quick or step by step.
 
@@ -54,6 +54,7 @@ def new_segmentation(
         centroid,
         data.data_files.images(cine).sel(frame=frame, comp=Comp.MAG),
         initials,
+        replace_threshold,
     )
 
     # If are doing an automatic segmentation for all frames, calculate the effective COM
@@ -67,10 +68,7 @@ def new_segmentation(
 
 
 def update_segmentation(
-    data: StrainMapData,
-    cine: str,
-    new_segments: xr.DataArray,
-    new_septum: xr.DataArray,
+    data: StrainMapData, cine: str, new_segments: xr.DataArray, new_septum: xr.DataArray
 ) -> None:
     """Updates the segmentation for the current frame.
 
@@ -106,6 +104,7 @@ def update_and_find_next(
     frame: int,
     new_segments: xr.DataArray,
     new_septum: xr.DataArray,
+    replace_threshold: int = 31,
 ) -> None:
     """Updates the segmentation for the current frame and starts the next one.
 
@@ -121,6 +120,7 @@ def update_and_find_next(
         centroid,
         data.data_files.images(cine).sel(frame=frame, comp=Comp.MAG),
         segments.sel(frame=frame - 1),
+        replace_threshold,
     )
 
     # We set the new septum
@@ -204,11 +204,7 @@ def _init_septum_and_centroid(cine: str, frames: int, name: str) -> xr.DataArray
     return xr.DataArray(
         np.full((1, frames, 2), np.nan),
         dims=("cine", "frame", "coord"),
-        coords={
-            "cine": [cine],
-            "coord": ["row", "col"],
-            "frame": np.arange(0, frames),
-        },
+        coords={"cine": [cine], "coord": ["row", "col"], "frame": np.arange(0, frames)},
         name=name,
     )
 
@@ -218,6 +214,7 @@ def _find_segmentation(
     centroid: xr.DataArray,
     images: xr.DataArray,
     initials: xr.DataArray,
+    replace_threshold: int = 31,
 ) -> None:
     """Find the segmentation of one or more images starting at the initials segments.
 
@@ -340,7 +337,7 @@ def _create_rules_one_frame(
             partial(
                 _replace_single,
                 replacement=Contour(
-                    replacement.sel(side=side, frame=frame - 1).data.T, shape=shape,
+                    replacement.sel(side=side, frame=frame - 1).data.T, shape=shape
                 ),
                 rtol=rtol[side],
                 replace=False,

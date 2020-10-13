@@ -7,7 +7,7 @@ import numpy as np
 from scipy import interpolate
 
 from .strainmap_data_model import StrainMapData
-from .velocities import find_theta0, regenerate
+from .velocities import regenerate
 from .writers import terminal
 from .sm_data import LabelledArray
 

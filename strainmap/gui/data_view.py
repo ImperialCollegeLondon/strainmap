@@ -16,6 +16,7 @@ from matplotlib.figure import Figure
 from .base_window_and_task import TaskViewBase, register_view
 from .figure_actions import BrightnessAndContrast, ScrollFrames, ZoomAndPan
 from .figure_actions_manager import FigureActionsManager
+from ..coordinates import Comp
 from ..models.sm_data import LabelledArray
 
 
@@ -331,7 +332,7 @@ class DataTaskView(TaskViewBase):
 
     @property
     def images(self) -> LabelledArray:
-        variable = self.maps_var.get()
+        variable = Comp(self.maps_var.get())
         series = self.datasets_var.get()
         return self.data.data_files.images(series).sel(comp=variable)
 
@@ -377,7 +378,7 @@ class DataTaskView(TaskViewBase):
 
         Only data for cine = 0 is loaded.
         """
-        variable = self.maps_var.get()
+        variable = Comp(self.maps_var.get())
         series = self.datasets_var.get()
         self.treeview.delete(*self.treeview.get_children())
 
