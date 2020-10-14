@@ -223,47 +223,6 @@ def figure():
 
 
 @fixture
-def markers():
-    import numpy as np
-
-    return np.array(
-        [
-            [
-                [5, 5.0, 145.83333333333334],
-                [20, -10.0, 486.8421052631579],
-                [38, -5.0, 794.7368421052631],
-                [0, 0, 0],
-            ],
-            [
-                [5, 2.0000000000000124, 145.83333333333334],
-                [20, -10.0, 486.8421052631579],
-                [38, -5.0, 794.7368421052631],
-                [14, 3.116736209871314e-07, 350.0],
-            ],
-            [
-                [3, -1.9990386376492923, 87.5],
-                [8, 1.9990386376492724, 233.33333333333331],
-                [18, -2.9999999999999867, 452.63157894736844],
-                [0, 0, 0],
-            ],
-        ]
-    )
-
-
-@fixture
-def velocity(markers):
-    import numpy as np
-
-    velocities = np.zeros((3, 50))
-    idx = np.arange(0, 50)
-    for i in range(3):
-        for centre, amplitude, _ in markers[i]:
-            velocities[i] += amplitude * np.exp(-((idx - centre) ** 2) / 3)
-
-    return velocities
-
-
-@fixture
 def data_with_velocities(segmented_data):
     from strainmap.models.velocities import calculate_velocities
     from copy import deepcopy
@@ -407,16 +366,46 @@ def masks(segmented_data, theta0):
 
 
 @fixture
-def empty_markers():
+def empty_markers(regions):
     from strainmap.models.velocities import VelMark
+    from strainmap.coordinates import Comp
     import numpy as np
-    xr.DataArray(
-        np.full((3, 34, 7, 3), np.nan),
-        dims=["comp", "region", "marker", "quantity"],
+    components = [Comp.LONG, Comp.RAD, Comp.CIRC]
+    quantities = ["frame", "velocity", "time"]
+    return xr.DataArray(
+        np.full((len(regions), len(components), len(VelMark), len(quantities)), np.nan),
+        dims=["region", "comp", "marker", "quantity"],
         coords={
-            "comp": velocity.comp,
-            "region": velocity.region,
+            "region": regions,
+            "comp": components,
             "marker": list(VelMark),
-            "quantity": ["frame", "velocity", "time"],
+            "quantity": quantities,
         },
     )
+
+
+@fixture
+def regions():
+    from itertools import chain
+    from strainmap.coordinates import Region
+    return list(chain.from_iterable(([r] * r.value for r in Region)))
+
+
+@fixture
+def velocities(regions):
+    from strainmap.coordinates import Comp
+    import numpy as np
+
+    components = [Comp.LONG, Comp.RAD, Comp.CIRC]
+    frames = 50
+    output = xr.DataArray(
+        np.full((len(regions), frames, len(components)), np.nan),
+        dims=["region", "frame", "comp"],
+        coords={
+            "region": regions,
+            "frame": np.arange(frames),
+            "comp": components,
+        },
+    )
+    output[...] = np.sin(np.linspace(0, 2 * np.pi, frames))[None, :, None]
+    return output

@@ -1,4 +1,4 @@
-from _pytest.python_api import approx
+from pytest import approx
 
 
 def test_theta_origin():
@@ -144,64 +144,103 @@ def test_cartesian_to_cylindrical(segmented_data, masks, theta0):
     return
 
 
+def test_marker_x(empty_markers, velocities):
+    from strainmap.models.velocities import marker_x, _MSearch
+    import numpy as np
+    import xarray as xr
+
+    comp = np.random.choice(velocities.comp.data, 2)
+    m = np.random.choice(empty_markers.marker.data)
+    options = _MSearch(0, 25, xr.DataArray.argmax, comp)
+    marker_x(m, velocities, options, empty_markers)
+
+    idx = velocities.argmax(dim="frame")[0, 0].item()
+    vel = velocities.max()
+    assert (empty_markers.sel(comp=comp, marker=m, quantity="frame") == idx).all()
+    assert (empty_markers.sel(comp=comp, marker=m, quantity="velocity") == vel).all()
+
+
+def test_marker_es(empty_markers, velocities):
+    from strainmap.models.velocities import (
+        marker_x,
+        marker_es,
+        MARKERS_OPTIONS,
+        _MSearch,
+    )
+    from strainmap.coordinates import VelMark, Comp
+
+    # Picks PD, so defaults to the zero crossing point
+    marker_x(VelMark.PD, velocities, MARKERS_OPTIONS[VelMark.PD], empty_markers)
+    marker_es(velocities, _MSearch(22, 35, None, [Comp.RAD]), empty_markers)
+
+    vel = velocities.sel(frame=25)
+    assert (empty_markers.sel(marker=VelMark.ES, quantity="frame") == 25).all()
+    assert (empty_markers.sel(marker=VelMark.ES, quantity="velocity") == vel).all()
+
+    # Picks a local minimum
+    velocities.loc[{"frame": [18, 19, 20]}] = -0.3
+    marker_es(velocities, MARKERS_OPTIONS[VelMark.ES], empty_markers)
+    assert (empty_markers.sel(marker=VelMark.ES, quantity="frame") == 19).all()
+    assert (empty_markers.sel(marker=VelMark.ES, quantity="velocity") == -0.3).all()
+
+
+def test_marker_pc3(empty_markers, velocities):
+    from strainmap.models.velocities import (
+        MARKERS_OPTIONS,
+        marker_x,
+        marker_es,
+        marker_pc3,
+    )
+    from strainmap.coordinates import VelMark, Comp
+
+    marker_x(VelMark.PD, velocities, MARKERS_OPTIONS[VelMark.PD], empty_markers)
+    marker_es(velocities, MARKERS_OPTIONS[VelMark.ES], empty_markers)
+
+    empty_markers.loc[{"marker": VelMark.ES, "quantity": "frame"}] = 30
+    marker_pc3(velocities, MARKERS_OPTIONS[VelMark.PC3], empty_markers)
+
+    idx = velocities.argmin(dim="frame")[0, 0].item()
+    vel = velocities.min()
+    assert (
+        empty_markers.sel(comp=Comp.CIRC, marker=VelMark.PC3, quantity="frame") == idx
+    ).all()
+    assert (
+        empty_markers.sel(comp=Comp.CIRC, marker=VelMark.PC3, quantity="velocity")
+        == vel
+    ).all()
+
+
+def test_initialise_markers(velocities, empty_markers):
+    from strainmap.models.velocities import initialise_markers
+    import xarray as xr
+
+    markers = initialise_markers(velocities)
+    assert markers.dims == empty_markers.dims
+    for c in markers.coords:
+        assert (markers.coords[c] == empty_markers.coords[c]).all()
+    assert not xr.ufuncs.isnan(markers).all()
+
+
+def test_normalised_times(empty_markers):
+    from strainmap.models.velocities import normalise_times
+    from strainmap.coordinates import VelMark
+
+    empty_markers.loc[{"marker": VelMark.ES, "quantity": "frame"}] = 30
+    empty_markers.loc[{"marker": VelMark.PS, "quantity": "frame"}] = 15
+    empty_markers.loc[{"marker": VelMark.PD, "quantity": "frame"}] = 40
+
+    normalise_times(empty_markers, 50)
+
+    assert (empty_markers.sel(marker=VelMark.ES, quantity="time") == 350).all()
+    assert (empty_markers.sel(marker=VelMark.PS, quantity="time") == 175).all()
+    assert (empty_markers.sel(marker=VelMark.PD, quantity="time") == 675).all()
+
+
 def test_calculate_velocities(segmented_data):
     from strainmap.models.velocities import calculate_velocities
 
     cine = segmented_data.data_files.datasets[0]
     calculate_velocities(segmented_data, cine)
 
-
-def test_initialise_markers(segmented_data):
-    from strainmap.models.velocities import calculate_velocities, initialise_markers
-
-    cine = segmented_data.data_files.datasets[0]
-    calculate_velocities(segmented_data, cine)
-
-
-def test_marker():
-    from strainmap.models.velocities import marker_x, _MSearch
-    import numpy as np
-
-    vel = np.sin(np.linspace(0, 2 * np.pi, 50))
-
-    idx = np.argmin(abs(vel - np.sin(np.pi / 2)))
-    expected = (idx, vel[idx], 0)
-    assert marker_x(vel, low=1, high=20, maximum=True) == expected
-
-    idx = np.argmin(abs(vel - np.sin(3 * np.pi / 2)))
-    expected = (idx, vel[idx], 0)
-    assert marker_x(vel, low=30, high=45, maximum=False) == expected
-
-
-def test_marker_es():
-    from strainmap.models.velocities import marker_es, MARKERS_OPTIONS
-    import numpy as np
-
-    vel = 10 * np.sin(np.linspace(0, 4 * np.pi, 50))
-
-    pd_idx = np.argmin(abs(vel[1:25] - 10 * np.sin(3 * np.pi / 2)))
-    pd = (pd_idx, vel[pd_idx], 0)
-    idx = MARKERS_OPTIONS["ES"]["low"]
-    expected = (idx, vel[idx], 0)
-    assert marker_es(vel, pd) == expected
-
-
-def test_marker_pc3():
-    from strainmap.models.velocities import marker_pc3
-    import numpy as np
-
-    vel = 10 * np.sin(np.linspace(0, 4 * np.pi, 50))
-
-    es_idx = np.argmin(abs(vel[1:25] - 10 * np.sin(np.pi))) + 1
-    es = (es_idx, vel[es_idx], 0)
-    idx = np.argmin(abs(vel[1:25] - 10 * np.sin(3 * np.pi / 2))) + 1
-    expected = (idx, vel[idx], 0)
-    assert marker_pc3(vel, es) == expected
-    assert marker_pc3(vel / 100, es) == (0, np.nan, 0)
-
-
-def test_normalised_times(markers):
-    from strainmap.models.velocities import normalise_times
-
-    actual = normalise_times(markers, 50)
-    assert actual[:, :, 2] == approx(markers[:, :, 2])
+    for var in ("masks", "cylindrical", "velocities", "markers"):
+        assert hasattr(getattr(segmented_data, var), "cine")

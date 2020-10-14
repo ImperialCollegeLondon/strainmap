@@ -146,9 +146,16 @@ class StrainMapData(object):
         """
         for attr, value in kwargs.items():
             if getattr(self, attr).shape == ():
-                setattr(self, attr, value)
+                setattr(self, attr, value.expand_dims(cine=[cine]))
             elif cine not in getattr(self, attr).cine:
-                setattr(self, attr, xr.concat([getattr(self, attr), value], dim="cine"))
+                setattr(
+                    self,
+                    attr,
+                    xr.concat(
+                        [getattr(self, attr), value.expand_dims(cine=[cine])],
+                        dim="cine",
+                    ),
+                )
 
         self.save(list(kwargs.keys()))
 
