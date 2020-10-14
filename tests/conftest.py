@@ -404,3 +404,19 @@ def masks(segmented_data, theta0):
     segments = segmented_data.segments.isel(cine=0)
     centroid = segmented_data.centroid.isel(cine=0)
     return find_masks(segments, centroid, theta0, shape)
+
+
+@fixture
+def empty_markers():
+    from strainmap.models.velocities import VelMark
+    import numpy as np
+    xr.DataArray(
+        np.full((3, 34, 7, 3), np.nan),
+        dims=["comp", "region", "marker", "quantity"],
+        coords={
+            "comp": velocity.comp,
+            "region": velocity.region,
+            "marker": list(VelMark),
+            "quantity": ["frame", "velocity", "time"],
+        },
+    )

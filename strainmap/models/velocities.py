@@ -10,6 +10,24 @@ from .strainmap_data_model import StrainMapData
 from .writers import terminal
 
 
+class _MSearch(NamedTuple):
+    low: int = 0
+    high: int = 50
+    fun: Optional[Callable] = None
+    comp: Sequence[Comp] = ()
+
+
+MARKERS_OPTIONS: Dict[VelMark, _MSearch] = {
+    VelMark.PS: _MSearch(1, 15, xr.DataArray.argmax, [Comp.RAD, Comp.LONG]),
+    VelMark.PD: _MSearch(15, 35, xr.DataArray.argmin, [Comp.RAD, Comp.LONG]),
+    VelMark.PAS: _MSearch(35, 47, xr.DataArray.argmin, [Comp.RAD, Comp.LONG]),
+    VelMark.ES: _MSearch(14, 21, None, [Comp.RAD]),
+    VelMark.PC1: _MSearch(1, 5, xr.DataArray.argmin, [Comp.CIRC]),
+    VelMark.PC2: _MSearch(6, 12, xr.DataArray.argmax, [Comp.CIRC]),
+    VelMark.PC3: _MSearch(0, 0, None, [Comp.CIRC]),
+}
+
+
 def theta_origin(centroid: xr.DataArray, septum: xr.DataArray):
     """Finds theta0 out of the centroid and septum mid-point"""
     shifted = septum - centroid
@@ -264,15 +282,51 @@ def calculate_velocities(
         )
         * data.data_files.sensitivity
         * signs
-    )
+    ).drop_vars("cine")
 
     # We are now ready to calculate the velocities
     velocity = xr.where(masks, cylindrical, np.nan).mean(dim=["row", "col"])
+    markers = initialise_markers(velocity)
 
-    return velocity
+    # Finally, we add all the information to the StrainMap data object
+    data.add_data(
+        cine, masks=masks, cylindrical=cylindrical, velocities=velocity, markers=markers
+    )
+    return
 
 
 def initialise_markers(velocity: xr.DataArray) -> xr.DataArray:
+    """ Find the initial position and value of the markers for the chosen velocity.
+
+    The default positions for the markers are:
+
+    Longitudinal and radial:
+        PS = maximum in frames 1 - 15
+        PD = minimum in frames 15 - 30
+        PAS = minimum in frames 31 - 45
+
+    Circumferential:
+        PC1 = minimum in frames 1 – 5
+        PC2 = maximum in frames 6 – 12
+        PC3 = largest peak (negative OR positive) between ES and ES+10. However if the
+            magnitude of the detected peak is <0.5cm/s, then don’t display a PC3 marker
+            or PC3 values.
+
+    The default position for the ES marker in the global radial plot is the position of
+    the first small negative peak about 1/3 of the way through the cardiac cycle. If
+    for any reason that peak doesn’t exist, then we would pick up PD by mistake.
+    We can avoid this by saying that if the peak detected is <-2cm/s, use the x axis
+    cross-over point as the default marker position instead.
+
+    For the regional plots, the default ES position is the position of the global ES.
+
+    Args:
+        velocity (xr.DataArray): Array of velocities versus frame for all regions
+            and components
+
+    Returns:
+        xr.DataArray with all markers information.
+    """
     result = xr.DataArray(
         np.full((velocity.sizes["comp"], velocity.sizes["region"], 7, 3), np.nan),
         dims=["comp", "region", "marker", "quantity"],
@@ -284,81 +338,171 @@ def initialise_markers(velocity: xr.DataArray) -> xr.DataArray:
         },
     )
 
-    for m, opt in markers_options.items():
-        if opt.fun is None:
+    # Search for normal markers
+    for m, opt in MARKERS_OPTIONS.items():
+        if m in (VelMark.ES, VelMark.PC3):
             continue
-
-        low = min(opt.low, velocity.sizes["frame"] - 1)
-        high = min(opt.high, velocity.sizes["frame"] - 1)
-        vel = velocity.sel(frame=slice(low, high), comp=opt.comp)
-
-        idx = opt.fun(vel, dim="frame")
-        result.loc[{"marker": m, "quantity": "frame", "comp": opt.comp}] = idx.T + low
-        result.loc[{"marker": m, "quantity": "velocity", "comp": opt.comp}] = vel.isel(
-            frame=idx
-        ).T
+        marker_x(m, velocity, opt, result)
 
     # Search for ES
-    opt = markers_options[VelMark.ES]
+    marker_es(velocity, MARKERS_OPTIONS[VelMark.ES], result)
+
+    # Search for PC3
+    marker_pc3(velocity, MARKERS_OPTIONS[VelMark.PC3], result)
+
+    # Calculate the normalised times
+    normalise_times(result, velocity.sizes["frame"])
+
+    return result
+
+
+def marker_x(
+    label: VelMark, velocity: xr.DataArray, options: _MSearch, result: xr.DataArray
+) -> None:
+    """ Calculates the location and value of normal markers (not ES nor PC3).
+
+    Args:
+        label (VelMark): Marker label
+        velocity (xr.DataArray): Array of velocities versus frame for all regions
+            and components
+        options (_MSearch): Options to calculate this specific marker
+        result (xr.DataArray): Arrays with all markers values, where the result will be
+            stored
+
+    Returns:
+        None
+    """
+    low = min(options.low, velocity.sizes["frame"])
+    high = min(options.high, velocity.sizes["frame"])
+    if high - low == 0:
+        low = 0
+
+    vel = velocity.sel(frame=slice(low, high), comp=options.comp)
+    idx = options.fun(vel, dim="frame")
+    result.loc[{"marker": label, "quantity": "frame", "comp": options.comp}] = (
+        idx.T + low
+    )
+    result.loc[
+        {"marker": label, "quantity": "velocity", "comp": options.comp}
+    ] = vel.isel(frame=idx).T
+
+
+def marker_es(velocity: xr.DataArray, options: _MSearch, result: xr.DataArray) -> None:
+    """ Calculates the location and value of the ES marker.
+
+    Args:
+        velocity (xr.DataArray): Array of velocities versus frame for all regions
+            and components
+        options (_MSearch): Options to calculate this specific marker
+        result (xr.DataArray): Arrays with all markers values, where the result will be
+            stored
+
+    Returns:
+        None
+    """
     pdidx = int(
         result.sel(
             marker=VelMark.PD, quantity="frame", comp=Comp.RAD, region=Region.GLOBAL
         ).item()
     )
-    low = min(opt.low, pdidx)
-    high = min(opt.high, pdidx)
+    low = min(options.low, pdidx)
+    high = min(options.high, pdidx)
     if high - low == 0:
         low = 0
-    vel = velocity.sel(frame=slice(low, high), comp=opt.comp, region=Region.GLOBAL)
-    dvel = vel.differentiate("frame")
-    idx = dvel.argmin(dim="frame")
-    if idx == pdidx or xr.ufuncs.fabs(vel).isel(frame=idx).item() < -2.5:
-        idx = vel.argmin(dim="frame")
 
-    result.loc[{"marker": VelMark.ES, "quantity": "frame", "comp": opt.comp}] = (
+    vel = velocity.sel(
+        frame=slice(low, high + 1), comp=options.comp, region=Region.GLOBAL
+    )
+    dvel = vel.differentiate("frame")
+    idx = dvel.argmin(dim="frame").drop_vars(["region"])
+    if idx == pdidx or xr.ufuncs.fabs(vel).isel(frame=idx).item() < -2.5:
+        idx = vel.argmin(dim="frame").drop_vars(["region"])
+
+    result.loc[{"marker": VelMark.ES, "quantity": "frame", "comp": options.comp}] = (
         idx.T + low
     )
     result.loc[
-        {"marker": VelMark.ES, "quantity": "velocity", "comp": opt.comp}
+        {"marker": VelMark.ES, "quantity": "velocity", "comp": options.comp}
     ] = vel.isel(frame=idx).T
 
-    return result
+
+def marker_pc3(velocity: xr.DataArray, options: _MSearch, result: xr.DataArray) -> None:
+    """ Calculates the location and value of the PC3 marker.
+
+    Args:
+        velocity (xr.DataArray): Array of velocities versus frame for all regions
+            and components
+        options (_MSearch): Options to calculate this specific marker
+        result (xr.DataArray): Arrays with all markers values, where the result will be
+            stored
+
+    Returns:
+        None
+    """
+    low = int(
+        result.sel(
+            marker=VelMark.ES, quantity="frame", comp=Comp.RAD, region=Region.GLOBAL
+        ).item()
+    )
+    high = min(low + 10, velocity.frame.max().item())
+
+    vel = velocity.sel(frame=slice(low, high + 1), comp=options.comp)
+    pos = vel.max(dim="frame")
+    neg = vel.min(dim="frame")
+
+    idx = xr.where(pos > abs(neg), vel.argmax(dim="frame"), vel.argmin(dim="frame"))
+    result.loc[{"marker": VelMark.PC3, "quantity": "frame", "comp": options.comp}] = (
+        idx.T + low
+    )
+    result.loc[
+        {"marker": VelMark.PC3, "quantity": "velocity", "comp": options.comp}
+    ] = xr.where(
+        abs(vel.isel(frame=idx).T) < 0.5,
+        np.nan * vel.isel(frame=idx).T,
+        vel.isel(frame=idx).T,
+    )
 
 
-class _MSearch(NamedTuple):
-    low: int = 0
-    high: int = 50
-    fun: Optional[Callable] = None
-    comp: Sequence[Comp] = ()
+def normalise_times(markers: xr.DataArray, frames: int) -> None:
+    """Calculates the normalised values for the marker times.
+
+    The timings of the peaks (PS, PD and PAS) within the cardiac cycle are heart rate
+    dependent. To reduce variability due to changes in heart rate, we normalise the
+    cardiac cycle to a fixed length of 1000ms (ie a heart rate of 60bpm). As the heart
+    rate changes, the length of systole remains relatively fixed while the length of
+    diastole changes substantially – so we do this in two stages.
+
+    Our normalised curves  have a systolic length of 350 ms and a diastolic length of
+    650ms.
+
+    Args:
+        markers (xr.DataArray): Arrays with all markers values, where the result will be
+            stored
+        frames (int): Total number of frames
+
+    Returns:
+        None
+    """
+    es = int(
+        markers.sel(
+            marker=VelMark.ES, quantity="frame", comp=Comp.RAD, region=Region.GLOBAL
+        ).item()
+    )
+    markers.loc[{"quantity": "time"}] = xr.where(
+        markers.sel(quantity="frame") <= es,
+        smaller_than_es(markers.sel(quantity="frame"), es),
+        larger_than_es(markers.sel(quantity="frame"), es, frames),
+    )
 
 
-markers_options: Dict[VelMark, _MSearch] = {
-    VelMark.PS: _MSearch(1, 15, xr.DataArray.argmax, [Comp.RAD, Comp.LONG]),
-    VelMark.PD: _MSearch(15, 35, xr.DataArray.argmin, [Comp.RAD, Comp.LONG]),
-    VelMark.PAS: _MSearch(35, 47, xr.DataArray.argmin, [Comp.RAD, Comp.LONG]),
-    VelMark.ES: _MSearch(14, 21, None, [Comp.RAD]),
-    VelMark.PC1: _MSearch(1, 5, xr.DataArray.argmin, [Comp.CIRC]),
-    VelMark.PC2: _MSearch(6, 12, xr.DataArray.argmax, [Comp.CIRC]),
-    VelMark.PC3: _MSearch(0, 0, None, [Comp.CIRC]),
-}
+def smaller_than_es(x, es, syst=350):
+    """Normalization for times smaller than ES."""
+    return x / es * syst
 
 
-def px_velocity_curves(
-    data: StrainMapData, cine: str, nrad: int = 3, nang: int = 24
-) -> np.ndarray:
-    """ TODO: Remove in the final version. """
-    from .strain import masked_reduction
-
-    vkey = f"cylindrical"
-    rkey = f"radial x{nrad}"
-    akey = f"angular x{nang}"
-    img_axis = tuple(range(len(data.masks[cine][vkey].shape)))[-2:]
-
-    cyl = data.masks[cine][vkey]
-    m = data.masks[cine][rkey] + 100 * data.masks[cine][akey]
-    r = masked_reduction(cyl, m, axis=img_axis)
-
-    return r - r.mean(axis=(1, 2, 3), keepdims=True)
+def larger_than_es(x, es, frames, syst=350, dias=650):
+    """Normalization for times larger than ES."""
+    return syst + (x - es) / (frames - es) * dias
 
 
 def regenerate(data, cines, callback: Callable = terminal):
@@ -389,221 +533,19 @@ def regenerate(data, cines, callback: Callable = terminal):
     callback(f"Regeneration complete!", 1)
 
 
-def marker(comp, low=1, high=49, maximum=True):
-    """Finds the index and value of the marker position within the given range."""
-    low = min(low, len(comp) - 1)
-    high = min(high, len(comp) - 1)
-
-    idx = (
-        np.argmax(comp[low : high + 1]) if maximum else np.argmin(comp[low : high + 1])
-    ) + low
-    return idx, comp[idx], 0
-
-
-def marker_es(comp, pd, low=14, high=21):
-    """Finds the default position of the ES marker."""
-    low = min(low, int(pd[0]) - 1)
-    high = min(high, int(pd[0]) - 1)
-
-    if high - low == 0:
-        low = 0
-
-    grad = np.diff(comp[low : high + 1])
-    idx = np.argmin(abs(grad)) + low
-
-    if idx == pd[0] or comp[idx] < -2.5:
-        idx = np.argmin(abs(comp[low : high + 1])) + low
-
-    return idx, comp[idx], 0
-
-
-def marker_pc3(comp, es):
-    """Finds the default position of the PC3 marker."""
-    low = int(es[0])
-    high = int(min(low + 10, len(comp) - 1))
-
-    pos = np.max(comp[low : high + 1])
-    neg = np.min(comp[low : high + 1])
-
-    idx = (
-        np.argmax(comp[low : high + 1])
-        if pos > abs(neg)
-        else np.argmin(comp[low : high + 1])
-    ) + low
-
-    value = comp[idx]
-    if abs(value) < 0.5:
-        idx = 0
-        value = np.nan
-
-    return idx, value, 0
-
-
-def normalised_times(markers: np.ndarray, frames: int) -> np.ndarray:
-    """Calculates the normalised values for the marker times.
-
-    The timings of the peaks (PS, PD and PAS) within the cardiac cycle are heart rate
-    dependent. To reduce variability due to changes in heart rate, we normalise the
-    cardiac cycle to a fixed length of 1000ms (ie a heart rate of 60bpm). As the heart
-    rate changes, the length of systole remains relatively fixed while the length of
-    diastole changes substantially – so we do this in two stages.
-
-    Our normalised curves  have a systolic length of 350 ms and a diastolic length of
-    650ms.
-    """
-    es = markers[1, 3, 0]
-    markers[:, :, 2] = np.where(
-        markers[:, :, 0] <= es,
-        smaller_than_es(markers[:, :, 0], es),
-        larger_than_es(markers[:, :, 0], es, frames),
-    )
-
-    return markers
-
-
-def smaller_than_es(x, es, syst=350):
-    """Normalization for times smaller than ES."""
-    return x / es * syst
-
-
-def larger_than_es(x, es, frames, syst=350, dias=650):
-    """Normalization for times larger than ES."""
-    return syst + (x - es) / (frames - es) * dias
-
-
-def _markers_positions(
-    velocity: np.ndarray, es: Optional[np.ndarray] = None
+def px_velocity_curves(
+    data: StrainMapData, cine: str, nrad: int = 3, nang: int = 24
 ) -> np.ndarray:
-    """Find the position of the markers for the chosen cine and velocity.
+    """ TODO: Remove in the final version. """
+    from .strain import masked_reduction
 
-    The default positions for the markers are:
+    vkey = f"cylindrical"
+    rkey = f"radial x{nrad}"
+    akey = f"angular x{nang}"
+    img_axis = tuple(range(len(data.masks[cine][vkey].shape)))[-2:]
 
-    Longitudinal and radial:
-        PS = maximum in frames 1 - 15
-        PD = minimum in frames 15 - 30
-        PAS = minimum in frames 31 - 45
+    cyl = data.masks[cine][vkey]
+    m = data.masks[cine][rkey] + 100 * data.masks[cine][akey]
+    r = masked_reduction(cyl, m, axis=img_axis)
 
-    Circumferential:
-        PC1 = minimum in frames 1 – 5
-        PC2 = maximum in frames 6 – 12
-        PC3 = largest peak (negative OR positive) between ES and ES+10. However if the
-            magnitude of the detected peak is <0.5cm/s, then don’t display a PC3 marker
-            or PC3 values.
-
-    The default position for the ES marker in the global radial plot is the position of
-    the first small negative peak about 1/3 of the way through the cardiac cycle. If
-    for any reason that peak doesn’t exist, then we would pick up PD by mistake.
-    We can avoid this by saying that if the peak detected is <-2cm/s, use the x axis
-    cross-over point as the default marker position instead.
-
-    For the regional plots, the default ES position is the position of the global ES.
-
-    Returns:
-        Array with dimensions [component, 4, 3], where axes 1 represents the marker name
-        (see above) and axes 2 represents the marker information (index, value,
-        normalised time). Only component 1 has a 4th marker.
-    """
-    markers_lbl = (("PS", "PD", "PAS"), ("PS", "PD", "PAS"), ("PC1", "PC2"))
-    markers = np.zeros((3, 4, 3), dtype=float)
-
-    for i in range(3):
-        for j, key in enumerate(markers_lbl[i]):
-            markers[i, j] = marker(velocity[i], **markers_options[key])
-
-    markers[1, 3] = (
-        marker_es(velocity[1], markers[1, 1], **markers_options["ES"])
-        if es is None
-        else (int(es[0]), velocity[1, int(es[0])], 0)
-    )
-    markers[2, 2] = marker_pc3(velocity[2], markers[1, 3])
-
-    return normalised_times(markers, len(velocity[0]))
-
-
-def markers_positions(velocity: np.ndarray, es: Optional[np.ndarray] = None):
-    """Find the position of the markers for the chosen cine and velocity."""
-    markers = []
-    for i in range(velocity.shape[0]):
-        markers.append(_markers_positions(velocity[i], es))
-
-    return np.array(markers)
-
-
-def _update_marker(
-    velocities: np.ndarray,
-    markers: np.ndarray,
-    component: int,
-    marker_idx: int,
-    position: int,
-):
-    """Updates the position of an existing marker in the data object.
-
-    If the marker modified is "ES" (marker_idx = 3), then all markers are updated.
-    Otherwise just the chosen one is updated.
-    """
-    value = velocities[component, position]
-    frames = len(velocities[component])
-
-    if marker_idx == 3:
-        markers[1, 3, 0] = position
-        markers[1, 3, 1] = value
-        markers = normalised_times(markers, frames)
-
-    else:
-        es = markers[1, 3, 0]
-        markers[component, marker_idx, :] = [
-            position,
-            value,
-            smaller_than_es(position, es)
-            if position <= es
-            else larger_than_es(position, es, frames),
-        ]
-
-    return markers
-
-
-def update_marker(
-    data: StrainMapData,
-    cine: str,
-    vel_label: str,
-    region: int,
-    component: int,
-    marker_idx: int,
-    position: int,
-):
-    """Updates the position of an existing marker in the data object.
-
-    If the marker modified is "ES" (marker_idx = 3), then all markers are updated.
-    Otherwise just the chosen one is updated.
-    """
-    if marker_idx == 3:
-        for l in data.markers[cine]:
-            for r in range(len(data.markers[cine][l])):
-                data.markers[cine][l][r] = _update_marker(
-                    data.velocities[cine][l][r],
-                    data.markers[cine][l][r],
-                    component,
-                    marker_idx,
-                    position,
-                )
-    else:
-        data.markers[cine][vel_label][region] = _update_marker(
-            data.velocities[cine][vel_label][region],
-            data.markers[cine][vel_label][region],
-            component,
-            marker_idx,
-            position,
-        )
-    data.save(["markers", cine, vel_label])
-
-
-# def initialise_markers(data: StrainMapData, cine: str, vel_labels: list):
-#     """Initialises the markers for all the available velocities."""
-#     data.markers[cine]["global"] = markers_positions(data.velocities[cine]["global"])
-#
-#     rvel = (key for key in vel_labels if key != "global")
-#     for vel_label in rvel:
-#         data.markers[cine][vel_label] = markers_positions(
-#             data.velocities[cine][vel_label], data.markers[cine]["global"][0][1, 3],
-#         )
-#     return data
+    return r - r.mean(axis=(1, 2, 3), keepdims=True)

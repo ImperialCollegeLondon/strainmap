@@ -155,34 +155,33 @@ def test_initialise_markers(segmented_data):
     from strainmap.models.velocities import calculate_velocities, initialise_markers
 
     cine = segmented_data.data_files.datasets[0]
-    velocity = calculate_velocities(segmented_data, cine)
-    initialise_markers(velocity)
+    calculate_velocities(segmented_data, cine)
 
 
 def test_marker():
-    from strainmap.models.velocities import marker
+    from strainmap.models.velocities import marker_x, _MSearch
     import numpy as np
 
     vel = np.sin(np.linspace(0, 2 * np.pi, 50))
 
     idx = np.argmin(abs(vel - np.sin(np.pi / 2)))
     expected = (idx, vel[idx], 0)
-    assert marker(vel, low=1, high=20, maximum=True) == expected
+    assert marker_x(vel, low=1, high=20, maximum=True) == expected
 
     idx = np.argmin(abs(vel - np.sin(3 * np.pi / 2)))
     expected = (idx, vel[idx], 0)
-    assert marker(vel, low=30, high=45, maximum=False) == expected
+    assert marker_x(vel, low=30, high=45, maximum=False) == expected
 
 
 def test_marker_es():
-    from strainmap.models.velocities import marker_es, markers_options
+    from strainmap.models.velocities import marker_es, MARKERS_OPTIONS
     import numpy as np
 
     vel = 10 * np.sin(np.linspace(0, 4 * np.pi, 50))
 
     pd_idx = np.argmin(abs(vel[1:25] - 10 * np.sin(3 * np.pi / 2)))
     pd = (pd_idx, vel[pd_idx], 0)
-    idx = markers_options["ES"]["low"]
+    idx = MARKERS_OPTIONS["ES"]["low"]
     expected = (idx, vel[idx], 0)
     assert marker_es(vel, pd) == expected
 
@@ -202,45 +201,7 @@ def test_marker_pc3():
 
 
 def test_normalised_times(markers):
-    from strainmap.models.velocities import normalised_times
+    from strainmap.models.velocities import normalise_times
 
-    actual = normalised_times(markers, 50)
+    actual = normalise_times(markers, 50)
     assert actual[:, :, 2] == approx(markers[:, :, 2])
-
-
-def test_markers_positions_internal(markers, velocity):
-    from strainmap.models.velocities import _markers_positions
-
-    actual = _markers_positions(velocity)
-    assert actual[:, :, 0] == approx(markers[:, :, 0])
-
-
-def test_markers_positions(markers, velocity):
-    from strainmap.models.velocities import markers_positions
-
-    actual = markers_positions(velocity[None])
-    assert actual[0][:, :, 0] == approx(markers[:, :, 0])
-
-
-def test_update_marker(strainmap_data, markers, velocity):
-    from strainmap.models.velocities import update_marker
-    import numpy as np
-    from copy import deepcopy
-
-    dataset = strainmap_data.data_files.datasets[0]
-    strainmap_data.velocities[dataset]["global"] = [velocity]
-    strainmap_data.markers[dataset]["global"] = [deepcopy(markers)]
-
-    update_marker(strainmap_data, dataset, "global", 0, 0, 0, 2)
-    assert strainmap_data.markers[dataset]["global"][0][0, 0, 0] == 2
-    assert strainmap_data.markers[dataset]["global"][0][0, 0, 2] != markers[0, 0, 2]
-    assert np.all(
-        strainmap_data.markers[dataset]["global"][0][0, 1:, 2] == markers[0, 1:, 2]
-    )
-
-    update_marker(strainmap_data, dataset, "global", 0, 1, 3, 15)
-    assert strainmap_data.markers[dataset]["global"][0][1, 3, 0] == 15
-    assert strainmap_data.markers[dataset]["global"][0][1, 3, 2] == 350
-    assert np.all(
-        strainmap_data.markers[dataset]["global"][0][0, :3, 2] != markers[0, :3, 2]
-    )

@@ -84,21 +84,23 @@ class StrainMapData(object):
 
         self.data_files = data_files
         self.strainmap_file = strainmap_file
+        self.orientation: str = "CW"
+        self.timeshift: float = TIMESHIFT
         self.sign_reversal: xr.DataArray = xr.DataArray(
             [1, 1, 1], dims=["comp"], coords={"comp": [Comp.X, Comp.Y, Comp.Z]}
         )
+
         self.segments: xr.DataArray = xr.DataArray()
         self.centroid: xr.DataArray = xr.DataArray()
         self.septum: xr.DataArray = xr.DataArray()
-        self.orientation: str = "CW"
-        self.velocities: dict = defaultdict(dict)
-        self.masks: dict = defaultdict(dict)
-        self.markers: dict = defaultdict(dict)
+        self.velocities: xr.DataArray = xr.DataArray()
+        self.masks: xr.DataArray = xr.DataArray()
+        self.markers: xr.DataArray = xr.DataArray()
+        self.cylindrical: xr.DataArray = xr.DataArray()
         self.strain: dict = defaultdict(dict)
         self.strain_markers: dict = defaultdict(dict)
         self.gls: np.ndarray = np.array([])
         self.twist: Optional[LabelledArray] = None
-        self.timeshift: float = TIMESHIFT
 
     @property
     def rebuilt(self):
@@ -123,6 +125,32 @@ class StrainMapData(object):
         self.strainmap_file = h5py.File(strainmap_file, "a")
         self.save_all()
         return True
+
+    def add_data(self, cine: str, **kwargs):
+        """ Adds new data to the attributes, expanding the 'cine' coordinate.
+
+        If the attribute already has data for that cine, nothing is done. Update the
+        attribute directly in that case, eg.:
+
+            data.segmentation[{"cine": cine}][...] = new_data
+
+        After updating the data object, it is saved.
+
+        Args:
+            cine (str): Name of the cine for which information is to be added.
+            **kwargs: The attributes to update with the values they should take for this
+                cine.
+
+        Returns:
+            None
+        """
+        for attr, value in kwargs.items():
+            if getattr(self, attr).shape == ():
+                setattr(self, attr, value)
+            elif cine not in getattr(self, attr).cine:
+                setattr(self, attr, xr.concat([getattr(self, attr), value], dim="cine"))
+
+        self.save(list(kwargs.keys()))
 
     def set_orientation(self, orientation):
         """Sets the angular regions orientation (CW or CCW) and saves the data"""
@@ -211,27 +239,23 @@ class StrainMapData(object):
         write_hdf5_file(self, self.strainmap_file)
 
     def save(self, *args):
-        """Saves specific datasets to the hdf5 file.
+        """Saves specific attributes to the hdf5 file.
 
-        Each dataset to be saved must be defined as a list of keys, where key[0] must be
-        one of the StrainMapData attributes (segments, velocities, etc.)
-
-        TODO: Data saving is now done by whole attributes
+        They must be one of the storable StrainMapData attributes (segments, velocities,
+        etc.)
         """
         from .writers import write_data_structure
 
         if self.strainmap_file is None:
             return
 
-        for keys in args:
-            if keys[0] not in self.stored:
-                raise KeyError(f"{keys[0]} is not storable.")
-            elif keys[0] == "timeshift":
-                self.strainmap_file.attrs[keys[0]] = getattr(self, keys[0])
+        for key in args:
+            if key not in self.stored:
+                raise KeyError(f"{key} is not storable.")
+            elif key == "timeshift":
+                self.strainmap_file.attrs[key] = getattr(self, key)
             else:
-                write_data_structure(
-                    self.strainmap_file, keys[0], getattr(self, keys[0])
-                )
+                write_data_structure(self.strainmap_file, key, getattr(self, key))
 
     def delete(self, *args):
         """ Deletes the chosen dataset or group from the hdf5 file.
