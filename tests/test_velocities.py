@@ -1,4 +1,6 @@
-from pytest import approx
+from pytest import approx, mark
+from unittest.mock import patch
+from strainmap.coordinates import VelMark
 
 
 def test_theta_origin():
@@ -225,3 +227,46 @@ def test_calculate_velocities(segmented_data):
 
     for var in ("masks", "cylindrical", "velocities", "markers"):
         assert hasattr(getattr(segmented_data, var), "cine")
+
+
+@mark.parametrize("label", (VelMark.PS, VelMark.ES))
+@patch("strainmap.models.velocities.normalise_times", lambda m, f: m * 2)
+def test_update_markers(velocities, label):
+    from strainmap.models.velocities import initialise_markers, update_markers
+    from numpy.random import choice, randint
+    import xarray as xr
+
+    markers = initialise_markers(velocities)
+    markers2 = markers * 2
+
+    component = choice(markers.comp)
+    region = choice(markers.region)
+    location = randint(velocities.sizes["frame"])
+    value = (
+        velocities.sel(frame=location, region=region, comp=component)
+        .isel(region=0, missing_dims="ignore")
+        .item()
+    )
+
+    update_markers(
+        markers=markers,
+        marker_label=label,
+        component=component,
+        region=region,
+        location=location,
+        velocity_value=value,
+        frames=velocities.sizes["frame"],
+    )
+
+    assert (
+        markers.sel(region=region, comp=component, marker=label, quantity="frame")
+        == location
+    ).any()
+    assert (
+        markers.sel(region=region, comp=component, marker=label, quantity="velocity")
+        == value
+    ).any()
+    if label == VelMark.ES:
+        xr.testing.assert_equal(
+            markers2.sel(quantity="time"), markers.sel(quantity="time")
+        )

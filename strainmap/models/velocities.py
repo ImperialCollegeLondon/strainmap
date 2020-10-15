@@ -371,6 +371,52 @@ def initialise_markers(velocity: xr.DataArray) -> xr.DataArray:
     return result
 
 
+def update_markers(
+    markers: xr.DataArray,
+    marker_label: VelMark,
+    component: Comp,
+    region: Region,
+    location: int,
+    velocity_value: float,
+    frames: int,
+) -> None:
+    """
+
+    Args:
+        markers (xr.DataArray): DataArray of all markers
+        marker_label (VelMark): Marker to update
+        component (Comp): Component to update
+        region (Region): Region to update
+        location (int): New location of the marker
+        velocity_value (float): New velocity value of the marker
+        frames (int): Total number of frames. Needed for time normalization
+
+    Returns:
+        None
+    """
+    if marker_label == VelMark.ES:
+        markers.loc[{"marker": VelMark.ES, "quantity": "frame"}] = location
+        markers.loc[{"marker": VelMark.ES, "quantity": "velocity"}] = velocity_value
+        normalise_times(markers, frames)
+    else:
+        markers.loc[
+            {
+                "marker": marker_label,
+                "quantity": "frame",
+                "comp": component,
+                "region": region,
+            }
+        ] = location
+        markers.loc[
+            {
+                "marker": marker_label,
+                "quantity": "velocity",
+                "comp": component,
+                "region": region,
+            }
+        ] = velocity_value
+
+
 def marker_x(
     velocity: xr.DataArray, options: _MSearch
 ) -> Tuple[xr.DataArray, xr.DataArray]:
