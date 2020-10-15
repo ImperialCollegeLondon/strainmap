@@ -337,18 +337,33 @@ def initialise_markers(velocity: xr.DataArray) -> xr.DataArray:
             "quantity": ["frame", "velocity", "time"],
         },
     )
+    # Shortcuts
+    pd = VelMark.PD
+    es = VelMark.ES
+    pc3 = VelMark.PC3
+    glr = Region.GLOBAL
+    rad = Comp.RAD
 
     # Search for normal markers
     for m, opt in MARKERS_OPTIONS.items():
-        if m in (VelMark.ES, VelMark.PC3):
+        if m in (es, pc3):
             continue
-        marker_x(m, velocity, opt, result)
+        idx, value = marker_x(velocity, opt)
+        result.loc[{"marker": m, "quantity": "frame", "comp": opt.comp}] = idx
+        result.loc[{"marker": m, "quantity": "velocity", "comp": opt.comp}] = value
 
     # Search for ES
-    marker_es(velocity, MARKERS_OPTIONS[VelMark.ES], result)
+    pd_loc = int(result.sel(marker=pd, quantity="frame", comp=rad, region=glr).item())
+    idx, value = marker_es(velocity, MARKERS_OPTIONS[es], pd_loc)
+    result.loc[{"marker": es, "quantity": "frame"}] = idx
+    result.loc[{"marker": es, "quantity": "velocity"}] = value
 
     # Search for PC3
-    marker_pc3(velocity, MARKERS_OPTIONS[VelMark.PC3], result)
+    es_loc = int(result.sel(marker=es, quantity="frame", comp=rad, region=glr).item())
+    opt = MARKERS_OPTIONS[pc3]
+    idx, value = marker_pc3(velocity, opt, es_loc)
+    result.loc[{"marker": pc3, "quantity": "frame", "comp": opt.comp}] = idx + es_loc
+    result.loc[{"marker": pc3, "quantity": "velocity", "comp": opt.comp}] = value
 
     # Calculate the normalised times
     normalise_times(result, velocity.sizes["frame"])
@@ -357,20 +372,18 @@ def initialise_markers(velocity: xr.DataArray) -> xr.DataArray:
 
 
 def marker_x(
-    label: VelMark, velocity: xr.DataArray, options: _MSearch, result: xr.DataArray
-) -> None:
+    velocity: xr.DataArray, options: _MSearch
+) -> Tuple[xr.DataArray, xr.DataArray]:
     """ Calculates the location and value of normal markers (not ES nor PC3).
 
     Args:
-        label (VelMark): Marker label
         velocity (xr.DataArray): Array of velocities versus frame for all regions
             and components
         options (_MSearch): Options to calculate this specific marker
-        result (xr.DataArray): Arrays with all markers values, where the result will be
-            stored
 
     Returns:
-        None
+        Tuple of an array with the locations and a second array with the velocity values
+        at those locations.
     """
     low = min(options.low, velocity.sizes["frame"])
     high = min(options.high, velocity.sizes["frame"])
@@ -379,82 +392,72 @@ def marker_x(
 
     vel = velocity.sel(frame=slice(low, high), comp=options.comp)
     idx = options.fun(vel, dim="frame")
-    result.loc[{"marker": label, "quantity": "frame", "comp": options.comp}] = idx + low
-    result.loc[
-        {"marker": label, "quantity": "velocity", "comp": options.comp}
-    ] = vel.isel(frame=idx)
+    return idx + low, vel.isel(frame=idx)
 
 
-def marker_es(velocity: xr.DataArray, options: _MSearch, result: xr.DataArray) -> None:
+def marker_es(
+    velocity: xr.DataArray, options: _MSearch, pd_loc: int
+) -> Tuple[xr.DataArray, xr.DataArray]:
     """ Calculates the location and value of the ES marker.
 
     Args:
         velocity (xr.DataArray): Array of velocities versus frame for all regions
             and components
         options (_MSearch): Options to calculate this specific marker
-        result (xr.DataArray): Arrays with all markers values, where the result will be
-            stored
+        pd_loc (int): Location of the PD marker.
 
     Returns:
-        None
+        Tuple of an array with the locations and a second array with the velocity values
+        at those locations.
     """
-    pdidx = int(
-        result.sel(
-            marker=VelMark.PD, quantity="frame", comp=Comp.RAD, region=Region.GLOBAL
-        ).item()
-    )
-    low = min(options.low, pdidx)
-    high = min(options.high, pdidx)
+    low = min(options.low, pd_loc)
+    high = min(options.high, pd_loc)
     if high - low == 0:
         low = 0
         high = velocity.sizes["frame"]
 
-    vel = velocity.sel(frame=slice(low, high), comp=options.comp, region=Region.GLOBAL)
+    vel = velocity.sel(frame=slice(low, high), comp=Comp.RAD, region=Region.GLOBAL)
     idx = abs(vel.differentiate("frame")).argmin(dim="frame")
-    if idx + low == pdidx or vel.isel(frame=idx).item() < -2.5:
+    if idx + low == pd_loc or vel.isel(frame=idx).item() < -2.5:
         idx = abs(vel).argmin(dim="frame")
 
     idx = idx.drop_vars(["region", "comp"])
-    result.loc[{"marker": VelMark.ES, "quantity": "frame"}] = idx.T + low
-    result.loc[{"marker": VelMark.ES, "quantity": "velocity"}] = vel.isel(
-        frame=idx
-    ).T.drop_vars(["comp"])
+
+    return idx.T + low, vel.isel(frame=idx).T.drop_vars(["comp"])
 
 
-def marker_pc3(velocity: xr.DataArray, options: _MSearch, result: xr.DataArray) -> None:
+def marker_pc3(
+    velocity: xr.DataArray, options: _MSearch, es_loc: int
+) -> Tuple[xr.DataArray, xr.DataArray]:
     """ Calculates the location and value of the PC3 marker.
 
     Args:
         velocity (xr.DataArray): Array of velocities versus frame for all regions
             and components
         options (_MSearch): Options to calculate this specific marker
-        result (xr.DataArray): Arrays with all markers values, where the result will be
-            stored
+        es_loc (int): Location of the ES marker.
+
 
     Returns:
-        None
+        Tuple of an array with the locations and a second array with the velocity values
+        at those locations.
     """
-    low = int(
-        result.sel(
-            marker=VelMark.ES, quantity="frame", comp=Comp.RAD, region=Region.GLOBAL
-        ).item()
-    )
-    high = min(low + 10, velocity.frame.max().item())
 
-    vel = velocity.sel(frame=slice(low, high + 1), comp=options.comp)
+    high = min(es_loc + 10, velocity.frame.max().item())
+
+    vel = velocity.sel(frame=slice(es_loc, high + 1), comp=options.comp)
     pos = vel.max(dim="frame")
     neg = vel.min(dim="frame")
 
     idx = xr.where(pos > abs(neg), vel.argmax(dim="frame"), vel.argmin(dim="frame"))
-    result.loc[{"marker": VelMark.PC3, "quantity": "frame", "comp": options.comp}] = (
-        idx + low
-    )
-    result.loc[
-        {"marker": VelMark.PC3, "quantity": "velocity", "comp": options.comp}
-    ] = xr.where(
-        abs(vel.isel(frame=idx)) < 0.5,
-        np.nan * vel.isel(frame=idx),
-        vel.isel(frame=idx),
+
+    return (
+        idx + es_loc,
+        xr.where(
+            abs(vel.isel(frame=idx)) < 0.5,
+            np.nan * vel.isel(frame=idx),
+            vel.isel(frame=idx),
+        ),
     )
 
 
