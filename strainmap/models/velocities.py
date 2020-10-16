@@ -257,7 +257,6 @@ def calculate_velocities(
     data: StrainMapData,
     cine: Text,
     sign_reversal: Tuple[bool, ...] = (1, 1, 1),
-    init_markers: bool = True,
 ):
     """Calculates the velocity of the chosen cine and regions."""
     data.sign_reversal[...] = np.array(sign_reversal)

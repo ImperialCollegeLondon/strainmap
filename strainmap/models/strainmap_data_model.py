@@ -129,12 +129,10 @@ class StrainMapData(object):
     def add_data(self, cine: str, **kwargs):
         """ Adds new data to the attributes, expanding the 'cine' coordinate.
 
-        If the attribute already has data for that cine, nothing is done. Update the
-        attribute directly in that case, eg.:
+        After updating the data object, it is saved. if the attribute already has data
+        for that cine, nothing is done. Update the attribute directly in that case, eg.:
 
             data.segmentation[{"cine": cine}][...] = new_data
-
-        After updating the data object, it is saved.
 
         Args:
             cine (str): Name of the cine for which information is to be added.
