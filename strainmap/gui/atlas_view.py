@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Dict, Callable, Union, Optional, Tuple, NamedTuple
 
 import matplotlib.pyplot as plt
-from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
 import pandas as pd
 
 
@@ -91,7 +91,10 @@ class AtlasTaskView(TaskViewBase):
 
         canvas = FigureCanvasTkAgg(plot.fig, master=frame)
         canvas.draw()
-        canvas.get_tk_widget().grid(sticky=tk.NSEW, padx=5, pady=5)
+        canvas.get_tk_widget().grid(sticky=tk.NSEW)
+        toolbar_frame = ttk.Frame(master=frame)
+        toolbar_frame.grid(row=1, column=0, sticky=tk.NSEW)
+        NavigationToolbar2Tk(canvas, toolbar_frame)
 
         self.notebook.add(frame, text=label)
         return plot
