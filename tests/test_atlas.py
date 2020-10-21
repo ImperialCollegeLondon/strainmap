@@ -3,21 +3,9 @@ from unittest.mock import MagicMock, patch
 
 def test_validate(dummy_data, tmp_path):
     from strainmap.gui.atlas_view import validate_data
-    import numpy as np
 
-    msg = []
-
-    def info(txt):
-        msg.append(txt)
-
-    validated = validate_data(dummy_data, info)
-    assert msg == []
+    validated = validate_data(dummy_data)
     validated.equals(dummy_data)
-
-    dummy_data.iloc[1, 1] = np.nan
-    validated = validate_data(dummy_data, info)
-    assert msg != []
-    assert not validated.equals(dummy_data)
 
 
 def test_tabs(atlas_view):
@@ -56,19 +44,19 @@ def test_get_new_data(atlas_view, dummy_data):
     from collections import namedtuple
 
     new = dummy_data.loc[dummy_data["Record"] == dummy_data["Record"].min()].drop(
-        ["Record", "Included"], 1
+        ["Record", "Included", "pssGLS", "essGLS", "psGLS"], 1
     )
+    atlas_view.controller.progress = MagicMock()
 
     with patch("strainmap.models.readers.extract_strain_markers", lambda *x, **y: new):
         atlas_view.controller.data = namedtuple(
-            "Data", ["strain_markers", "strainmap_file", "orientation"]
-        )(strain_markers=1, strainmap_file="", orientation="CW")
+            "Data", ["strain_markers", "strainmap_file", "orientation", "gls"]
+        )(strain_markers=1, strainmap_file="", orientation="CW", gls=[1, 2, 3])
         actual = atlas_view.get_new_data()
         assert "Record" in actual.columns
         assert "Included" in actual.columns
 
     atlas_view.controller.data = None
-    atlas_view.controller.progress = MagicMock()
     assert atlas_view.get_new_data() is None
     atlas_view.controller.progress.assert_called_once_with(
         "No patient data available. Load data to proceed."

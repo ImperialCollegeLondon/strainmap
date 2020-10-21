@@ -412,6 +412,9 @@ def dummy_data() -> pd.DataFrame:
     PSS = pd.Series(np.random.random(N))
     ESS = pd.Series(np.random.random(N))
     PS = pd.Series(np.random.random(N))
+    pssGLS = pd.Series(np.random.random(M))
+    essGLS = pd.Series(np.random.random(M))
+    psGLS = pd.Series(np.random.random(M))
     Included = pd.Series([True] * N)
 
     return validate_data(
@@ -425,6 +428,9 @@ def dummy_data() -> pd.DataFrame:
                 "PSS": PSS,
                 "ESS": ESS,
                 "PS": PS,
+                "pssGLS": pssGLS,
+                "essGLS": essGLS,
+                "psGLS": psGLS,
                 "Included": Included,
             }
         )

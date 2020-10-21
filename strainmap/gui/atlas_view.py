@@ -22,6 +22,9 @@ COLS: Tuple[str, ...] = (
     "PSS",
     "ESS",
     "PS",
+    "pssGLS",
+    "essGLS",
+    "psGLS",
     "Included",
 )
 
@@ -328,7 +331,7 @@ class AtlasTaskView(TaskViewBase):
 
         self.controller.progress("")
         try:
-            data = validate_data(pd.read_csv(path), self.controller.progress)
+            data = validate_data(pd.read_csv(path))
             self.path = path
 
         except ValueError as err:
@@ -363,7 +366,7 @@ class AtlasTaskView(TaskViewBase):
         """Get new data from the current patient and add it to the database."""
         from ..models.readers import extract_strain_markers
 
-        if not self.data or not self.data.strain_markers:
+        if not self.data or not self.data.strain_markers or len(self.data.gls) == 0:
             self.controller.progress("No patient data available. Load data to proceed.")
             return None
 
@@ -382,7 +385,16 @@ class AtlasTaskView(TaskViewBase):
             self.atlas_data.Record.max() + 1 if len(self.atlas_data) > 0 else 1
         )
         data["Included"] = True
-        return validate_data(data[list(COLS)], self.controller.progress)
+        gls = pd.DataFrame(
+            {
+                "Record": data["Record"].min(),
+                "pssGLS": [self.data.gls[0]],
+                "essGLS": [self.data.gls[1]],
+                "psGLS": [self.data.gls[2]],
+            }
+        )
+        data = data.append(gls, ignore_index=True)
+        return validate_data(data[list(COLS)])
 
     def update_widgets(self):
         pass
@@ -480,9 +492,7 @@ class GridPlot:
         self.fig.canvas.draw_idle()
 
 
-def validate_data(
-    data: pd.DataFrame, callback: Optional[Callable] = None
-) -> pd.DataFrame:
+def validate_data(data: pd.DataFrame) -> pd.DataFrame:
     """Validates the atlas data, checking and setting column dtypes.
 
     Args:
@@ -505,9 +515,12 @@ def validate_data(
     col_types = (
         int,
         slice_type,
-        int,
+        float,
         region_type,
         comp_type,
+        float,
+        float,
+        float,
         float,
         float,
         float,
@@ -516,18 +529,6 @@ def validate_data(
 
     for col, col_type in zip(COLS, col_types):
         data[col] = data[col].astype(col_type)
-
-    dlen = len(data)
-    data = data.dropna()
-    if dlen != len(data):
-        msg = (
-            f"Atlas data contains {dlen - len(data)} invalid values. They will be "
-            f"removed if databased is saved."
-        )
-        if callback is None:
-            print(msg)
-        else:
-            callback(msg)
 
     return data
 
@@ -542,6 +543,9 @@ def empty_data() -> pd.DataFrame:
     PSS = pd.Series([], dtype=float)
     ESS = pd.Series([], dtype=float)
     PS = pd.Series([], dtype=float)
+    pssGLS = pd.Series([], dtype=float)
+    essGLS = pd.Series([], dtype=float)
+    psGLS = pd.Series([], dtype=float)
     Included = pd.Series([], dtype=bool)
 
     return validate_data(
@@ -555,6 +559,9 @@ def empty_data() -> pd.DataFrame:
                 "PSS": PSS,
                 "ESS": ESS,
                 "PS": PS,
+                "pssGLS": pssGLS,
+                "essGLS": essGLS,
+                "psGLS": psGLS,
                 "Included": Included,
             }
         )
