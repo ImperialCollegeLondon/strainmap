@@ -6,6 +6,8 @@ from unittest.mock import MagicMock, patch, PropertyMock
 def test_update_and_clear_widgets(segmentation_view, strainmap_data):
     segmentation_view.dataset_changed = MagicMock()
     segmentation_view.controller.data = strainmap_data
+    segmentation_view.controller.review_mode = False
+    segmentation_view.controller.progress = MagicMock()
     segmentation_view.update_widgets()
 
     expected = strainmap_data.data_files.datasets[0]
