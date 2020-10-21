@@ -296,7 +296,15 @@ def extract_strain_markers(
     h5file: Union[Path, h5py.File],
     datasets: Dict[str, str],
     regions: Dict[str, Sequence[str]],
-    colnames: Sequence[str] = ("Slice", "Region", "Component", "PSS", "ESS", "PS",),
+    colnames: Sequence[str] = (
+        "Slice",
+        "SAX",
+        "Region",
+        "Component",
+        "PSS",
+        "ESS",
+        "PS",
+    ),
 ) -> pd.DataFrame:
     """Extracts as a DataFrame from a h5 file the strain markers.
 
@@ -315,6 +323,8 @@ def extract_strain_markers(
     Returns:
         Dataframe with the extracted data.
     """
+    from ..tools import get_sa_location
+
     data: List[List[Any]] = []
     markers = (
         h5py.File(h5file, "r")["strain_markers"]
@@ -327,6 +337,9 @@ def extract_strain_markers(
         if n not in datasets:
             continue
 
+        cine = datasets[n]
+        sax = get_sa_location(n)
+
         # Loop over regional groups (global, angular, etc.)
         for r, regdata in struct.items():
             if r not in regions:
@@ -337,7 +350,7 @@ def extract_strain_markers(
 
                 # Loop over the components
                 for j, comp in enumerate(("Longitudinal", "Radial", "Circumferential")):
-                    data.append([datasets[n], label, comp])
+                    data.append([cine, sax, label, comp])
 
                     # Loop over the PSS, ESS and PS markers
                     for i in range(regdata.shape[2]):

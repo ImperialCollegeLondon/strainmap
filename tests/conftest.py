@@ -406,6 +406,7 @@ def dummy_data() -> pd.DataFrame:
 
     Record = pd.Series(np.random.random_integers(1, 20, N))
     Slice = pd.Series(np.random.choice(SLICES, size=N))
+    SAX = pd.Series(np.random.random_integers(1, 7, N))
     Component = pd.Series(np.random.choice(COMP, size=N))
     Region = pd.Series(np.random.choice([a for a in REGIONS if a != ""], size=N))
     PSS = pd.Series(np.random.random(N))
@@ -418,6 +419,7 @@ def dummy_data() -> pd.DataFrame:
             {
                 "Record": Record,
                 "Slice": Slice,
+                "SAX": SAX,
                 "Region": Region,
                 "Component": Component,
                 "PSS": PSS,

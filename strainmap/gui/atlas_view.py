@@ -16,6 +16,7 @@ from .base_window_and_task import TaskViewBase, register_view
 COLS: Tuple[str, ...] = (
     "Record",
     "Slice",
+    "SAX",
     "Region",
     "Component",
     "PSS",
@@ -501,7 +502,17 @@ def validate_data(
     slice_type = pd.CategoricalDtype(categories=SLICES, ordered=False)
     comp_type = pd.CategoricalDtype(categories=COMP, ordered=False)
     region_type = pd.CategoricalDtype(categories=REGIONS, ordered=False)
-    col_types = (int, slice_type, region_type, comp_type, float, float, float, bool)
+    col_types = (
+        int,
+        slice_type,
+        int,
+        region_type,
+        comp_type,
+        float,
+        float,
+        float,
+        bool,
+    )
 
     for col, col_type in zip(COLS, col_types):
         data[col] = data[col].astype(col_type)
@@ -525,6 +536,7 @@ def empty_data() -> pd.DataFrame:
     """Create empty dataframe with the required columns."""
     Record = pd.Series([], dtype=int)
     Slice = pd.Series([], dtype=str)
+    SAX = pd.Series([], dtype=int)
     Component = pd.Series([], dtype=str)
     Region = pd.Series([], dtype=str)
     PSS = pd.Series([], dtype=float)
@@ -537,6 +549,7 @@ def empty_data() -> pd.DataFrame:
             {
                 "Record": Record,
                 "Slice": Slice,
+                "SAX": SAX,
                 "Region": Region,
                 "Component": Component,
                 "PSS": PSS,
