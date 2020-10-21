@@ -86,7 +86,7 @@ class StrainMapData(object):
         self.bg_files = bg_files
         self.strainmap_file = strainmap_file
         self.sign_reversal: Tuple[bool, ...] = (False, False, False)
-        self.orientation: str = "CW"
+        self.orientation: str = "CCW"
         self.segments: dict = defaultdict(dict)
         self.zero_angle: dict = {}
         self.velocities: dict = defaultdict(dict)

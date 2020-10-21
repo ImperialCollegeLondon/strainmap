@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Dict, Callable, Union, Optional, Tuple, NamedTuple
 
 import matplotlib.pyplot as plt
-from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
 import pandas as pd
 
 
@@ -16,11 +16,15 @@ from .base_window_and_task import TaskViewBase, register_view
 COLS: Tuple[str, ...] = (
     "Record",
     "Slice",
+    "SAX",
     "Region",
     "Component",
     "PSS",
     "ESS",
     "PS",
+    "pssGLS",
+    "essGLS",
+    "psGLS",
     "Included",
 )
 
@@ -87,7 +91,10 @@ class AtlasTaskView(TaskViewBase):
 
         canvas = FigureCanvasTkAgg(plot.fig, master=frame)
         canvas.draw()
-        canvas.get_tk_widget().grid(sticky=tk.NSEW, padx=5, pady=5)
+        canvas.get_tk_widget().grid(sticky=tk.NSEW)
+        toolbar_frame = ttk.Frame(master=frame)
+        toolbar_frame.grid(row=1, column=0, sticky=tk.NSEW)
+        NavigationToolbar2Tk(canvas, toolbar_frame)
 
         self.notebook.add(frame, text=label)
         return plot
@@ -327,7 +334,7 @@ class AtlasTaskView(TaskViewBase):
 
         self.controller.progress("")
         try:
-            data = validate_data(pd.read_csv(path), self.controller.progress)
+            data = validate_data(pd.read_csv(path))
             self.path = path
 
         except ValueError as err:
@@ -362,7 +369,7 @@ class AtlasTaskView(TaskViewBase):
         """Get new data from the current patient and add it to the database."""
         from ..models.readers import extract_strain_markers
 
-        if not self.data or not self.data.strain_markers:
+        if not self.data or not self.data.strain_markers or len(self.data.gls) == 0:
             self.controller.progress("No patient data available. Load data to proceed.")
             return None
 
@@ -381,7 +388,16 @@ class AtlasTaskView(TaskViewBase):
             self.atlas_data.Record.max() + 1 if len(self.atlas_data) > 0 else 1
         )
         data["Included"] = True
-        return validate_data(data[list(COLS)], self.controller.progress)
+        gls = pd.DataFrame(
+            {
+                "Record": data["Record"].min(),
+                "pssGLS": [self.data.gls[0]],
+                "essGLS": [self.data.gls[1]],
+                "psGLS": [self.data.gls[2]],
+            }
+        )
+        data = data.append(gls, ignore_index=True)
+        return validate_data(data[list(COLS)])
 
     def update_widgets(self):
         pass
@@ -479,9 +495,7 @@ class GridPlot:
         self.fig.canvas.draw_idle()
 
 
-def validate_data(
-    data: pd.DataFrame, callback: Optional[Callable] = None
-) -> pd.DataFrame:
+def validate_data(data: pd.DataFrame) -> pd.DataFrame:
     """Validates the atlas data, checking and setting column dtypes.
 
     Args:
@@ -501,22 +515,23 @@ def validate_data(
     slice_type = pd.CategoricalDtype(categories=SLICES, ordered=False)
     comp_type = pd.CategoricalDtype(categories=COMP, ordered=False)
     region_type = pd.CategoricalDtype(categories=REGIONS, ordered=False)
-    col_types = (int, slice_type, region_type, comp_type, float, float, float, bool)
+    col_types = (
+        int,
+        slice_type,
+        float,
+        region_type,
+        comp_type,
+        float,
+        float,
+        float,
+        float,
+        float,
+        float,
+        bool,
+    )
 
     for col, col_type in zip(COLS, col_types):
         data[col] = data[col].astype(col_type)
-
-    dlen = len(data)
-    data = data.dropna()
-    if dlen != len(data):
-        msg = (
-            f"Atlas data contains {dlen - len(data)} invalid values. They will be "
-            f"removed if databased is saved."
-        )
-        if callback is None:
-            print(msg)
-        else:
-            callback(msg)
 
     return data
 
@@ -525,11 +540,15 @@ def empty_data() -> pd.DataFrame:
     """Create empty dataframe with the required columns."""
     Record = pd.Series([], dtype=int)
     Slice = pd.Series([], dtype=str)
+    SAX = pd.Series([], dtype=int)
     Component = pd.Series([], dtype=str)
     Region = pd.Series([], dtype=str)
     PSS = pd.Series([], dtype=float)
     ESS = pd.Series([], dtype=float)
     PS = pd.Series([], dtype=float)
+    pssGLS = pd.Series([], dtype=float)
+    essGLS = pd.Series([], dtype=float)
+    psGLS = pd.Series([], dtype=float)
     Included = pd.Series([], dtype=bool)
 
     return validate_data(
@@ -537,11 +556,15 @@ def empty_data() -> pd.DataFrame:
             {
                 "Record": Record,
                 "Slice": Slice,
+                "SAX": SAX,
                 "Region": Region,
                 "Component": Component,
                 "PSS": PSS,
                 "ESS": ESS,
                 "PS": PS,
+                "pssGLS": pssGLS,
+                "essGLS": essGLS,
+                "psGLS": psGLS,
                 "Included": Included,
             }
         )

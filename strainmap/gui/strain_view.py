@@ -10,7 +10,7 @@ from matplotlib.figure import Figure
 from .base_window_and_task import Requisites, TaskViewBase, register_view
 from .figure_actions_manager import FigureActionsManager
 from .figure_actions import Markers, SimpleScroller
-from .velocities_view import get_sa_location
+from ..tools import get_sa_location
 
 
 @register_view
@@ -178,6 +178,7 @@ class StrainTaskView(TaskViewBase):
 
     def dataset_changed(self, *args):
         """Updates the view when the selected dataset is changed."""
+        self.controller.progress("Changing selected cine...")
         current = self.datasets_var.get()
         self.images = self.data.data_files.mag(current)
         self.timeshift_var.set(self.data.timeshift)
@@ -186,6 +187,7 @@ class StrainTaskView(TaskViewBase):
         else:
             self.calculate_strain()
         self.replot()
+        self.controller.progress("Done!")
 
     def find_strain_limits(self, strain_label):
         """Finds suitable maximum and minimum for the strain plots."""

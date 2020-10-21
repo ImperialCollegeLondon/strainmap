@@ -666,9 +666,14 @@ def initialise_markers(data: StrainMapData, dataset: str, str_labels: list):
             extreme = (np.argmin, np.argmax, np.argmin)
             for k in range(len(regions[j])):
                 s = data.strain[dataset][r][j, k]
+                maxid = len(s) - 1
 
                 # Frame location for peak systole strain, end systole and peak strain
-                loc = (extreme[k](s[: pos_es + 1]), pos_es, extreme[k](s))
+                loc = (
+                    min(extreme[k](s[: pos_es + 1]), maxid),
+                    min(pos_es, maxid),
+                    min(extreme[k](s), maxid),
+                )
 
                 # Loop over the markers
                 for i, pos in enumerate(loc):

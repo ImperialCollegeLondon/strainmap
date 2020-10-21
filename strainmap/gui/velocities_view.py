@@ -1,7 +1,6 @@
 import tkinter as tk
 from tkinter import ttk
 import tkinter.filedialog
-import re
 
 import numpy as np
 from matplotlib import pyplot as plt
@@ -11,12 +10,7 @@ from matplotlib.figure import Figure
 from .base_window_and_task import Requisites, TaskViewBase, register_view
 from .figure_actions_manager import FigureActionsManager
 from .figure_actions import Markers, SimpleScroller
-
-
-def get_sa_location(dataset):
-    pattern = r"[sS][aA]([0-9])"
-    m = re.search(pattern, dataset)
-    return int(m.group(1)) if hasattr(m, "group") else 99
+from ..tools import get_sa_location
 
 
 @register_view
@@ -206,6 +200,7 @@ class VelocitiesTaskView(TaskViewBase):
 
     def dataset_changed(self, *args):
         """Updates the view when the selected dataset is changed."""
+        self.controller.progress("Changing selected cine...")
         current = self.datasets_var.get()
         self.images = self.data.data_files.mag(current)
         if self.data.velocities.get(current):
@@ -215,6 +210,7 @@ class VelocitiesTaskView(TaskViewBase):
             self.calculate_velocities(current)
 
         self.replot()
+        self.controller.progress("Done!")
 
     def bg_changed(self, *args):
         """When the background is changed, new velocities need to be calculated."""

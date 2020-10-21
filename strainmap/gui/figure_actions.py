@@ -1,6 +1,6 @@
 from collections import defaultdict
 from functools import partial
-from typing import Callable, Dict, Optional, Tuple, Union, List, Sequence
+from typing import Callable, Dict, Optional, Tuple, Union, List
 
 import matplotlib.animation as animation
 import numpy as np
@@ -734,15 +734,14 @@ class Markers(ActionBase):
         old_x = self._current_marker.get_xdata()
 
         if self._current_data is None:
-            x, y = ev.xdata, ev.ydata
+            if ev.xdata != old_x:
+                self._current_marker.set_data([ev.xdata], [ev.ydata])
         else:
             x, y, idx = self.get_closest(self._current_data, ev.xdata)
-
-        if isinstance(old_x, Sequence):
-            if x != old_x[0]:
+            if len(old_x) == 1 and x != old_x[0]:
+                self._current_marker.set_data([x], [y])
+            elif len(old_x) == 2 and x != old_x[0]:
                 self._current_marker.set_xdata([x, x])
-        elif x != old_x:
-            self._current_marker.set_data([x], [y])
 
         return event
 

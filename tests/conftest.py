@@ -406,11 +406,15 @@ def dummy_data() -> pd.DataFrame:
 
     Record = pd.Series(np.random.random_integers(1, 20, N))
     Slice = pd.Series(np.random.choice(SLICES, size=N))
+    SAX = pd.Series(np.random.random_integers(1, 7, N))
     Component = pd.Series(np.random.choice(COMP, size=N))
     Region = pd.Series(np.random.choice([a for a in REGIONS if a != ""], size=N))
     PSS = pd.Series(np.random.random(N))
     ESS = pd.Series(np.random.random(N))
     PS = pd.Series(np.random.random(N))
+    pssGLS = pd.Series(np.random.random(M))
+    essGLS = pd.Series(np.random.random(M))
+    psGLS = pd.Series(np.random.random(M))
     Included = pd.Series([True] * N)
 
     return validate_data(
@@ -418,11 +422,15 @@ def dummy_data() -> pd.DataFrame:
             {
                 "Record": Record,
                 "Slice": Slice,
+                "SAX": SAX,
                 "Region": Region,
                 "Component": Component,
                 "PSS": PSS,
                 "ESS": ESS,
                 "PS": PS,
+                "pssGLS": pssGLS,
+                "essGLS": essGLS,
+                "psGLS": psGLS,
                 "Included": Included,
             }
         )
