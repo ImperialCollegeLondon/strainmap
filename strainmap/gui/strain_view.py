@@ -178,6 +178,7 @@ class StrainTaskView(TaskViewBase):
 
     def dataset_changed(self, *args):
         """Updates the view when the selected dataset is changed."""
+        self.controller.progress("Changing selected cine...")
         current = self.datasets_var.get()
         self.images = self.data.data_files.mag(current)
         self.timeshift_var.set(self.data.timeshift)
@@ -186,6 +187,7 @@ class StrainTaskView(TaskViewBase):
         else:
             self.calculate_strain()
         self.replot()
+        self.controller.progress("Done!")
 
     def find_strain_limits(self, strain_label):
         """Finds suitable maximum and minimum for the strain plots."""

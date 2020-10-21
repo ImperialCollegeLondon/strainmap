@@ -206,6 +206,7 @@ class VelocitiesTaskView(TaskViewBase):
 
     def dataset_changed(self, *args):
         """Updates the view when the selected dataset is changed."""
+        self.controller.progress("Changing selected cine...")
         current = self.datasets_var.get()
         self.images = self.data.data_files.mag(current)
         if self.data.velocities.get(current):
@@ -215,6 +216,7 @@ class VelocitiesTaskView(TaskViewBase):
             self.calculate_velocities(current)
 
         self.replot()
+        self.controller.progress("Done!")
 
     def bg_changed(self, *args):
         """When the background is changed, new velocities need to be calculated."""
