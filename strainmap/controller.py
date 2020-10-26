@@ -10,8 +10,9 @@ from .models.strain import calculate_strain
 from .models.strain import update_marker as update_strain_marker
 from .models.strain import update_strain_es_marker
 from .models.strainmap_data_model import StrainMapData
-from .models.velocities import calculate_velocities, regenerate, update_marker
+from .models.velocities import calculate_velocities, regenerate, update_markers
 from .models.writers import rotation_to_xlsx, strain_to_xlsx, velocity_to_xlsx
+from .coordinates import Mark
 
 
 class StrainMap(object):
@@ -151,9 +152,9 @@ class StrainMap(object):
 
     def update_marker(self, **kwargs):
         """Updates the markers information after moving one of them."""
-        update_marker(data=self.data, **kwargs)
-        if kwargs.get("marker_idx", 0) == 3:
-            update_strain_es_marker(data=self.data, **kwargs)
+        update_markers(**kwargs)
+        if kwargs["marker_label"] == Mark.ES:
+            update_strain_es_marker(**kwargs)
 
     def export_velocity(self, **kwargs):
         """Exports velocity data to a XLSX file."""

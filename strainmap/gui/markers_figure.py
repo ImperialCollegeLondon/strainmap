@@ -1,32 +1,26 @@
 import tkinter as tk
-from tkinter import ttk
-from typing import Callable, Tuple, Dict
 from itertools import chain, product
+from tkinter import ttk
+from typing import Callable, Dict, Tuple
 
-import numpy as np
 import xarray as xr
 from matplotlib import pyplot as plt
-from matplotlib.backends._backend_tk import NavigationToolbar2Tk
-from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
-from matplotlib.figure import Figure
 from matplotlib.axes import Axes
-from matplotlib.lines import Line2D
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
+from matplotlib.colorbar import Colorbar
+from matplotlib.figure import Figure
 from matplotlib.gridspec import GridSpec
+from matplotlib.image import AxesImage
+from matplotlib.lines import Line2D
 
+from strainmap.coordinates import Comp, Mark, Region
 from strainmap.gui.figure_actions import Markers, SimpleScroller
 from strainmap.gui.figure_actions_manager import FigureActionsManager
-from strainmap.coordinates import Comp, VelMark as VM
 
 
 class MarkersFigure:
 
     components: Tuple[Comp, ...] = (Comp.LONG, Comp.RAD, Comp.CIRC)
-    ids = tuple(
-        chain(
-            product((Comp.LONG, Comp.RAD), (VM.PS, VM.PD, VM.PAS)),
-            product((Comp.CIRC,), (VM.PC1, VM.PC2, VM.PC3)),
-        )
-    )
 
     def __init__(
         self,
@@ -39,7 +33,16 @@ class MarkersFigure:
         ylabel: str = "Velocity (cm/s)",
         colours: Tuple[str, ...] = ("red", "green", "blue") * 2
         + ("orange", "darkblue", "purple"),
+        ids: Tuple[Comp, Mark] = tuple(
+            chain(
+                product((Comp.LONG, Comp.RAD), (Mark.PS, Mark.PD, Mark.PAS)),
+                product((Comp.CIRC,), (Mark.PC1, Mark.PC2, Mark.PC3)),
+            )
+        ),
     ):
+        self.ids = ids
+        self.limits: Tuple[int, ...] = ()
+
         self.fig = Figure(constrained_layout=True)
         canvas = FigureCanvasTkAgg(self.fig, master=master)
         canvas.get_tk_widget().grid(row=0, column=0, sticky=tk.NSEW)
@@ -50,15 +53,15 @@ class MarkersFigure:
         self.fig.actions_manager = FigureActionsManager(
             self.fig, Markers, SimpleScroller
         )
-
         gs = self.fig.add_gridspec(2, 9, height_ratios=[5, 2])
+
         self.axes = self.add_line_subplots(gs, xlabel, ylabel)
         self.maps = self.add_image_subplots(gs, colours)
         self.lines = self.add_lines(values)
         self.images, self.cylindrical, self.cbar = self.images_and_cylindrical_data(
             images, cylindrical, markers
         )
-        self.marker_artists = self.add_markers(markers)
+        self.marker_artists, self.fixed_markers = self.add_markers(markers, colours)
 
         self.draw()
 
@@ -67,7 +70,7 @@ class MarkersFigure:
         self.fig.canvas.draw_idle()
 
     def set_marker_moved(self, callback: Callable) -> None:
-        """ Sets the function to be called when one marker is moved
+        """Sets the function to be called when one marker is moved
 
         Args:
             callback (Callable): The function to be called.
@@ -78,7 +81,7 @@ class MarkersFigure:
         self.fig.actions_manager.Markers.set_marker_moved(callback)  # type: ignore
 
     def set_scroller(self, callback, Callable) -> None:
-        """ Sets the function to be called when scrolling over the plots
+        """Sets the function to be called when scrolling over the plots
 
         Args:
             callback (Callable): The function to be called.
@@ -91,7 +94,7 @@ class MarkersFigure:
     def add_line_subplots(
         self, gs: GridSpec, xlabel: str, ylabel: str
     ) -> Dict[Comp, Axes]:
-        """  Add the line subplots.
+        """Add the line subplots.
 
         Args:
             gs (GridSpec): Specification of the grid for the axes.
@@ -113,7 +116,7 @@ class MarkersFigure:
         return output
 
     def add_lines(self, values: xr.DataArray) -> Dict[Comp, Line2D]:
-        """ Add lines to the line plots.
+        """Add lines to the line plots.
 
         Args:
             values (xr.DataArray): Array with the data to plot. Should have two
@@ -132,8 +135,10 @@ class MarkersFigure:
             self.axes[comp].autoscale(False)
         return output
 
-    def add_image_subplots(self, gs: GridSpec, colours: Tuple[str, ...]):
-        """ Add the image subplots.
+    def add_image_subplots(
+        self, gs: GridSpec, colours: Tuple[str, ...]
+    ) -> Dict[Tuple[Comp, Mark], Axes]:
+        """Add the image subplots.
 
         Args:
             gs (GridSpec): Specification of the grid for the axes.
@@ -142,7 +147,7 @@ class MarkersFigure:
         Returns:
             Dictionary with the subplots for each of the components.
         """
-        output: Dict[Tuple[Comp, VM], Axes] = {}
+        output: Dict[Tuple[Comp, Mark], Axes] = {}
 
         for i, loc in enumerate(self.ids):
             output[loc] = self.fig.add_subplot(gs[1, i])
@@ -154,181 +159,213 @@ class MarkersFigure:
 
         return output
 
-    def images_and_cylindrical_data(self, images, cylindrical, markers: xr.DataArray):
-        """Add bg and masks to the map subplots."""
-        img: Dict[Tuple[Comp, VM], Axes] = {}
-        cyl: Dict[Tuple[Comp, VM], Axes] = {}
+    def images_and_cylindrical_data(
+        self, images: xr.DataArray, cylindrical: xr.DataArray, markers: xr.DataArray
+    ) -> Tuple[
+        Dict[Tuple[Comp, Mark], AxesImage], Dict[Tuple[Comp, Mark], AxesImage], Colorbar
+    ]:
+        """Add bg and masks to the map subplots.
 
-        # if "global" == self.velocities_var.get():
-        #     self.limits = self.find_limits(vel_masks[0, 0])
+        Args:
+            images (xr.DataArray): Background images for the color plots; typically the
+                magnitude images.
+            cylindrical (xr.DataArray): Velocity field in cylindrical coordinates, to
+                overlay on top of the images.
+            markers (xr.DataArray): Markers information.
+
+        Returns:
+            Tuple with the images plots, the cylindrical data overlay and the colorbar.
+        """
+        img: Dict[Tuple[Comp, Mark], AxesImage] = {}
+        cyl: Dict[Tuple[Comp, Mark], AxesImage] = {}
+
+        if Region.GLOBAL in set(cylindrical.region.data):
+            self.limits = self.find_limits(cylindrical)
 
         rmin, rmax, cmin, cmax = self.limits
-        vmin, vmax = cylindrical.min(), cyl.max()
+        vmin, vmax = cylindrical.min(), cylindrical.max()
         for i, (comp, m) in enumerate(self.ids):
             frame = int(markers.sel(marker=m, comp=comp, quantity="frame").item())
-            img[(comp, m)] = self.maps[(comp, m)].imshow(
-                    images.sel(frame=frame, row=slice(rmin, rmax + 1), col=slice(cmin, cmax + 1)),
-                    cmap=plt.get_cmap("binary_r"),
-                )
 
-            cyl[(comp, m)] = self.maps[(comp, m)].imshow(
-                    cylindrical.sel(comp=comp, frame=frame, row=slice(rmin, rmax + 1), col=slice(cmin, cmax + 1)),
-                    cmap=plt.get_cmap("seismic"),
-                    vmin=vmin,
-                    vmax=vmax,
-                )
+            # Background magnitude images
+            img[(comp, m)] = self.maps[(comp, m)].imshow(
+                images.sel(
+                    frame=frame, row=slice(rmin, rmax + 1), col=slice(cmin, cmax + 1)
+                ),
+                cmap=plt.get_cmap("binary_r"),
             )
 
-        cbar = self.fig.colorbar(masks["_long"][0], ax=self.maps[0], pad=-1.4)
+            # Overlay cylindrical velocity images
+            cyl[(comp, m)] = self.maps[(comp, m)].imshow(
+                cylindrical.sel(
+                    comp=comp,
+                    frame=frame,
+                    row=slice(rmin, rmax + 1),
+                    col=slice(cmin, cmax + 1),
+                ),
+                cmap=plt.get_cmap("seismic"),
+                vmin=vmin,
+                vmax=vmax,
+            )
 
-        return bg, masks, cbar
+        cbar = self.fig.colorbar(cyl[self.ids[0]], ax=self.maps[self.ids[0]], pad=-1.4)
+
+        return img, cyl, cbar
 
     @staticmethod
-    def find_limits(mask, margin=30):
-        """Find the appropiate limits of a masked array in order to plot it nicely."""
-        rows, cols = mask.nonzero()
-
-        cmin = max(cols.min() - margin, 0)
-        rmin = max(rows.min() - margin, 0)
-        cmax = min(cols.max() + margin, mask.shape[0])
-        rmax = min(rows.max() + margin, mask.shape[1])
+    def find_limits(mask: xr.DataArray, margin: int = 20) -> Tuple[int, ...]:
+        """Find the appropriate limits of a masked array in order to plot it nicely."""
+        cmin = mask.min(dim="col") - margin
+        rmin = mask.min(dim="row") - margin
+        cmax = mask.max(dim="col") + margin
+        rmax = mask.max(dim="row") + margin
 
         return rmin, rmax, cmin, cmax
 
-    def add_markers(self, markers):
-        """Adds markers to the plots.).
+    def add_markers(
+        self, markers: xr.DataArray, colours: Tuple[str, ...]
+    ) -> Tuple[Dict[Tuple[Comp, Mark], Line2D], Dict[Tuple[Comp, Mark], Line2D]]:
+        """Adds markers to the plots.
 
-        - markers - Contains all the marker information for all regions and components.
-            Their shape is [regions, component (3), marker_id (3 or 4), marker_data (3)]
+        Args:
+            markers (xr.DataArray): Markers information.
+            colours (Tuple[str, ...]): Colours for the markers
+
+        Returns:
+
         """
         add_marker = self.fig.actions_manager.Markers.add_marker
+        markers_artists: Dict[Tuple[Comp, Mark], Line2D] = {}
+        fixed_markers: Dict[Tuple[Comp, Mark], Line2D] = {}
 
-        vel_lbl = ["_long"] * 3 + ["_rad"] * 3 + ["_circ"] * 3
-        colors = ["red", "green", "blue"] * 2 + ["orange", "darkblue", "purple"]
-        marker_lbl = ["PS", "PD", "PAS"] * 2 + ["PC1", "PC2", "PC3"]
-
-        markers_artists = []
-        for i, label in enumerate(vel_lbl):
-            markers_artists.append(
-                add_marker(
-                    self.lines[label],
-                    xy=markers[i // 3, i % 3, :2],
-                    label=marker_lbl[i],
-                    color=colors[i],
-                    marker=str(i % 3 + 1),
-                    markeredgewidth=1.5,
-                    markersize=15,
-                )
+        for i, (comp, m) in enumerate(self.ids):
+            markers_artists[(comp, m)] = add_marker(
+                self.lines[comp],
+                xy=markers.sel(
+                    marker=m, comp=comp, quantity=["frame", "velocity"]
+                ).data,
+                label=m.text,
+                color=colours[i],
+                marker=str(i % 3 + 1),
+                markeredgewidth=1.5,
+                markersize=15,
             )
 
-        for label in ("_long", "_rad", "_circ"):
-            self.fixed_markers.append(
-                self.lines[label].axes.axvline(
-                    self.es_marker[0], color="grey", linewidth=2, linestyle="--"
-                )
+        # The ES marker is a fixed line in all plots...
+        es_marker = markers.sel(
+            marker=Mark.ES, comp=Comp.RAD, quantity=["frame", "velocity"]
+        ).data
+        for comp in (Comp.LONG, Comp.RAD, Comp.CIRC):
+            fixed_markers[(comp, Mark.ES)] = self.lines[comp].axes.axvline(
+                es_marker[0], color="grey", linewidth=2, linestyle="--"
             )
 
-        markers_artists.append(
-            add_marker(
-                self.lines["_rad"],
-                xy=self.es_marker,
-                vline=True,
-                label="ES",
-                color="black",
-                linewidth=2,
-            )
+        # But, additionally in the radial it can be moved.
+        markers_artists[(Comp.RAD, Mark.ES)] = add_marker(
+            self.lines[Comp.RAD],
+            xy=es_marker,
+            vline=True,
+            label="ES",
+            color="black",
+            linewidth=2,
         )
 
-        self.axes["_long"].legend(frameon=False, markerscale=0.7)
-        self.axes["_rad"].legend(frameon=False, markerscale=0.7)
-        self.axes["_circ"].legend(frameon=False, markerscale=0.7)
+        for comp in (Comp.LONG, Comp.RAD, Comp.CIRC):
+            self.axes[comp].legend(frameon=False, markerscale=0.7)
 
-        return markers_artists
+        return markers_artists, fixed_markers
 
-    def update_marker_position(self, marker_label, data_label, new_x):
-        """Convenience method to update the marker position."""
-        self.actions_manager.Markers.update_marker_position(
-            marker_label, data_label, new_x
-        )
+    def update_line(self, data: xr.DataArray, draw=False) -> None:
+        """Updates the data of the chosen line.
 
-    def update_line(self, vel_label, data, draw=False):
-        """Updates the data of the chosen line."""
-        self.lines[vel_label].set_data(data)
-        if draw:
-            self.draw()
+        Args:
+            data (xr.DataArray): Array with the new data for the given component.
+            draw (bool): If the figure should be re-drawn.
 
-    def update_bg(self, vel_label, idx, data, draw=False):
-        """Updates the data of the chosen bg."""
-        self.update_data(self.images[vel_label][idx], vel_label, data, draw)
-
-    def update_mask(self, vel_label, idx, data, draw=False):
-        """Updates the data of the chosen bg."""
-        self.update_data(self.cylindrical[vel_label][idx], vel_label, data, draw)
-
-    def update_data(self, subplot, vel_label, data, draw=False):
-        """Common data updating method."""
-        subplot.set_data(data)
-        self.axes[vel_label].relim()
-        self.axes[vel_label].autoscale()
-
+        Returns:
+            None
+        """
+        self.lines[data.comp.item()].set_data([data.frame, data])
         if draw:
             self.draw()
 
     def update_maps(
-        self, vel_masks: np.ndarray, images: np.ndarray, markers: np.ndarray, draw=True
+        self,
+        images: xr.DataArray,
+        cylindrical: xr.DataArray,
+        marker_frames: xr.DataArray,
+        draw: bool = True,
     ):
-        """Updates the maps (masks and background data)."""
-        rmin, rmax, cmin, cmax = self.limits
-        for i in range(9):
-            axes = self.axes_lbl[i // 3]
-            frame = int(markers[i // 3, i % 3, 0])
-            self.update_mask(
-                axes, i % 3, vel_masks[i // 3, frame, rmin : rmax + 1, cmin : cmax + 1]
+        """Updates all the maps with new data.
+
+        Args:
+            images (xr.DataArray): New background images.
+            cylindrical (xr.DataArray): New overlay data.
+            marker_frames (xr.DataArray): Markers frame information.
+            draw (bool): If the figure should be re-drawn.
+
+        Returns:
+            None
+        """
+        for i, (comp, m) in enumerate(self.ids):
+            frame = int(marker_frames.sel(marker=m, comp=comp).item())
+            self.update_one_map(
+                (comp, m),
+                images.sel(comp=comp, frame=frame),
+                cylindrical.sel(comp=comp, frame=frame),
             )
-            self.update_bg(axes, i % 3, images[frame, rmin : rmax + 1, cmin : cmax + 1])
 
         if draw:
             self.draw()
 
     def update_one_map(
         self,
-        vel_masks: np.ndarray,
-        images: np.ndarray,
-        markers: np.ndarray,
-        axes: str,
-        marker_lbl: str,
-    ):
-        """Updates the maps correspoinding to a single marker."""
-        rmin, rmax, cmin, cmax = self.limits
-        component = self.axes_lbl.index(axes)
-        idx = self.marker_idx[marker_lbl]
-        frame = int(markers[component, idx, 0])
-        self.update_mask(
-            axes, idx, vel_masks[component, frame, rmin : rmax + 1, cmin : cmax + 1]
-        )
-        self.update_bg(axes, idx, images[frame, rmin : rmax + 1, cmin : cmax + 1])
-        self.axes[axes].set_ylim(*self.vel_lim[axes])
-        self.draw()
+        label: Tuple[Comp, Mark],
+        images: xr.DataArray,
+        cylindrical: xr.DataArray,
+        draw: bool = False,
+    ) -> None:
+        """Updates the maps corresponding to a single marker.
 
-    def update_velocities(self, vels, draw=True):
-        """Updates all velocities."""
-        x = np.arange(vels.shape[-1])
-        for i, label in enumerate(self.axes_lbl):
-            self.update_line(label, (x, vels[i]))
+        Args:
+            label (Tuple[Comp, Mark]): Label of the map to update.
+            images (xr.DataArray): New background image - not cropped.
+            cylindrical (xr.DataArray): New overlay data - not cropped.
+            draw (bool): If the figure should be re-drawn.
+
+        Returns:
+            None
+        """
+        rmin, rmax, cmin, cmax = self.limits
+        self.images[label].set_data(
+            images.sel(
+                row=slice(rmin, rmax + 1),
+                col=slice(cmin, cmax + 1),
+            )
+        )
+        self.cylindrical[label].set_data(
+            cylindrical.sel(
+                row=slice(rmin, rmax + 1),
+                col=slice(cmin, cmax + 1),
+            )
+        )
         if draw:
             self.draw()
 
-    def update_markers(self, markers, draw=True):
+    def update_markers(self, markers: xr.DataArray, draw=True) -> None:
         """Updates the position of all markers in a figure."""
         update_position = self.fig.actions_manager.Markers.update_marker_position
 
-        for i, artist in enumerate(self.marker_artists[:-1]):
-            update_position(artist, int(markers[i // 3, i % 3, 0]))
+        for comp, m in self.ids:
+            update_position(
+                self.marker_artists[(comp, m)],
+                markers.sel(marker=m, comp=comp, quantity="frame").item(),
+            )
 
-        update_position(self.marker_artists[-1], self.es_marker[0])
-
-        for f in self.fixed_markers:
-            f.set_xdata([self.es_marker[0]] * 2)
+        es_loc = markers.sel(marker=Mark.ES, comp=Comp.RAD, quantity="frame").item()
+        update_position(self.marker_artists[(Comp.RAD, Mark.ES)], es_loc)
+        for f in self.fixed_markers.values():
+            f.set_xdata([es_loc, es_loc])
 
         if draw:
             self.draw()

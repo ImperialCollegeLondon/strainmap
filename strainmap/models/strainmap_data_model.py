@@ -127,7 +127,7 @@ class StrainMapData(object):
         return True
 
     def add_data(self, cine: str, **kwargs):
-        """ Adds new data to the attributes, expanding the 'cine' coordinate.
+        """Adds new data to the attributes, expanding the 'cine' coordinate.
 
         After updating the data object, it is saved. if the attribute already has data
         for that cine, nothing is done. Update the attribute directly in that case, eg.:
@@ -263,7 +263,7 @@ class StrainMapData(object):
                 write_data_structure(self.strainmap_file, key, getattr(self, key))
 
     def delete(self, *args):
-        """ Deletes the chosen dataset or group from the hdf5 file.
+        """Deletes the chosen dataset or group from the hdf5 file.
 
         Each dataset to be saved must be defined as a list of keys, where key[0]
         must be one of the StrainMapData attributes (segments, velocities, etc.)

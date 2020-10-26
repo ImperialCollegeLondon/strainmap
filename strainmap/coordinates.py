@@ -18,7 +18,7 @@ class Comp(Enum):
     LONG = "Longitudinal"
 
 
-class VelMark(Enum):
+class Mark(Enum):
     PS = auto()
     PD = auto()
     PAS = auto()
@@ -26,9 +26,5 @@ class VelMark(Enum):
     PC1 = auto()
     PC2 = auto()
     PC3 = auto()
-
-
-class StrainMark(Enum):
-    PS = auto()
     PSS = auto()
     ESS = auto()

@@ -26,13 +26,13 @@ def test_save(tmpdir, segmented_data):
     cine = segmented_data.segments.cine[0].item()
     side = segmented_data.segments.side[0].item()
     segmented_data.segments.loc[{"cine": cine, "side": side}] = 42
-    segmented_data.save(["segments"])
+    segmented_data.save("segments")
     s = f"/segments/{cine}/{side}"
     assert s in segmented_data.strainmap_file
     assert segmented_data.strainmap_file[s][()] == approx(42)
 
     segmented_data.segments.loc[{"cine": cine, "side": side}] = 24
-    segmented_data.save(["segments"])
+    segmented_data.save("segments")
     assert s in segmented_data.strainmap_file
     assert not segmented_data.strainmap_file[s][()] == approx(42)
 

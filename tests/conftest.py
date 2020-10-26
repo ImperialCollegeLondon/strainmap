@@ -367,18 +367,18 @@ def masks(segmented_data, theta0):
 
 @fixture
 def empty_markers(regions):
-    from strainmap.models.velocities import VelMark
+    from strainmap.models.velocities import Mark
     from strainmap.coordinates import Comp
     import numpy as np
     components = [Comp.LONG, Comp.RAD, Comp.CIRC]
     quantities = ["frame", "velocity", "time"]
     return xr.DataArray(
-        np.full((len(regions), len(components), len(VelMark), len(quantities)), np.nan),
+        np.full((len(regions), len(components), len(Mark), len(quantities)), np.nan),
         dims=["region", "comp", "marker", "quantity"],
         coords={
             "region": regions,
             "comp": components,
-            "marker": list(VelMark),
+            "marker": list(Mark),
             "quantity": quantities,
         },
     )

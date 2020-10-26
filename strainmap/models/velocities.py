@@ -5,7 +5,7 @@ import numpy as np
 import xarray as xr
 from skimage.draw import polygon2mask
 
-from ..coordinates import Comp, Region, VelMark
+from ..coordinates import Comp, Region, Mark
 from .strainmap_data_model import StrainMapData
 from .writers import terminal
 
@@ -17,14 +17,14 @@ class _MSearch(NamedTuple):
     comp: Sequence[Comp] = ()
 
 
-MARKERS_OPTIONS: Dict[VelMark, _MSearch] = {
-    VelMark.PS: _MSearch(1, 15, xr.DataArray.argmax, [Comp.RAD, Comp.LONG]),
-    VelMark.PD: _MSearch(15, 35, xr.DataArray.argmin, [Comp.RAD, Comp.LONG]),
-    VelMark.PAS: _MSearch(35, 47, xr.DataArray.argmin, [Comp.RAD, Comp.LONG]),
-    VelMark.ES: _MSearch(14, 21, None, [Comp.RAD]),
-    VelMark.PC1: _MSearch(1, 5, xr.DataArray.argmin, [Comp.CIRC]),
-    VelMark.PC2: _MSearch(6, 12, xr.DataArray.argmax, [Comp.CIRC]),
-    VelMark.PC3: _MSearch(0, 0, None, [Comp.CIRC]),
+MARKERS_OPTIONS: Dict[Mark, _MSearch] = {
+    Mark.PS: _MSearch(1, 15, xr.DataArray.argmax, [Comp.RAD, Comp.LONG]),
+    Mark.PD: _MSearch(15, 35, xr.DataArray.argmin, [Comp.RAD, Comp.LONG]),
+    Mark.PAS: _MSearch(35, 47, xr.DataArray.argmin, [Comp.RAD, Comp.LONG]),
+    Mark.ES: _MSearch(14, 21, None, [Comp.RAD]),
+    Mark.PC1: _MSearch(1, 5, xr.DataArray.argmin, [Comp.CIRC]),
+    Mark.PC2: _MSearch(6, 12, xr.DataArray.argmax, [Comp.CIRC]),
+    Mark.PC3: _MSearch(0, 0, None, [Comp.CIRC]),
 }
 
 
@@ -332,14 +332,14 @@ def initialise_markers(velocity: xr.DataArray) -> xr.DataArray:
         coords={
             "region": velocity.region,
             "comp": velocity.comp,
-            "marker": list(VelMark),
+            "marker": [m for m in Mark if m not in (Mark.PSS, Mark.ESS)],
             "quantity": ["frame", "velocity", "time"],
         },
     )
     # Shortcuts
-    pd = VelMark.PD
-    es = VelMark.ES
-    pc3 = VelMark.PC3
+    pd = Mark.PD
+    es = Mark.ES
+    pc3 = Mark.PC3
     glr = Region.GLOBAL
     rad = Comp.RAD
 
@@ -372,7 +372,7 @@ def initialise_markers(velocity: xr.DataArray) -> xr.DataArray:
 
 def update_markers(
     markers: xr.DataArray,
-    marker_label: VelMark,
+    marker_label: Mark,
     component: Comp,
     region: Region,
     location: int,
@@ -383,7 +383,7 @@ def update_markers(
 
     Args:
         markers (xr.DataArray): DataArray of all markers
-        marker_label (VelMark): Marker to update
+        marker_label (Mark): Marker to update
         component (Comp): Component to update
         region (Region): Region to update
         location (int): New location of the marker
@@ -393,9 +393,9 @@ def update_markers(
     Returns:
         None
     """
-    if marker_label == VelMark.ES:
-        markers.loc[{"marker": VelMark.ES, "quantity": "frame"}] = location
-        markers.loc[{"marker": VelMark.ES, "quantity": "velocity"}] = velocity_value
+    if marker_label == Mark.ES:
+        markers.loc[{"marker": Mark.ES, "quantity": "frame"}] = location
+        markers.loc[{"marker": Mark.ES, "quantity": "velocity"}] = velocity_value
         normalise_times(markers, frames)
     else:
         markers.loc[
@@ -528,7 +528,7 @@ def normalise_times(markers: xr.DataArray, frames: int) -> None:
     """
     es = int(
         markers.sel(
-            marker=VelMark.ES, quantity="frame", comp=Comp.RAD, region=Region.GLOBAL
+            marker=Mark.ES, quantity="frame", comp=Comp.RAD, region=Region.GLOBAL
         ).item()
     )
     markers.loc[{"quantity": "time"}] = xr.where(

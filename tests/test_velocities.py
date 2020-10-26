@@ -1,6 +1,6 @@
 from pytest import approx, mark
 from unittest.mock import patch
-from strainmap.coordinates import VelMark
+from strainmap.coordinates import Mark
 
 
 def test_theta_origin():
@@ -151,7 +151,7 @@ def test_marker_x(velocities):
     import numpy as np
     import xarray as xr
 
-    comp = np.random.choice(velocities.comp.data, 2)
+    comp = np.random.choice(velocities.comp.data, 2, replace=False)
     options = _MSearch(0, 25, xr.DataArray.argmax, comp)
     idx, vel = marker_x(velocities, options)
 
@@ -183,9 +183,9 @@ def test_marker_es(velocities):
 
 def test_marker_pc3(empty_markers, velocities):
     from strainmap.models.velocities import MARKERS_OPTIONS, marker_pc3
-    from strainmap.coordinates import VelMark
+    from strainmap.coordinates import Mark
 
-    idx, vel = marker_pc3(velocities, MARKERS_OPTIONS[VelMark.PC3], 30)
+    idx, vel = marker_pc3(velocities, MARKERS_OPTIONS[Mark.PC3], 30)
 
     eidx = velocities.argmin(dim="frame")[0, 0].item()
     evel = velocities.min()
@@ -206,17 +206,17 @@ def test_initialise_markers(velocities, empty_markers):
 
 def test_normalised_times(empty_markers):
     from strainmap.models.velocities import normalise_times
-    from strainmap.coordinates import VelMark
+    from strainmap.coordinates import Mark
 
-    empty_markers.loc[{"marker": VelMark.ES, "quantity": "frame"}] = 30
-    empty_markers.loc[{"marker": VelMark.PS, "quantity": "frame"}] = 15
-    empty_markers.loc[{"marker": VelMark.PD, "quantity": "frame"}] = 40
+    empty_markers.loc[{"marker": Mark.ES, "quantity": "frame"}] = 30
+    empty_markers.loc[{"marker": Mark.PS, "quantity": "frame"}] = 15
+    empty_markers.loc[{"marker": Mark.PD, "quantity": "frame"}] = 40
 
     normalise_times(empty_markers, 50)
 
-    assert (empty_markers.sel(marker=VelMark.ES, quantity="time") == 350).all()
-    assert (empty_markers.sel(marker=VelMark.PS, quantity="time") == 175).all()
-    assert (empty_markers.sel(marker=VelMark.PD, quantity="time") == 675).all()
+    assert (empty_markers.sel(marker=Mark.ES, quantity="time") == 350).all()
+    assert (empty_markers.sel(marker=Mark.PS, quantity="time") == 175).all()
+    assert (empty_markers.sel(marker=Mark.PD, quantity="time") == 675).all()
 
 
 def test_calculate_velocities(segmented_data):
@@ -229,7 +229,7 @@ def test_calculate_velocities(segmented_data):
         assert hasattr(getattr(segmented_data, var), "cine")
 
 
-@mark.parametrize("label", (VelMark.PS, VelMark.ES))
+@mark.parametrize("label", (Mark.PS, Mark.ES))
 @patch("strainmap.models.velocities.normalise_times", lambda m, f: m * 2)
 def test_update_markers(velocities, label):
     from strainmap.models.velocities import initialise_markers, update_markers
@@ -266,7 +266,7 @@ def test_update_markers(velocities, label):
         markers.sel(region=region, comp=component, marker=label, quantity="velocity")
         == value
     ).any()
-    if label == VelMark.ES:
+    if label == Mark.ES:
         xr.testing.assert_equal(
             markers2.sel(quantity="time"), markers.sel(quantity="time")
         )
