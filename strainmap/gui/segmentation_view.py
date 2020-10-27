@@ -109,7 +109,7 @@ class SegmentationTaskView(TaskViewBase):
 
     def tkraise(self, *args):
         super(SegmentationTaskView, self).tkraise()
-        self.master.bind("<Control_L><p>", self.copy_previous)
+        self.master.bind("<Control_L><v>", self.copy_previous)
 
     def create_controls(self):
         """ Creates all the widgets of the view. """
