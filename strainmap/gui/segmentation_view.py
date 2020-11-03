@@ -635,7 +635,7 @@ class SegmentationTaskView(TaskViewBase):
             self.initial_segments = xr.DataArray(
                 np.full((2, 2, max(contour[-1].shape)), np.nan),
                 dims=("side", "coord", "point"),
-                coords={"side": ["endocardium", "epicardium"], "coord": ["row", "col"]},
+                coords={"side": ["endocardium", "epicardium"], "coord": ["col", "row"]},
             )
         self.initial_segments.loc[{"side": side}] = contour[-1]
         self.switch_mark_state(side, "ready")
@@ -662,7 +662,7 @@ class SegmentationTaskView(TaskViewBase):
             self._septum = xr.DataArray(
                 np.full((self.num_frames, 2), np.nan),
                 dims=("frame", "coord"),
-                coords={"coord": ["row", "col"], "frame": np.arange(self.num_frames)},
+                coords={"coord": ["col", "row"], "frame": np.arange(self.num_frames)},
             )
         self._septum.loc[{"frame": self.current_frame}] = data[-1]
 

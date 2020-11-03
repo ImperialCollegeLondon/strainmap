@@ -191,7 +191,7 @@ def _init_segments(cine: str, frames: int, points: int) -> xr.DataArray:
         coords={
             "cine": [cine],
             "side": ["endocardium", "epicardium"],
-            "coord": ["row", "col"],
+            "coord": ["col", "row"],
             "frame": np.arange(0, frames),
         },
         name="segments",
@@ -203,7 +203,7 @@ def _init_septum_and_centroid(cine: str, frames: int, name: str) -> xr.DataArray
     return xr.DataArray(
         np.full((1, frames, 2), np.nan),
         dims=("cine", "frame", "coord"),
-        coords={"cine": [cine], "coord": ["row", "col"], "frame": np.arange(0, frames)},
+        coords={"cine": [cine], "coord": ["col", "row"], "frame": np.arange(0, frames)},
         name=name,
     )
 

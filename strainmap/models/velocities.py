@@ -76,8 +76,8 @@ def ring_mask(
     outer: xr.DataArray, inner: xr.DataArray, shape: Tuple[int, int]
 ) -> np.ndarray:
     """Finds a ring-shaped mask between the outer and inner contours vs frame."""
-    out_T = outer.transpose("frame", "point", "coord")
-    in_T = inner.transpose("frame", "point", "coord")
+    out_T = outer.transpose("frame", "point", "coord")[..., ::-1]
+    in_T = inner.transpose("frame", "point", "coord")[..., ::-1]
 
     return np.array(
         [
@@ -157,7 +157,12 @@ def find_masks(
     mask = xr.DataArray(
         np.full((len(reg), len(segments.frame), shape[0], shape[1]), False, dtype=bool),
         dims=["region", "frame", "row", "col"],
-        coords={"region": reg, "frame": segments.frame},
+        coords={
+            "region": reg,
+            "frame": segments.frame,
+            "row": np.arange(0, shape[0]),
+            "col": np.arange(0, shape[1]),
+        },
     )
 
     gmask = mask.sel(region=Region.GLOBAL)
@@ -295,7 +300,7 @@ def calculate_velocities(
 
 
 def initialise_markers(velocity: xr.DataArray) -> xr.DataArray:
-    """ Find the initial position and value of the markers for the chosen velocity.
+    """Find the initial position and value of the markers for the chosen velocity.
 
     The default positions for the markers are:
 
@@ -361,7 +366,7 @@ def initialise_markers(velocity: xr.DataArray) -> xr.DataArray:
     es_loc = int(result.sel(marker=es, quantity="frame", comp=rad, region=glr).item())
     opt = MARKERS_OPTIONS[pc3]
     idx, value = marker_pc3(velocity, opt, es_loc)
-    result.loc[{"marker": pc3, "quantity": "frame", "comp": opt.comp}] = idx + es_loc
+    result.loc[{"marker": pc3, "quantity": "frame", "comp": opt.comp}] = idx
     result.loc[{"marker": pc3, "quantity": "velocity", "comp": opt.comp}] = value
 
     # Calculate the normalised times
@@ -419,7 +424,7 @@ def update_markers(
 def marker_x(
     velocity: xr.DataArray, options: _MSearch
 ) -> Tuple[xr.DataArray, xr.DataArray]:
-    """ Calculates the location and value of normal markers (not ES nor PC3).
+    """Calculates the location and value of normal markers (not ES nor PC3).
 
     Args:
         velocity (xr.DataArray): Array of velocities versus frame for all regions
@@ -443,7 +448,7 @@ def marker_x(
 def marker_es(
     velocity: xr.DataArray, options: _MSearch, pd_loc: int
 ) -> Tuple[xr.DataArray, xr.DataArray]:
-    """ Calculates the location and value of the ES marker.
+    """Calculates the location and value of the ES marker.
 
     Args:
         velocity (xr.DataArray): Array of velocities versus frame for all regions
@@ -474,7 +479,7 @@ def marker_es(
 def marker_pc3(
     velocity: xr.DataArray, options: _MSearch, es_loc: int
 ) -> Tuple[xr.DataArray, xr.DataArray]:
-    """ Calculates the location and value of the PC3 marker.
+    """Calculates the location and value of the PC3 marker.
 
     Args:
         velocity (xr.DataArray): Array of velocities versus frame for all regions

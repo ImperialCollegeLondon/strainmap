@@ -129,18 +129,14 @@ class StrainMap(object):
     def remove_segmentation(self, cine):
         """Clears an existing segmentation."""
         segmentation.remove_segmentation(data=self.data, cine=cine)
-        there_are_segments = self.data.segments.shape != ()
-        if not there_are_segments:
+        if self.data.segments.shape == ():
             self.lock(Requisites.SEGMENTED)
             self.lock(Requisites.VELOCITIES)
 
     def calculate_velocities(self, **kwargs):
         """Calculates the velocities based on a given segmentation."""
         calculate_velocities(data=self.data, **kwargs)
-        there_are_velocities = (
-            sum(len(i) != 0 for i in self.data.velocities.values()) > 1
-        )
-        self.lock_toggle(there_are_velocities, Requisites.VELOCITIES)
+        self.lock_toggle(self.data.velocities.shape != (), Requisites.VELOCITIES)
 
     def regenerate_velocities(self, **kwargs):
         """Calculates the velocities based on a given segmentation."""

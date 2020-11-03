@@ -457,6 +457,8 @@ class DICOM(DICOMReaderBase):
                 "comp": [Comp.MAG, Comp.X, Comp.Y, Comp.Z],
                 "frame": np.arange(0, mag.shape[0]),
                 "cine": dataset,
+                "row": np.arange(0, mag.shape[1]),
+                "col": np.arange(0, mag.shape[2]),
             },
         )
 
