@@ -115,6 +115,7 @@ def test_cartesian_to_cylindrical(segmented_data, masks, theta0):
     import xarray as xr
     from strainmap.models.velocities import process_phases, cartesian_to_cylindrical
     from strainmap.coordinates import Region, Comp
+    from strainmap.tools import to_sparse
 
     cine = segmented_data.data_files.datasets[0]
     centroid = segmented_data.centroid.isel(cine=0)
@@ -128,7 +129,9 @@ def test_cartesian_to_cylindrical(segmented_data, masks, theta0):
 
     # The z component should be identical
     xr.testing.assert_equal(
-        xr.where(global_mask, phase, 0).sel(comp=Comp.Z).drop("comp"),
+        to_sparse(
+            xr.where(global_mask, phase, np.nan).sel(comp=Comp.Z).drop("comp"), np.nan
+        ),
         cyl.sel(comp=Comp.LONG).drop("comp"),
     )
 
@@ -139,11 +142,9 @@ def test_cartesian_to_cylindrical(segmented_data, masks, theta0):
     mag_cart = (phase - bulk).sel(comp=Comp.X) ** 2 + (phase - bulk).sel(
         comp=Comp.Y
     ) ** 2
-    mag_cart = xr.where(global_mask, mag_cart, 0)
+    mag_cart = to_sparse(xr.where(global_mask, mag_cart, np.nan), np.nan)
     mag_cyl = cyl.sel(comp=Comp.RAD) ** 2 + cyl.sel(comp=Comp.CIRC) ** 2
-    xr.testing.assert_allclose(mag_cart, mag_cyl)
-
-    return
+    assert (mag_cart.data == mag_cyl.data).data.all()
 
 
 def test_marker_x(velocities):

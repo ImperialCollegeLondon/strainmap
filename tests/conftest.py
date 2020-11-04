@@ -77,14 +77,14 @@ def segmented_data(strainmap_data):
             ]
         ),
         dims=("side", "coord", "point"),
-        coords={"side": ["endocardium", "epicardium"], "coord": ["row", "col"]},
+        coords={"side": ["endocardium", "epicardium"], "coord": ["col", "row"]},
     )
 
     # Create septum
     septum = xr.DataArray(
         np.full((image.sizes["frame"], 2), np.nan),
         dims=("frame", "coord"),
-        coords={"coord": ["row", "col"], "frame": np.arange(image.sizes["frame"])},
+        coords={"coord": ["col", "row"], "frame": np.arange(image.sizes["frame"])},
     )
 
     # Launch the segmentation process

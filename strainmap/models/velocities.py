@@ -3,11 +3,13 @@ from typing import Callable, Dict, NamedTuple, Optional, Sequence, Text, Tuple
 
 import numpy as np
 import xarray as xr
+import sparse as sp
 from skimage.draw import polygon2mask
 
 from ..coordinates import Comp, Region, Mark
 from .strainmap_data_model import StrainMapData
 from .writers import terminal
+from ..tools import to_dense
 
 
 class _MSearch(NamedTuple):
@@ -177,6 +179,17 @@ def find_masks(
     radial_mask(segments, shape, rmask)
     mask.loc[{"region": Region.RADIAL_x3}] = rmask
 
+    mask = xr.DataArray(
+        sp.COO.from_numpy(mask.data),
+        dims=["region", "frame", "row", "col"],
+        coords={
+            "region": reg,
+            "frame": segments.frame,
+            "row": np.arange(0, shape[0]),
+            "col": np.arange(0, shape[1]),
+        },
+    )
+
     return mask
 
 
@@ -218,7 +231,7 @@ def cartesian_to_cylindrical(
         .transpose("frame", "row", "col", "comp")
         .data[iframe, irow, icol, :]
     )
-    cylindrical = np.zeros_like(phase.data)
+    cylindrical = np.full_like(phase.data, np.nan)
 
     crow = centroid.sel(frame=iframe, coord="row").data
     ccol = centroid.sel(frame=iframe, coord="col").data
@@ -233,7 +246,9 @@ def cartesian_to_cylindrical(
     ).T
 
     return xr.DataArray(
-        cylindrical, dims=phase.dims, coords=phase.coords
+        sp.COO.from_numpy(cylindrical, fill_value=np.nan),
+        dims=phase.dims,
+        coords=phase.coords,
     ).assign_coords(comp=[Comp.RAD, Comp.CIRC, Comp.LONG])
 
 
@@ -289,7 +304,7 @@ def calculate_velocities(
     ).drop_vars("cine")
 
     # We are now ready to calculate the velocities
-    velocity = xr.where(masks, cylindrical, np.nan).mean(dim=["row", "col"])
+    velocity = to_dense((masks * cylindrical).mean(dim=["row", "col"]))
     markers = initialise_markers(velocity)
 
     # Finally, we add all the information to the StrainMap data object

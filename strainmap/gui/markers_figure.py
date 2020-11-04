@@ -203,7 +203,7 @@ class MarkersFigure:
                         frame=frame,
                         row=slice(rmin, rmax + 1),
                         col=slice(cmin, cmax + 1),
-                    ),
+                    ).data.todense(),
                     cmap=plt.get_cmap("seismic"),
                     vmin=vmin,
                     vmax=vmax,
@@ -220,11 +220,12 @@ class MarkersFigure:
     @staticmethod
     def find_limits(mask: xr.DataArray, margin: int = 20) -> Tuple[int, ...]:
         """Find the appropriate limits of a masked array in order to plot it nicely."""
-        m = mask.where(~xr.ufuncs.isnan(mask), drop=True)
-        cmin = m.col.min().item() - margin
-        rmin = m.row.min().item() - margin
-        cmax = m.col.max().item() + margin
-        rmax = m.row.max().item() + margin
+        col = mask.data.coords[mask.dims.index("col")]
+        row = mask.data.coords[mask.dims.index("row")]
+        cmin = col.min() - margin
+        rmin = row.min() - margin
+        cmax = col.max() + margin
+        rmax = row.max() + margin
 
         return rmin, rmax, cmin, cmax
 
