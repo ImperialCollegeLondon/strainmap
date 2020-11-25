@@ -290,10 +290,10 @@ class SegmentationTaskView(TaskViewBase):
         self.ax_vel.set_title("Velocity", loc="right")
 
         self.fig.actions_manager.ScrollFrames.set_scroller(
-            lambda frame, axes="mag": self.scroll(frame, axes), self.ax_mag
+            lambda frame, axes=Comp.MAG: self.scroll(frame, axes), self.ax_mag
         )
         self.fig.actions_manager.ScrollFrames.set_scroller(
-            lambda frame, axes="vel": self.scroll(frame, axes), self.ax_vel
+            lambda frame, axes=Comp.Z: self.scroll(frame, axes), self.ax_vel
         )
 
     def cine_changed(self, *args):

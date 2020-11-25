@@ -149,6 +149,7 @@ class StrainMap(object):
     def update_marker(self, **kwargs):
         """Updates the markers information after moving one of them."""
         update_markers(**kwargs)
+        self.data.save("markers")
         if kwargs["marker_label"] == Mark.ES:
             update_strain_es_marker(**kwargs)
 

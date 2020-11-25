@@ -328,22 +328,16 @@ def calculate_velocities(
     lap5 = time.time()
     print("marker: ", round(lap5 - lap4, 2))
     # Finally, we add all the information to the StrainMap data object
+
     data.add_data(
         cine, masks=masks, cylindrical=cylindrical, velocities=velocity, markers=markers
     )
-    return
 
 
 def _calculate_velocities(
     masks: xr.DataArray, cylindrical: xr.DataArray
 ) -> xr.DataArray:
     return xr.where(masks, cylindrical, np.nan).mean(dim=["row", "col"])
-
-    # (
-    #     cylindrical.broadcast_like(masks)
-    #     .where(masks, drop=True)
-    #     .mean(dim=["row", "col"])
-    # )
 
 
 def initialise_markers(velocity: xr.DataArray) -> xr.DataArray:
@@ -423,7 +417,7 @@ def initialise_markers(velocity: xr.DataArray) -> xr.DataArray:
 
 
 def update_markers(
-    markers: xr.DataArray,
+    markers: StrainMapData,
     marker_label: Mark,
     component: Comp,
     region: Region,

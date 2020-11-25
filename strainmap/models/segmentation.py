@@ -134,16 +134,26 @@ def remove_segmentation(data: StrainMapData, cine: str) -> None:
     strain is no longer valid if one of the segmentations it depends on is changed
     or removed.
     """
-    data.segments = data.segments.where(data.segments.cine != cine, drop=True)
-    data.centroid = data.septum.where(data.centroid.cine != cine, drop=True)
-    data.septum = data.septum.where(data.septum.cine != cine, drop=True)
-    data.velocities.pop(cine, None)
-    data.masks.pop(cine, None)
-    data.markers.pop(cine, None)
+    data.segments = _drop_cine(data.segments, cine)
+    data.centroid = _drop_cine(data.centroid, cine)
+    data.septum = _drop_cine(data.septum, cine)
+
+    if data.velocities.shape != ():
+        data.masks = _drop_cine(data.masks, cine)
+        data.cylindrical = _drop_cine(data.cylindrical, cine)
+        data.velocities = _drop_cine(data.velocities, cine)
+        data.markers = _drop_cine(data.markers, cine)
+
     data.strain = xr.DataArray()
     data.strain_markers = xr.DataArray()
 
-    # data.save_all()
+    data.save_all()
+
+
+def _drop_cine(x: xr.DataArray, cine: str) -> xr.DataArray:
+    """Removes a cine from the dataframe."""
+    out = x.where(x.cine != cine, drop=True)
+    return out if out.size > 0 else xr.DataArray()
 
 
 def _get_segment_variables(
@@ -266,7 +276,7 @@ def _update_segmentation(
     centroid: xr.DataArray,
     new_segments: Optional[xr.DataArray] = None,
 ) -> None:
-    """ Updates an existing segmentation and septum with new ones.
+    """Updates an existing segmentation and septum with new ones.
 
     Any velocities calculated for this cine are deleted, forcing their recalculation.
 
