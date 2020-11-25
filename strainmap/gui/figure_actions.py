@@ -182,7 +182,7 @@ class ScrollFrames(ActionBase):
     def set_scroller(self, scroller, axes):
         """Sets the generator function that will produce the new data when scrolling."""
         self._scroller[axes] = scroller
-        axes.set_title(f"Frame: 0", loc="left")
+        axes.set_title("Frame: 0", loc="left")
 
     def link_axes(self, axes1, axes2):
         """Links two axes, so scrolling happens simultaneously in both."""
@@ -191,8 +191,8 @@ class ScrollFrames(ActionBase):
 
         self._linked_axes[axes1] = axes2
         self._linked_axes[axes2] = axes1
-        axes1.set_title(f"Frame: 0", loc="left")
-        axes2.set_title(f"Frame: 0", loc="left")
+        axes1.set_title("Frame: 0", loc="left")
+        axes2.set_title("Frame: 0", loc="left")
 
     def unlink_axes(self, axes1, axes2):
         """Unlinks two linked axes."""
@@ -767,7 +767,7 @@ class Markers(ActionBase):
     @staticmethod
     def get_closest(line, mx):
         x, y = line.get_data()
-        mini = np.argmin(np.abs(x - mx))
+        mini = np.abs(x - mx).argmin().item()
         return x[mini], y[mini], mini
 
 

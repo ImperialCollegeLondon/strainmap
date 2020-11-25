@@ -12,7 +12,7 @@ from matplotlib.gridspec import GridSpec
 from matplotlib.image import AxesImage
 from matplotlib.lines import Line2D
 
-from strainmap.coordinates import Comp, Mark, Region
+from strainmap.coordinates import Comp, Mark
 from strainmap.gui.figure_actions import Markers, SimpleScroller
 from strainmap.gui.figure_actions_manager import FigureActionsManager
 
@@ -36,8 +36,8 @@ class MarkersFigure:
         + ("orange", "darkblue", "purple"),
     ):
         self.ids = ids
-        self.limits: Tuple[int, ...] = ()
         self.line_limits = line_limits
+        self.maps_limits = self.find_limits(cylindrical)
 
         self.fig = Figure(constrained_layout=True)
         canvas = FigureCanvasTkAgg(self.fig, master=master)
@@ -61,12 +61,17 @@ class MarkersFigure:
 
         self.draw()
 
+    @property
+    def actions_manager(self):
+        """Shortcut to gte the actions manager."""
+        return self.fig.actions_manager
+
     def draw(self) -> None:
-        """Shortcut to re-draw the figure"""
+        """Shortcut to re-draw the figure."""
         self.fig.canvas.draw_idle()
 
     def set_marker_moved(self, callback: Callable) -> None:
-        """Sets the function to be called when one marker is moved
+        """Sets the function to be called when one marker is moved.
 
         Args:
             callback (Callable): The function to be called.
@@ -176,10 +181,7 @@ class MarkersFigure:
         img: Dict[Tuple[Comp, Mark], AxesImage] = {}
         cyl: Dict[Tuple[Comp, Mark], AxesImage] = {}
 
-        if Region.GLOBAL == cylindrical.region.item():
-            self.limits = self.find_limits(cylindrical)
-
-        rmin, rmax, cmin, cmax = self.limits
+        rmin, rmax, cmin, cmax = self.maps_limits
         vmin, vmax = cylindrical.min(), cylindrical.max()
         for comp, mark in self.ids.items():
             for m in mark:
@@ -187,26 +189,27 @@ class MarkersFigure:
                 frame = int(markers.sel(marker=m, comp=comp, quantity="frame").item())
 
                 # Background magnitude images
-                img[loc] = self.maps[loc].imshow(
-                    images.sel(
-                        frame=frame,
-                        row=slice(rmin, rmax + 1),
-                        col=slice(cmin, cmax + 1),
-                    ),
+                img[loc] = images.sel(
+                    frame=frame, row=slice(rmin, rmax + 1), col=slice(cmin, cmax + 1)
+                ).plot.imshow(
+                    ax=self.maps[loc],
                     cmap=plt.get_cmap("binary_r"),
+                    add_colorbar=False,
+                    add_labels=False,
+                    xlim=(cmin, cmax),
+                    ylim=(rmin, rmax),
                 )
 
                 # Overlay cylindrical velocity images
-                cyl[loc] = self.maps[loc].imshow(
-                    cylindrical.sel(
-                        comp=comp,
-                        frame=frame,
-                        row=slice(rmin, rmax + 1),
-                        col=slice(cmin, cmax + 1),
-                    ).data.todense(),
+                cyl[loc] = cylindrical.sel(comp=comp, frame=frame).plot.imshow(
+                    ax=self.maps[loc],
                     cmap=plt.get_cmap("seismic"),
                     vmin=vmin,
                     vmax=vmax,
+                    add_colorbar=False,
+                    add_labels=False,
+                    xlim=(cmin, cmax),
+                    ylim=(rmin, rmax),
                 )
 
         cbar = self.fig.colorbar(
@@ -220,12 +223,14 @@ class MarkersFigure:
     @staticmethod
     def find_limits(mask: xr.DataArray, margin: int = 20) -> Tuple[int, ...]:
         """Find the appropriate limits of a masked array in order to plot it nicely."""
-        col = mask.data.coords[mask.dims.index("col")]
-        row = mask.data.coords[mask.dims.index("row")]
-        cmin = col.min() - margin
-        rmin = row.min() - margin
-        cmax = col.max() + margin
-        rmax = row.max() + margin
+        cmean = mask.col.mean()
+        rmean = mask.row.mean()
+        r = max(mask.row.max() - mask.row.min(), mask.col.max() - mask.col.min())
+        r = r / 2 + margin
+        cmin = cmean - r
+        rmin = rmean - r
+        cmax = cmean + r
+        rmax = rmean + r
 
         return rmin, rmax, cmin, cmax
 
@@ -283,7 +288,22 @@ class MarkersFigure:
 
         return markers_artists, fixed_markers
 
-    def update_line(self, data: xr.DataArray, draw=False) -> None:
+    def update_lines(self, data: xr.DataArray, draw=False) -> None:
+        """Updates all lines.
+
+        Args:
+            data (xr.DataArray): Array with the new data for the given components.
+            draw (bool): If the figure should be re-drawn.
+
+        Returns:
+            None
+        """
+        for comp in data.comp:
+            self.update_one_line(data.sel(comp=comp), draw=False)
+        if draw:
+            self.draw()
+
+    def update_one_line(self, data: xr.DataArray, draw=False) -> None:
         """Updates the data of the chosen line.
 
         Args:
@@ -320,7 +340,7 @@ class MarkersFigure:
                 frame = int(marker_frames.sel(marker=m, comp=comp).item())
                 self.update_one_map(
                     (comp, m),
-                    images.sel(comp=comp, frame=frame),
+                    images.sel(frame=frame),
                     cylindrical.sel(comp=comp, frame=frame),
                 )
 
@@ -345,18 +365,12 @@ class MarkersFigure:
         Returns:
             None
         """
-        rmin, rmax, cmin, cmax = self.limits
+        rmin, rmax, cmin, cmax = self.maps_limits
         self.images[label].set_data(
-            images.sel(
-                row=slice(rmin, rmax + 1),
-                col=slice(cmin, cmax + 1),
-            )
+            images.sel(row=slice(rmin, rmax + 1), col=slice(cmin, cmax + 1))
         )
         self.cylindrical[label].set_data(
-            cylindrical.sel(
-                row=slice(rmin, rmax + 1),
-                col=slice(cmin, cmax + 1),
-            )
+            cylindrical.sel(row=slice(rmin, rmax + 1), col=slice(cmin, cmax + 1))
         )
         if draw:
             self.draw()

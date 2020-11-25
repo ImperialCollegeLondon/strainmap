@@ -3,13 +3,11 @@ from typing import Callable, Dict, NamedTuple, Optional, Sequence, Text, Tuple
 
 import numpy as np
 import xarray as xr
-import sparse as sp
-from skimage.draw import polygon2mask, polygon
+from skimage.draw import polygon2mask
 
 from ..coordinates import Comp, Region, Mark
 from .strainmap_data_model import StrainMapData
 from .writers import terminal
-from ..tools import to_dense
 
 
 class _MSearch(NamedTuple):
@@ -128,9 +126,7 @@ def angular_mask(
 
 
 def radial_mask(
-    segments: xr.DataArray,
-    regions: int,
-    start_index: int = 0,
+    segments: xr.DataArray, regions: int, start_index: int = 0
 ) -> np.ndarray:
     """Calculates the angular mask for the requested radial region."""
     seg = segments.transpose("side", "frame", "point", "coord")
@@ -158,16 +154,11 @@ def find_masks(
     + 3x radial. The coordinates of each region is the corresponding Region element,
     so selecting each of them, selects the whole group.
     """
-    import time
-
     reg = list(chain.from_iterable(([r] * r.value for r in Region)))
-    masks: Dict[Region, np.ndarray] = {}
+    masks: Dict[Region, np.ndarray] = dict()
 
-    start = time.time()
     masks[Region.GLOBAL] = global_mask(segments)
 
-    lap1 = time.time()
-    print("\t- mask global: ", round(lap1 - start, 2))
     start_index = masks[Region.GLOBAL][0].max() + 1
     for region in (Region.ANGULAR_x6, Region.ANGULAR_x24):
         masks[region] = angular_mask(
@@ -179,29 +170,24 @@ def find_masks(
         )
         start_index = masks[region][0].max() + 1
 
-    lap2 = time.time()
-    print("\t- mask angular: ", round(lap2 - lap1, 2))
     masks[Region.RADIAL_x3] = radial_mask(
         segments=segments, regions=Region.RADIAL_x3.value, start_index=start_index
     )
 
-    lap3 = time.time()
-    print("\t- mask radial: ", round(lap3 - lap2, 2))
     coords = np.concatenate(list(masks.values()), axis=1)
-    shape = len(reg), segments.sizes["frame"], *shape
-    mask = xr.DataArray(
-        sp.COO(coords=coords, data=True, shape=shape, fill_value=False),
+    rows = np.arange(min(coords[2]), max(coords[2]) + 0.5).astype(int)
+    cols = np.arange(min(coords[3]), max(coords[3]) + 0.5).astype(int)
+    shape = len(reg), segments.sizes["frame"], len(rows), len(cols)
+
+    coords[2] = coords[2] - min(rows)
+    coords[3] = coords[3] - min(cols)
+    data = np.full(shape, fill_value=False)
+    data[tuple(coords)] = True
+    return xr.DataArray(
+        data,
         dims=["region", "frame", "row", "col"],
-        coords={
-            "region": reg,
-            "frame": segments.frame,
-            "row": np.arange(0, shape[-1]),
-            "col": np.arange(0, shape[-1]),
-        },
+        coords={"region": reg, "frame": segments.frame, "row": rows, "col": cols},
     )
-    sparse = time.time()
-    print("\t- mask output: ", round(sparse - lap3, 2))
-    return mask
 
 
 def cartesian_to_cylindrical(
@@ -235,32 +221,46 @@ def cartesian_to_cylindrical(
         DataArray with the cylindrical coordinates.
     """
     iframe, irow, icol = np.nonzero(global_mask.data)
-    bulk = xr.where(global_mask, phase, np.nan).mean(dim=("row", "col"))
+    p = phase.sel(row=global_mask.row, col=global_mask.col)
+    bulk = xr.where(global_mask, p, np.nan).mean(dim=("row", "col"))
     bulk.loc[{"comp": Comp.Z}] = 0
     cartesian = (
-        (phase - bulk)
-        .transpose("frame", "row", "col", "comp")
-        .data[iframe, irow, icol, :]
+        (p - bulk).transpose("frame", "row", "col", "comp").data[iframe, irow, icol, :]
     )
-    cylindrical = np.full_like(phase.data, np.nan)
 
     crow = centroid.sel(frame=iframe, coord="row").data
     ccol = centroid.sel(frame=iframe, coord="col").data
     th0 = theta0.sel(frame=iframe).data
 
-    theta = np.mod(np.arctan2(icol - ccol, irow - crow) - th0, 2 * np.pi)
+    row = global_mask.row[irow].data - crow
+    col = global_mask.col[icol].data - ccol
+
+    theta = np.mod(np.arctan2(col, row) - th0, 2 * np.pi)
     if clockwise:
         theta = 2 * np.pi - theta
 
-    cylindrical[:, iframe, irow, icol] = (
+    coords = np.concatenate(
+        [
+            np.stack([np.full_like(iframe, i), iframe, irow, icol], axis=0)
+            for i in range(phase.sizes["comp"])
+        ],
+        axis=1,
+    )
+    data = np.full(p.shape, fill_value=0.0)
+    data[tuple(coords)] = (
         cylindrical_rotation_matrix(theta) @ cartesian[..., None]
-    ).T
+    ).T.flatten()
 
     return xr.DataArray(
-        sp.COO.from_numpy(cylindrical, fill_value=np.nan),
-        dims=phase.dims,
-        coords=phase.coords,
-    ).assign_coords(comp=[Comp.RAD, Comp.CIRC, Comp.LONG])
+        data,
+        dims=p.dims,
+        coords={
+            "comp": [Comp.RAD, Comp.CIRC, Comp.LONG],
+            "frame": global_mask.frame,
+            "row": global_mask.row,
+            "col": global_mask.col,
+        },
+    )
 
 
 def cylindrical_rotation_matrix(theta: np.ndarray) -> np.ndarray:
@@ -285,11 +285,11 @@ def cylindrical_rotation_matrix(theta: np.ndarray) -> np.ndarray:
 
 
 def calculate_velocities(
-    data: StrainMapData,
-    cine: Text,
-    sign_reversal: Tuple[bool, ...] = (1, 1, 1),
+    data: StrainMapData, cine: Text, sign_reversal: Tuple[bool, ...] = (1, 1, 1)
 ):
     """Calculates the velocity of the chosen cine and regions."""
+    data.sign_reversal[...] = np.array(sign_reversal)
+
     import time
 
     # We start by processing the phase images
@@ -299,6 +299,7 @@ def calculate_velocities(
     phase = process_phases(raw_phase, data.sign_reversal, swap)
     lap1 = time.time()
     print("phase: ", round(lap1 - start, 2))
+
     # Now we calculate all the masks
     shape = raw_phase.sizes["row"], raw_phase.sizes["col"]
     segments = data.segments.sel(cine=cine).drop_vars("cine")
@@ -308,6 +309,7 @@ def calculate_velocities(
     masks = find_masks(segments, centroid, theta0, shape)
     lap2 = time.time()
     print("masks: ", round(lap2 - lap1, 2))
+
     # Next we calculate the velocities in cylindrical coordinates
     cylindrical = (
         cartesian_to_cylindrical(
@@ -315,13 +317,15 @@ def calculate_velocities(
         )
         * data.data_files.sensitivity
         * signs
-    ).drop_vars("cine")
+    )
     lap3 = time.time()
     print("cyl: ", round(lap3 - lap2, 2))
+
     # We are now ready to calculate the velocities
-    velocity = to_dense(xr.where(masks, cylindrical, np.nan).mean(dim=["row", "col"]))
+    velocity = _calculate_velocities(masks, cylindrical)
     lap4 = time.time()
     print("vel: ", round(lap4 - lap3, 2))
+
     markers = initialise_markers(velocity)
     lap5 = time.time()
     print("marker: ", round(lap5 - lap4, 2))
@@ -330,6 +334,18 @@ def calculate_velocities(
         cine, masks=masks, cylindrical=cylindrical, velocities=velocity, markers=markers
     )
     return
+
+
+def _calculate_velocities(
+    masks: xr.DataArray, cylindrical: xr.DataArray
+) -> xr.DataArray:
+    return xr.where(masks, cylindrical, np.nan).mean(dim=["row", "col"])
+
+    # (
+    #     cylindrical.broadcast_like(masks)
+    #     .where(masks, drop=True)
+    #     .mean(dim=["row", "col"])
+    # )
 
 
 def initialise_markers(velocity: xr.DataArray) -> xr.DataArray:
@@ -611,7 +627,7 @@ def regenerate(data, cines, callback: Callable = terminal):
             init_markers=False,
             **regions,
         )
-    callback(f"Regeneration complete!", 1)
+    callback("Regeneration complete!", 1)
 
 
 def px_velocity_curves(
@@ -620,7 +636,7 @@ def px_velocity_curves(
     """ TODO: Remove in the final version. """
     from .strain import masked_reduction
 
-    vkey = f"cylindrical"
+    vkey = "cylindrical"
     rkey = f"radial x{nrad}"
     akey = f"angular x{nang}"
     img_axis = tuple(range(len(data.masks[cine][vkey].shape)))[-2:]

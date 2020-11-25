@@ -23,7 +23,7 @@ def to_sparse(array: xr.DataArray, fill_value=None) -> xr.DataArray:
         sp.COO.from_numpy(array.data, fill_value=fill_value),
         dims=array.dims,
         coords=array.coords,
-        attrs=array.attrs
+        attrs=array.attrs,
     )
 
 
@@ -37,8 +37,5 @@ def to_dense(array: xr.DataArray) -> xr.DataArray:
         An xarray with the same dimensions and coordinates but dense.
     """
     return xr.DataArray(
-        array.data.todense(),
-        dims=array.dims,
-        coords=array.coords,
-        attrs=array.attrs
+        array.data.todense(), dims=array.dims, coords=array.coords, attrs=array.attrs
     )

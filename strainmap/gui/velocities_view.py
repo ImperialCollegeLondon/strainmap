@@ -65,6 +65,53 @@ class VelocitiesTaskView(TaskViewBase):
 
         self.create_controls()
 
+    @property
+    def vel_var(self) -> str:
+        """Convenience method to get the selected velocity"""
+        return self.velocities_var.get().upper().replace("_X", "_x")
+
+    @property
+    def images(self) -> xr.DataArray:
+        cine = self.cines_var.get()
+        return self.data.data_files.images(cine).sel(comp=Comp.MAG)
+
+    @property
+    def regions(self) -> int:
+        """Number of regions for the selected velocity."""
+        region = Region[self.vel_var]
+        return region.value
+
+    @property
+    def markers(self) -> xr.DataArray:
+        """Markers of the current region."""
+        cine = self.cines_var.get()
+        region = Region[self.vel_var]
+        return self.data.markers.sel(cine=cine, region=region)
+
+    @property
+    def masks(self) -> np.ndarray:
+        """Masks for the current region"""
+        return (
+            self.data.masks[self.cines_var.get()][self.vel_var]
+            != self.current_region + 1
+        )
+
+    @property
+    def cylindrical(self):
+        """Cylindrical velocities for the current cine and region."""
+        cine = self.cines_var.get()
+        region = Region[self.vel_var]
+        return self.data.cylindrical.sel(cine=cine).where(
+            self.data.masks.sel(cine=cine, region=region)
+        )
+
+    @property
+    def velocities(self):
+        """Cylindrical velocities for the current cine and region."""
+        cine = self.cines_var.get()
+        region = Region[self.vel_var]
+        return self.data.velocities.sel(cine=cine, region=region)
+
     def create_controls(self):
         """ Creates all the widgets of the view. """
         # Top frames
@@ -210,15 +257,15 @@ class VelocitiesTaskView(TaskViewBase):
         """ Change the orientation CW <-> CCW of the angular regions of all cines """
         if self.orientation_var.get() != self.data.orientation:
             self.data.set_orientation(self.orientation_var.get())
-            if "24" in self.velocities_var.get():
+            if "24" in self.vel_var:
                 self.replot()
             else:
                 self.populate_tables()
 
     def find_velocity_limits(self):
         """ Finds suitable maximum and minimum for the velocity plots. """
-        region = Region[self.velocities_var.get().upper().replace(" ", "_")]
-        vel = self.data.velocities.sel(cine=self.cines_var.get(), region=region)
+        # region = Region[self.vel_var]
+        vel = self.data.velocities.sel(cine=self.cines_var.get())
         result: Dict[Comp, Tuple[float, float]] = {}
         for i, label in enumerate((Comp.LONG, Comp.RAD, Comp.CIRC)):
             mini = vel.sel(comp=label).min().item()
@@ -242,7 +289,7 @@ class VelocitiesTaskView(TaskViewBase):
 
     def replot(self):
         """ Updates the plot to show the chosen velocity. """
-        region = Region[self.velocities_var.get().upper().replace(" ", "_")]
+        region = Region[self.vel_var]
 
         if region == Region.ANGULAR_x24:
             self.create_color_plot()
@@ -304,7 +351,7 @@ class VelocitiesTaskView(TaskViewBase):
         """
         self.current_region = -1
         self.scroll()
-        self.draw()
+        self.fig.draw()
         self.populate_tables()
 
     def marker_moved(self, comp: Comp, marker: Mark):
@@ -323,11 +370,7 @@ class VelocitiesTaskView(TaskViewBase):
         else:
             self.update_table_one_marker(comp, marker)
             loc = (
-                self.markers.sel(
-                    quantity="frame",
-                    comp=comp,
-                    marker=marker,
-                )
+                self.markers.sel(quantity="frame", comp=comp, marker=marker)
                 .isel(region=self.current_region, missing_dims="ignore")
                 .item()
             )
@@ -335,9 +378,7 @@ class VelocitiesTaskView(TaskViewBase):
                 label=(comp, marker),
                 images=self.images.sel(frame=loc),
                 cylindrical=self.cylindrical.sel(
-                    frame=loc,
-                    comp=comp,
-                    marker=marker,
+                    frame=loc, comp=comp, marker=marker
                 ).isel(region=self.current_region, missing_dims="ignore"),
                 draw=True,
             )
@@ -347,12 +388,17 @@ class VelocitiesTaskView(TaskViewBase):
         current_region = (self.current_region + step) % self.regions
 
         if self.current_region != current_region:
-            self.fig.actions_manager.SimpleScroller.disabled = True
             self.current_region = current_region
-            self.update_velocities(self.velocities, draw=False)
+            self.fig.actions_manager.SimpleScroller.disabled = True
+            self.fig.update_lines(
+                self.velocities.isel(region=self.current_region, missing_dims="ignore"),
+                draw=False,
+            )
             self.fig.update_maps(
                 self.images,
-                self.cylindrical.isel(region=self.current_region),
+                self.cylindrical.isel(
+                    region=self.current_region, missing_dims="ignore"
+                ),
                 self.markers.sel(quantity="frame").isel(
                     region=self.current_region, missing_dims="ignore"
                 ),
@@ -368,48 +414,6 @@ class VelocitiesTaskView(TaskViewBase):
             self.fig.actions_manager.SimpleScroller.disabled = False
 
         return self.current_region, None, None
-
-    @property
-    def images(self) -> xr.DataArray:
-        cine = self.cines_var.get()
-        return self.data.data_files.images(cine).sel(comp=Comp.MAG)
-
-    @property
-    def regions(self) -> int:
-        """Number of regions for the selected velocity."""
-        region = Region[self.velocities_var.get().upper().replace(" X", "_x")]
-        return region.value
-
-    @property
-    def markers(self) -> xr.DataArray:
-        """Markers of the current region."""
-        cine = self.cines_var.get()
-        region = Region[self.velocities_var.get().upper().replace(" X", "_x")]
-        return self.data.markers.sel(cine=cine, region=region)
-
-    @property
-    def masks(self) -> np.ndarray:
-        """Masks for the current region"""
-        return (
-            self.data.masks[self.cines_var.get()][self.velocities_var.get()]
-            != self.current_region + 1
-        )
-
-    @property
-    def cylindrical(self):
-        """Cylindrical velocities for the current cine and region."""
-        cine = self.cines_var.get()
-        region = Region[self.velocities_var.get().upper().replace(" X", "_x")]
-        return self.data.cylindrical.sel(cine=cine).where(
-            self.data.masks.sel(cine=cine, region=region)
-        )
-
-    @property
-    def velocities(self):
-        """Cylindrical velocities for the current cine and region."""
-        cine = self.cines_var.get()
-        region = Region[self.velocities_var.get().upper().replace(" X", "_x")]
-        return self.data.velocities.sel(cine=cine, region=region)
 
     def region_labels(self, size: int) -> Sequence:
         """Provides the region labels, if any.
@@ -535,7 +539,7 @@ class VelocitiesTaskView(TaskViewBase):
         """When a marker moves, mask data should be updated."""
         self.controller.update_marker(
             cine=self.cines_var.get(),
-            vel_label=self.velocities_var.get(),
+            vel_label=self.vel_var,
             region=self.current_region,
             component=self.axes_lbl.index(data.get_label()),
             marker_idx=self.marker_idx[marker.get_label()],
@@ -556,9 +560,7 @@ class VelocitiesTaskView(TaskViewBase):
         )
         if filename != "":
             self.controller.export_velocity(
-                filename=filename,
-                cine=self.cines_var.get(),
-                vel_label=self.velocities_var.get(),
+                filename=filename, cine=self.cines_var.get(), vel_label=self.vel_var
             )
 
     def export_superpixel(self, *args):

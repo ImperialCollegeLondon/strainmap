@@ -370,6 +370,7 @@ def empty_markers(regions):
     from strainmap.models.velocities import Mark
     from strainmap.coordinates import Comp
     import numpy as np
+
     components = [Comp.LONG, Comp.RAD, Comp.CIRC]
     quantities = ["frame", "velocity", "time"]
     return xr.DataArray(
@@ -388,6 +389,7 @@ def empty_markers(regions):
 def regions():
     from itertools import chain
     from strainmap.coordinates import Region
+
     return list(chain.from_iterable(([r] * r.value for r in Region)))
 
 
@@ -401,11 +403,7 @@ def velocities(regions):
     output = xr.DataArray(
         np.full((len(regions), frames, len(components)), np.nan),
         dims=["region", "frame", "comp"],
-        coords={
-            "region": regions,
-            "frame": np.arange(frames),
-            "comp": components,
-        },
+        coords={"region": regions, "frame": np.arange(frames), "comp": components},
     )
     output[...] = np.sin(np.linspace(0, 2 * np.pi, frames))[None, :, None]
     return output
