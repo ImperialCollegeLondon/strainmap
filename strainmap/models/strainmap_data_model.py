@@ -84,12 +84,11 @@ class StrainMapData(object):
 
         self.data_files = data_files
         self.strainmap_file = strainmap_file
-        self.orientation: str = "CW"
+        self.orientation: str = "CCW"
         self.timeshift: float = TIMESHIFT
         self.sign_reversal: xr.DataArray = xr.DataArray(
             [1, 1, 1], dims=["comp"], coords={"comp": [Comp.X, Comp.Y, Comp.Z]}
         )
-
         self.segments: xr.DataArray = xr.DataArray()
         self.centroid: xr.DataArray = xr.DataArray()
         self.septum: xr.DataArray = xr.DataArray()

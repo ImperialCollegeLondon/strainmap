@@ -1,4 +1,3 @@
-import re
 import tkinter as tk
 import tkinter.filedialog
 from tkinter import ttk
@@ -13,13 +12,7 @@ from matplotlib.figure import Figure
 from .base_window_and_task import Requisites, TaskViewBase, register_view
 from .markers_figure import MarkersFigure
 from ..coordinates import Region, Comp, Mark
-
-
-def get_sa_location(cine: str) -> int:
-    """ Extract the SA number from the cine name, useful for sorting them."""
-    pattern = r"[sS][aA]([0-9])"
-    m = re.search(pattern, cine)
-    return int(m.group(1)) if hasattr(m, "group") else 99
+from ..tools import get_sa_location
 
 
 @register_view
@@ -226,6 +219,7 @@ class VelocitiesTaskView(TaskViewBase):
 
     def cine_changed(self, *args):
         """Updates the view when the selected cine is changed."""
+        self.controller.progress("Changing selected cine...")
         current = self.cines_var.get()
         if (
             "cine" not in self.data.velocities.dims
@@ -236,6 +230,7 @@ class VelocitiesTaskView(TaskViewBase):
             self.update_velocities_list(current)
 
         self.replot()
+        self.controller.progress("Done!")
 
     def recalculate_velocities(self):
         """Recalculate velocities after a sign reversal."""

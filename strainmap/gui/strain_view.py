@@ -10,7 +10,7 @@ from matplotlib.figure import Figure
 from .base_window_and_task import Requisites, TaskViewBase, register_view
 from .figure_actions import Markers, SimpleScroller
 from .figure_actions_manager import FigureActionsManager
-from .velocities_view import get_sa_location
+from ..tools import get_sa_location
 
 
 @register_view
@@ -142,9 +142,11 @@ class StrainTaskView(TaskViewBase):
             self.param_tables[-1].heading("#0", text="Region")
             self.param_tables[-1].column("#0", width=110, stretch=tk.YES)
 
-            for l in labels:
-                self.param_tables[-1].heading(l, text=l)
-                self.param_tables[-1].column(l, width=80, stretch=tk.YES, anchor=tk.E)
+            for label in labels:
+                self.param_tables[-1].heading(label, text=label)
+                self.param_tables[-1].column(
+                    label, width=80, stretch=tk.YES, anchor=tk.E
+                )
 
         self.export_btn = ttk.Button(
             control, text="To Excel", command=self.export, state="disabled"
@@ -178,6 +180,7 @@ class StrainTaskView(TaskViewBase):
 
     def dataset_changed(self, *args):
         """Updates the view when the selected dataset is changed."""
+        self.controller.progress("Changing selected cine...")
         current = self.datasets_var.get()
         self.images = self.data.data_files.mag(current)
         self.timeshift_var.set(self.data.timeshift)
@@ -186,6 +189,7 @@ class StrainTaskView(TaskViewBase):
         else:
             self.calculate_strain()
         self.replot()
+        self.controller.progress("Done!")
 
     def find_strain_limits(self, strain_label):
         """Finds suitable maximum and minimum for the strain plots."""
@@ -537,8 +541,8 @@ class StrainTaskView(TaskViewBase):
 
     def images_and_strain_masks(self, mag, strain_masks, markers):
         """Add bg and masks to the map subplots."""
-        bg = {l: [] for l in self.axes_lbl}
-        masks = {l: [] for l in self.axes_lbl}
+        bg = {i: [] for i in self.axes_lbl}
+        masks = {i: [] for i in self.axes_lbl}
 
         if "global" in self.strain_var.get():
             self.limits = self.find_limits(strain_masks[1, 0])

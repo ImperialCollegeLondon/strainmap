@@ -99,7 +99,7 @@ class SegmentationTaskView(TaskViewBase):
 
     def tkraise(self, *args):
         super(SegmentationTaskView, self).tkraise()
-        self.master.bind("<Control_L><p>", self.copy_previous)
+        self.master.bind("<Control_L><v>", self.copy_previous)
 
     def create_controls(self):
         """ Creates all the widgets of the view. """
@@ -298,10 +298,12 @@ class SegmentationTaskView(TaskViewBase):
 
     def cine_changed(self, *args):
         """Updates the GUI when a new cine is chosen."""
+        self.controller.progress("Changing selected cine...")
         cine = self.cines_var.get()
         self.clear_segment_variables(button_pressed=False)
         self.update_state(cine)
         self.replot(cine)
+        self.controller.progress("Done!")
 
     def replot(self, cine):
         """Replots the data, updating the relevant variables if needed."""
@@ -557,9 +559,9 @@ class SegmentationTaskView(TaskViewBase):
             self.septum_lines[i].set_data(self.septum_line)
 
         for ax in set(self.fig.axes) - {axes}:
-            for l in ax.lines:
-                if l.get_label() == label:
-                    l.set_data(data)
+            for i in ax.lines:
+                if i.get_label() == label:
+                    i.set_data(data)
 
     def septum_edited(self, marker, data, x, y, idx):
         """Updates the mid-septum information when this is dragged."""
@@ -584,9 +586,9 @@ class SegmentationTaskView(TaskViewBase):
         ]
 
         for ax in self.fig.axes:
-            for l in ax.lines:
-                if l.get_label() == last["label"]:
-                    l.set_data(last["data"])
+            for i in ax.lines:
+                if i.get_label() == last["label"]:
+                    i.set_data(last["data"])
 
         self.fig.canvas.draw()
 
@@ -615,7 +617,7 @@ class SegmentationTaskView(TaskViewBase):
         """Enables the definition of the initial segment for the side."""
         self.fig.suptitle(
             "Left click once to define the center, once to define the edge of the "
-            f"ENDOCARDIUM and once for the edge of the EPICARDIUM."
+            "ENDOCARDIUM and once for the edge of the EPICARDIUM."
         )
         get_contour = partial(self.get_contour, side=side)
         self.fig.actions_manager.DrawContours.contours_updated = get_contour

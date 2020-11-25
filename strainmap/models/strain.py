@@ -216,7 +216,8 @@ def coordinates(
 
     m_iter = (data.masks[d][rkey] + 100 * data.masks[d][akey] for d in datasets)
     z_loc = np.array([data.data_files.cine_loc(d) for d in datasets])
-    theta0_iter = (find_theta0(data.septum[d]) for d in datasets)
+    # theta0_iter = (find_theta0(data.septum[d]) for d in datasets)
+    theta0_iter = ()
     origin_iter = (data.septum[d][..., 1] for d in datasets)
     px_size = data.data_files.pixel_size(datasets[0])
     t_iter = tuple((data.data_files.time_interval(d) for d in datasets))
@@ -268,7 +269,7 @@ def displacement(
     resample=True,
 ) -> np.ndarray:
 
-    vkey = f"cylindrical"
+    vkey = "cylindrical"
     rkey = f"radial x{nrad}"
     akey = f"angular x{nang}"
     img_axis = tuple(range(len(data.masks[datasets[0]][vkey].shape)))[-2:]
@@ -707,7 +708,7 @@ def twist(
     data: StrainMapData, datasets: Tuple[str, ...], nrad: int = 3, nang: int = 24
 ) -> LabelledArray:
 
-    vkey = f"cylindrical"
+    vkey = "cylindrical"
     rkey = f"radial x{nrad}"
     akey = f"angular x{nang}"
     img_axis = tuple(range(len(data.masks[datasets[0]][vkey].shape)))[-2:]
