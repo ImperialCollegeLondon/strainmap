@@ -67,9 +67,7 @@ def process_phases(
             phase.sel(comp=Comp.X).copy(),
         )
 
-    phase[...] *= sign_reversal
-
-    return phase
+    return phase * sign_reversal
 
 
 def ring_mask(outer: np.ndarray, inner: np.ndarray) -> Sequence[np.ndarray]:
@@ -429,6 +427,7 @@ def update_markers(
     marker_label: Mark,
     component: Comp,
     region: Region,
+    iregion: int,
     location: int,
     velocity_value: float,
     frames: int,
@@ -440,6 +439,7 @@ def update_markers(
         marker_label (Mark): Marker to update
         component (Comp): Component to update
         region (Region): Region to update
+        iregion (int): Specific subregion markers to update
         location (int): New location of the marker
         velocity_value (float): New velocity value of the marker
         frames (int): Total number of frames. Needed for time normalization
@@ -447,27 +447,33 @@ def update_markers(
     Returns:
         None
     """
+    loc_dict = {
+        "marker": marker_label,
+        "quantity": "frame",
+        "comp": component,
+        "region": region,
+    }
+    vel_dict = {
+        "marker": marker_label,
+        "quantity": "velocity",
+        "comp": component,
+        "region": region,
+    }
     if marker_label == Mark.ES:
         markers.loc[{"marker": Mark.ES, "quantity": "frame"}] = location
         markers.loc[{"marker": Mark.ES, "quantity": "velocity"}] = velocity_value
-        normalise_times(markers, frames)
+    elif region == Region.GLOBAL:
+        markers.loc[loc_dict] = location
+        markers.loc[vel_dict] = velocity_value
     else:
-        markers.loc[
-            {
-                "marker": marker_label,
-                "quantity": "frame",
-                "comp": component,
-                "region": region,
-            }
-        ] = location
-        markers.loc[
-            {
-                "marker": marker_label,
-                "quantity": "velocity",
-                "comp": component,
-                "region": region,
-            }
-        ] = velocity_value
+        new_frame = markers.loc[loc_dict]
+        new_frame[iregion] = location
+        markers.loc[loc_dict] = new_frame
+        new_vel = markers.loc[vel_dict]
+        new_vel[iregion] = velocity_value
+        markers.loc[vel_dict] = new_vel
+
+    normalise_times(markers, frames)
 
 
 def marker_x(

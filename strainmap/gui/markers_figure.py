@@ -314,6 +314,7 @@ class MarkersFigure:
             None
         """
         self.lines[data.comp.item()].set_data([data.frame, data])
+        self.axes[data.comp.item()].set_ylim(*self.line_limits[data.comp.item()])
         if draw:
             self.draw()
 

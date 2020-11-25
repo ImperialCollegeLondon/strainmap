@@ -242,6 +242,7 @@ class VelocitiesTaskView(TaskViewBase):
         self.update_vel_btn.state(["disabled"])
         cine = self.cines_var.get()
         self.calculate_velocities(cine)
+        self.fig.line_limits = self.find_velocity_limits()
         self.replot()
 
     def reversal_checked(self):
@@ -377,9 +378,9 @@ class VelocitiesTaskView(TaskViewBase):
             self.fig.update_one_map(
                 label=(comp, marker),
                 images=self.images.sel(frame=loc),
-                cylindrical=self.cylindrical.sel(
-                    frame=loc, comp=comp, marker=marker
-                ).isel(region=self.current_region, missing_dims="ignore"),
+                cylindrical=self.cylindrical.sel(frame=loc, comp=comp).isel(
+                    region=self.current_region, missing_dims="ignore"
+                ),
                 draw=True,
             )
 
@@ -488,7 +489,7 @@ class VelocitiesTaskView(TaskViewBase):
         t.set(
             t.get_children(t.get_children()[0])[self.current_region],
             column=marker.name,
-            value=self.markers.sel(marker=marker, quantity="velocity")
+            value=self.markers.sel(comp=comp, marker=marker, quantity="velocity")
             .isel(region=self.current_region, missing_dims="ignore")
             .round(decimals=2)
             .item(),
@@ -498,7 +499,7 @@ class VelocitiesTaskView(TaskViewBase):
         t.set(
             t.get_children(t.get_children()[1])[self.current_region],
             column=marker.name,
-            value=self.markers.sel(marker=marker, quantity="time")
+            value=self.markers.sel(comp=comp, marker=marker, quantity="time")
             .isel(region=self.current_region, missing_dims="ignore")
             .round(decimals=2)
             .item(),
@@ -535,17 +536,19 @@ class VelocitiesTaskView(TaskViewBase):
         )
         self.update_velocities_list(self.cines_var.get())
 
-    def update_marker(self, marker, data, x, y, position):
+    def update_marker(self, marker, data, x, y, location):
         """When a marker moves, mask data should be updated."""
         self.controller.update_marker(
-            cine=self.cines_var.get(),
-            vel_label=self.vel_var,
-            region=self.current_region,
-            component=self.axes_lbl.index(data.get_label()),
-            marker_idx=self.marker_idx[marker.get_label()],
-            position=position,
+            markers=self.data.markers.sel(cine=self.cines_var.get()),
+            marker_label=Mark[marker.get_label()],
+            component=Comp[data.get_label().strip("_")],
+            region=Region[self.vel_var],
+            iregion=self.current_region,
+            location=location,
+            velocity_value=y,
+            frames=self.velocities.sizes["frame"],
         )
-        self.marker_moved(data.get_label(), marker.get_label())
+        self.marker_moved(Comp[data.get_label().strip("_")], Mark[marker.get_label()])
 
     def export(self, *args):
         """Exports the current velocity data to an XLSX file."""
