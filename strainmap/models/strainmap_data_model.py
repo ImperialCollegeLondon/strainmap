@@ -8,7 +8,6 @@ import xarray as xr
 
 from ..coordinates import Comp
 from .readers import DICOMReaderBase, read_folder, read_strainmap_file
-from .sm_data import LabelledArray
 from .writers import write_hdf5_file
 
 TIMESHIFT = -0.045
@@ -96,10 +95,10 @@ class StrainMapData(object):
         self.masks: xr.DataArray = xr.DataArray()
         self.markers: xr.DataArray = xr.DataArray()
         self.cylindrical: xr.DataArray = xr.DataArray()
-        self.strain: dict = defaultdict(dict)
-        self.strain_markers: dict = defaultdict(dict)
-        self.gls: np.ndarray = np.array([])
-        self.twist: Optional[LabelledArray] = None
+        self.strain: xr.DataArray = xr.DataArray()
+        self.strain_markers: xr.DataArray = xr.DataArray()
+        self.gls: xr.DataArray = xr.DataArray()
+        self.twist: xr.DataArray = xr.DataArray()
 
     @property
     def rebuilt(self):

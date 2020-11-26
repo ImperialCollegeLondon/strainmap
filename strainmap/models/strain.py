@@ -6,7 +6,6 @@ from typing import Callable, Dict, Optional, Text, Tuple
 import numpy as np
 from scipy import interpolate
 
-from .sm_data import LabelledArray
 from .strainmap_data_model import StrainMapData
 from .velocities import regenerate
 from .writers import terminal
@@ -704,32 +703,32 @@ def global_longitudinal_strain(
     return abs(np.polynomial.polynomial.polyfit(locations, gls, 1)[1])
 
 
-def twist(
-    data: StrainMapData, datasets: Tuple[str, ...], nrad: int = 3, nang: int = 24
-) -> LabelledArray:
+# def twist(
+#     data: StrainMapData, datasets: Tuple[str, ...], nrad: int = 3, nang: int = 24
+# ) -> LabelledArray:
 
-    vkey = "cylindrical"
-    rkey = f"radial x{nrad}"
-    akey = f"angular x{nang}"
-    img_axis = tuple(range(len(data.masks[datasets[0]][vkey].shape)))[-2:]
+#     vkey = "cylindrical"
+#     rkey = f"radial x{nrad}"
+#     akey = f"angular x{nang}"
+#     img_axis = tuple(range(len(data.masks[datasets[0]][vkey].shape)))[-2:]
 
-    cyl_iter = (data.masks[d][vkey] for d in datasets)
-    m_iter = (data.masks[d][rkey] + 100 * data.masks[d][akey] for d in datasets)
-    reduced_vel_map = map(partial(masked_reduction, axis=img_axis), cyl_iter, m_iter)
-    radius = coordinates(data, datasets, resample=False, use_frame_zero=False)[1].mean(
-        axis=(2, 3)
-    )
+#     cyl_iter = (data.masks[d][vkey] for d in datasets)
+#     m_iter = (data.masks[d][rkey] + 100 * data.masks[d][akey] for d in datasets)
+#     reduced_vel_map = map(partial(masked_reduction, axis=img_axis), cyl_iter, m_iter)
+#     radius = coordinates(data, datasets, resample=False, use_frame_zero=False)[1].mean(
+#         axis=(2, 3)
+#     )
 
-    vels = (
-        np.array([v[2].mean(axis=(1, 2)) - v[2].mean() for v in reduced_vel_map])
-        / radius.T
-    )
+#     vels = (
+#         np.array([v[2].mean(axis=(1, 2)) - v[2].mean() for v in reduced_vel_map])
+#         / radius.T
+#     )
 
-    return LabelledArray(
-        dims=["dataset", "frame", "item"],
-        coords={"dataset": datasets, "item": ["angular_velocity", "radius"]},
-        values=np.stack((vels, radius.T), axis=-1),
-    )
+#     return LabelledArray(
+#         dims=["dataset", "frame", "item"],
+#         coords={"dataset": datasets, "item": ["angular_velocity", "radius"]},
+#         values=np.stack((vels, radius.T), axis=-1),
+#     )
 
 
 def shift_data(

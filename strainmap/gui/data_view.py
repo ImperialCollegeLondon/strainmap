@@ -10,11 +10,11 @@ from typing import Optional, Tuple
 
 import matplotlib.pyplot as plt
 import numpy as np
+import xarray as xr
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.figure import Figure
 
 from ..coordinates import Comp
-from ..models.sm_data import LabelledArray
 from .base_window_and_task import TaskViewBase, register_view
 from .figure_actions import BrightnessAndContrast, ScrollFrames, ZoomAndPan
 from .figure_actions_manager import FigureActionsManager
@@ -331,7 +331,7 @@ class DataTaskView(TaskViewBase):
         return values, texts, var_values, patient_data
 
     @property
-    def images(self) -> LabelledArray:
+    def images(self) -> xr.DataArray:
         variable = Comp(self.maps_var.get())
         series = self.datasets_var.get()
         return self.data.data_files.images(series).sel(comp=variable)

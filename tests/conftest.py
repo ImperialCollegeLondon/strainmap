@@ -240,34 +240,6 @@ def data_with_velocities(segmented_data):
 
 
 @fixture
-def larray_np():
-    from strainmap.models.sm_data import LabelledArray
-    import numpy as np
-
-    dims = ("rows", "cols", "depth")
-    coords = {"cols": ["x", "y", "y"], "depth": ["shallow", "mid", "deep", "very deep"]}
-    values = np.random.random((3, 3, 4))
-    values[values < 0.5] = 0
-
-    return LabelledArray(dims, coords, values)
-
-
-@fixture
-def larray_coo(larray_np):
-    from strainmap.models.sm_data import LabelledArray
-    import sparse
-
-    values = sparse.COO.from_numpy(larray_np.values)
-
-    return LabelledArray(larray_np.dims, larray_np.coords, values)
-
-
-@fixture(params=["np", "COO"])
-def larray(request, larray_np, larray_coo):
-    return larray_np if request.param == "np" else larray_coo
-
-
-@fixture
 def dummy_data() -> pd.DataFrame:
     """Create dataframe with some dummy data."""
     from strainmap.gui.atlas_view import SLICES, COMP, REGIONS, validate_data

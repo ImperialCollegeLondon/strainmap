@@ -18,7 +18,6 @@ import xarray as xr
 from natsort import natsorted
 
 from ..coordinates import Comp
-from .sm_data import LabelledArray
 
 
 def chunks(lst, n):
@@ -474,35 +473,3 @@ class DICOM(DICOMReaderBase):
                 "col": np.arange(0, mag.shape[2]),
             },
         )
-
-
-def labels_from_group(group: h5py.Group) -> Tuple[Sequence[str], Dict[str, Sequence]]:
-    """ Reads the labels from a h5 group and return dimensions and coordinates. """
-    dims: Sequence[str] = tuple(group.keys())
-    coords: Dict[str, Sequence] = {
-        d: None if group[d].shape is None else list(group[d][...].astype(np.str))
-        for d in dims
-    }
-    return dims, coords
-
-
-def group_to_labelled_array(group: h5py.Group) -> LabelledArray:
-    """ Reads labels and values from a h5 group and constructs a labelled array.
-    """
-    assert "labels" in group, "Missing 'labels' information."
-    assert "values" in group, "Missing 'values' information."
-
-    if "fill_value" in group.attrs:
-        data = group["values"][...]
-        coords = group["coords"][...]
-        shape = tuple(group.attrs["shape"][...])
-        fill_value = group.attrs["fill_value"]
-        values = sparse.COO(
-            coords=coords, data=data, shape=shape, fill_value=fill_value
-        )
-    else:
-        values = group["values"][...]
-
-    dims, coords = labels_from_group(group["labels"])
-
-    return LabelledArray(dims, coords, values)

@@ -102,6 +102,7 @@ def test_paths_from_hdf5(strainmap_data, tmpdir):
 
 
 @mark.skipif(sys.platform == "win32", reason="does not run on windows in Azure")
+@mark.skip(reason="Refactoring of export to excel in progress")
 def test_read_h5_file(tmpdir, segmented_data):
     from strainmap.models.readers import read_h5_file
     from strainmap.models.writers import write_hdf5_file
@@ -153,32 +154,3 @@ def test_readers_registry():
 
     register_dicom_reader(Dummy)
     assert all([issubclass(c, DICOMReaderBase) for c in DICOM_READERS])
-
-
-def test_labels_to_group(larray, tmpdir):
-    from strainmap.models.writers import labels_to_group
-    from strainmap.models.readers import labels_from_group
-    import h5py
-
-    filename = tmpdir / "strainmap_file.h5"
-    f = h5py.File(filename, "a")
-    labels_to_group(
-        f.create_group("labels", track_order=True), larray.dims, larray.coords
-    )
-    dims, coords = labels_from_group(f["labels"])
-
-    assert dims == larray.dims
-    assert coords == larray.coords
-
-
-def test_group_to_labelled_array(larray, tmpdir):
-    from strainmap.models.writers import labelled_array_to_group
-    from strainmap.models.readers import group_to_labelled_array
-    import h5py
-
-    filename = tmpdir / "strainmap_file.h5"
-    f = h5py.File(filename, "a")
-    labelled_array_to_group(f.create_group("array"), larray)
-    new_larray = group_to_labelled_array(f["array"])
-
-    assert new_larray == larray
