@@ -96,7 +96,7 @@ jobs:
       - name: Install dependencies
         run: |
           pip install -e .[dev]
-      - name: Build package
+      - name: Build package 
         run: |
           pyinstaller strain.mac.spec
           cd dist

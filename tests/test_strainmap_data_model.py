@@ -36,12 +36,12 @@ def test_save(tmpdir, segmented_data):
     segmented_data.save(["segments", "my_data"])
     s = "/".join(["segments", "my_data"])
     assert s in segmented_data.strainmap_file
-    assert all(segmented_data.strainmap_file[s].value == [1, 2, 3])
+    assert all(segmented_data.strainmap_file[s][()] == [1, 2, 3])
 
     segmented_data.segments["my_data"] = [5, 2, 3]
     segmented_data.save(["segments", "my_data"])
     assert s in segmented_data.strainmap_file
-    assert not all(segmented_data.strainmap_file[s].value == [1, 2, 3])
+    assert not all(segmented_data.strainmap_file[s][()] == [1, 2, 3])
 
 
 @mark.skipif(sys.platform == "win32", reason="does not run on windows in Azure")
