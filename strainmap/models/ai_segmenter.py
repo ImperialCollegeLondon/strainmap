@@ -122,12 +122,6 @@ class UNet:
         # Output layer
         output_layer = layers.Conv2D(filters=nclasses, kernel_size=(1, 1))(deconv9)
         output_layer = layers.BatchNormalization()(output_layer)
-
-        # TODO: If there is no label reshaping, is it step necessary in this same way?
-        output_layer = layers.Reshape(
-            (h * w, nclasses),
-            input_shape=(h, w, nclasses),
-        )(output_layer)
         output_layer = layers.Activation("sigmoid")(output_layer)
 
         model = Model(inputs=input_layer, outputs=output_layer, name=self.model_name)
@@ -171,7 +165,7 @@ class UNet:
         """
         self.model.fit(
             x=images,
-            y=self.reshapelbl(labels),
+            y=labels,
             batch_size=self.batch_size,
             epochs=self.epochs,
             verbose=self.verbose,
@@ -197,7 +191,7 @@ class UNet:
         result = self.model.predict(
             x=images,
             batch_size=self.batch_size,
-            verbose=self.epochs,
+            verbose=self.verbose,
             steps=None,
             callbacks=self.callbacks,
             max_queue_size=10,
@@ -349,6 +343,7 @@ class DataAugmentation:
 
             # Read the data and concatenate all the arrays along the chosen axis
             images, labels = zip(*[self._ungroup(np.load(f), channels) for f in files])
+            images = [Normal.run(img, method="zeromean_unitvar") for img in images]
             return np.concatenate(images, axis=axis), np.concatenate(labels, axis=axis)
 
     @staticmethod
