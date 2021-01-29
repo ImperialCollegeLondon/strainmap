@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from dataclasses import dataclass, field
 from typing import Optional, Dict, Callable, Tuple
 from pathlib import Path
@@ -8,6 +10,7 @@ import numpy as np
 from tensorflow.python.keras import layers
 from tensorflow.python.keras.models import Model
 from tensorlayer import prepro
+import toml
 
 
 @dataclass
@@ -277,8 +280,39 @@ class DataAugmentation:
         "zoom": prepro.zoom_multi,
     }
 
-    def __init__(self, steps: Dict[str, Dict]):
-        self._steps = [partial(self._method[k], **v) for k, v in steps.items()]
+    @classmethod
+    def factory(cls, config_file: Optional[str] = None) -> DataAugmentation:
+        """Factory method to create objects based on the steps of a config file.
+
+        Args:
+            config_file: Path to a toml-formated config file containing the steps for
+                the data augmentation.
+        """
+        path = (
+            Path(config_file)
+            if config_file is not None
+            else Path(__file__).parent / "ai_config.toml"
+        )
+        config = toml.load(path)
+        steps = {c.pop("method"): c for c in config["augmentation"]["active"]}
+        return cls(steps, config["times"], config["axis"], config["include_original"])
+
+    def __init__(
+        self, steps: Dict[str, Dict], times: int, axis: int, include_original: bool
+    ):
+        """Create a data augmentation object.
+
+        Args:
+            steps: Dictionary of transformation functions to apply and their input
+                parameters.
+            times: The number of times the data should be transformed.
+            axis: The transformed data will be concatenated along this axis.
+            include_original: If the original data should be part of the augmented set.
+        """
+        self.steps = [partial(self._method[k], **v) for k, v in steps.items()]
+        self.times = times
+        self.axis = axis
+        self.include_original = include_original
 
     def transform(self, data: np.ndarray) -> np.ndarray:
         """Apply all the transformation steps to the input array sequentially.
@@ -291,16 +325,9 @@ class DataAugmentation:
             The transformed array resulting from the cummulative application of all the
             transofrmation steps.
         """
-        return reduce(lambda d, f: f(d), self._steps, data)
+        return reduce(lambda d, f: f(d), self.steps, data)
 
-    def augment(
-        self,
-        images: np.ndarray,
-        labels: np.ndarray,
-        times: int = 4,
-        axis: int = 0,
-        include_original: bool = False,
-    ) -> np.ndarray:
+    def augment(self, images: np.ndarray, labels: np.ndarray) -> np.ndarray:
         """Augment the orginal array by applying the transformations several times.
 
         Each transoformation is saved to a temporary file to save memory while the rest
@@ -313,9 +340,6 @@ class DataAugmentation:
                 of channels per image.
             labels: Array with the labels correspoinding to each image, of shape
                 (N, h, w) and the same meaning than the images.
-            times: The number of times the data should be transformed.
-            axis: The transformed data will be concatenated along this axis.
-            include_original: If the original data should be part of the augmented set.
 
         Return:
             Tuple with two new arrays, the augmented images and the corresponding
@@ -330,12 +354,12 @@ class DataAugmentation:
             root = Path(r)
 
             # Save the original data, if needed
-            if include_original:
+            if self.include_original:
                 files.append(root / "original.npy")
                 np.save(files[-1], data)
 
             # Transform data and save it a number of times
-            for i in range(times):
+            for i in range(self.times):
                 t = self.transform(data)
                 files.append(root / f"{i}.npy")
                 np.save(files[-1], t)
@@ -344,7 +368,9 @@ class DataAugmentation:
             # Read the data and concatenate all the arrays along the chosen axis
             images, labels = zip(*[self._ungroup(np.load(f), channels) for f in files])
             images = [Normal.run(img, method="zeromean_unitvar") for img in images]
-            return np.concatenate(images, axis=axis), np.concatenate(labels, axis=axis)
+            return np.concatenate(images, axis=self.axis), np.concatenate(
+                labels, axis=self.axis
+            )
 
     @staticmethod
     def _group(images: np.ndarray, labels: np.ndarray) -> np.ndarray:

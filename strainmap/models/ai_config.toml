@@ -1,0 +1,48 @@
+# General configuration for the UNet
+[config]
+
+
+# Configuration for the augmentation process
+[augmentation]
+times = 4
+axis = 0
+include_original = false
+
+[[augmentation.non_active]]
+method = "vertical_flip"
+is_random = true
+
+[[augmentation.active]]
+method = "horizontal_flip"
+is_random = true
+
+[[augmentation.active]]
+method = "rotation"
+is_random = true
+degree = 90
+fill_mode = "constant"
+
+[[augmentation.non_active]]
+method = "elastic"
+is_random = true
+alpha = 720
+sigma = 24
+
+[[augmentation.non_active]]
+method = "shift"
+is_random = true
+wrg = 0.10
+hrg = 0.1
+fill_mode = "constant"
+
+[[augmentation.non_active]]
+method = "shear"
+is_random = true
+intensity = 0.05
+fill_mode = "constant"
+
+[[augmentation.non_active]]
+method = "zoom"
+zoom_range = [1.2, 1.2]
+border_mode = "constant"
+axis = [0, 1]
