@@ -36,10 +36,25 @@ class UNet:
     initial_epoch: int = 0
     steps_per_epoch: Optional[int] = None
     imgchannel: int = 4
-    no_chn_split: bool = True
-    lbl_reshape_into1d: bool = True
-    lblchnadded: bool = False
+    model_file: Optional[str] = None
     _model: Optional[Model] = field(default=None, init=False)
+
+    @classmethod
+    def factory(cls, config_file: Optional[str] = None) -> UNet:
+        """Factory method to create th net out of a config file.
+
+        Args:
+            config_file: Path to a toml-formated config file containing the
+                configuration details to create the network.
+        """
+        path = (
+            Path(config_file)
+            if config_file is not None
+            else Path(__file__).parent / "ai_config.toml"
+        )
+        config = toml.load(path)["Net"]
+        config = {k: v if v != "None" else None for k, v in config.items()}
+        return cls(**config)
 
     @property
     def model(self) -> Model:
@@ -130,13 +145,14 @@ class UNet:
         model = Model(inputs=input_layer, outputs=output_layer, name=self.model_name)
         return model
 
-    def compile_model(self, print_summary=True, weigths: Optional[Path] = None):
+    def compile_model(self, print_summary=True, model_file: Optional[str] = "default"):
         """Creates and compiles the Model object.
 
         Args:
             print_summary: If a summary for the model should be printed.
-            weigths: If provided, this should be a Path object pointing to a h5 file
-                containing the weigths for the model.
+            model_file: If provided, this should be either the path of a h5 file
+                containing the weigths for the model or "default" to use the model
+                indicated in the config file.
 
         Returns:
             None
@@ -149,19 +165,21 @@ class UNet:
         if print_summary:
             self.model.summary()
 
-        if weigths is not None:
-            self.model.load_weights(weigths)
+        if model_file == "default" and self.model_file is not None:
+            self.model.load_weights(self.model_file)
+        elif model_file is not None:
+            self.model.load_weights(model_file)
 
     def train(
-        self, images: np.ndarray, labels: np.ndarray, filename: Optional[Path] = None
+        self, images: np.ndarray, labels: np.ndarray, model_file: Optional[Path] = None
     ) -> None:
         """Train a model to best fit the labels based on the input images.
 
         Args:
             images: Array of images that serve as input to the model.
             labels: Array of labels that represent the expected output of the model.
-            filename: If provided, if should be a Path object where the weigths will be
-                saved once the training is complete.
+            model_file: If provided, if should be the path to the h5 file where the
+                weigths will be saved once the training is complete.
 
         Returns:
             None
@@ -179,8 +197,8 @@ class UNet:
             steps_per_epoch=self.steps_per_epoch,
         )
 
-        if filename is not None:
-            self.model.save_weights(filename)
+        if model_file is not None:
+            self.model.save_weights(model_file)
 
     def infer(self, images: np.ndarray) -> np.ndarray:
         """Use the model to predict the labels given the input images.
@@ -293,8 +311,8 @@ class DataAugmentation:
             if config_file is not None
             else Path(__file__).parent / "ai_config.toml"
         )
-        config = toml.load(path)
-        steps = {c.pop("method"): c for c in config["augmentation"]["active"]}
+        config = toml.load(path)["augmentation"]
+        steps = {c.pop("method"): c for c in config["active"]}
         return cls(steps, config["times"], config["axis"], config["include_original"])
 
     def __init__(

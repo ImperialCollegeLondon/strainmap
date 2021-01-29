@@ -1,6 +1,20 @@
-# General configuration for the UNet
-[config]
-
+# General configuration for the net
+[Net]
+model_name = "UNet"
+img_height = 512
+img_width = 512
+nclasses = 1
+filters = 64
+batch_size = 8
+epochs = 5
+verbose = 1
+callbacks = "None"
+validation_split = 0.05
+shuffle = true
+initial_epoch = 0
+steps_per_epoch = "None"
+imgchannel = 4
+model_file = "None"
 
 # Configuration for the augmentation process
 [augmentation]
