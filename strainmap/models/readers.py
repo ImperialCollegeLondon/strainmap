@@ -654,7 +654,7 @@ class DICOM(DICOMReaderBase):
 @register_dicom_reader
 class DICOMNoTimeInterval(DICOM):
     """TODO: Remove when final release. This subclass is necessary just because in the
-        initial new scanners the time interval was missing from the DICOM."""
+    initial new scanners the time interval was missing from the DICOM."""
 
     @staticmethod
     def belongs(path: Union[Path, Text]) -> bool:
@@ -686,8 +686,7 @@ def labels_from_group(group: h5py.Group) -> Tuple[Sequence[str], Dict[str, Seque
 
 
 def group_to_labelled_array(group: h5py.Group) -> LabelledArray:
-    """ Reads labels and values from a h5 group and constructs a labelled array.
-    """
+    """Reads labels and values from a h5 group and constructs a labelled array."""
     assert "labels" in group, "Missing 'labels' information."
     assert "values" in group, "Missing 'values' information."
 

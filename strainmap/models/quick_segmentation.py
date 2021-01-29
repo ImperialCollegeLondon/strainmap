@@ -121,7 +121,7 @@ def centroid(segments, frame, shape):
 
 
 def effective_centroid(centroid: np.ndarray, window: int = 3) -> np.ndarray:
-    """ Returns the rolling average of the centroid for the chosen window.
+    """Returns the rolling average of the centroid for the chosen window.
 
     The rolling average is wrapped at the edges of the array.
 

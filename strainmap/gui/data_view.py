@@ -443,7 +443,7 @@ class DataTaskView(TaskViewBase):
         return current_frame, images[current_frame], None
 
     def update_dicom_data_view(self, series, variable):
-        """ Updates the treeview with data from the selected options.
+        """Updates the treeview with data from the selected options.
 
         Only data for cine = 0 is loaded."""
         self.treeview.delete(*self.treeview.get_children())
@@ -460,7 +460,7 @@ class DataTaskView(TaskViewBase):
             self.treeview.insert("", tk.END, values=(d, value))
 
     def update_dicom_bg_view(self, series, variable):
-        """ Updates the phantom treeview with data from the selected options.
+        """Updates the phantom treeview with data from the selected options.
 
         Only data for cine = 0 is loaded."""
         self.treeview_bg.delete(*self.treeview_bg.get_children())

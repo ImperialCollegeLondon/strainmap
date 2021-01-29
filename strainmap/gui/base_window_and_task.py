@@ -30,7 +30,7 @@ class Requisites(Flag):
 
 
 class TaskViewBase(ABC, ttk.Frame):
-    """ Base class for all the views.
+    """Base class for all the views.
 
     It is derived from ttk.Frame and has two child areas in which add other widgets:
 
@@ -121,7 +121,7 @@ def register_view(view: Type[TaskViewBase]) -> Type[TaskViewBase]:
 
 
 def fixed_map(option, style):
-    """ Fix for setting text colour for Tkinter 8.6.9
+    """Fix for setting text colour for Tkinter 8.6.9
     From: https://core.tcl.tk/tk/info/509cafafae
 
     Returns the style map for 'option' with any styles starting with ('!disabled',
@@ -214,7 +214,7 @@ class MainWindow(tk.Tk):
             view.destroy()  # type: ignore
 
     def mainloop(self, *args):
-        """ We initiate the main loop.
+        """We initiate the main loop.
 
         This is a hack found here: http://github.com/matplotlib/matplotlib/issues/9637
         to avoid a crashing that happens when combining certain versions of tcl and
@@ -244,9 +244,9 @@ class MainWindow(tk.Tk):
                 view.stop_animation()
 
     def progress(self, msg: str, value: float = 0):
-        """ Prints a message in the lower ribbon and moves the progress bar.
+        """Prints a message in the lower ribbon and moves the progress bar.
 
-        To actually make any changes, it forces an update of the GUI. """
+        To actually make any changes, it forces an update of the GUI."""
         self.msg_var.set(value=msg)
         self.bar_var.set(value=min(1.0, value))
         self.update_idletasks()

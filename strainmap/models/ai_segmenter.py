@@ -7,6 +7,7 @@ import tempfile
 import numpy as np
 from tensorflow.python.keras import layers
 from tensorflow.python.keras.models import Model
+from tensorlayer import prepro
 
 
 @dataclass
@@ -273,13 +274,13 @@ def zeromean_unitvar(data: np.ndarray) -> np.ndarray:
 
 class DataAugmentation:
     _method: Dict[str, Callable] = {
-        "vertical_flip": partial(flip_axis_multi, axis=1),
-        "horizontal_flip": partial(flip_axis_multi, axis=2),
-        "rotation": rotation_multi,
-        "elastic": elastic_transform_multi,
-        "shift": shift_multi,
-        "shear": shear_multi,
-        "zoom": tl_zoom_multi_s_m,
+        "vertical_flip": partial(prepro.flip_axis_multi, axis=1),
+        "horizontal_flip": partial(prepro.flip_axis_multi, axis=2),
+        "rotation": prepro.rotation_multi,
+        "elastic": prepro.elastic_transform_multi,
+        "shift": prepro.shift_multi,
+        "shear": prepro.shear_multi,
+        "zoom": prepro.zoom_multi,
     }
 
     def __init__(self, steps: Dict[str, Dict]):

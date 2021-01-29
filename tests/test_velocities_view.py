@@ -71,8 +71,8 @@ def test_color_plot(velocities_view, data_with_velocities):
     velocities_view.replot()
 
     expected = list(data_with_velocities.velocities.values())[0][
-                   "angular x24 - Estimated"
-               ][:, 0, :]
+        "angular x24 - Estimated"
+    ][:, 0, :]
     actual = velocities_view.fig.axes[0].images[0].get_array().data
 
     assert len(velocities_view.fig.axes) == 6  # 3 axes + 3 colorbars

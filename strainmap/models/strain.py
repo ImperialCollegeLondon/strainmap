@@ -323,7 +323,7 @@ def displacement(
 
 
 def resample_interval(disp: np.ndarray, interval: Tuple[float, ...]) -> np.ndarray:
-    """ Re-samples the displacement to the same time interval.
+    """Re-samples the displacement to the same time interval.
 
     Total number of frames will increase, in general.
 
@@ -347,7 +347,7 @@ def resample_interval(disp: np.ndarray, interval: Tuple[float, ...]) -> np.ndarr
 def unresample_interval(
     disp: np.ndarray, interval: Tuple[float, ...], frames: int
 ) -> np.ndarray:
-    """ Un-do the re-sample done before to return to the original interval.
+    """Un-do the re-sample done before to return to the original interval.
 
     Total number of frames will decrease, in general.
 
@@ -452,7 +452,7 @@ def calculate_strain(
 
 
 def differentiate(disp, space) -> np.ndarray:
-    """ Calculate the strain out of the velocity data.
+    """Calculate the strain out of the velocity data.
 
     Args:
         disp: Array of cumulative displacement with shape (3, frames, z, nrad, nang)
@@ -471,7 +471,7 @@ def differentiate(disp, space) -> np.ndarray:
 
 
 def finite_differences(f, x, axis=0, period=None):
-    """ Calculate the finite differences of a multidimensional array along an axis.
+    """Calculate the finite differences of a multidimensional array along an axis.
 
     `f` and `x` must have the same shape and the grid defined by `x` can be
     inhomogeneous. If period is None, central differences are in the interior points
@@ -613,7 +613,7 @@ def update_marker(
 
 
 def update_strain_es_marker(data: StrainMapData, dataset: str, **kwargs):
-    """ Updates the strain markers after the ES marker is updated in the velocities.
+    """Updates the strain markers after the ES marker is updated in the velocities.
 
     The ES marker set in the global radial velocity affects the location of the strain
     markers, so when it is updated, so must be the strain markers."""
@@ -691,7 +691,7 @@ def global_longitudinal_strain(
     locations: Tuple[float, ...],
     resample=True,
 ):
-    """ Calculates the global longitudinal strain by a line fitting of the displacement.
+    """Calculates the global longitudinal strain by a line fitting of the displacement.
 
     It takes into account if the data has been resampled, to pick the correct resampled
     frame from the displacement."""

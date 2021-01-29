@@ -33,6 +33,8 @@ setup(
         "natsort",
         "sparse",
         "pandas",
+        "tensorflow",
+        "tensorlayer",
     ],
     package_data={"strainmap.gui": ["icons/*.gif", "icons/CREDITS.md"]},
     packages=find_packages("."),

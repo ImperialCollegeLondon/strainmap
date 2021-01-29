@@ -237,7 +237,7 @@ class StrainMapData(object):
                 )
 
     def delete(self, *args):
-        """ Deletes the chosen dataset or group from the hdf5 file.
+        """Deletes the chosen dataset or group from the hdf5 file.
 
         Each dataset to be saved must be defined as a list of keys, where key[0]
         must be one of the StrainMapData attributes (segments, velocities, etc.)
