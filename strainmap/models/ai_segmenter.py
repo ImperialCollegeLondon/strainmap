@@ -11,6 +11,7 @@ from tensorflow.python.keras import layers
 from tensorflow.python.keras.models import Model
 from tensorlayer import prepro
 import toml
+import cv2
 
 
 @dataclass
@@ -151,7 +152,7 @@ class UNet:
         Args:
             print_summary: If a summary for the model should be printed.
             model_file: If provided, this should be either the path of a h5 file
-                containing the weigths for the model or "default" to use the model
+                containing the weights for the model or "default" to use the model
                 indicated in the config file.
 
         Returns:
@@ -176,17 +177,17 @@ class UNet:
         """Train a model to best fit the labels based on the input images.
 
         Args:
-            images: Array of images that serve as input to the model.
-            labels: Array of labels that represent the expected output of the model.
+            images: Array of images that serve as input to the model of shape (N, h, w, c)
+            labels: Array of labels that represent the expected output of the model of shape (N, h, w).
             model_file: If provided, if should be the path to the h5 file where the
-                weigths will be saved once the training is complete.
+                weights will be saved once the training is complete.
 
         Returns:
             None
         """
         self.model.fit(
             x=images,
-            y=labels,
+            y=labels[..., None],
             batch_size=self.batch_size,
             epochs=self.epochs,
             verbose=self.verbose,
@@ -219,8 +220,7 @@ class UNet:
             workers=1,
             use_multiprocessing=False,
         )
-        result = 1.0 * (result > 0.5)
-        return result
+        return 1.0 * (result[..., 0] > 0.5)
 
 
 """
@@ -341,23 +341,23 @@ class DataAugmentation:
 
         Return:
             The transformed array resulting from the cummulative application of all the
-            transofrmation steps.
+            transformation steps.
         """
         return reduce(lambda d, f: f(d), self.steps, data)
 
     def augment(self, images: np.ndarray, labels: np.ndarray) -> np.ndarray:
-        """Augment the orginal array by applying the transformations several times.
+        """Augment the original array by applying the transformations several times.
 
-        Each transoformation is saved to a temporary file to save memory while the rest
+        Each transformation is saved to a temporary file to save memory while the rest
         of transformations are completed. All the files are read and the arrays put
         together at the end of the process.
 
         Args:
-            images: Array with the images, of shape (N, h, w, c), with N the number of
+            images: Array with the images, of shape (n, h, w, c), with N the number of
                 images, (h, w) their height and width, respectively, and c the number
                 of channels per image.
-            labels: Array with the labels correspoinding to each image, of shape
-                (N, h, w) and the same meaning than the images.
+            labels: Array with the labels corresponding to each image, of shape
+                (Nn h, w) and the same meaning than the images.
 
         Return:
             Tuple with two new arrays, the augmented images and the corresponding
@@ -402,7 +402,7 @@ class DataAugmentation:
             images: Array with the images, of shape (n, h, w, c), with n the number of
                 images, (h, w) their height and width, respectively, and c the number
                 of channels per image.
-            labels: Array with the labels correspoinding to each image, of shape
+            labels: Array with the labels corresponding to each image, of shape
                 (n, h, w) and the same meaning than the images.
 
         Return:
@@ -431,11 +431,62 @@ class DataAugmentation:
 
         Return:
             A tuple with two arrays. The first one contains the images, of shape
-            (n, h, w, c), with N the number of images, (h, w) their height and width,
+            (n, h, w, c), with n the number of images, (h, w) their height and width,
             respectively, and c the number of channels per image. The second contains
-            the labels correspoinding to each image, of shape (n, h, w) and the same
+            the labels corresponding to each image, of shape (n, h, w) and the same
             meaning than the images.
         """
         n = int(data.shape[0] / (channels + 1))
         images = np.stack([data[i * n : (i + 1) * n] for i in range(channels)], axis=-1)
         return images, data[-n:].copy()
+
+
+"""
+Post-processing routines
+"""
+
+
+def crop_roi(labels: np.ndarray, margin: int = 70) -> np.ndarray:
+    """Crop the inferred labels to cover only the region of the bigger blob.
+
+    The goal here is to remove spurious contours found by the AI away form the
+    ventricle and that could make a proper analysis harder.
+
+    The process is done in several steps:
+        1- Image is transformed to binary
+        2- Contours are found
+        3- The contour enclosing the biggest area is identified and the centroid found
+        4- A region around that centroid is cropped.
+        5- A label array with the same shape as input but with only the labels within
+            that cropped region is returned
+
+    Args:
+        labels: Array of inferred labels of shape (h, w).
+        margin: Pixels around the centroid of the bigger blob in each direction defining
+            the square region of interest.
+
+    Returns:
+        Array of labels cropped to the region of the biggest blob.
+    """
+    arr = labels.astype(np.uint8)
+    _, binary = cv2.threshold(arr, 0.5, 1, cv2.THRESH_BINARY)
+    contours, _ = cv2.findContours(binary, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+
+    maxarea = 0
+    cX = 0
+    cY = 0
+    for c in contours:
+        if cv2.contourArea(c) > maxarea:
+            maxarea = cv2.contourArea(c)
+            M = cv2.moments(c)
+            cX = int(M["m10"] / M["m00"])
+            cY = int(M["m01"] / M["m00"])
+
+    roi = cv2.rectangle(
+        np.zeros_like(labels, dtype=np.uint8),
+        (cX - margin, cY - margin),
+        (cX + margin, cY + margin),
+        1,
+        -1,
+    )
+    return arr * roi
