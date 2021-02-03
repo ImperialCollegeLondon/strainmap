@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Optional, Dict, Callable, Tuple
+from typing import Optional, Dict, Callable, Tuple, List
 from pathlib import Path
 from functools import partial, reduce
 import tempfile
+import warnings
 
 import numpy as np
 from tensorflow.python.keras import layers
@@ -458,30 +459,32 @@ def crop_roi(labels: np.ndarray, margin: int = 70) -> np.ndarray:
         2- Contours are found
         3- The contour enclosing the biggest area is identified and the centroid found
         4- A region around that centroid is cropped.
-        5- A label array with the same shape as input but with only the labels within
-            that cropped region is returned
+        5- An array of labels with the same shape as input but with only the labels
+            within that cropped region is returned
 
     Args:
         labels: Array of inferred labels of shape (h, w).
         margin: Pixels around the centroid of the bigger blob in each direction defining
             the square region of interest.
 
+    Raises:
+        ValueError: If no contours could be found.
+
     Returns:
         Array of labels cropped to the region of the biggest blob.
     """
     arr = labels.astype(np.uint8)
     _, binary = cv2.threshold(arr, 0.5, 1, cv2.THRESH_BINARY)
+
+    if np.count_nonzero(binary) == 0:
+        raise ValueError("No masks to find contour found available.")
+
     contours, _ = cv2.findContours(binary, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
 
-    maxarea = 0
-    cX = 0
-    cY = 0
-    for c in contours:
-        if cv2.contourArea(c) > maxarea:
-            maxarea = cv2.contourArea(c)
-            M = cv2.moments(c)
-            cX = int(M["m10"] / M["m00"])
-            cY = int(M["m01"] / M["m00"])
+    largest = sorted(contours, key=cv2.contourArea)[-1]
+    M = cv2.moments(largest)
+    cX = int(M["m10"] / M["m00"])
+    cY = int(M["m01"] / M["m00"])
 
     roi = cv2.rectangle(
         np.zeros_like(labels, dtype=np.uint8),
@@ -493,7 +496,7 @@ def crop_roi(labels: np.ndarray, margin: int = 70) -> np.ndarray:
     return arr * roi
 
 
-def add_ellipse(labels):
+def add_ellipse(labels: np.ndarray) -> np.ndarray:
     """Draws an ellipse in the labels closing any gap in the myocardium mask.
 
     The myocardium identified by the AI might be incomplete,leaving gaps in the
@@ -511,6 +514,9 @@ def add_ellipse(labels):
 
     Args:
         labels: Array of inferred labels of shape (h, w).
+
+    Raises:
+        RuntimeError: If an ellipse cannot be traced.
 
     Returns:
         An array with the same shape and the ellipse added to it.
@@ -538,3 +544,81 @@ def add_ellipse(labels):
         color=1,
         thickness=3,
     )
+
+
+def get_contours(labels: np.ndarray) -> List[np.ndarray]:
+    """Extract the contours out of the labels mask.
+
+    The two contours enclosing the largest area are assumed to be those corresponding to
+    the epicardium and the endocardium, respectively.
+
+    Args:
+        labels: Array of inferred labels of shape (h, w).
+
+    Raises:
+        ValueError: If less than two contours are found.
+
+    Returns:
+        List of two arrays corresponding to the epicardium and de endocardium contours.
+        They will not have the same number of points, in general.
+    """
+    arr = labels.astype(np.uint8)
+    _, binary = cv2.threshold(arr, 0.5, 1, cv2.THRESH_BINARY)
+    contours, _ = cv2.findContours(binary, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+
+    s_contours = sorted(contours, key=cv2.contourArea)[-2:]
+
+    if len(s_contours) < 2:
+        raise ValueError("Not enough contours found.")
+
+    return s_contours
+
+
+def interpolate_contour(contour: np.ndarray, points: int) -> np.ndarray:
+    """Interpolates a closed contour to the chosen number of points.
+
+    Args:
+        contour: The contour to interpolate of shape (2, p)
+        points: The number of required points in the final contour.
+
+    Returns:
+        Array with the interpolated contour.
+    """
+    xp = np.linspace(0, 1, contour.shape[1], endpoint=False)
+    x = np.linspace(0, 1, points)
+    y1 = np.interp(x, xp, contour[0], period=1)
+    y2 = np.interp(x, xp, contour[1], period=1)
+    return np.array([y1, y2])
+
+
+def labels_to_contours(labels: np.ndarray, points: int = 361) -> np.ndarray:
+    """Process the labels produced by the AI and extract the epi and end contours.
+
+    For those inferred labels for which it is not possible to extract two contours,
+    contours filled with NaN are produced. A warning is raised in that case.
+
+    Args:
+        labels: Array of inferred labels of shape (n, h, w).
+        points: Number of points for each contour.
+
+    Returns:
+        Array of contours found out of the corresponding labels, of shape (n, 2, 2, p),
+        meaning, respectively: number of images, side (epi- and endocardium),
+        coordinates of each contour and the points.
+    """
+    contours = []
+    not_found = 0
+    for arr in labels:
+        try:
+            sanitized = add_ellipse(crop_roi(arr))
+            contours = np.array(
+                [interpolate_contour(c, points) for c in get_contours(sanitized)]
+            )
+        except (RuntimeError, ValueError):
+            contours.append(np.full((2, 2, points), np.nan))
+            not_found += 1
+
+    if not_found > 0:
+        warnings.warn(f"Contours not found for {not_found} images.", RuntimeWarning)
+
+    return np.array(contours)
