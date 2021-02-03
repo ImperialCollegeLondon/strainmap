@@ -12,6 +12,7 @@ from tensorflow.python.keras.models import Model
 from tensorlayer import prepro
 import toml
 import cv2
+import skimage
 
 
 @dataclass
@@ -490,3 +491,50 @@ def crop_roi(labels: np.ndarray, margin: int = 70) -> np.ndarray:
         -1,
     )
     return arr * roi
+
+
+def add_ellipse(labels):
+    """Draws an ellipse in the labels closing any gap in the myocardium mask.
+
+    The myocardium identified by the AI might be incomplete,leaving gaps in the
+    mask. This function fits the pixels identified as myocardium with a thin
+    ellipse.
+
+    If the myocardium has been correctly identified and it is vaguely circular, this
+    function makes no difference as the drawn ellipse will fit into the the existing
+    mask. If there are gaps, they will be filled with the ellipse data, closing the
+    mask.
+
+    The only caveat is that, if the myocardium has been correctly identified but it is
+    not roughly circular such that an ellipse wholy fit within, this function will
+    artificially add pixel points outside the mask that should not be there.
+
+    Args:
+        labels: Array of inferred labels of shape (h, w).
+
+    Returns:
+        An array with the same shape and the ellipse added to it.
+    """
+    coords = np.asarray(np.nonzero(labels)).T
+    ellipse = skimage.measure.EllipseModel()
+
+    if not ellipse.estimate(coords):
+        raise RuntimeError("An ellipse could not be drawn.")
+
+    # For drawing the ellipse, we need the parameters as integers
+    xc, yc, a, b, theta = ellipse.params
+    xc = int(round(xc))
+    yc = int(round(yc))
+    a = int(round(a))
+    b = int(round(b))
+
+    return cv2.ellipse(
+        img=labels.copy().astype(np.int8),
+        center=(yc, xc),
+        axes=(a, b),
+        angle=theta,
+        startAngle=0,
+        endAngle=360,
+        color=1,
+        thickness=3,
+    )
