@@ -1,4 +1,5 @@
 import pytest
+from unittest.mock import MagicMock
 
 
 def test_zero2one():
@@ -47,7 +48,6 @@ def test_labels_to_contours():
 
 
 class TestDataAugmentation:
-
     @pytest.mark.xfail
     def test_factory(self):
         assert False
@@ -70,22 +70,34 @@ class TestDataAugmentation:
 
 
 class TestNormal:
-
     @pytest.mark.xfail
     def test_avail(self):
-        assert False
+        from strainmap.models.ai_segmenter import Normal
+
+        assert len(Normal.avail()) >= 1
 
     @pytest.mark.xfail
     def test_register(self):
-        assert False
+        from strainmap.models.ai_segmenter import Normal
+
+        @Normal.register
+        def my_norm():
+            pass
+
+        assert "my_norm" in Normal.avail()
 
     @pytest.mark.xfail
     def test_run(self):
-        assert False
+        from strainmap.models.ai_segmenter import Normal
+
+        fun = MagicMock()
+        Normal.register(fun)
+        data = [1, 2, 3]
+        Normal.run(data, "fun")
+        fun.assert_called_with(data)
 
 
 class TestUNet:
-
     @pytest.mark.xfail
     def test_factory(self):
         assert False
