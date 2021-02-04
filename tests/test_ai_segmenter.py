@@ -70,13 +70,11 @@ class TestDataAugmentation:
 
 
 class TestNormal:
-    @pytest.mark.xfail
     def test_avail(self):
         from strainmap.models.ai_segmenter import Normal
 
         assert len(Normal.avail()) >= 1
 
-    @pytest.mark.xfail
     def test_register(self):
         from strainmap.models.ai_segmenter import Normal
 
@@ -86,7 +84,6 @@ class TestNormal:
 
         assert "my_norm" in Normal.avail()
 
-    @pytest.mark.xfail
     def test_run(self):
         from strainmap.models.ai_segmenter import Normal
 
