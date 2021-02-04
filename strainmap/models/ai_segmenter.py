@@ -179,8 +179,10 @@ class UNet:
         """Train a model to best fit the labels based on the input images.
 
         Args:
-            images: Array of images that serve as input to the model of shape (N, h, w, c)
-            labels: Array of labels that represent the expected output of the model of shape (N, h, w).
+            images: Array of images that serve as input to the model of shape
+                (n, h, w, c)
+            labels: Array of labels that represent the expected output of the model of
+                shape (N, h, w).
             model_file: If provided, if should be the path to the h5 file where the
                 weights will be saved once the training is complete.
 

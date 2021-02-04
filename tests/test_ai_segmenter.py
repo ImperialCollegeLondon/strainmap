@@ -1,11 +1,14 @@
+import pytest
+
+
 def test_zero2one():
     from strainmap.models.ai_segmenter import zero2one
     import numpy as np
 
     data = np.random.random((5, 10, 3))
     norm = zero2one(data)
-    assert norm.min() == 0
-    assert norm.max() == 1
+    assert norm.min() == pytest.approx(0)
+    assert norm.max() == pytest.approx(1)
 
 
 def test_zeromean_unitvar():
@@ -14,8 +17,8 @@ def test_zeromean_unitvar():
 
     data = np.random.random((5, 10, 3))
     norm = zeromean_unitvar(data)
-    assert np.mean(norm) == 0
-    assert np.std(norm) == 1
+    assert np.mean(norm) == pytest.approx(0)
+    assert np.std(norm) == pytest.approx(1)
 
 
 def test_crop_roi():
