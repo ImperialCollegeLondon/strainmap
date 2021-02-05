@@ -563,7 +563,10 @@ def get_contours(labels: np.ndarray) -> List[np.ndarray]:
 
     Returns:
         List of two arrays corresponding to the epicardium and de endocardium contours.
-        They will not have the same number of points, in general.
+        Each contour has shape (2, p), with p the number of points per contour and,
+        in general, different for epi and endocarcium. All points of the contours are
+        part of the input labels (i.e., correspond to points where the labels array has
+        a value of 1).
     """
     arr = labels.astype(np.uint8)
     _, binary = cv2.threshold(arr, 0.5, 1, cv2.THRESH_BINARY)
@@ -574,7 +577,7 @@ def get_contours(labels: np.ndarray) -> List[np.ndarray]:
     if len(s_contours) < 2:
         raise ValueError("Not enough contours found.")
 
-    return s_contours
+    return [np.squeeze(s).T for s in s_contours]
 
 
 def interpolate_contour(contour: np.ndarray, points: int) -> np.ndarray:

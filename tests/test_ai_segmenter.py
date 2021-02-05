@@ -68,9 +68,33 @@ def test_add_ellipse():
     assert (actual[expected_nz] == 1).all()
 
 
-@pytest.mark.xfail
 def test_get_contours():
-    assert False
+    from strainmap.models.ai_segmenter import get_contours
+    import cv2
+    import numpy as np
+
+    labels = np.zeros((20, 20), dtype=np.int8)
+    labels[4:15, 4:15] = 1
+
+    with pytest.raises(ValueError):
+        get_contours(labels)
+
+    labels = cv2.ellipse(
+        img=np.zeros((20, 20), dtype=np.int8),
+        center=(9, 9),
+        axes=(4, 6),
+        angle=30,
+        startAngle=0,
+        endAngle=360,
+        color=1,
+        thickness=3,
+    )
+
+    actual = get_contours(labels)
+    assert len(actual) == 2
+
+    for c in actual:
+        assert (labels[tuple(c[::-1])] == 1).all()
 
 
 @pytest.mark.xfail
