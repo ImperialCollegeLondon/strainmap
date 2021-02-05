@@ -33,9 +33,39 @@ def test_crop_roi():
     assert (cropped == expected).all()
 
 
-@pytest.mark.xfail
 def test_add_ellipse():
-    assert False
+    from strainmap.models.ai_segmenter import add_ellipse
+    import cv2
+    import numpy as np
+
+    # Inputs is an incomplete ellipse
+    labels = cv2.ellipse(
+        img=np.zeros((20, 20), dtype=np.int8),
+        center=(9, 9),
+        axes=(4, 6),
+        angle=30,
+        startAngle=0,
+        endAngle=270,
+        color=1,
+        thickness=1,
+    )
+
+    # Output should be a close ellipse
+    expected_nz = np.nonzero(
+        cv2.ellipse(
+            img=np.zeros((20, 20), dtype=np.int8),
+            center=(9, 9),
+            axes=(4, 6),
+            angle=30,
+            startAngle=0,
+            endAngle=360,
+            color=1,
+            thickness=2,
+        )
+    )
+    actual = add_ellipse(labels)
+
+    assert (actual[expected_nz] == 1).all()
 
 
 @pytest.mark.xfail

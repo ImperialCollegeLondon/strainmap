@@ -13,7 +13,7 @@ from tensorflow.python.keras.models import Model
 from tensorlayer import prepro
 import toml
 import cv2
-import skimage
+from skimage import measure
 
 
 @dataclass
@@ -524,7 +524,7 @@ def add_ellipse(labels: np.ndarray) -> np.ndarray:
         An array with the same shape and the ellipse added to it.
     """
     coords = np.asarray(np.nonzero(labels)).T
-    ellipse = skimage.measure.EllipseModel()
+    ellipse = measure.EllipseModel()
 
     if not ellipse.estimate(coords):
         raise RuntimeError("An ellipse could not be drawn.")
@@ -535,6 +535,7 @@ def add_ellipse(labels: np.ndarray) -> np.ndarray:
     yc = int(round(yc))
     a = int(round(a))
     b = int(round(b))
+    theta = 90 - np.rad2deg(theta)
 
     return cv2.ellipse(
         img=labels.copy().astype(np.int8),
