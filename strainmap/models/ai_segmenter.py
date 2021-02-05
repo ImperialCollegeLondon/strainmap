@@ -577,7 +577,7 @@ def get_contours(labels: np.ndarray) -> List[np.ndarray]:
     if len(s_contours) < 2:
         raise ValueError("Not enough contours found.")
 
-    return [np.squeeze(s).T for s in s_contours]
+    return [np.squeeze(s).T[::-1] for s in s_contours]
 
 
 def interpolate_contour(contour: np.ndarray, points: int) -> np.ndarray:

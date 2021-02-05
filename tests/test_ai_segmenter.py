@@ -94,7 +94,7 @@ def test_get_contours():
     assert len(actual) == 2
 
     for c in actual:
-        assert (labels[tuple(c[::-1])] == 1).all()
+        assert (labels[tuple(c)] == 1).all()
 
 
 @pytest.mark.xfail
