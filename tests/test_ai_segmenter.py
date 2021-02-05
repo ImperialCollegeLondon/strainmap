@@ -88,8 +88,7 @@ class TestNormal:
     def test_run(self):
         from strainmap.models.ai_segmenter import Normal
 
-        fun = MagicMock()
-        fun.__name__ = "my_norm"
+        fun = MagicMock(__name__="my_norm")
         Normal.register(fun)
         data = [1, 2, 3]
         Normal.run(data, "my_norm")
