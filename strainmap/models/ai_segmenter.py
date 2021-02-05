@@ -617,8 +617,10 @@ def labels_to_contours(labels: np.ndarray, points: int = 361) -> np.ndarray:
     for arr in labels:
         try:
             sanitized = add_ellipse(crop_roi(arr))
-            contours = np.array(
-                [interpolate_contour(c, points) for c in get_contours(sanitized)]
+            contours.append(
+                np.array(
+                    [interpolate_contour(c, points) for c in get_contours(sanitized)]
+                )
             )
         except (RuntimeError, ValueError):
             contours.append(np.full((2, 2, points), np.nan))

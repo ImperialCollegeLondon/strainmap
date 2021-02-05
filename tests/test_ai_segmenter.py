@@ -114,9 +114,11 @@ def test_labels_to_contours():
     import cv2
     import numpy as np
 
+    points = 361
     labels = np.zeros((3, 20, 20), dtype=np.int8)
     with pytest.warns(None) as record:
-        actual = labels_to_contours(labels)
+        actual = labels_to_contours(labels, points=points)
+    assert actual.shape == (3, 2, 2, points)
     assert np.isnan(actual).all()
     assert record[-1].category == RuntimeWarning
     assert record[-1].message.args[0] == "Contours not found for 3 images."
@@ -138,8 +140,17 @@ def test_labels_to_contours():
     )
     with pytest.warns(None) as record:
         actual = labels_to_contours(labels)
+    assert actual.shape == (3, 2, 2, points)
     assert not np.isnan(actual).any()
     assert len(record) == 0
+
+    labels[0] = 0
+    with pytest.warns(None) as record:
+        actual = labels_to_contours(labels)
+    assert actual.shape == (3, 2, 2, points)
+    assert np.isnan(actual[0]).all()
+    assert record[-1].category == RuntimeWarning
+    assert record[-1].message.args[0] == "Contours not found for 1 images."
 
 
 class TestDataAugmentation:
