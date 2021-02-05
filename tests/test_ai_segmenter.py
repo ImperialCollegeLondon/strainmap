@@ -1,5 +1,5 @@
 import pytest
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 
 def test_zero2one():
@@ -210,8 +210,8 @@ class TestDataAugmentation:
 
         da.include_original = True
         aug_img, aug_lbl = da.augment(images, labels)
-        assert aug_img.shape == (n * da.times + 1, h, w, c)
-        assert aug_lbl.shape == (n * da.times + 1, h, w)
+        assert aug_img.shape == (n * (da.times + 1), h, w, c)
+        assert aug_lbl.shape == (n * (da.times + 1), h, w)
 
     def test__group(self):
         from strainmap.models.ai_segmenter import DataAugmentation
@@ -238,7 +238,7 @@ class TestDataAugmentation:
         images = np.random.random((n, h, w, c))
         labels = np.random.random((n, h, w))
         grouped = DataAugmentation._group(images, labels)
-        eimages, elabels = DataAugmentation._ungroup(grouped)
+        eimages, elabels = DataAugmentation._ungroup(grouped, c)
         assert (eimages == images).all()
         assert (elabels == labels).all()
 
