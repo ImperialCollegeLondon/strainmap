@@ -29,7 +29,7 @@ def test_crop_roi():
     labels = np.ones((20, 20))
     cropped = crop_roi(labels, margin=5)
     expected = np.zeros((20, 20), dtype=np.int8)
-    expected[5:15, 5:15] = 1
+    expected[4:15, 4:15] = 1
     assert (cropped == expected).all()
 
 
