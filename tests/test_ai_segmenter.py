@@ -1,5 +1,5 @@
 import pytest
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 
 def test_zero2one():
@@ -154,9 +154,31 @@ def test_labels_to_contours():
 
 
 class TestDataAugmentation:
-    @pytest.mark.xfail
     def test_factory(self):
-        assert False
+        from strainmap.models.ai_segmenter import DataAugmentation
+        import toml
+        from pathlib import Path
+
+        filename = (
+            Path(__file__).parent.parent / "strainmap" / "models" / "ai_config.toml"
+        )
+        config = toml.load(filename)["augmentation"]
+
+        new_init = MagicMock()
+        with patch("strainmap.models.ai_segmenter.DataAugmentation.__init__", new_init):
+            DataAugmentation.factory()
+
+        assert new_init.assert_called_once()
+        args, kwargs = new_init.call_args_list[0]
+        assert len(args) == 1
+        assert len(args[0]) > 0
+        for k, v in kwargs:
+            assert config[k] == v
+
+    def test_init(self):
+        from strainmap.models.ai_segmenter import DataAugmentation
+
+        DataAugmentation.factory()
 
     @pytest.mark.xfail
     def test_transform(self):
