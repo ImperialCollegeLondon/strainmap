@@ -22,9 +22,15 @@ def test_zeromean_unitvar():
     assert np.std(norm) == pytest.approx(1)
 
 
-@pytest.mark.xfail
 def test_crop_roi():
-    assert False
+    from strainmap.models.ai_segmenter import crop_roi
+    import numpy as np
+
+    labels = np.ones((20, 20))
+    cropped = crop_roi(labels, margin=5)
+    expected = np.zeros((20, 20), dtype=np.int8)
+    expected[5:15, 5:15] = 1
+    assert (cropped == expected).all()
 
 
 @pytest.mark.xfail
