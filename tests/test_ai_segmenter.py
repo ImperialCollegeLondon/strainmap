@@ -109,9 +109,37 @@ def test_interpolate_contour():
     assert actual == pytest.approx(expected, rel=1e-1)
 
 
-@pytest.mark.xfail
 def test_labels_to_contours():
-    assert False
+    from strainmap.models.ai_segmenter import labels_to_contours
+    import cv2
+    import numpy as np
+
+    labels = np.zeros((3, 20, 20), dtype=np.int8)
+    with pytest.warns(None) as record:
+        actual = labels_to_contours(labels)
+    assert np.isnan(actual).all()
+    assert record[-1].category == RuntimeWarning
+    assert record[-1].message.args[0] == "Contours not found for 3 images."
+
+    labels = np.array(
+        [
+            cv2.ellipse(
+                img=np.zeros((20, 20), dtype=np.int8),
+                center=(9, 9),
+                axes=(4, 6),
+                angle=30,
+                startAngle=0,
+                endAngle=360,
+                color=1,
+                thickness=2,
+            )
+            for i in range(3)
+        ]
+    )
+    with pytest.warns(None) as record:
+        actual = labels_to_contours(labels)
+    assert not np.isnan(actual).any()
+    assert len(record) == 0
 
 
 class TestDataAugmentation:
