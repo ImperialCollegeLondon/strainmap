@@ -83,15 +83,18 @@ class TestNormal:
             pass
 
         assert "my_norm" in Normal.avail()
+        del Normal._normalizers["my_norm"]
 
     def test_run(self):
         from strainmap.models.ai_segmenter import Normal
 
         fun = MagicMock()
+        fun.__name__ = "my_norm"
         Normal.register(fun)
         data = [1, 2, 3]
-        Normal.run(data, "fun")
+        Normal.run(data, "my_norm")
         fun.assert_called_with(data)
+        del Normal._normalizers["my_norm"]
 
 
 class TestUNet:
