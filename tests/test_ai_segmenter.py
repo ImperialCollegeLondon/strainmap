@@ -164,8 +164,8 @@ class TestDataAugmentation:
         )
         config = toml.load(filename)["augmentation"]
 
-        new_init = MagicMock(return_value=None)
-        with patch("strainmap.models.ai_segmenter.DataAugmentation.__init__", new_init):
+        new_init = MagicMock()
+        with patch("strainmap.models.ai_segmenter.DataAugmentation.__new__", new_init):
             DataAugmentation.factory()
 
         assert new_init.assert_called_once()
