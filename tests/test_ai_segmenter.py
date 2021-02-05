@@ -97,9 +97,16 @@ def test_get_contours():
         assert (labels[tuple(c)] == 1).all()
 
 
-@pytest.mark.xfail
 def test_interpolate_contour():
-    assert False
+    from strainmap.models.ai_segmenter import interpolate_contour
+    import numpy as np
+
+    theta = np.linspace(0, 2 * np.pi, 10, endpoint=False)
+    contour = np.array([np.cos(theta), np.sin(theta)])
+    theta = np.linspace(0, 2 * np.pi, 21)
+    expected = np.array([np.cos(theta), np.sin(theta)])
+    actual = interpolate_contour(contour, len(theta))
+    assert actual == pytest.approx(expected, rel=1e-1)
 
 
 @pytest.mark.xfail
