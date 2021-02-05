@@ -164,7 +164,7 @@ class TestDataAugmentation:
         )
         config = toml.load(filename)["augmentation"]
 
-        new_init = MagicMock()
+        new_init = MagicMock(return_value=None)
         with patch("strainmap.models.ai_segmenter.DataAugmentation.__init__", new_init):
             DataAugmentation.factory()
 
@@ -180,21 +180,54 @@ class TestDataAugmentation:
 
         DataAugmentation.factory()
 
-    @pytest.mark.xfail
     def test_transform(self):
-        assert False
+        from strainmap.models.ai_segmenter import DataAugmentation
+        import numpy as np
+
+        def double(d):
+            return 2 * d
+
+        n = 3
+        da = DataAugmentation.factory()
+        da.steps = [
+            double,
+        ] * n
+        data = np.random.random((5, 5))
+        actual = da.transform(data)
+        assert actual == pytest.approx(data * 2 ** n)
 
     @pytest.mark.xfail
     def test_augment(self):
         assert False
 
-    @pytest.mark.xfail
     def test__group(self):
-        assert False
+        from strainmap.models.ai_segmenter import DataAugmentation
+        import numpy as np
 
-    @pytest.mark.xfail
+        n = 3
+        c = 2
+        h = w = 5
+        images = np.random.random((n, h, w, c))
+        labels = np.random.random((n, h, w))
+        grouped = DataAugmentation._group(images, labels)
+        assert grouped.shape == (n * (c + 1), h, w)
+        for i in range(n):
+            assert grouped[i : c * n : n] == pytest.approx(images[i])
+        assert grouped[-n:] == pytest.approx(labels)
+
     def test__ungroup(self):
-        assert False
+        from strainmap.models.ai_segmenter import DataAugmentation
+        import numpy as np
+
+        n = 3
+        c = 2
+        h = w = 5
+        images = np.random.random((n, h, w, c))
+        labels = np.random.random((n, h, w))
+        grouped = DataAugmentation._group(images, labels)
+        eimages, elabels = DataAugmentation._ungroup(grouped)
+        assert eimages == pytest.approx(images)
+        assert elabels == pytest.approx(labels)
 
 
 class TestNormal:
