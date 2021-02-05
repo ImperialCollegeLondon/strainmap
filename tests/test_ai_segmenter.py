@@ -212,8 +212,8 @@ class TestDataAugmentation:
         grouped = DataAugmentation._group(images, labels)
         assert grouped.shape == (n * (c + 1), h, w)
         for i in range(n):
-            assert grouped[i : c * n : n] == pytest.approx(images[i])
-        assert grouped[-n:] == pytest.approx(labels)
+            assert (grouped[i : c * n : n].transpose((1, 2, 0)) == images[i]).all()
+        assert (grouped[-n:] == labels).all()
 
     def test__ungroup(self):
         from strainmap.models.ai_segmenter import DataAugmentation
@@ -226,8 +226,8 @@ class TestDataAugmentation:
         labels = np.random.random((n, h, w))
         grouped = DataAugmentation._group(images, labels)
         eimages, elabels = DataAugmentation._ungroup(grouped)
-        assert eimages == pytest.approx(images)
-        assert elabels == pytest.approx(labels)
+        assert (eimages == images).all()
+        assert (elabels == labels).all()
 
 
 class TestNormal:
