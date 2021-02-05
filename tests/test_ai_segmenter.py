@@ -164,21 +164,11 @@ class TestDataAugmentation:
         )
         config = toml.load(filename)["augmentation"]
 
-        new_init = MagicMock()
-        with patch("strainmap.models.ai_segmenter.DataAugmentation.__new__", new_init):
-            DataAugmentation.factory()
-
-        assert new_init.assert_called_once()
-        args, kwargs = new_init.call_args_list[0]
-        assert len(args) == 1
-        assert len(args[0]) > 0
-        for k, v in kwargs:
-            assert config[k] == v
-
-    def test_init(self):
-        from strainmap.models.ai_segmenter import DataAugmentation
-
-        DataAugmentation.factory()
+        da = DataAugmentation.factory()
+        assert len(da.steps) == len([c for c in config["active"]])
+        assert da.times == config["times"]
+        assert da.axis == config["axis"]
+        assert da.include_original == config["include_original"]
 
     def test_transform(self):
         from strainmap.models.ai_segmenter import DataAugmentation
@@ -196,9 +186,32 @@ class TestDataAugmentation:
         actual = da.transform(data)
         assert actual == pytest.approx(data * 2 ** n)
 
-    @pytest.mark.xfail
     def test_augment(self):
-        assert False
+        from strainmap.models.ai_segmenter import DataAugmentation
+        import numpy as np
+
+        def double(d):
+            return 2 * d
+
+        n = 10
+        c = 4
+        h = w = 5
+        images = np.random.random((n, h, w, c))
+        labels = np.random.random((n, h, w))
+        da = DataAugmentation.factory()
+        da.steps = [
+            double,
+        ]
+
+        da.include_original = False
+        aug_img, aug_lbl = da.augment(images, labels)
+        assert aug_img.shape == (n * da.times, h, w, c)
+        assert aug_lbl.shape == (n * da.times, h, w)
+
+        da.include_original = True
+        aug_img, aug_lbl = da.augment(images, labels)
+        assert aug_img.shape == (n * da.times + 1, h, w, c)
+        assert aug_lbl.shape == (n * da.times + 1, h, w)
 
     def test__group(self):
         from strainmap.models.ai_segmenter import DataAugmentation
