@@ -1,227 +1,76 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
 from typing import Optional, Dict, Callable, Tuple, List
 from pathlib import Path
 import warnings
 
 import numpy as np
-from tensorflow.python.keras import layers
-from tensorflow.python.keras.models import Model
-import toml
+from tensorflow import keras
 import cv2
 from skimage import measure
 
 
-@dataclass
 class UNet:
-    """This class defines the architecture of the UNet model.
-
-    It contains the specific definition of the layers of the neural network as well as
-    general parameters needed to define those layers. It also exposes an interface for
-    compiling the model, running the training and the inference.
-    """
-
-    model_name: str = "Unet"
-    img_height: int = 512
-    img_width: int = 512
-    nclasses: int = 1
-    filters: int = 64
-    batch_size: int = 8
-    epochs: int = 5
-    verbose: int = 1
-    callbacks: Optional[list] = None
-    validation_split: float = 0.05
-    shuffle: bool = True
-    initial_epoch: int = 0
-    steps_per_epoch: Optional[int] = None
-    imgchannel: int = 4
-    model_file: Optional[str] = None
-    _model: Optional[Model] = field(default=None, init=False)
+    _unet: Optional[UNet] = None
 
     @classmethod
-    def factory(cls, config_file: Optional[str] = None) -> UNet:
-        """Factory method to create th net out of a config file.
+    def factory(cls, model_location: Optional[str]) -> UNet:
+        """Factory method to load the model from a folder.
+
+        This class is singleton, so if the model has already been loaded, the existing
+        one is returned.
 
         Args:
-            config_file: Path to a toml-formated config file containing the
-                configuration details to create the network.
+            model_location: Path to the location of a keras model.
+
+        Returns:
+            The loaded keras model
         """
+        if cls._unet is not None:
+            return cls._unet
+
         path = (
-            Path(config_file)
-            if config_file is not None
-            else Path(__file__).parent / "ai_config.toml"
+            Path(model_location)
+            if model_location is not None
+            else Path(__file__).parent / "ai_model"
         )
-        config = toml.load(path)["Net"]
-        config = {k: v if v != "None" else None for k, v in config.items()}
-        return cls(**config)
+        return cls(model=keras.models.load_model(path))
 
-    @property
-    def model(self) -> Model:
-        """Keras Model object."""
-        if self._model is None:
-            raise RuntimeError("Model has not been created, yet.")
-        else:
-            return self._model
+    def __new__(cls, model: keras.models.Model) -> UNet:
+        if cls._unet is None:
+            cls._unet = super(UNet, cls).__new__(cls)
+            cls._unet.model = model
 
-    def _conv_block(
-        self,
-        tensor,
-        nfilters,
-        size=3,
-        padding="same",
-        initializer="he_normal",
-        repetitions=2,
-    ):
-        """Create a convolution block.
+        return cls._unet
 
-        Each block consist on a number of repetitions of 2D convolution, batch
-        normalization and activation.
-        """
-        x = tensor
-        for i in range(repetitions):
-            x = layers.Conv2D(
-                filters=nfilters,
-                kernel_size=(size, size),
-                padding=padding,
-                kernel_initializer=initializer,
-            )(x)
-            x = layers.BatchNormalization()(x)
-            x = layers.Activation("relu")(x)
+    def __init__(self, *args, **kwargs):
+        self.model: keras.models.Model
 
-        return x
-
-    def _deconv_block(
-        self, tensor, residual, nfilters, size=3, padding="same", strides=(2, 2)
-    ):
-        """Create a deconvolution block.
-
-        The block consist on a transpose 2D convolution followed by a concatenation
-        with the residual and a convolution block.
-        """
-        y = layers.Conv2DTranspose(
-            nfilters, kernel_size=(size, size), strides=strides, padding=padding
-        )(tensor)
-        y = layers.concatenate([y, residual], axis=3)
-        y = self._conv_block(y, nfilters)
-        return y
-
-    def _modelstruct(self):
-        """Creates the UNet model out of a sequence of layers."""
-        h = self.img_height
-        w = self.img_width
-        nclasses = self.nclasses
-        filters = self.filters
-
-        # Input layer
-        input_layer = layers.Input(shape=(h, w, self.imgchannel), name="image_input")
-
-        # Down
-        conv1 = self._conv_block(input_layer, nfilters=filters)
-        conv1_out = layers.MaxPooling2D(pool_size=(2, 2))(conv1)
-        conv2 = self._conv_block(conv1_out, nfilters=filters * 2)
-        conv2_out = layers.MaxPooling2D(pool_size=(2, 2))(conv2)
-        conv3 = self._conv_block(conv2_out, nfilters=filters * 4)
-        conv3_out = layers.MaxPooling2D(pool_size=(2, 2))(conv3)
-        conv4 = self._conv_block(conv3_out, nfilters=filters * 8)
-        conv4_out = layers.MaxPooling2D(pool_size=(2, 2))(conv4)
-        conv4_out = layers.Dropout(0.5)(conv4_out)
-        conv5 = self._conv_block(conv4_out, nfilters=filters * 16)
-        conv5 = layers.Dropout(0.5)(conv5)
-
-        # Up
-        deconv6 = self._deconv_block(conv5, residual=conv4, nfilters=filters * 8)
-        deconv6 = layers.Dropout(0.5)(deconv6)
-        deconv7 = self._deconv_block(deconv6, residual=conv3, nfilters=filters * 4)
-        deconv7 = layers.Dropout(0.5)(deconv7)
-        deconv8 = self._deconv_block(deconv7, residual=conv2, nfilters=filters * 2)
-        deconv9 = self._deconv_block(deconv8, residual=conv1, nfilters=filters)
-
-        # Output layer
-        output_layer = layers.Conv2D(filters=nclasses, kernel_size=(1, 1))(deconv9)
-        output_layer = layers.BatchNormalization()(output_layer)
-        output_layer = layers.Activation("sigmoid")(output_layer)
-
-        model = Model(inputs=input_layer, outputs=output_layer, name=self.model_name)
-        return model
-
-    def compile_model(self, print_summary=True, model_file: Optional[str] = "default"):
-        """Creates and compiles the Model object.
-
-        Args:
-            print_summary: If a summary for the model should be printed.
-            model_file: If provided, this should be either the path of a h5 file
-                containing the weights for the model or "default" to use the model
-                indicated in the config file.
-
-        Returns:
-            None
-        """
-        self._model = self._modelstruct()
-        self.model.compile(
-            optimizer="adam", loss="binary_crossentropy", metrics=["acc"]
-        )
-
-        if print_summary:
-            self.model.summary()
-
-        if model_file == "default" and self.model_file is not None:
-            self.model.load_weights(self.model_file)
-        elif model_file is not None:
-            self.model.load_weights(model_file)
-
-    def train(
-        self, images: np.ndarray, labels: np.ndarray, model_file: Optional[Path] = None
-    ) -> None:
-        """Train a model to best fit the labels based on the input images.
-
-        Args:
-            images: Array of images that serve as input to the model of shape
-                (n, h, w, c)
-            labels: Array of labels that represent the expected output of the model of
-                shape (N, h, w).
-            model_file: If provided, if should be the path to the h5 file where the
-                weights will be saved once the training is complete.
-
-        Returns:
-            None
-        """
-        self.model.fit(
-            x=images,
-            y=labels[..., None],
-            batch_size=self.batch_size,
-            epochs=self.epochs,
-            verbose=self.verbose,
-            callbacks=self.callbacks,
-            validation_split=self.validation_split,
-            shuffle=self.shuffle,
-            initial_epoch=self.initial_epoch,
-            steps_per_epoch=self.steps_per_epoch,
-        )
-
-        if model_file is not None:
-            self.model.save_weights(model_file)
-
-    def infer(self, images: np.ndarray) -> np.ndarray:
+    def predict(self, images: np.ndarray) -> np.ndarray:
         """Use the model to predict the labels given the input images.
 
         Args:
-            images: Array of images we want to infer the labels from.
+            images: Array of images we want to infer the labels from. Must have shape
+            (n, h, w, c) and be normalised. n is the number or images, (h, w) are the
+            height and width respectively and c the number of channels per image.
+            If h, w and c do not match those the model has been trained for, the
+            calculation will fail.
 
         Returns:
-            Array with the predicted labels.
+            Integer array of shape (n, h, w) with the predicted labels, 1 for the mask
+            area and 0 for the rest.
         """
         result = self.model.predict(
             x=images,
-            batch_size=self.batch_size,
-            verbose=self.verbose,
+            batch_size=8,
+            verbose=1,
             steps=None,
-            callbacks=self.callbacks,
+            callbacks=None,
             max_queue_size=10,
             workers=1,
             use_multiprocessing=False,
         )
-        return 1.0 * (result[..., 0] > 0.5)
+        return (result[..., 0] > 0.5).astype(np.int8)
 
 
 """

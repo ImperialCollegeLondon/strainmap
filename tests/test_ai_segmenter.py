@@ -155,29 +155,5 @@ class TestUNet:
         assert False
 
     @pytest.mark.xfail
-    def test_model(self):
-        assert False
-
-    @pytest.mark.xfail
-    def test__conv_block(self):
-        assert False
-
-    @pytest.mark.xfail
-    def test__deconv_block(self):
-        assert False
-
-    @pytest.mark.xfail
-    def test__modelstruct(self):
-        assert False
-
-    @pytest.mark.xfail
-    def test_compile_model(self):
-        assert False
-
-    @pytest.mark.xfail
-    def test_train(self):
-        assert False
-
-    @pytest.mark.xfail
-    def test_infer(self):
+    def test_predict(self):
         assert False
