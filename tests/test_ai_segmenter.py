@@ -2,37 +2,6 @@ import pytest
 from unittest.mock import MagicMock
 
 
-def test_zero2one():
-    from strainmap.models.ai_segmenter import zero2one
-    import numpy as np
-
-    data = np.random.random((5, 10, 3))
-    norm = zero2one(data)
-    assert norm.min() == pytest.approx(0)
-    assert norm.max() == pytest.approx(1)
-
-
-def test_zeromean_unitvar():
-    from strainmap.models.ai_segmenter import zeromean_unitvar
-    import numpy as np
-
-    data = np.random.random((5, 10, 3))
-    norm = zeromean_unitvar(data)
-    assert np.mean(norm) == pytest.approx(0)
-    assert np.std(norm) == pytest.approx(1)
-
-
-def test_crop_roi():
-    from strainmap.models.ai_segmenter import crop_roi
-    import numpy as np
-
-    labels = np.ones((20, 20))
-    cropped = crop_roi(labels, margin=5)
-    expected = np.zeros((20, 20), dtype=np.int8)
-    expected[4:15, 4:15] = 1
-    assert (cropped == expected).all()
-
-
 def test_add_ellipse():
     from strainmap.models.ai_segmenter import add_ellipse
     import cv2
@@ -151,96 +120,6 @@ def test_labels_to_contours():
     assert np.isnan(actual[0]).all()
     assert record[-1].category == RuntimeWarning
     assert record[-1].message.args[0] == "Contours not found for 1 images."
-
-
-class TestDataAugmentation:
-    def test_factory(self):
-        from strainmap.models.ai_segmenter import DataAugmentation
-        import toml
-        from pathlib import Path
-
-        filename = (
-            Path(__file__).parent.parent / "strainmap" / "models" / "ai_config.toml"
-        )
-        config = toml.load(filename)["augmentation"]
-
-        da = DataAugmentation.factory()
-        assert len(da.steps) == len([c for c in config["active"]])
-        assert da.times == config["times"]
-        assert da.axis == config["axis"]
-        assert da.include_original == config["include_original"]
-
-    def test_transform(self):
-        from strainmap.models.ai_segmenter import DataAugmentation
-        import numpy as np
-
-        def double(d):
-            return 2 * d
-
-        n = 3
-        da = DataAugmentation.factory()
-        da.steps = [
-            double,
-        ] * n
-        data = np.random.random((5, 5))
-        actual = da.transform(data)
-        assert actual == pytest.approx(data * 2 ** n)
-
-    def test_augment(self):
-        from strainmap.models.ai_segmenter import DataAugmentation
-        import numpy as np
-
-        def double(d):
-            return 2 * d
-
-        n = 10
-        c = 4
-        h = w = 5
-        images = np.random.random((n, h, w, c))
-        labels = np.random.random((n, h, w))
-        da = DataAugmentation.factory()
-        da.steps = [
-            double,
-        ]
-
-        da.include_original = False
-        aug_img, aug_lbl = da.augment(images, labels)
-        assert aug_img.shape == (n * da.times, h, w, c)
-        assert aug_lbl.shape == (n * da.times, h, w)
-
-        da.include_original = True
-        aug_img, aug_lbl = da.augment(images, labels)
-        assert aug_img.shape == (n * (da.times + 1), h, w, c)
-        assert aug_lbl.shape == (n * (da.times + 1), h, w)
-
-    def test__group(self):
-        from strainmap.models.ai_segmenter import DataAugmentation
-        import numpy as np
-
-        n = 3
-        c = 2
-        h = w = 5
-        images = np.random.random((n, h, w, c))
-        labels = np.random.random((n, h, w))
-        grouped = DataAugmentation._group(images, labels)
-        assert grouped.shape == (n * (c + 1), h, w)
-        for i in range(n):
-            assert (grouped[i : c * n : n].transpose((1, 2, 0)) == images[i]).all()
-        assert (grouped[-n:] == labels).all()
-
-    def test__ungroup(self):
-        from strainmap.models.ai_segmenter import DataAugmentation
-        import numpy as np
-
-        n = 3
-        c = 2
-        h = w = 5
-        images = np.random.random((n, h, w, c))
-        labels = np.random.random((n, h, w))
-        grouped = DataAugmentation._group(images, labels)
-        eimages, elabels = DataAugmentation._ungroup(grouped, c)
-        assert (eimages == images).all()
-        assert (elabels == labels).all()
 
 
 class TestNormal:
