@@ -4,7 +4,7 @@ from unittest.mock import MagicMock
 
 @pytest.fixture
 def data_shape():
-    return 32
+    return 64, 32, 4
 
 
 @pytest.fixture
@@ -12,10 +12,11 @@ def keras_model(data_shape):
     from tensorflow import keras
     import numpy as np
 
-    train_input = np.random.random((128, data_shape))
-    train_target = np.random.random((128, 1))
+    train_input = np.random.random((100, *data_shape))
+    train_target = np.random.random((100, data_shape[0], data_shape[1], 1))
 
-    inputs = keras.Input(shape=(data_shape,))
+    # Inputs are images of unknown size and 4 channels
+    inputs = keras.Input(shape=(None, None, data_shape[-1]))
     outputs = keras.layers.Dense(1)(inputs)
     model = keras.Model(inputs, outputs)
     model.compile(optimizer="adam", loss="mean_squared_error")
@@ -179,7 +180,7 @@ class TestUNet:
         loaded = UNet.factory(tmp_path)
         assert id(loaded) == id(UNet.factory())
 
-        data = np.random.random((100, data_shape))
+        data = np.random.random((10, *data_shape))
         np.testing.assert_allclose(
             keras_model.predict(data), loaded.model.predict(data)
         )
@@ -189,7 +190,8 @@ class TestUNet:
         import numpy as np
 
         net = UNet.factory()
-        data = np.random.random((5, data_shape))
+        data = np.random.random((5, *data_shape))
         predicted = net.predict(data)
+        assert predicted.shape == (5, data_shape[0], data_shape[1])
         assert predicted.dtype == np.int8
         assert set(predicted) == {0, 1}
