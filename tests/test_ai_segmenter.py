@@ -194,7 +194,7 @@ class TestUNet:
         predicted = net.predict(data)
         assert predicted.shape == (5, data_shape[0], data_shape[1])
         assert predicted.dtype == np.int8
-        assert set(np.unique(predicted)) == {0, 1}
+        assert all([v in (0, 1) for v in np.unique(predicted)])
 
 
 def test_ai_segmentation(data_shape):
