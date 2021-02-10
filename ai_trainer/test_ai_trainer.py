@@ -8,9 +8,7 @@ class TestDataAugmentation:
         import toml
         from pathlib import Path
 
-        filename = (
-            Path(__file__).parent.parent / "strainmap" / "models" / "ai_config.toml"
-        )
+        filename = Path(__file__).parent / "ai_config.toml"
         config = toml.load(filename)["augmentation"]
 
         da = DataAugmentation.factory()
