@@ -33,7 +33,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest] #, macos-latest, windows-latest]
+        os: [ubuntu-latest], macos-latest, windows-latest]
         python-version: [3.8]
 
     steps:
@@ -61,7 +61,7 @@ jobs:
 
   build-windows:
     needs: test
-    if: github.event_name == 'release' #|| github.event_name == 'push'
+    if: github.event_name == 'release' || github.event_name == 'push'
     runs-on: windows-latest
     
     steps:
