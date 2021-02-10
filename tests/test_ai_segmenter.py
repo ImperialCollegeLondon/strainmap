@@ -195,3 +195,14 @@ class TestUNet:
         assert predicted.shape == (5, data_shape[0], data_shape[1])
         assert predicted.dtype == np.int8
         assert set(np.unique(predicted)) == {0, 1}
+
+
+def test_ai_segmentation(data_shape):
+    from strainmap.models.ai_segmenter import ai_segmentation
+    import numpy as np
+
+    points = 360
+    n = 5
+    data = np.random.random((n, *data_shape))
+    contours = ai_segmentation(data, points)
+    assert contours.shape == (n, 2, 2, points)
