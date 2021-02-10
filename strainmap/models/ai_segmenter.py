@@ -10,6 +10,31 @@ import cv2
 from skimage import measure
 
 
+def ai_segmentation(images: np.ndarray, points: int = 360) -> np.ndarray:
+    """Performs the segmentation using the AI segmenter.
+
+    Images are first normalized, then are fed into the AI segmenter - which is loaded
+    from disk if it is the first time is used -, and finally the output (2D masks) is
+    processed to get the contours. If contours cannot be found for a given frame, np.nan
+    is used.
+
+    Args:
+        images: Input array with the images, of shape (n, h, w, c). n is the number of
+            frames, (h, w) is their height and width, and c the number of channels.
+            Channels must be arranged as (magnitude, phase X, phase Y, phase Z).
+        points: Number of points for each contour.
+
+    Returns:
+        An array with the epi- and endocardium segmentations of shape (n, 2, 2, points).
+        n is the number of frames, as above, then is the side (epi and endo,
+        respectively), the coordinate component of the contour (row and column), and the
+        number of points for the contour.
+    """
+    normalized = Normal.run(images, method="zeromean_unitvar")
+    labels = UNet.factory().predict(normalized)
+    return labels_to_contours(labels, points)
+
+
 class UNet:
     _unet: Optional[UNet] = None
 
@@ -289,7 +314,7 @@ def interpolate_contour(contour: np.ndarray, points: int) -> np.ndarray:
     return np.array([y1, y2])
 
 
-def labels_to_contours(labels: np.ndarray, points: int = 361) -> np.ndarray:
+def labels_to_contours(labels: np.ndarray, points: int = 360) -> np.ndarray:
     """Process the labels produced by the AI and extract the epi and end contours.
 
     For those inferred labels for which it is not possible to extract two contours,
