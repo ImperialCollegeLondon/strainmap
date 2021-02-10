@@ -14,7 +14,7 @@ class UNet:
     _unet: Optional[UNet] = None
 
     @classmethod
-    def factory(cls, model_location: Optional[str]) -> UNet:
+    def factory(cls, model_location: Optional[str] = None) -> UNet:
         """Factory method to load the model from a folder.
 
         This class is singleton, so if the model has already been loaded, the existing
