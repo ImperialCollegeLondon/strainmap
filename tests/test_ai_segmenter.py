@@ -1,6 +1,8 @@
 import pytest
 from unittest.mock import MagicMock
 
+import strainmap.strainmap.models.snakes_segmenter
+
 
 @pytest.fixture
 def data_shape():
@@ -182,7 +184,7 @@ class TestUNet:
 
         data = np.random.random((10, *data_shape))
         np.testing.assert_allclose(
-            keras_model.predict(data), loaded.model.predict(data)
+            keras_model.predict(data), strainmap.strainmap.models.snakes_segmenter.model.predict(data)
         )
 
     def test_predict(self, data_shape):

@@ -5,12 +5,19 @@ from pathlib import Path
 import warnings
 
 import numpy as np
+import xarray as xr
 from tensorflow import keras
 import cv2
 from skimage import measure
 
 
-def ai_segmentation(images: np.ndarray, points: int = 360) -> np.ndarray:
+def ai_segmentation(
+    images: xr.DataArray,
+    segments: xr.DataArray,
+    *,
+    points: int,
+    **kwargs,
+) -> None:
     """Performs the segmentation using the AI segmenter.
 
     Images are first normalized, then are fed into the AI segmenter - which is loaded
@@ -19,20 +26,18 @@ def ai_segmentation(images: np.ndarray, points: int = 360) -> np.ndarray:
     is used.
 
     Args:
-        images: Input array with the images, of shape (n, h, w, c). n is the number of
-            frames, (h, w) is their height and width, and c the number of channels.
-            Channels must be arranged as (magnitude, phase X, phase Y, phase Z).
+        images: Input DataArray with the images, of shape (frames, height, width,
+            channels). Channels must be arranged as (Mag, phase X, phase Y, phase Z).
+        segments: Output DataArray to be filled with the epi- and endocardium
+            segmentations of shape.
         points: Number of points for each contour.
 
     Returns:
-        An array with the epi- and endocardium segmentations of shape (n, 2, 2, points).
-        n is the number of frames, as above, then is the side (epi and endo,
-        respectively), the coordinate component of the contour (row and column), and the
-        number of points for the contour.
+        None
     """
-    normalized = Normal.run(images, method="zeromean_unitvar")
+    normalized = Normal.run(images.data, method="zeromean_unitvar")
     labels = UNet.factory().predict(normalized)
-    return labels_to_contours(labels, points)
+    segments.loc[{"frame": images.frame}] = labels_to_contours(labels, points)
 
 
 class UNet:
