@@ -52,7 +52,7 @@ class MouseAction(Flag):
 
 
 class TriggerSignature(NamedTuple):
-    """ Contains the signature triad needed to trigger an event.
+    """Contains the signature triad needed to trigger an event.
 
     - location (Location): The location where the pointer must be
     - button (Button): The button that must be pressed

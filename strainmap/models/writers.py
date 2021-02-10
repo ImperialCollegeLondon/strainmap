@@ -252,7 +252,7 @@ def add_velocity(velocity, region_names, ws):
 
 
 def export_superpixel(data, dataset, filename):
-    """ Export superpixel velocity data.
+    """Export superpixel velocity data.
 
     TODO: Remove in final version.
     """
@@ -438,8 +438,7 @@ def paths_to_hdf5(g: Union[h5py.File], master: str, structure: xr.DataArray) -> 
 def labels_to_group(
     group: h5py.Group, dims: Sequence[str], coords: Dict[str, Sequence]
 ) -> None:
-    """ Save the dimensions and coordinates of a labelled array as a h5 group.
-    """
+    """Save the dimensions and coordinates of a labelled array as a h5 group."""
     for d in dims:
         if coords[d] is not None:
             group.create_dataset(d, data=np.array(coords[d], dtype="S10"))
@@ -448,8 +447,7 @@ def labels_to_group(
 
 
 def labelled_array_to_group(group: h5py.Group, larray: LabelledArray) -> None:
-    """ Save a LabelledArray as a h5 group.
-    """
+    """Save a LabelledArray as a h5 group."""
     labels_to_group(
         group.create_group("labels", track_order=True), larray.dims, larray.coords
     )
