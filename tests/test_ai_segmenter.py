@@ -2,6 +2,27 @@ import pytest
 from unittest.mock import MagicMock
 
 
+@pytest.fixture
+def data_shape():
+    return 32
+
+
+@pytest.fixture
+def keras_model(data_shape):
+    from tensorflow import keras
+    import numpy as np
+
+    train_input = np.random.random((128, data_shape))
+    train_target = np.random.random((128, 1))
+
+    inputs = keras.Input(shape=(data_shape,))
+    outputs = keras.layers.Dense(1)(inputs)
+    model = keras.Model(inputs, outputs)
+    model.compile(optimizer="adam", loss="mean_squared_error")
+    model.fit(train_input, train_target)
+    return model
+
+
 def test_add_ellipse():
     from strainmap.models.ai_segmenter import add_ellipse
     import cv2
@@ -150,10 +171,25 @@ class TestNormal:
 
 
 class TestUNet:
-    @pytest.mark.xfail
-    def test_factory(self):
-        assert False
+    def test_factory(self, data_shape, keras_model, tmp_path):
+        from strainmap.models.ai_segmenter import UNet
+        import numpy as np
 
-    @pytest.mark.xfail
-    def test_predict(self):
-        assert False
+        keras_model.save(tmp_path)
+        loaded = UNet.factory(tmp_path)
+        assert id(loaded) == id(UNet.factory())
+
+        data = np.random.random((100, data_shape))
+        np.testing.assert_allclose(
+            keras_model.predict(data), loaded.model.predict(data)
+        )
+
+    def test_predict(self, data_shape):
+        from strainmap.models.ai_segmenter import UNet
+        import numpy as np
+
+        net = UNet.factory()
+        data = np.random.random((5, data_shape))
+        predicted = net.predict(data)
+        assert predicted.dtype == np.int8
+        assert set(predicted) == {0, 1}
