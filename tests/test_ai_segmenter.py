@@ -130,14 +130,14 @@ def test_labels_to_contours():
         ]
     )
     with pytest.warns(None) as record:
-        actual = labels_to_contours(labels)
+        actual = labels_to_contours(labels, points=points)
     assert actual.shape == (3, 2, 2, points)
     assert not np.isnan(actual).any()
     assert len(record) == 0
 
     labels[0] = 0
     with pytest.warns(None) as record:
-        actual = labels_to_contours(labels)
+        actual = labels_to_contours(labels, points=points)
     assert actual.shape == (3, 2, 2, points)
     assert np.isnan(actual[0]).all()
     assert record[-1].category == RuntimeWarning
@@ -194,4 +194,4 @@ class TestUNet:
         predicted = net.predict(data)
         assert predicted.shape == (5, data_shape[0], data_shape[1])
         assert predicted.dtype == np.int8
-        assert set(predicted) == {0, 1}
+        assert set(np.unique(predicted)) == {0, 1}
