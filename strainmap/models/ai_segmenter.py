@@ -16,7 +16,7 @@ def ai_segmentation(
     *,
     points: int,
     **kwargs,
-) -> np.array:
+) -> xr.DataArray:
     """Performs the segmentation using the AI segmenter.
 
     Images are first normalized, then are fed into the AI segmenter - which is loaded
@@ -30,14 +30,24 @@ def ai_segmentation(
         points: Number of points for each contour.
 
     Returns:
-        Numpy array with the new segments. Shape will be (2, frames, 2, points).
+        DataArray with the new segments for the requested frames. Dimensions are (side,
+        frame, coord, point).
     """
     normalized = Normal.run(
         images.transpose("frame", "row", "col", "comp").data,
         method="zeromean_unitvar",
     )
     labels = UNet.factory().predict(normalized)
-    return labels_to_contours(labels, points)
+    segments = labels_to_contours(labels, points)
+    return xr.DataArray(
+        segments,
+        dims=["side", "frame", "coord", "point"],
+        coords={
+            "side": ["epicardium", "endocardium"],
+            "frame": images.frame,
+            "coord": ["col", "row"],
+        },
+    )
 
 
 class UNet:

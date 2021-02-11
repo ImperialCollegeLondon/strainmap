@@ -232,7 +232,7 @@ def snakes_segmentation(
     *,
     initials: xr.DataArray,
     **kwargs,
-) -> np.array:
+) -> xr.DataArray:
     """Find the segmentation of one or more images starting at the initials segments.
 
     Args:
@@ -240,44 +240,39 @@ def snakes_segmentation(
         initials (xr.DataArray): Initial segments to start the segmentation with.
 
     Returns:
-        Numpy array with the new segments. Shape will be (2, frames, 2, points) for the
-        case of multiple segmentations and (2, 2, points) when segmenting a single
-        frame.
+        DataArray with the new segments for the requested frames. Dimensions are (side,
+        frame, coord, point).
     """
     img = images.sel(comp=Comp.MAG)
     frame = img.frame
 
-    # In frame by frame segmentation, we don't segment if already above threshold
-    if frame.shape == () and frame.item() >= replace_threshold:
-        return initials.copy().data
+    segments = initials.copy().expand_dims(axis=1, frame=frame)
 
-    # For multiple segmentations or if not yet above threshold
-    else:
+    # In frame by frame segmentation, we don't segment if already above threshold
+    if not (frame.size == 1 and frame.item() >= replace_threshold):
+
         rules = (
             _create_rules_one_frame(
                 frame.item(), initials, (img.sizes["row"], img.sizes["col"])
             )
-            if frame.shape == ()
+            if frame.size == 1
             else _create_rules_all_frames(replace_threshold)
         )
 
-        segments = []
         for side in ("endocardium", "epicardium"):
-            segments.append(
-                _simple_segmentation(
-                    img.data,
-                    initials.sel(side=side).data,
-                    model=model,
-                    model_params=model_params[side],
-                    ffilter=ffilter,
-                    filter_params=filter_params[side],
-                    propagator=propagator,
-                    propagator_params=propagator_params[side],
-                    rules=rules[side],
-                )
+            segments.loc[{"side": side}] = _simple_segmentation(
+                img.data,
+                initials.sel(side=side).data,
+                model=model,
+                model_params=model_params[side],
+                ffilter=ffilter,
+                filter_params=filter_params[side],
+                propagator=propagator,
+                propagator_params=propagator_params[side],
+                rules=rules[side],
             )
 
-        return np.asarray(segments)
+    return segments
 
 
 def _create_rules_one_frame(

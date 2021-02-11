@@ -28,23 +28,22 @@ def new_segmentation(
     segments, centroid, septum = _get_segment_variables(
         data, cine, initials.sizes["point"]
     )
-    frame = frame if frame is not None else segments.frame
+    frm = [frame] if isinstance(frame, int) else segments.frame.data.tolist()
 
-    segments.loc[{"frame": frame}] = SEGMENTATION_METHOD[method](
-        data.data_files.images(cine).sel(frame=frame),
-        segments,
+    segments.loc[{"frame": frm}] = SEGMENTATION_METHOD[method](
+        data.data_files.images(cine).sel(frame=frm),
         initials=initials,
         points=initials.sizes["point"],
     )
 
     # Update the centroid (or center of mass, COM)
-    centroid.loc[{"frame": frame}] = _calc_centroids(segments.sel(frame=frame))
+    centroid.loc[{"frame": frm}] = _calc_centroids(segments.sel(frame=frm))
 
     # We set the new septum
-    septum.loc[{"frame": frame}] = new_septum.sel(frame=0).copy()
+    septum.loc[{"frame": frm}] = new_septum.sel(frame=0).copy()
 
     # If are doing an automatic segmentation for all frames, calculate the effective COM
-    if (frame == segments.frame).all():
+    if len(frm) == len(segments.frame):
         centroid[...] = _calc_effective_centroids(centroid, window=3)
 
     # data.save("segments", "centroid", "septum")
@@ -103,9 +102,9 @@ def update_and_find_next(
     update_segmentation(data, cine, new_segments, new_septum)
 
     segments, centroid, septum = _get_segment_variables(data, cine)
-    SEGMENTATION_METHOD[method](
-        data.data_files.images(cine).sel(frame=frame),
-        segments,
+
+    segments.loc[{"frame": frame}] = SEGMENTATION_METHOD[method](
+        data.data_files.images(cine).sel(frame=[frame]),
         initials=segments.sel(frame=frame - 1),
         points=segments.sizes["point"],
     )

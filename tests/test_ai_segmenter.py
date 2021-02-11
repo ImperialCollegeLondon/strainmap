@@ -1,8 +1,6 @@
 import pytest
 from unittest.mock import MagicMock
 
-import strainmap.strainmap.models.snakes_segmenter
-
 
 @pytest.fixture
 def data_shape():
@@ -108,10 +106,12 @@ def test_labels_to_contours():
     import numpy as np
 
     points = 361
-    labels = np.zeros((3, 20, 20), dtype=np.int8)
+    frames = 5
+    labels = np.zeros((frames, 20, 20), dtype=np.int8)
+    expected_shape = (2, frames, 2, points)
     with pytest.warns(None) as record:
         actual = labels_to_contours(labels, points=points)
-    assert actual.shape == (3, 2, 2, points)
+    assert actual.shape == expected_shape
     assert np.isnan(actual).all()
     assert record[-1].category == RuntimeWarning
     assert record[-1].message.args[0] == "Contours not found for 3 images."
@@ -133,15 +133,15 @@ def test_labels_to_contours():
     )
     with pytest.warns(None) as record:
         actual = labels_to_contours(labels, points=points)
-    assert actual.shape == (3, 2, 2, points)
+    assert actual.shape == expected_shape
     assert not np.isnan(actual).any()
     assert len(record) == 0
 
     labels[0] = 0
     with pytest.warns(None) as record:
         actual = labels_to_contours(labels, points=points)
-    assert actual.shape == (3, 2, 2, points)
-    assert np.isnan(actual[0]).all()
+    assert actual.shape == expected_shape
+    assert np.isnan(actual[:, 0]).all()
     assert record[-1].category == RuntimeWarning
     assert record[-1].message.args[0] == "Contours not found for 1 images."
 
@@ -184,7 +184,7 @@ class TestUNet:
 
         data = np.random.random((10, *data_shape))
         np.testing.assert_allclose(
-            keras_model.predict(data), strainmap.strainmap.models.snakes_segmenter.model.predict(data)
+            keras_model.predict(data), loaded.model.predict(data)
         )
 
     def test_predict(self, data_shape):
@@ -202,9 +202,13 @@ class TestUNet:
 def test_ai_segmentation(data_shape):
     from strainmap.models.ai_segmenter import ai_segmentation
     import numpy as np
+    import xarray as xr
 
     points = 360
     n = 5
-    data = np.random.random((n, *data_shape))
+    data = xr.DataArray(
+        np.random.random((n, *data_shape)), dims=["frame", "row", "col", "comp"]
+    )
     contours = ai_segmentation(data, points)
-    assert contours.shape == (n, 2, 2, points)
+    expected_shape = (2, n, 2, points)
+    assert contours.transpose("side", "frame", "coord", "point").shape == expected_shape
