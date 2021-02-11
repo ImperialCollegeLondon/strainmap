@@ -30,7 +30,7 @@ def new_segmentation(
     )
     frame = frame if frame is not None else segments.frame
 
-    SEGMENTATION_METHOD[method](
+    segments.loc[{"frame": frame}] = SEGMENTATION_METHOD[method](
         data.data_files.images(cine).sel(frame=frame),
         segments,
         initials=initials,

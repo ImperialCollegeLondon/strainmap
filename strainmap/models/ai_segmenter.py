@@ -13,11 +13,10 @@ from skimage import measure
 
 def ai_segmentation(
     images: xr.DataArray,
-    segments: xr.DataArray,
     *,
     points: int,
     **kwargs,
-) -> None:
+) -> np.array:
     """Performs the segmentation using the AI segmenter.
 
     Images are first normalized, then are fed into the AI segmenter - which is loaded
@@ -26,18 +25,19 @@ def ai_segmentation(
     is used.
 
     Args:
-        images: Input DataArray with the images, of shape (frames, height, width,
-            channels). Channels must be arranged as (Mag, phase X, phase Y, phase Z).
-        segments: Output DataArray to be filled with the epi- and endocardium
-            segmentations of shape.
+        images: Input DataArray with the images to segment. Channels must be arranged
+            as (Mag, phase X, phase Y, phase Z).
         points: Number of points for each contour.
 
     Returns:
-        None
+        Numpy array with the new segments. Shape will be (2, frames, 2, points).
     """
-    normalized = Normal.run(images.data, method="zeromean_unitvar")
+    normalized = Normal.run(
+        images.transpose("frame", "row", "col", "comp").data,
+        method="zeromean_unitvar",
+    )
     labels = UNet.factory().predict(normalized)
-    segments.loc[{"frame": images.frame}] = labels_to_contours(labels, points)
+    return labels_to_contours(labels, points)
 
 
 class UNet:
@@ -330,8 +330,8 @@ def labels_to_contours(labels: np.ndarray, points: int = 360) -> np.ndarray:
         points: Number of points for each contour.
 
     Returns:
-        Array of contours found out of the corresponding labels, of shape (n, 2, 2, p),
-        meaning, respectively: number of images, side (epi- and endocardium),
+        Array of contours found out of the corresponding labels, of shape (2, n, 2, p),
+        meaning, respectively: side (epi- and endocardium), number of images (frames)
         coordinates of each contour and the points.
     """
     contours = []
@@ -351,4 +351,4 @@ def labels_to_contours(labels: np.ndarray, points: int = 360) -> np.ndarray:
     if not_found > 0:
         warnings.warn(f"Contours not found for {not_found} images.", RuntimeWarning)
 
-    return np.array(contours)
+    return np.array(contours).transpose((1, 0, 2, 3))

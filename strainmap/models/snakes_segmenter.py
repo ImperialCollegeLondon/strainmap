@@ -229,52 +229,55 @@ class Segmenter(object):
 
 def snakes_segmentation(
     images: xr.DataArray,
-    segments: xr.DataArray,
     *,
     initials: xr.DataArray,
     **kwargs,
-) -> None:
+) -> np.array:
     """Find the segmentation of one or more images starting at the initials segments.
 
     Args:
         images (xr.DataArray): The images for the frames to segment.
-        segments (xr.DataArray): The original segments array.
         initials (xr.DataArray): Initial segments to start the segmentation with.
 
     Returns:
-        None
+        Numpy array with the new segments. Shape will be (2, frames, 2, points) for the
+        case of multiple segmentations and (2, 2, points) when segmenting a single
+        frame.
     """
     img = images.sel(comp=Comp.MAG)
     frame = img.frame
 
-    rules = (
-        _create_rules_one_frame(
-            frame.item(), segments, (img.sizes["row"], img.sizes["col"])
-        )
-        if frame.shape == ()
-        else _create_rules_all_frames(replace_threshold)
-    )
+    # In frame by frame segmentation, we don't segment if already above threshold
+    if frame.shape == () and frame.item() >= replace_threshold:
+        return initials.copy().data
 
-    for side in ("endocardium", "epicardium"):
-        # In frame by frame segmentation, we don't segment if already above threshold
-        if frame.shape == () and frame.item() >= replace_threshold:
-            segments.loc[{"side": side, "frame": frame}] = segments.sel(
-                side=side, frame=frame - 1
-            ).copy()
-
-        # For multiple segmentations or if not yet above threshold
-        else:
-            segments.loc[{"side": side, "frame": frame}] = _simple_segmentation(
-                img.data,
-                initials.sel(side=side).data,
-                model=model,
-                model_params=model_params[side],
-                ffilter=ffilter,
-                filter_params=filter_params[side],
-                propagator=propagator,
-                propagator_params=propagator_params[side],
-                rules=rules[side],
+    # For multiple segmentations or if not yet above threshold
+    else:
+        rules = (
+            _create_rules_one_frame(
+                frame.item(), initials, (img.sizes["row"], img.sizes["col"])
             )
+            if frame.shape == ()
+            else _create_rules_all_frames(replace_threshold)
+        )
+
+        segments = []
+        for side in ("endocardium", "epicardium"):
+            segments.append(
+                _simple_segmentation(
+                    img.data,
+                    initials.sel(side=side).data,
+                    model=model,
+                    model_params=model_params[side],
+                    ffilter=ffilter,
+                    filter_params=filter_params[side],
+                    propagator=propagator,
+                    propagator_params=propagator_params[side],
+                    rules=rules[side],
+                )
+            )
+
+        return np.asarray(segments)
 
 
 def _create_rules_one_frame(
@@ -306,9 +309,7 @@ def _create_rules_one_frame(
         rules[side].append(
             partial(
                 _replace_single,
-                replacement=Contour(
-                    replacement.sel(side=side, frame=frame - 1).data.T, shape=shape
-                ),
+                replacement=Contour(replacement.sel(side=side).data.T, shape=shape),
                 rtol=rtol[side],
                 replace=False,
             )
