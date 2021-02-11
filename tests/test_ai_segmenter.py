@@ -114,7 +114,7 @@ def test_labels_to_contours():
     assert actual.shape == expected_shape
     assert np.isnan(actual).all()
     assert record[-1].category == RuntimeWarning
-    assert record[-1].message.args[0] == "Contours not found for 3 images."
+    assert record[-1].message.args[0] == "Contours not found for 5 images."
 
     labels = np.array(
         [
@@ -128,7 +128,7 @@ def test_labels_to_contours():
                 color=1,
                 thickness=2,
             )
-            for i in range(3)
+            for _ in range(frames)
         ]
     )
     with pytest.warns(None) as record:
@@ -164,10 +164,11 @@ class TestNormal:
 
     def test_run(self):
         from strainmap.models.ai_segmenter import Normal
+        import numpy as np
 
         fun = MagicMock(__name__="my_norm")
         Normal.register(fun)
-        data = [1, 2, 3]
+        data = np.array([1, 2, 3])
         Normal.run(data, "my_norm")
         fun.assert_called_with(data)
         del Normal._normalizers["my_norm"]
@@ -209,6 +210,6 @@ def test_ai_segmentation(data_shape):
     data = xr.DataArray(
         np.random.random((n, *data_shape)), dims=["frame", "row", "col", "comp"]
     )
-    contours = ai_segmentation(data, points)
+    contours = ai_segmentation(data, points=points)
     expected_shape = (2, n, 2, points)
     assert contours.transpose("side", "frame", "coord", "point").shape == expected_shape
