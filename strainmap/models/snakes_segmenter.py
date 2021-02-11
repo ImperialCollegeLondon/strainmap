@@ -12,7 +12,6 @@ from ..coordinates import Comp
 from .contour_mask import Contour, dilate
 from .filters import REGISTERED_FILTERS
 from .propagators import REGISTERED_PROPAGATORS
-from .segmentation import _calc_centroids
 
 
 model = "AC"
@@ -57,7 +56,7 @@ def active_contour_model(img: np.ndarray, initial: Contour, **params: Dict) -> C
     from skimage.segmentation import active_contour
 
     if img.ndim > 2:
-        msg = f"The active contour segmentation model can't perform 3D segmentations."
+        msg = "The active contour segmentation model can't perform 3D segmentations."
         raise NotImplementedError(msg)
     else:
         snake = active_contour(img, initial.xy, **params)
@@ -288,7 +287,7 @@ def _create_rules_one_frame(
 
     Args:
         frame (int): Frame at which to apply the rules.
-        segments(xr.DataArray): Array with all the contours
+        replacement (xr.DataArray): Array with all the contours
         shape (tuple): Shape of the image. Needed to expand/contract the contour
             (well, not really)
 

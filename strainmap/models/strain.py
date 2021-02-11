@@ -411,7 +411,7 @@ def calculate_strain(
     space = coordinates(data, sorted_datasets, resample=resample)
 
     callback("Calculating twist", 3 / steps)
-    data.twist = twist(data, sorted_datasets)
+    # data.twist = twist(data, sorted_datasets)
 
     callback("Calculating strain", 4 / steps)
     reduced_strain = differentiate(disp, space)
@@ -715,7 +715,7 @@ def global_longitudinal_strain(
 #     cyl_iter = (data.masks[d][vkey] for d in datasets)
 #     m_iter = (data.masks[d][rkey] + 100 * data.masks[d][akey] for d in datasets)
 #     reduced_vel_map = map(partial(masked_reduction, axis=img_axis), cyl_iter, m_iter)
-#     radius = coordinates(data, datasets, resample=False, use_frame_zero=False)[1].mean(
+#     radius = coordinates(data, datasets,resample=False, use_frame_zero=False)[1].mean(
 #         axis=(2, 3)
 #     )
 

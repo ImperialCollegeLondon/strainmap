@@ -374,7 +374,7 @@ class DataTaskView(TaskViewBase):
         self.fig.canvas.draw()
 
     def update_dicom_data_view(self):
-        """ Updates the treeview with data from the selected options.
+        """Updates the treeview with data from the selected options.
 
         Only data for cine = 0 is loaded.
         """

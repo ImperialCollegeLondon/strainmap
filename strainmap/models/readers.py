@@ -13,7 +13,6 @@ import h5py
 import numpy as np
 import pandas as pd
 import pydicom
-import sparse
 import xarray as xr
 from natsort import natsorted
 

@@ -550,7 +550,7 @@ def masked_means(
         result = MaskedArray(d, m).mean(axis=axes).data
         return result.reshape(1, *result.shape)
 
-    return np.concatenate(list(_mean(sdata, blabels != l) for l in regions))
+    return np.concatenate(list(_mean(sdata, blabels != r) for r in regions))
 
 
 if __name__ == "__main__":

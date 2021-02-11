@@ -31,7 +31,6 @@ setup(
         "openpyxl",
         "h5py",
         "natsort",
-        "sparse",
         "pandas",
         "tensorflow",
         "tensorlayer",

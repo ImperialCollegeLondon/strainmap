@@ -1,15 +1,12 @@
 import os
 from itertools import chain
 from pathlib import Path, PurePath, PurePosixPath
-from typing import Dict, Iterable, Optional, Sequence, Union
+from typing import Iterable, Optional, Union
 
 import h5py
 import numpy as np
 import openpyxl as xlsx
-import sparse
 import xarray as xr
-
-from .sm_data import LabelledArray
 
 
 def velocity_to_xlsx(filename, data, dataset, vel_label):
@@ -57,11 +54,11 @@ def velocity_to_xlsx(filename, data, dataset, vel_label):
     if data.orientation == "CCW":
         region_names = region_names[::-1]
 
-    for l in labels:
-        title = l.split(" - ")[0]
+    for lab in labels:
+        title = lab.split(" - ")[0]
         try:
             add_markers(
-                data.markers[dataset][l],
+                data.markers[dataset][lab],
                 params_ws,
                 colnames=colnames,
                 p=p,
@@ -69,9 +66,11 @@ def velocity_to_xlsx(filename, data, dataset, vel_label):
                 title=title,
             )
         except KeyError:
-            print(f"Ignoring key '{l}' when exporting velocity markers.")
+            print(f"Ignoring key '{lab}' when exporting velocity markers.")
 
-        add_velocity(data.velocities[dataset][l], region_names, wb.create_sheet(title))
+        add_velocity(
+            data.velocities[dataset][lab], region_names, wb.create_sheet(title)
+        )
 
     wb.save(filename)
     wb.close()
@@ -127,11 +126,11 @@ def strain_to_xlsx(filename, data, dataset, vel_label):
     if data.orientation == "CCW":
         region_names = region_names[::-1]
 
-    for l in labels:
-        title = l.split(" - ")[0]
+    for lab in labels:
+        title = lab.split(" - ")[0]
         try:
             add_strain_markers(
-                data.strain_markers[dataset][l],
+                data.strain_markers[dataset][lab],
                 params_ws,
                 colnames=colnames,
                 p=p,
@@ -139,9 +138,9 @@ def strain_to_xlsx(filename, data, dataset, vel_label):
                 title=title,
             )
         except KeyError:
-            print(f"Ignoring key '{l}' when exporting strain markers.")
+            print(f"Ignoring key '{lab}' when exporting strain markers.")
 
-        add_velocity(data.strain[dataset][l], region_names, wb.create_sheet(title))
+        add_velocity(data.strain[dataset][lab], region_names, wb.create_sheet(title))
 
     wb.save(filename)
     wb.close()
@@ -433,31 +432,6 @@ def paths_to_hdf5(g: Union[h5py.File], master: str, structure: xr.DataArray) -> 
                 master, structure.sel(cine=cine, raw_comp=comp).values
             )
             g.create_dataset(n, data=paths, track_order=True)
-
-
-def labels_to_group(
-    group: h5py.Group, dims: Sequence[str], coords: Dict[str, Sequence]
-) -> None:
-    """Save the dimensions and coordinates of a labelled array as a h5 group."""
-    for d in dims:
-        if coords[d] is not None:
-            group.create_dataset(d, data=np.array(coords[d], dtype="S10"))
-        else:
-            group.create_dataset(d, dtype=h5py.Empty("f"))
-
-
-def labelled_array_to_group(group: h5py.Group, larray: LabelledArray) -> None:
-    """Save a LabelledArray as a h5 group."""
-    labels_to_group(
-        group.create_group("labels", track_order=True), larray.dims, larray.coords
-    )
-    if isinstance(larray.values, sparse.COO):
-        group["values"] = larray.values.data
-        group["coords"] = larray.values.coords
-        group.attrs["shape"] = larray.values.shape
-        group.attrs["fill_value"] = larray.values.fill_value
-    else:
-        group["values"] = larray.values
 
 
 def terminal(msg: str, value: Optional[float] = None):
