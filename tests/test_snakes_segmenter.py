@@ -5,7 +5,7 @@ from pytest import approx, raises
 
 def test_segmenter_global_segmenter():
     from strainmap.models.contour_mask import Contour
-    from strainmap.models.segmenters import Segmenter
+    from strainmap.models.snakes_segmenter import Segmenter
 
     c = Contour.circle()
 
@@ -22,7 +22,7 @@ def test_segmenter_global_segmenter():
 
 def test_segmenter_propagated_segmenter():
     from strainmap.models.contour_mask import Contour
-    from strainmap.models.segmenters import Segmenter
+    from strainmap.models.snakes_segmenter import Segmenter
     import numpy as np
 
     c = Contour.circle()
@@ -48,7 +48,7 @@ def test_segmenter_propagated_segmenter():
 def test_active_contour():
     """ This only tests if methods are called correctly, NOT if the algorithm works."""
     from strainmap.models.contour_mask import Contour
-    from strainmap.models.segmenters import active_contour_model
+    from strainmap.models.snakes_segmenter import active_contour_model
     import numpy as np
 
     c = Contour.circle()
@@ -68,7 +68,9 @@ def test_morph_gac_model():
     """ This only tests if methods are called correctly, NOT if the algorithm works."""
     import numpy as np
     from strainmap.models.contour_mask import Contour
-    from strainmap.models.segmenters import morphological_geodesic_active_contour_model
+    from strainmap.models.snakes_segmenter import (
+        morphological_geodesic_active_contour_model,
+    )
 
     c = Contour.circle()
 
@@ -93,7 +95,7 @@ def test_morph_cv_model():
     """ This only tests if methods are called correctly, NOT if the algorithm works."""
     import numpy as np
     from strainmap.models.contour_mask import Contour
-    from strainmap.models.segmenters import morphological_chan_vese_model
+    from strainmap.models.snakes_segmenter import morphological_chan_vese_model
 
     c = Contour.circle()
 
@@ -106,3 +108,34 @@ def test_morph_cv_model():
     assert len(actual) == 3
     for act in actual:
         assert c.mask == approx(act.mask)
+
+
+def test_replace_single():
+    from strainmap.models.contour_mask import Contour
+    from strainmap.models.snakes_segmenter import _replace_single
+
+    c = Contour.circle((0, 0), 10)
+    c2 = c.dilate(1.05)
+
+    out = _replace_single(c, c2)
+    assert out.xy == approx(c2.xy)
+
+    out = _replace_single(c, c2, replace=False)
+    assert out.xy == approx(c.xy)
+
+    c3 = c.dilate(1.5)
+    out = _replace_single(c, c3, replace=False)
+    assert out.xy == approx(c3.xy)
+
+
+def test_replace_in_list():
+    from strainmap.models.contour_mask import Contour
+    from strainmap.models.snakes_segmenter import _replace_in_list
+
+    c = Contour.circle((0, 0), 10)
+    contours = [c, c.dilate(1.5), c.dilate(1.05)]
+    expected = [c, c, c]
+
+    actual = _replace_in_list(contours, frame_threshold=2)
+    for ex, ac in zip(expected, actual):
+        assert ac.xy == approx(ex.xy)

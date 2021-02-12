@@ -1,35 +1,4 @@
-from pytest import approx, raises
-
-
-def test_replace_single():
-    from strainmap.models.contour_mask import Contour
-    from strainmap.models.segmentation import _replace_single
-
-    c = Contour.circle((0, 0), 10)
-    c2 = c.dilate(1.05)
-
-    out = _replace_single(c, c2)
-    assert out.xy == approx(c2.xy)
-
-    out = _replace_single(c, c2, replace=False)
-    assert out.xy == approx(c.xy)
-
-    c3 = c.dilate(1.5)
-    out = _replace_single(c, c3, replace=False)
-    assert out.xy == approx(c3.xy)
-
-
-def test_replace_in_list():
-    from strainmap.models.contour_mask import Contour
-    from strainmap.models.segmentation import _replace_in_list
-
-    c = Contour.circle((0, 0), 10)
-    contours = [c, c.dilate(1.5), c.dilate(1.05)]
-    expected = [c, c, c]
-
-    actual = _replace_in_list(contours, frame_threshold=2)
-    for ex, ac in zip(expected, actual):
-        assert ac.xy == approx(ex.xy)
+from pytest import approx, mark
 
 
 def test_centroids():
@@ -68,29 +37,41 @@ def test_effective_centroid():
     assert actual.data == approx(expected)
 
 
-def test_update_segmentation(segments_arrays):
-    import numpy as np
-    from numpy.random import default_rng
-    import xarray as xr
-    from strainmap.models.segmentation import _update_segmentation
+@mark.xfail(reason="Not implemented")
+def test_new_segmentation():
+    assert False
 
-    segments, _, centroid = segments_arrays
-    segments[...] = np.random.random(segments.shape)
-    frames = segments.sizes["frame"]
 
-    # Checks updating the segmentation of 1 frame
-    frame, other = default_rng().choice(frames, size=2, replace=False)
-    new_segments = segments.sel(cine="base", frame=frame) * 2
-    _update_segmentation(
-        segments.sel(cine="base"), centroid.sel(cine="base"), new_segments=new_segments
-    )
-    xr.testing.assert_equal(segments.sel(cine="base", frame=frame), new_segments)
-    with raises(AssertionError):
-        xr.testing.assert_equal(segments.sel(cine="base", frame=other), new_segments)
+@mark.xfail(reason="Not implemented")
+def test_update_segmentation():
+    assert False
 
-    # Checks updating the segmentation of all frames
-    new_segments = segments.sel(cine="apex") * 2
-    _update_segmentation(
-        segments.sel(cine="apex"), centroid.sel(cine="apex"), new_segments=new_segments
-    )
-    xr.testing.assert_equal(segments.sel(cine="apex"), new_segments)
+
+@mark.xfail(reason="Not implemented")
+def test_update_and_find_next():
+    assert False
+
+
+@mark.xfail(reason="Not implemented")
+def test_remove_segmentation():
+    assert False
+
+
+@mark.xfail(reason="Not implemented")
+def test__drop_cine():
+    assert False
+
+
+@mark.xfail(reason="Not implemented")
+def test__get_segment_variables():
+    assert False
+
+
+@mark.xfail(reason="Not implemented")
+def test__init_segments():
+    assert False
+
+
+@mark.xfail(reason="Not implemented")
+def test__init_septum_and_centroid():
+    assert False

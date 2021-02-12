@@ -246,31 +246,32 @@ def snakes_segmentation(
     img = images.sel(comp=Comp.MAG)
     frame = img.frame
 
-    segments = initials.copy().expand_dims(axis=1, frame=frame)
+    segments = initials.expand_dims(axis=1, frame=frame).copy()
 
     # In frame by frame segmentation, we don't segment if already above threshold
-    if not (frame.size == 1 and frame.item() >= replace_threshold):
+    if frame.size == 1 and frame.item() >= replace_threshold:
+        return segments
 
-        rules = (
-            _create_rules_one_frame(
-                frame.item(), initials, (img.sizes["row"], img.sizes["col"])
-            )
-            if frame.size == 1
-            else _create_rules_all_frames(replace_threshold)
+    rules = (
+        _create_rules_one_frame(
+            frame.item(), initials, (img.sizes["row"], img.sizes["col"])
         )
+        if frame.size == 1
+        else _create_rules_all_frames(replace_threshold)
+    )
 
-        for side in ("endocardium", "epicardium"):
-            segments.loc[{"side": side}] = _simple_segmentation(
-                img.data,
-                initials.sel(side=side).data,
-                model=model,
-                model_params=model_params[side],
-                ffilter=ffilter,
-                filter_params=filter_params[side],
-                propagator=propagator,
-                propagator_params=propagator_params[side],
-                rules=rules[side],
-            )
+    for side in ("endocardium", "epicardium"):
+        segments.loc[{"side": side}] = _simple_segmentation(
+            img.data,
+            initials.sel(side=side).data,
+            model=model,
+            model_params=model_params[side],
+            ffilter=ffilter,
+            filter_params=filter_params[side],
+            propagator=propagator,
+            propagator_params=propagator_params[side],
+            rules=rules[side],
+        )
 
     return segments
 
