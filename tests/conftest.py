@@ -72,8 +72,8 @@ def segmented_data(strainmap_data):
     initial_segments = xr.DataArray(
         np.array(
             [
-                Contour.circle(center=(270, 308), radius=50, shape=image.shape).xy.T,
                 Contour.circle(center=(270, 308), radius=30, shape=image.shape).xy.T,
+                Contour.circle(center=(270, 308), radius=50, shape=image.shape).xy.T,
             ]
         ),
         dims=("side", "coord", "point"),

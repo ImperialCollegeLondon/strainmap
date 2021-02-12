@@ -74,7 +74,8 @@ def ring_mask(outer: np.ndarray, inner: np.ndarray) -> Sequence[np.ndarray]:
     """Finds a ring-shaped mask between the outer and inner contours vs frame."""
     out_T = outer[..., ::-1]
     in_T = inner[..., ::-1]
-    shape = (int(out_T[..., 0].max()) + 1, int(out_T[..., 1].max()) + 1)
+    maxi = int(round(outer.max())) + 1
+    shape = (maxi, maxi)
 
     return np.nonzero(
         [
@@ -85,7 +86,11 @@ def ring_mask(outer: np.ndarray, inner: np.ndarray) -> Sequence[np.ndarray]:
 
 
 def global_mask(segments: xr.DataArray) -> np.ndarray:
-    """Finds the global mask"""
+    """Finds the indices of the global mask.
+
+    The output array has shape (4, n), with n the number of non-zero elements of the
+    mask, and the 4 rows representing, respectively: iregion, frame, row and col.
+    """
     seg = segments.transpose("side", "frame", "point", "coord")
     values = ring_mask(
         seg.sel(side="epicardium").data, seg.sel(side="endocardium").data
@@ -417,7 +422,7 @@ def initialise_markers(velocity: xr.DataArray) -> xr.DataArray:
 
 
 def update_markers(
-    markers: StrainMapData,
+    markers: xr.DataArray,
     marker_label: Mark,
     component: Comp,
     region: Region,
