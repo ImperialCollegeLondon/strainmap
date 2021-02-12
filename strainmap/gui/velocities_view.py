@@ -242,7 +242,7 @@ class VelocitiesTaskView(TaskViewBase):
 
     def reversal_checked(self):
         """Enables/disables de update velocities button if amy sign reversal changes."""
-        if tuple(var.get() for var in self.reverse_vel_var) != tuple(
+        if tuple(-1 if var.get() else 1 for var in self.reverse_vel_var) != tuple(
             self.data.sign_reversal
         ):
             self.update_vel_btn.state(["!disabled"])

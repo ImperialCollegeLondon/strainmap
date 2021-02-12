@@ -229,13 +229,7 @@ def data_with_velocities(segmented_data):
 
     dataset_name = segmented_data.data_files.datasets[0]
     output = deepcopy(segmented_data)
-    calculate_velocities(
-        output,
-        dataset_name,
-        global_velocity=True,
-        angular_regions=(6, 24),
-        radial_regions=(4,),
-    )
+    calculate_velocities(output, dataset_name)
     return output
 
 
