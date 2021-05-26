@@ -128,6 +128,8 @@ def masked_expansion(data: np.ndarray, masks: np.ndarray, axis: tuple) -> np.nda
     array with the same shape as the masks and with the masked elements equal to the
     corresponding entries of the reduced array. All other elements are masked.
 
+        >>> import pytest
+        >>> pytest.xfail(reason="WIP Refactoring")
         >>> radial = np.array([
         ...     [0, 0, 0, 0, 0, 0, 0, 0],
         ...     [0, 2, 2, 2, 2, 2, 2, 0],
