@@ -268,9 +268,7 @@ def test_next_frames(segmentation_view, strainmap_data):
 
     # First frame
     segmentation_view.first_frame()
-    segmentation_view.new_segmentation.assert_called_with(
-        0, unlock=False, replace_threshold=31
-    )
+    segmentation_view.new_segmentation.assert_called_with(0, unlock=False)
     assert segmentation_view.go_to_frame.call_count == 1
 
     # Other frames
