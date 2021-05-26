@@ -107,7 +107,7 @@ def update_and_find_next(
         data.data_files.images(cine).sel(frame=[frame]),
         initials=segments.sel(frame=frame - 1),
         points=segments.sizes["point"],
-    )
+    ).squeeze("frame", drop=True)
 
     # We update the centroid (or center of mass, COM)
     centroid.loc[{"frame": frame}] = _calc_centroids(segments.sel(frame=frame))

@@ -102,7 +102,7 @@ class SegmentationTaskView(TaskViewBase):
         self.master.bind("<Control_L><v>", self.copy_previous)
 
     def create_controls(self):
-        """ Creates all the widgets of the view. """
+        """Creates all the widgets of the view."""
         # Top frames
         control = ttk.Frame(master=self)
         control.columnconfigure(49, weight=1)
@@ -245,7 +245,7 @@ class SegmentationTaskView(TaskViewBase):
         self.update_drag_width()
 
     def create_plots(self, visualise_frame):
-        """ Creates the animation plot area. """
+        """Creates the animation plot area."""
 
         self.fig = Figure()
         self.ax_mag = self.fig.add_subplot(1, 2, 1)
@@ -725,7 +725,7 @@ class SegmentationTaskView(TaskViewBase):
         elif self.segment_mode_var.get() == "Assisted":
             self.first_frame()
         else:
-            self.first_frame(replace_threshold=1)
+            self.first_frame()
 
     def clear_segment_variables(self, button_pressed=True):
         """Clears all segmentation when a cine with no segmentation is loaded."""
@@ -760,17 +760,14 @@ class SegmentationTaskView(TaskViewBase):
         self.working_frame_var.set(self.num_frames - 1)
         self.go_to_frame()
 
-    def first_frame(self, replace_threshold=31):
+    def first_frame(self):
         """Triggers the segmentation when frame is 0."""
-        self.next_btn.config(
-            text="Next \u25B6",
-            command=partial(self.next, replace_threshold=replace_threshold),
-        )
-        self.new_segmentation(0, unlock=False, replace_threshold=replace_threshold)
+        self.next_btn.config(text="Next \u25B6", command=self.next)
+        self.new_segmentation(0, unlock=False)
         self.replot(self.cines_var.get())
         self.go_to_frame()
 
-    def next(self, replace_threshold=31):
+    def next(self):
         """Triggers the segmentation in the rest of the frames."""
         self.next_btn.state(["disabled"])
         self.confirm_btn.state(["disabled"])
@@ -778,7 +775,7 @@ class SegmentationTaskView(TaskViewBase):
         self.undo_all_btn.state(["disabled"])
         self.undo_stack = defaultdict(list)
 
-        self.update_and_find_next(replace_threshold=replace_threshold)
+        self.update_and_find_next()
         self.refresh_data()
 
         frame = self.working_frame_var.get()
@@ -809,9 +806,7 @@ class SegmentationTaskView(TaskViewBase):
         self.undo_stack = defaultdict(list)
         self.completed = True
 
-    def new_segmentation(
-        self, frame: Optional[int], unlock: bool, replace_threshold=31
-    ):
+    def new_segmentation(self, frame: Optional[int], unlock: bool):
         """Runs an automatic segmentation sequence."""
         self.controller.new_segmentation(
             cine=self.cines_var.get(),
@@ -819,17 +814,15 @@ class SegmentationTaskView(TaskViewBase):
             initials=self.initial_segments,
             new_septum=self._septum,
             unlock=unlock,
-            replace_threshold=replace_threshold,
         )
 
-    def update_and_find_next(self, replace_threshold=31):
+    def update_and_find_next(self):
         """Confirm the new segments and moves to the next."""
         self.controller.update_and_find_next(
             cine=self.cines_var.get(),
             frame=self.current_frame + 1,
             new_segments=self._segments,
             new_septum=self._septum,
-            replace_threshold=replace_threshold,
         )
 
     def confirm_segmentation(self, *args):
@@ -860,7 +853,7 @@ class SegmentationTaskView(TaskViewBase):
         self.fig.actions_manager.ScrollFrames.stop_animation()
 
     def update_widgets(self):
-        """ Updates widgets after an update in the data var. """
+        """Updates widgets after an update in the data var."""
         if self.controller.review_mode:
             values = self.data.segments.cine
         else:
@@ -882,5 +875,5 @@ class SegmentationTaskView(TaskViewBase):
         self.cine_changed()
 
     def clear_widgets(self):
-        """ Clear widgets after removing the data. """
+        """Clear widgets after removing the data."""
         pass
