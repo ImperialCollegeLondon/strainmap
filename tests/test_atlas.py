@@ -9,9 +9,9 @@ def test_validate(dummy_data, tmp_path):
 
 
 def test_tabs(atlas_view):
-    expected = ("PSS", "ESS", "PS", "Data")
+    expected = ("Data",)
 
-    assert len(atlas_view.notebook.tabs()) == 4
+    assert len(atlas_view.notebook.tabs()) == len(expected)
     for i, t in enumerate(atlas_view.notebook.tabs()):
         assert atlas_view.notebook.tab(t, "text") == expected[i]
 

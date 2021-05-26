@@ -61,10 +61,14 @@ class AtlasTaskView(TaskViewBase):
 
         self.path: Optional[Path] = None
         self.atlas_data = self.load_atlas_data(self.path)
-        self.pss = self.create_plot("PSS", self.atlas_data)
-        self.ess = self.create_plot("ESS", self.atlas_data)
-        self.ps = self.create_plot("PS", self.atlas_data)
         self.table = self.create_data_tab(self.atlas_data)
+
+        if len(self.atlas_data) > 0:
+            self.pss = self.create_plot("PSS", self.atlas_data)
+            self.ess = self.create_plot("ESS", self.atlas_data)
+            self.ps = self.create_plot("PS", self.atlas_data)
+        else:
+            self.pss = self.ess = self.ps = None
 
         self.overlay_data = tk.BooleanVar(value=False)
         self.dataset_box = self.create_datasets_selector()
@@ -103,6 +107,12 @@ class AtlasTaskView(TaskViewBase):
     def update_plots(self):
         """Updates the plots with the new data."""
         self.controller.progress("Updating plots...")
+
+        if self.pss is None:
+            self.pss = self.create_plot("PSS", self.atlas_data)
+            self.ess = self.create_plot("ESS", self.atlas_data)
+            self.ps = self.create_plot("PS", self.atlas_data)
+
         self.pss.update_plot(self.atlas_data)
         self.ess.update_plot(self.atlas_data)
         self.ps.update_plot(self.atlas_data)
