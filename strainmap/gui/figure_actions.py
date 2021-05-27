@@ -410,7 +410,7 @@ class DrawContours(ActionBase):
         self.add_contour(ax)
 
     def remove_artist(self, _, event, *args) -> None:
-        """ Removes an artist (point or contour) from the plot.
+        """Removes an artist (point or contour) from the plot.
 
         Args:
             _: The event associated with the button released (ignored).
@@ -442,7 +442,7 @@ class DrawContours(ActionBase):
             )
 
     def clear_drawing(self, event, *args) -> None:
-        """ Clears all the data accumulated in the drawing and the axes.
+        """Clears all the data accumulated in the drawing and the axes.
 
         Args:
             event: The event that triggered this action.
@@ -454,7 +454,7 @@ class DrawContours(ActionBase):
         self.clear_drawing_(event.inaxes)
 
     def clear_drawing_(self, axes, *args) -> None:
-        """ Clears all the data accumulated in the drawing and the axes.
+        """Clears all the data accumulated in the drawing and the axes.
 
         Args:
             axes: The axes from which to delete everything.
@@ -476,7 +476,7 @@ class DrawContours(ActionBase):
         self.contours[axes].clear()
 
     def add_contour(self, axes) -> None:
-        """ Calls the contour callback and add a contour to the axes with the data.
+        """Calls the contour callback and add a contour to the axes with the data.
 
         When completed, if the data is not none, contours_updated callback is called
         with all the contour data and all the points as arguments.

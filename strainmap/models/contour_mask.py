@@ -307,7 +307,10 @@ def radial_segments(
 
 def cart2pol(cart: np.ndarray) -> np.recarray:
     """Transform cartesian to polar coordinates."""
-    x, y, = cart[:, 0], cart[:, 1]
+    x, y, = (
+        cart[:, 0],
+        cart[:, 1],
+    )
     r = np.sqrt(x ** 2 + y ** 2)
     theta = np.arctan2(y, x)
     return np.rec.array(

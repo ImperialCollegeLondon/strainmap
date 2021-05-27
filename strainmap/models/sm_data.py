@@ -59,7 +59,7 @@ class RegionalLabel:
 
 
 class LabelledArray:
-    """ Provides dimensions and coordinates accessibility by labels.
+    """Provides dimensions and coordinates accessibility by labels.
 
     Provides numpy and sparse.COO arrays with a thin layer to access dimensions and
     coordinates by label rather in addition to indices. It also incorporates some
@@ -147,7 +147,7 @@ class LabelledArray:
         self.module = __import__(type(values).__module__.split(".")[0])
 
     def __getitem__(self, idx) -> Union[LabelledArray, np.ndarray, sparse.COO]:
-        """ Gets items from 'values' using indices.
+        """Gets items from 'values' using indices.
 
         If the result is an scalar, then this function returns an scalar, otherwise
         it will return a LabelArray object with the corresponding dimensions and
@@ -215,7 +215,7 @@ class LabelledArray:
         return self._operate(other, op.mul)
 
     def _operate(self, other: object, operation: Callable) -> LabelledArray:
-        """ Carries the actual mathematical operation.
+        """Carries the actual mathematical operation.
 
         If the `other` argument is not a LabelledArray, the operation is transferred
         directly to an operation on the `self.values`, and therefore will fail if that
@@ -266,7 +266,7 @@ class LabelledArray:
     def match_type(
         self, other: LabelledArray, operation: Callable
     ) -> Tuple[LabelledArray, ...]:
-        """  Matches the type of the arrays depending on the operation.
+        """Matches the type of the arrays depending on the operation.
 
         Mixed operations between np.ndarray and COO are not really allowed and they
         need to be transformed to the same type.
@@ -301,7 +301,7 @@ class LabelledArray:
         return self.values.shape
 
     def len_of(self, dim: str) -> int:
-        """ Returns the length of the LabelledArray in that dimension.
+        """Returns the length of the LabelledArray in that dimension.
 
         Args:
             dim: Dimension name
@@ -312,8 +312,7 @@ class LabelledArray:
         return self.shape[self.dims.index(dim)]
 
     def sel(self, **kwargs) -> Union[LabelledArray, np.ndarray, sparse.COO]:
-        """ Gets items from 'values' using dimension and coordinate labels.
-        """
+        """Gets items from 'values' using dimension and coordinate labels."""
         keys = (self._process_keys(k, v) for k, v in kwargs.items())
         filled: List[Union[int, slice]] = [slice(None)] * len(self.dims)
         for k in keys:
@@ -323,7 +322,7 @@ class LabelledArray:
     def _process_keys(
         self, dim: str, coord: Union[str, int, slice]
     ) -> Tuple[int, Union[int, slice]]:
-        """ Transform a dimension and coordinate pair into indices.
+        """Transform a dimension and coordinate pair into indices.
 
         For coordinates, the indices can be an integer or a slice, if more than one
         element are equal to the coordinate string. In this case, it is assumed that
@@ -342,7 +341,7 @@ class LabelledArray:
         return didx, cidx
 
     def align(self, right: LabelledArray) -> Tuple[LabelledArray, ...]:
-        """ Align the dimensions of the LabelledArrays so they can be used in maths.
+        """Align the dimensions of the LabelledArrays so they can be used in maths.
 
         Coordinates along the common dimensions must be identical.
 
@@ -374,7 +373,7 @@ class LabelledArray:
         )
 
     def transpose(self, *dims: str) -> LabelledArray:
-        """ Transposes the dimensions of the LabelledArray.
+        """Transposes the dimensions of the LabelledArray.
 
         This function returns a new LabelledArray with the dimensions transposed.
         """
@@ -390,8 +389,7 @@ class LabelledArray:
     def _reduction(
         self, operation: Callable, dims: Optional[Sequence[str]] = None, **kwargs
     ) -> Union[int, LabelledArray]:
-        """ Common method for dimension-reducing operations.
-        """
+        """Common method for dimension-reducing operations."""
         if dims is None:
             return operation(**kwargs)
 
@@ -405,20 +403,17 @@ class LabelledArray:
     def mean(
         self, dims: Optional[Sequence[str]] = None, **kwargs
     ) -> Union[int, LabelledArray]:
-        """ Calculates the mean of the array across the chosen dimensions.
-        """
+        """Calculates the mean of the array across the chosen dimensions."""
         return self._reduction(self.values.mean, dims=dims, **kwargs)
 
     def sum(
         self, dims: Optional[Sequence[str]] = None, **kwargs
     ) -> Union[int, LabelledArray]:
-        """ Calculates the sum of the array across the chosen dimensions.
-        """
+        """Calculates the sum of the array across the chosen dimensions."""
         return self._reduction(self.values.sum, dims=dims, **kwargs)
 
     def cumsum(self, dim: Optional[str] = None, **kwargs) -> Union[int, LabelledArray]:
-        """ Calculates the cumulative sum of the array along the given dimension.
-        """
+        """Calculates the cumulative sum of the array along the given dimension."""
         if isinstance(self.values, sparse.COO):
             raise NotImplementedError("Cumsum is not implemented for COO arrays.")
 
@@ -433,7 +428,7 @@ class LabelledArray:
     def concatenate(
         self, args: Sequence[LabelledArray], dim: str, **kwargs
     ) -> Union[int, LabelledArray]:
-        """ Concatenate any number of LabelledArrays along the given dimension.
+        """Concatenate any number of LabelledArrays along the given dimension.
 
         Coordinates along that dimension are joined together, so they must be of the
         same type (eg. all None or all Lists).
@@ -467,7 +462,7 @@ class LabelledArray:
         coords: Optional[Sequence[str]] = None,
         **kwargs,
     ) -> Union[int, LabelledArray]:
-        """ Stacks any number of LabelledArrays along a new dimension.
+        """Stacks any number of LabelledArrays along a new dimension.
 
         All LabelledArrays to be stacked must have the same dimensions coordinates and
         shapes. If provided, the coordinates for the new dimension must be a sequence

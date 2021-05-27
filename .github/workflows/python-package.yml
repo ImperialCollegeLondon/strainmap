@@ -61,7 +61,7 @@ jobs:
 
   build-windows:
     needs: test
-    if: github.event_name == 'push' || github.event_name == 'release'
+    if: github.event_name == 'release' || github.event_name == 'push'
     runs-on: windows-latest
     
     steps:

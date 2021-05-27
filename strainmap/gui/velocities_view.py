@@ -500,7 +500,7 @@ class VelocitiesTaskView(TaskViewBase):
             )
 
     def export_superpixel(self, *args):
-        """ Exports the current superpixel velocity data to an XLSX file.
+        """Exports the current superpixel velocity data to an XLSX file.
 
         TODO: Remove in final version
         """

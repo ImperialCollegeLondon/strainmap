@@ -25,7 +25,7 @@ def initial(*, initial, **kwargs) -> Contour:
 
 @register_propagator
 def previous(*, previous, **kwargs) -> Contour:
-    """ The next initial is equal to the previously calculated one.
+    """The next initial is equal to the previously calculated one.
 
     Optionally, a 'dilation_factor' can be included to contract/expand the contour.
     """
@@ -38,7 +38,7 @@ def previous(*, previous, **kwargs) -> Contour:
 
 @register_propagator
 def weighted(*, initial, previous, **kwargs) -> Contour:
-    """ The next initial is a weighted average between the previous and the initial.
+    """The next initial is a weighted average between the previous and the initial.
 
     The relative weight is given by the keyword 'weight', with 1 resulting in the
     initial contour and 0 resulting in the previous one.
