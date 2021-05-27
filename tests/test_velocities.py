@@ -127,15 +127,12 @@ def test_cartesian_to_cylindrical(segmented_data, masks, theta0):
 
     cyl = cartesian_to_cylindrical(centroid, theta0, global_mask, phase)
     phase_masked = xr.where(
-        global_mask,
-        phase.sel(row=global_mask.row, col=global_mask.col),
-        0.0,
+        global_mask, phase.sel(row=global_mask.row, col=global_mask.col), 0.0
     )
 
     # The z component within the mask should be identical
     xr.testing.assert_equal(
-        phase_masked.sel(comp=Comp.Z).drop("comp"),
-        cyl.sel(comp=Comp.LONG).drop("comp"),
+        phase_masked.sel(comp=Comp.Z).drop("comp"), cyl.sel(comp=Comp.LONG).drop("comp")
     )
 
     # The magnitude of the in-plane components should also be identical within the mask,
@@ -223,7 +220,6 @@ def test_normalised_times(empty_markers):
     assert (empty_markers.sel(marker=Mark.PD, quantity="time") == 675).all()
 
 
-@mark.xfail(reason="Refactoring in progress")
 def test_calculate_velocities(segmented_data):
     from strainmap.models.velocities import calculate_velocities
 
