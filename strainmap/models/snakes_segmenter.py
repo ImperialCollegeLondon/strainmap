@@ -59,7 +59,7 @@ def active_contour_model(img: np.ndarray, initial: Contour, **params: Dict) -> C
         msg = "The active contour segmentation model can't perform 3D segmentations."
         raise NotImplementedError(msg)
     else:
-        snake = active_contour(img, initial.xy, **params)
+        snake = active_contour(img, initial.xy[:, ::-1], **params)[:, ::-1]
 
     return Contour(snake)
 
@@ -228,10 +228,7 @@ class Segmenter(object):
 
 
 def snakes_segmentation(
-    images: xr.DataArray,
-    *,
-    initials: xr.DataArray,
-    **kwargs,
+    images: xr.DataArray, *, initials: xr.DataArray, **kwargs
 ) -> xr.DataArray:
     """Find the segmentation of one or more images starting at the initials segments.
 
