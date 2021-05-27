@@ -9,11 +9,9 @@ def test_validate(dummy_data, tmp_path):
 
 
 def test_tabs(atlas_view):
-    expected = ("Data",)
-
-    assert len(atlas_view.notebook.tabs()) == len(expected)
+    assert len(atlas_view.notebook.tabs()) == 1
     for i, t in enumerate(atlas_view.notebook.tabs()):
-        assert atlas_view.notebook.tab(t, "text") == expected[i]
+        assert atlas_view.notebook.tab(t, "text") == "Data"
 
 
 def test_load_atlas_data(atlas_view, dummy_data, tmp_path):
