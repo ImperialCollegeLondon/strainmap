@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Optional, Dict, Callable, Tuple, List
 from pathlib import Path
 import warnings
+import logging
 
 import numpy as np
 import xarray as xr
@@ -77,7 +78,10 @@ class UNet:
         if not path:
             raise RuntimeError("No path provided for the AI model.")
 
-        return cls(model=keras.models.load_model(path))
+        logging.info("Loading AI model. Please, wait...")
+        model = keras.models.load_model(path)
+        logging.info("Done!")
+        return cls(model=model)
 
     def __new__(cls, model: keras.models.Model) -> UNet:
         if cls._unet is None:
