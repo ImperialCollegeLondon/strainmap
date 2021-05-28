@@ -31,7 +31,7 @@ def ai_segmentation(images: xr.DataArray, *, points: int, **kwargs) -> xr.DataAr
         frame, coord, point).
     """
     normalized = Normal.run(
-        images.transpose("frame", "row", "col", "comp").data, method="zeromean_unitvar"
+        images.transpose("frame", "col", "row", "comp").data, method="zeromean_unitvar"
     )
     labels = UNet.factory().predict(normalized)
     segments = labels_to_contours(labels, points)
@@ -39,7 +39,7 @@ def ai_segmentation(images: xr.DataArray, *, points: int, **kwargs) -> xr.DataAr
         segments,
         dims=["side", "frame", "coord", "point"],
         coords={
-            "side": ["epicardium", "endocardium"],
+            "side": ["endocardium", "epicardium"],
             "frame": images.frame,
             "coord": ["col", "row"],
         },
@@ -78,9 +78,10 @@ class UNet:
         if not path:
             raise RuntimeError("No path provided for the AI model.")
 
-        logging.info("Loading AI model. Please, wait...")
+        logger = logging.getLogger(__name__)
+        logger.info("Loading AI model. Please, wait...")
         model = keras.models.load_model(path)
-        logging.info("Done!")
+        logger.info("Done!")
         return cls(model=model)
 
     def __new__(cls, model: keras.models.Model) -> UNet:

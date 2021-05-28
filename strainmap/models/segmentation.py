@@ -30,7 +30,7 @@ def new_segmentation(
     )
     frm = [frame] if isinstance(frame, int) else segments.frame.data.tolist()
 
-    segments.loc[{"frame": frm}] = SEGMENTATION_METHOD[method](
+    segments.loc[{"frame": frm}] = SEGMENTATION_METHOD.get(method, "snakes")(
         data.data_files.images(cine).sel(frame=frm),
         initials=initials,
         points=initials.sizes["point"],
@@ -103,7 +103,7 @@ def update_and_find_next(
 
     segments, centroid, septum = _get_segment_variables(data, cine)
 
-    segments.loc[{"frame": frame}] = SEGMENTATION_METHOD[method](
+    segments.loc[{"frame": frame}] = SEGMENTATION_METHOD.get(method, "snakes")(
         data.data_files.images(cine).sel(frame=[frame]),
         initials=segments.sel(frame=frame - 1),
         points=segments.sizes["point"],

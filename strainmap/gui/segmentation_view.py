@@ -94,6 +94,7 @@ class SegmentationTaskView(TaskViewBase):
         self.pbar = None
         self.septum_markers = [None, None]
         self.septum_lines = [None, None]
+        self.segment_mode_frame = None
 
         self.create_controls()
 
@@ -153,16 +154,17 @@ class SegmentationTaskView(TaskViewBase):
 
         # Mode frame
         self.segment_mode_frame = ttk.Labelframe(control, text="Segmentation mode:")
-        for i, mode in enumerate(("Manual", "Assisted", "Automatic")):
-            self.segment_mode_frame.rowconfigure(i, weight=1)
+        for i, mode in enumerate(("Manual", "Assisted", "Automatic", "AI")):
+            col, row = divmod(i, 3)
+            self.segment_mode_frame.rowconfigure(row, weight=1)
             ttk.Radiobutton(
                 self.segment_mode_frame,
                 text=mode,
                 value=mode,
                 variable=self.segment_mode_var,
                 state="enable",
-                width=18,
-            ).grid(row=i, column=0, sticky=tk.NSEW)
+                width=10,
+            ).grid(row=row, column=col, sticky=tk.NSEW)
 
         # Corrections frame
         manual_frame = ttk.Labelframe(control, text="Manual corrections:")
@@ -720,10 +722,8 @@ class SegmentationTaskView(TaskViewBase):
         self.fig.actions_manager.DrawContours.num_contours = 0
         self.next_btn.state(["!disabled"])
 
-        if self.segment_mode_var.get() == "Automatic":
+        if self.segment_mode_var.get() in ("Automatic", "AI"):
             self.quick_segmentation()
-        elif self.segment_mode_var.get() == "Assisted":
-            self.first_frame()
         else:
             self.first_frame()
 
@@ -814,6 +814,7 @@ class SegmentationTaskView(TaskViewBase):
             initials=self.initial_segments,
             new_septum=self._septum,
             unlock=unlock,
+            method=self.segment_mode_var.get().lower(),
         )
 
     def update_and_find_next(self):
