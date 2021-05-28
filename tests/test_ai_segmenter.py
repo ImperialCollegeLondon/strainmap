@@ -178,8 +178,17 @@ class TestUNet:
     def test_factory(self, data_shape, keras_model, tmp_path):
         from strainmap.models.ai_segmenter import UNet
         import numpy as np
+        import os
+
+        with pytest.raises(RuntimeError):
+            UNet.factory()
 
         keras_model.save(tmp_path)
+        os.environ["STRAINMAP_AI_MODEL"] = str(tmp_path)
+        loaded = UNet.factory()
+        assert id(loaded) == id(UNet.factory())
+
+        UNet._unet = None
         loaded = UNet.factory(tmp_path)
         assert id(loaded) == id(UNet.factory())
 

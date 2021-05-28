@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Optional, Dict, Callable, Tuple, List
 from pathlib import Path
 import warnings
+import os
 
 import numpy as np
 import xarray as xr
@@ -11,12 +12,7 @@ import cv2
 from skimage import measure
 
 
-def ai_segmentation(
-    images: xr.DataArray,
-    *,
-    points: int,
-    **kwargs,
-) -> xr.DataArray:
+def ai_segmentation(images: xr.DataArray, *, points: int, **kwargs) -> xr.DataArray:
     """Performs the segmentation using the AI segmenter.
 
     Images are first normalized, then are fed into the AI segmenter - which is loaded
@@ -34,8 +30,7 @@ def ai_segmentation(
         frame, coord, point).
     """
     normalized = Normal.run(
-        images.transpose("frame", "row", "col", "comp").data,
-        method="zeromean_unitvar",
+        images.transpose("frame", "row", "col", "comp").data, method="zeromean_unitvar"
     )
     labels = UNet.factory().predict(normalized)
     segments = labels_to_contours(labels, points)
@@ -54,14 +49,19 @@ class UNet:
     _unet: Optional[UNet] = None
 
     @classmethod
-    def factory(cls, model_location: Optional[str] = None) -> UNet:
+    def factory(cls, model_location: Optional[Path] = None) -> UNet:
         """Factory method to load the model from a folder.
 
         This class is singleton, so if the model has already been loaded, the existing
         one is returned.
 
         Args:
-            model_location: Path to the location of a keras model.
+            model_location: Path to the location of a keras model. If None, the
+            environmental variable STRAINMAP_AI_MODEL is checked.
+
+        Raises:
+            RuntimeError if neither the model_location nor the STRAINMAP_AI_MODEL
+            point to a valid location.
 
         Returns:
             The loaded keras model
@@ -70,10 +70,13 @@ class UNet:
             return cls._unet
 
         path = (
-            Path(model_location)
+            model_location
             if model_location is not None
-            else Path(__file__).parent / "ai_model"
+            else os.getenv("STRAINMAP_AI_MODEL")
         )
+        if path is None:
+            raise RuntimeError("No path provided for the AI model.")
+
         return cls(model=keras.models.load_model(path))
 
     def __new__(cls, model: keras.models.Model) -> UNet:
