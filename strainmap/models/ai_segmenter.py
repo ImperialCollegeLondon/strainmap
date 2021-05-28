@@ -3,13 +3,13 @@ from __future__ import annotations
 from typing import Optional, Dict, Callable, Tuple, List
 from pathlib import Path
 import warnings
-import os
 
 import numpy as np
 import xarray as xr
 from tensorflow import keras
 import cv2
 from skimage import measure
+import decouple
 
 
 def ai_segmentation(images: xr.DataArray, *, points: int, **kwargs) -> xr.DataArray:
@@ -72,9 +72,9 @@ class UNet:
         path = (
             model_location
             if model_location is not None
-            else os.getenv("STRAINMAP_AI_MODEL")
+            else decouple.config("STRAINMAP_AI_MODEL")
         )
-        if path is None:
+        if not path:
             raise RuntimeError("No path provided for the AI model.")
 
         return cls(model=keras.models.load_model(path))

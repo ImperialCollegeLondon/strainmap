@@ -180,6 +180,7 @@ class TestUNet:
         import numpy as np
         import os
 
+        os.environ["STRAINMAP_AI_MODEL"] = ""
         with pytest.raises(RuntimeError):
             UNet.factory()
 
