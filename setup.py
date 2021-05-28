@@ -1,6 +1,6 @@
 from setuptools import find_packages, setup
 
-tests_require = [
+dev_require = [
     "pytest<6.0.0",
     "pytest-cov",
     "pytest-flake8",
@@ -9,6 +9,7 @@ tests_require = [
     "flake8<3.8.0",
     "pytest-runner",
     "mypy<0.790",
+    "black",
 ]
 pyinstaller = ["pyinstaller"]
 
@@ -37,9 +38,10 @@ setup(
         "toml",
         "opencv-python",
         "xarray",
+        "python-decouple",
     ],
     package_data={"strainmap.gui": ["icons/*.gif", "icons/CREDITS.md"]},
     packages=find_packages("."),
-    tests_require=tests_require,
-    extras_require={"dev": tests_require + pyinstaller},
+    tests_require=dev_require,
+    extras_require={"dev": dev_require + pyinstaller},
 )
