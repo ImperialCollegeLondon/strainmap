@@ -1,6 +1,5 @@
 from unittest.mock import MagicMock, PropertyMock, patch
-import sys
-from pytest import approx, mark
+from pytest import approx
 
 
 def test_update_and_clear_widgets(segmentation_view, strainmap_data):
@@ -51,7 +50,6 @@ def test_switch_mark_state(segmentation_view):
     assert expected == actual
 
 
-@mark.skipif(sys.platform == "linux", reason="Crashes Linux... why?")
 def test_define_initial_contour(segmentation_view, strainmap_data):
     from copy import deepcopy
 
