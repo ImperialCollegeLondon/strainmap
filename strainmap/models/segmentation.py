@@ -30,7 +30,7 @@ def new_segmentation(
     )
     frm = [frame] if isinstance(frame, int) else segments.frame.data.tolist()
 
-    segments.loc[{"frame": frm}] = SEGMENTATION_METHOD.get(method, "snakes")(
+    segments.loc[{"frame": frm}] = SEGMENTATION_METHOD.get(method, snakes_segmentation)(
         data.data_files.images(cine).sel(frame=frm),
         initials=initials,
         points=initials.sizes["point"],
@@ -103,11 +103,15 @@ def update_and_find_next(
 
     segments, centroid, septum = _get_segment_variables(data, cine)
 
-    segments.loc[{"frame": frame}] = SEGMENTATION_METHOD.get(method, "snakes")(
+    segments.loc[{"frame": frame}] = SEGMENTATION_METHOD.get(
+        method, snakes_segmentation
+    )(
         data.data_files.images(cine).sel(frame=[frame]),
         initials=segments.sel(frame=frame - 1),
         points=segments.sizes["point"],
-    ).squeeze("frame", drop=True)
+    ).squeeze(
+        "frame", drop=True
+    )
 
     # We update the centroid (or center of mass, COM)
     centroid.loc[{"frame": frame}] = _calc_centroids(segments.sel(frame=frame))
@@ -142,6 +146,8 @@ def remove_segmentation(data: StrainMapData, cine: str) -> None:
 
 def _drop_cine(x: xr.DataArray, cine: str) -> xr.DataArray:
     """Removes a cine from the dataframe."""
+    if not hasattr(x, "cine"):
+        return x
     out = x.where(x.cine != cine, drop=True)
     return out if out.size > 0 else xr.DataArray()
 
