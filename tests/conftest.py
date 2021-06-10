@@ -381,3 +381,26 @@ def velocities(regions):
     )
     output[...] = np.sin(np.linspace(0, 2 * np.pi, frames))[None, :, None]
     return output
+
+
+@fixture
+def initial_centroid():
+    import numpy as np
+
+    return np.array([4, 4])
+
+
+@fixture
+def initial_segments(initial_centroid):
+    import xarray as xr
+    import numpy as np
+
+    t = np.linspace(0, 2 * np.pi, 360, endpoint=False)
+    xy0 = np.array([np.cos(t), np.sin(t)])
+    return xr.DataArray(
+        np.array(
+            [initial_centroid[:, None] + 2 * xy0, initial_centroid[:, None] + 3 * xy0]
+        ),
+        dims=("side", "coord", "point"),
+        coords={"side": ["endocardium", "epicardium"], "coord": ["col", "row"]},
+    )

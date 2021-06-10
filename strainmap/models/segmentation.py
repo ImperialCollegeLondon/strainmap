@@ -46,7 +46,7 @@ def new_segmentation(
     if len(frm) == len(segments.frame):
         centroid[...] = _calc_effective_centroids(centroid, window=3)
 
-    # data.save("segments", "centroid", "septum")
+    data.save("segments", "centroid", "septum")
 
 
 def update_segmentation(
@@ -68,7 +68,7 @@ def update_segmentation(
     centroid.loc[{"frame": frame}] = _calc_centroids(segments.sel(frame=frame))
 
     # Set the new septum
-    septum.loc[{"frame": frame}] = new_septum.copy()
+    septum.loc[{"frame": frame}] = new_septum.sel(frame=frame).copy()
 
     if not xr.ufuncs.isnan(segments).any():
         centroid[...] = _calc_effective_centroids(centroid, window=3)
@@ -79,10 +79,10 @@ def update_segmentation(
         # data.strain = xr.DataArray()
         # data.strain_markers = xr.DataArray()
 
-        # data.save_all()
+        data.save_all()
 
-    # else:
-    #     data.save("segments", "centroid", "septum")
+    else:
+        data.save("segments", "centroid", "septum")
 
 
 def update_and_find_next(
@@ -149,7 +149,7 @@ def _drop_cine(x: xr.DataArray, cine: str) -> xr.DataArray:
 def _get_segment_variables(
     data: StrainMapData, cine: str, points: int = 360
 ) -> Tuple[xr.DataArray, ...]:
-    """Get the relevant segementation variables for this cine.
+    """Get the relevant segmentation variables for this cine.
 
     If they do not exist already in the data structure, they are created.
 
