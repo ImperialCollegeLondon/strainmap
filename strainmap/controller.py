@@ -101,8 +101,8 @@ class StrainMap(object):
         self.lock_toggle(self.data.data_files, Requisites.DATALOADED)
         self.lock_toggle(there_are_segments, Requisites.SEGMENTED)
 
-    def add_h5_file(self, strainmap_file):
-        return self.data.add_h5_file(strainmap_file)
+    def add_file(self, strainmap_file):
+        return self.data.add_file(strainmap_file)
 
     def new_segmentation(self, unlock=True, **kwargs):
         """Runs an automated segmentation routine."""

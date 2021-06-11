@@ -1,6 +1,7 @@
 from itertools import chain
 from typing import Callable, Dict, NamedTuple, Optional, Sequence, Text, Tuple
 import logging
+import time
 
 import numpy as np
 import xarray as xr
@@ -19,13 +20,13 @@ class _MSearch(NamedTuple):
 
 
 MARKERS_OPTIONS: Dict[Mark, _MSearch] = {
-    Mark.PS: _MSearch(1, 15, xr.DataArray.argmax, [Comp.RAD, Comp.LONG]),
-    Mark.PD: _MSearch(15, 35, xr.DataArray.argmin, [Comp.RAD, Comp.LONG]),
-    Mark.PAS: _MSearch(35, 47, xr.DataArray.argmin, [Comp.RAD, Comp.LONG]),
-    Mark.ES: _MSearch(14, 21, None, [Comp.RAD]),
-    Mark.PC1: _MSearch(1, 5, xr.DataArray.argmin, [Comp.CIRC]),
-    Mark.PC2: _MSearch(6, 12, xr.DataArray.argmax, [Comp.CIRC]),
-    Mark.PC3: _MSearch(0, 0, None, [Comp.CIRC]),
+    Mark.PS: _MSearch(1, 15, xr.DataArray.argmax, [Comp.RAD.name, Comp.LONG.name]),
+    Mark.PD: _MSearch(15, 35, xr.DataArray.argmin, [Comp.RAD.name, Comp.LONG.name]),
+    Mark.PAS: _MSearch(35, 47, xr.DataArray.argmin, [Comp.RAD.name, Comp.LONG.name]),
+    Mark.ES: _MSearch(14, 21, None, [Comp.RAD.name]),
+    Mark.PC1: _MSearch(1, 5, xr.DataArray.argmin, [Comp.CIRC.name]),
+    Mark.PC2: _MSearch(6, 12, xr.DataArray.argmax, [Comp.CIRC.name]),
+    Mark.PC3: _MSearch(0, 0, None, [Comp.CIRC.name]),
 }
 
 
@@ -63,9 +64,9 @@ def process_phases(
     phase = raw_phase * scale - 0.5
 
     if swap:
-        phase.loc[{"comp": Comp.X}], phase.loc[{"comp": Comp.Y}] = (
-            phase.sel(comp=Comp.Y).copy(),
-            phase.sel(comp=Comp.X).copy(),
+        phase.loc[{"comp": Comp.X.name}], phase.loc[{"comp": Comp.Y.name}] = (
+            phase.sel(comp=Comp.Y.name).copy(),
+            phase.sel(comp=Comp.X.name).copy(),
         )
 
     return phase * sign_reversal
@@ -146,10 +147,7 @@ def radial_mask(
 
 
 def find_masks(
-    segments: xr.DataArray,
-    centroid: xr.DataArray,
-    theta0: xr.DataArray,
-    shape: Tuple[int, int],
+    segments: xr.DataArray, centroid: xr.DataArray, theta0: xr.DataArray
 ) -> xr.DataArray:
     """Calculates all the masks defined in the Region class.
 
@@ -158,7 +156,7 @@ def find_masks(
     + 3x radial. The coordinates of each region is the corresponding Region element,
     so selecting each of them, selects the whole group.
     """
-    reg = list(chain.from_iterable(([r] * r.value for r in Region)))
+    reg = list(chain.from_iterable(([r.name] * r.value for r in Region)))
     masks: Dict[Region, np.ndarray] = dict()
 
     masks[Region.GLOBAL] = global_mask(segments)
@@ -227,7 +225,7 @@ def cartesian_to_cylindrical(
     iframe, irow, icol = np.nonzero(global_mask.data)
     p = phase.sel(row=global_mask.row, col=global_mask.col)
     bulk = xr.where(global_mask, p, np.nan).mean(dim=("row", "col"))
-    bulk.loc[{"comp": Comp.Z}] = 0
+    bulk.loc[{"comp": Comp.Z.name}] = 0
     cartesian = (
         (p - bulk).transpose("frame", "row", "col", "comp").data[iframe, irow, icol, :]
     )
@@ -259,7 +257,7 @@ def cartesian_to_cylindrical(
         data,
         dims=p.dims,
         coords={
-            "comp": [Comp.RAD, Comp.CIRC, Comp.LONG],
+            "comp": [Comp.RAD.name, Comp.CIRC.name, Comp.LONG.name],
             "frame": global_mask.frame,
             "row": global_mask.row,
             "col": global_mask.col,
@@ -294,30 +292,32 @@ def calculate_velocities(
     """Calculates the velocity of the chosen cine and regions."""
     data.sign_reversal[...] = np.array(sign_reversal)
 
-    import time
-
     # We start by processing the phase images
     start = time.time()
     swap, signs = data.data_files.phase_encoding(cine)
-    raw_phase = data.data_files.images(cine).sel(comp=[Comp.X, Comp.Y, Comp.Z])
+    raw_phase = data.data_files.images(cine).sel(
+        comp=[Comp.X.name, Comp.Y.name, Comp.Z.name]
+    )
     phase = process_phases(raw_phase, data.sign_reversal, swap)
     lap1 = time.time()
     logging.info(f"Time for phase: {round(lap1 - start, 2)}s")
 
     # Now we calculate all the masks
-    shape = raw_phase.sizes["row"], raw_phase.sizes["col"]
     segments = data.segments.sel(cine=cine).drop_vars("cine")
     centroid = data.centroid.sel(cine=cine).drop_vars("cine")
     septum = data.septum.sel(cine=cine).drop_vars("cine")
     theta0 = theta_origin(centroid, septum)
-    masks = find_masks(segments, centroid, theta0, shape)
+    masks = find_masks(segments, centroid, theta0)
     lap2 = time.time()
     logging.info(f"Time for masks: {round(lap2 - lap1, 2)}s")
 
     # Next we calculate the velocities in cylindrical coordinates
     cylindrical = (
         cartesian_to_cylindrical(
-            centroid, theta0, masks.sel(region=Region.GLOBAL).drop_vars("region"), phase
+            centroid,
+            theta0,
+            masks.sel(region=Region.GLOBAL.name).drop_vars("region"),
+            phase,
         )
         * data.data_files.sensitivity
         * signs
@@ -384,34 +384,34 @@ def initialise_markers(velocity: xr.DataArray) -> xr.DataArray:
         coords={
             "region": velocity.region,
             "comp": velocity.comp,
-            "marker": [m for m in Mark if m not in (Mark.PSS, Mark.ESS)],
+            "marker": [m.name for m in Mark if m not in (Mark.PSS, Mark.ESS)],
             "quantity": ["frame", "velocity", "time"],
         },
     )
     # Shortcuts
-    pd = Mark.PD
-    es = Mark.ES
-    pc3 = Mark.PC3
-    glr = Region.GLOBAL
-    rad = Comp.RAD
+    pd = Mark.PD.name
+    es = Mark.ES.name
+    pc3 = Mark.PC3.name
+    glr = Region.GLOBAL.name
+    rad = Comp.RAD.name
 
     # Search for normal markers
     for m, opt in MARKERS_OPTIONS.items():
-        if m in (es, pc3):
+        if m.name in (es, pc3):
             continue
         idx, value = marker_x(velocity, opt)
-        result.loc[{"marker": m, "quantity": "frame", "comp": opt.comp}] = idx
-        result.loc[{"marker": m, "quantity": "velocity", "comp": opt.comp}] = value
+        result.loc[{"marker": m.name, "quantity": "frame", "comp": opt.comp}] = idx
+        result.loc[{"marker": m.name, "quantity": "velocity", "comp": opt.comp}] = value
 
     # Search for ES
     pd_loc = int(result.sel(marker=pd, quantity="frame", comp=rad, region=glr).item())
-    idx, value = marker_es(velocity, MARKERS_OPTIONS[es], pd_loc)
+    idx, value = marker_es(velocity, MARKERS_OPTIONS[Mark.ES], pd_loc)
     result.loc[{"marker": es, "quantity": "frame"}] = idx
     result.loc[{"marker": es, "quantity": "velocity"}] = value
 
     # Search for PC3
     es_loc = int(result.sel(marker=es, quantity="frame", comp=rad, region=glr).item())
-    opt = MARKERS_OPTIONS[pc3]
+    opt = MARKERS_OPTIONS[Mark.PC3]
     idx, value = marker_pc3(velocity, opt, es_loc)
     result.loc[{"marker": pc3, "quantity": "frame", "comp": opt.comp}] = idx
     result.loc[{"marker": pc3, "quantity": "velocity", "comp": opt.comp}] = value
@@ -448,20 +448,20 @@ def update_markers(
         None
     """
     loc_dict = {
-        "marker": marker_label,
+        "marker": marker_label.name,
         "quantity": "frame",
-        "comp": component,
-        "region": region,
+        "comp": component.name,
+        "region": region.name,
     }
     vel_dict = {
-        "marker": marker_label,
+        "marker": marker_label.name,
         "quantity": "velocity",
-        "comp": component,
-        "region": region,
+        "comp": component.name,
+        "region": region.name,
     }
     if marker_label == Mark.ES:
-        markers.loc[{"marker": Mark.ES, "quantity": "frame"}] = location
-        markers.loc[{"marker": Mark.ES, "quantity": "velocity"}] = velocity_value
+        markers.loc[{"marker": Mark.ES.name, "quantity": "frame"}] = location
+        markers.loc[{"marker": Mark.ES.name, "quantity": "velocity"}] = velocity_value
     elif region == Region.GLOBAL:
         markers.loc[loc_dict] = location
         markers.loc[vel_dict] = velocity_value
@@ -521,7 +521,9 @@ def marker_es(
         low = 0
         high = velocity.sizes["frame"]
 
-    vel = velocity.sel(frame=slice(low, high), comp=Comp.RAD, region=Region.GLOBAL)
+    vel = velocity.sel(
+        frame=slice(low, high), comp=Comp.RAD.name, region=Region.GLOBAL.name
+    )
     idx = abs(vel.differentiate("frame")).argmin(dim="frame")
     if idx + low == pd_loc or vel.isel(frame=idx).item() < -2.5:
         idx = abs(vel).argmin(dim="frame")
@@ -588,7 +590,10 @@ def normalise_times(markers: xr.DataArray, frames: int) -> None:
     """
     es = int(
         markers.sel(
-            marker=Mark.ES, quantity="frame", comp=Comp.RAD, region=Region.GLOBAL
+            marker=Mark.ES.name,
+            quantity="frame",
+            comp=Comp.RAD.name,
+            region=Region.GLOBAL.name,
         ).item()
     )
     markers.loc[{"quantity": "time"}] = xr.where(

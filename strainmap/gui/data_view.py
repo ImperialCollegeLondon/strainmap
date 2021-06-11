@@ -14,7 +14,6 @@ import xarray as xr
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.figure import Figure
 
-from ..coordinates import Comp
 from .base_window_and_task import TaskViewBase, register_view
 from .figure_actions import BrightnessAndContrast, ScrollFrames, ZoomAndPan
 from .figure_actions_manager import FigureActionsManager
@@ -44,13 +43,13 @@ class DataTaskView(TaskViewBase):
         self.treeview = None
         self.fig = None
         self.datasets_var = tk.StringVar(value="")
-        self.maps_var = tk.StringVar(value="mag")
+        self.maps_var = tk.StringVar(value="MAG")
         self.anim = False
 
         self.create_controls()
 
     def create_controls(self) -> None:
-        """ Creates the controls to load and save data."""
+        """Creates the controls to load and save data."""
         self.control = ttk.Frame(master=self, width=300, name="control")
         self.control.grid(column=0, row=0, sticky=tk.NSEW, pady=5)
         self.control.rowconfigure(50, weight=1)
@@ -111,7 +110,7 @@ class DataTaskView(TaskViewBase):
         ).grid(row=99, columnspan=2, sticky=tk.NSEW)
 
     def create_data_selector(self):
-        """ Creates the selector for the data. """
+        """Creates the selector for the data."""
         values, texts, var_values, patient_data = self.get_data_information()
         self.datasets_var.set(values[0])
 
@@ -164,7 +163,7 @@ class DataTaskView(TaskViewBase):
             ).grid(sticky=tk.NSEW, padx=5, pady=5)
 
     def create_data_viewer(self):
-        """ Creates the viewer for the data, including the animation and the DICOM. """
+        """Creates the viewer for the data, including the animation and the DICOM."""
         self.notebook = ttk.Notebook(self.visualise, name="notebook")
         self.notebook.grid(sticky=tk.NSEW)
         self.notebook.columnconfigure(0, weight=1)
@@ -175,7 +174,7 @@ class DataTaskView(TaskViewBase):
         self.notebook.add(data_frame, text="DATA dicom")
 
     def create_animation_viewer(self):
-        """ Creates the animation plot area. """
+        """Creates the animation plot area."""
         self.fig = Figure()
         ax = self.fig.add_subplot()
         ax.set_position((0.05, 0.05, 0.9, 0.9))
@@ -229,11 +228,11 @@ class DataTaskView(TaskViewBase):
             self.update_widgets()
 
     def open_existing_file(self):
-        """ Opens an existing StrainMap file."""
+        """Opens an existing StrainMap file."""
         path = tk.filedialog.askopenfilename(
-            title="Select existing StrainMap file (HDF5 format)",
+            title="Select existing StrainMap file",
             initialdir=self.current_dir,
-            filetypes=(("StrainMap files", "*.h5"),),
+            filetypes=(("StrainMap files", "*.nc"), ("Legacy StrainMap files", "*.h5")),
         )
 
         try:
@@ -272,26 +271,26 @@ class DataTaskView(TaskViewBase):
         self.controller.add_paths(data_files=data_path)
 
     def select_output_file(self):
-        """ Selects an output file in which to store the current data."""
+        """Selects an output file in which to store the current data."""
         meta = self.data.metadata()
         name, date = [meta[key] for key in ["Patient Name", "Date of Scan"]]
-        init = f"{name}_{date}.h5"
+        init = f"{name}_{date}.nc"
 
         path = tk.filedialog.asksaveasfilename(
             title="Introduce new StrainMap filename.",
             initialfile=init,
             initialdir=self.current_dir,
-            filetypes=(("StrainMap files", "*.h5"),),
-            defaultextension="h5",
+            filetypes=(("StrainMap files", "*.nc"),),
+            defaultextension="nc",
         )
 
         if path == "":
             return
-        elif self.controller.add_h5_file(strainmap_file=path):
+        elif self.controller.add_file(strainmap_file=path):
             self.output_file.set(path)
 
     def clear_data(self):
-        """ Clears all data from memory."""
+        """Clears all data from memory."""
         clear = messagebox.askokcancel(
             "Warning!",
             "This will erase all data from memory\nDo you want to continue?",
@@ -302,7 +301,7 @@ class DataTaskView(TaskViewBase):
             self.clear_widgets()
 
     def get_data_information(self):
-        """ Gets some information related to the available datasets, frames, etc. """
+        """Gets some information related to the available datasets, frames, etc."""
         if self.controller.review_mode and len(self.data.segments) > 0:
             values = list(self.data.segments.keys())
         else:
@@ -332,12 +331,12 @@ class DataTaskView(TaskViewBase):
 
     @property
     def images(self) -> xr.DataArray:
-        variable = Comp(self.maps_var.get())
+        variable = self.maps_var.get()
         series = self.datasets_var.get()
         return self.data.data_files.images(series).sel(comp=variable)
 
     def update_visualization(self, *args):
-        """ Updates the visualization whenever the data selected changes. """
+        """Updates the visualization whenever the data selected changes."""
         self.update_plot()
         self.update_dicom_data_view()
 
@@ -378,7 +377,7 @@ class DataTaskView(TaskViewBase):
 
         Only data for cine = 0 is loaded.
         """
-        variable = Comp(self.maps_var.get())
+        variable = self.maps_var.get()
         series = self.datasets_var.get()
         self.treeview.delete(*self.treeview.get_children())
 
@@ -398,7 +397,7 @@ class DataTaskView(TaskViewBase):
             self.fig.actions_manager.ScrollFrames.stop_animation()
 
     def update_widgets(self):
-        """ Updates widgets after an update in the data var. """
+        """Updates widgets after an update in the data var."""
         self.create_data_selector()
         self.create_data_viewer()
         if self.data.data_files is not None:
@@ -407,7 +406,7 @@ class DataTaskView(TaskViewBase):
         self.outputfile_entry.xview(len(self.output_file.get()))
 
     def clear_widgets(self):
-        """ Clear widgets after removing the data. """
+        """Clear widgets after removing the data."""
         self.data_folder.set("")
         self.output_file.set("")
         self.nametowidget("control.chooseOutputFile")["state"] = "disabled"

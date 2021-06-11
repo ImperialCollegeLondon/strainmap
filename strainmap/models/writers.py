@@ -390,7 +390,8 @@ def save_attribute(filename: Path, **kwargs) -> None:
     """
     f = h5py.File(filename, mode="a")
     for name, value in kwargs.items():
-        f.attrs[name] = value
+        if value != f.attrs.get(name, None):
+            f.attrs[name] = value
     f.close()
 
 

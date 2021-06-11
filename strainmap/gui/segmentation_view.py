@@ -345,11 +345,11 @@ class SegmentationTaskView(TaskViewBase):
         self.pbar.config(maximum=self.data.data_files.frames - 1)
 
         self.ax_mag.imshow(
-            self.images.sel(comp=Comp.MAG, frame=self.current_frame),
+            self.images.sel(comp=Comp.MAG.name, frame=self.current_frame),
             cmap=plt.get_cmap("binary_r"),
         )
         self.ax_vel.imshow(
-            self.images.sel(comp=Comp.Z, frame=self.current_frame),
+            self.images.sel(comp=Comp.Z.name, frame=self.current_frame),
             cmap=plt.get_cmap("binary_r"),
         )
 
@@ -531,7 +531,7 @@ class SegmentationTaskView(TaskViewBase):
 
         img = endo = epi = septum = septum_line = None
         if image in (Comp.MAG, Comp.Z):
-            img = self.images.sel(comp=image, frame=self.current_frame)
+            img = self.images.sel(comp=image.name, frame=self.current_frame)
 
         if self._segments.shape != ():
             endo = self._segments.sel(side="endocardium", frame=self.current_frame).data

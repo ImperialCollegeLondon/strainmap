@@ -19,7 +19,7 @@ from strainmap.gui.figure_actions_manager import FigureActionsManager
 
 class MarkersFigure:
 
-    components: Tuple[Comp, ...] = (Comp.LONG, Comp.RAD, Comp.CIRC)
+    components: Tuple[str, ...] = (Comp.LONG.name, Comp.RAD.name, Comp.CIRC.name)
 
     def __init__(
         self,
@@ -28,8 +28,8 @@ class MarkersFigure:
         images: xr.DataArray,
         markers: xr.DataArray,
         master: ttk.Frame,
-        line_limits: Dict[Comp, Tuple[float, float]],
-        ids: Dict[Comp, Sequence[Mark]],
+        line_limits: Dict[str, Tuple[float, float]],
+        ids: Dict[str, Sequence[str]],
         xlabel: str = "Frame",
         ylabel: str = "Velocity (cm/s)",
         colours: Tuple[str, ...] = ("red", "green", "blue") * 2
@@ -94,7 +94,7 @@ class MarkersFigure:
 
     def add_line_subplots(
         self, gs: GridSpec, xlabel: str, ylabel: str
-    ) -> Dict[Comp, Axes]:
+    ) -> Dict[str, Axes]:
         """Add the line subplots.
 
         Args:
@@ -105,18 +105,18 @@ class MarkersFigure:
         Returns:
             Dictionary with the subplots for each of the components.
         """
-        output: Dict[Comp, Axes] = {}
+        output: Dict[str, Axes] = {}
         for i, comp in enumerate(self.components):
             output[comp] = self.fig.add_subplot(gs[0, 3 * i : 3 * (i + 1)])
             output[comp].axhline(color="k", lw=1)
-            output[comp].set_title(comp.value)
+            output[comp].set_title(comp)
             output[comp].set_xlabel(xlabel)
 
-        output[Comp.LONG].set_ylabel(ylabel)
+        output[Comp.LONG.name].set_ylabel(ylabel)
 
         return output
 
-    def add_lines(self, values: xr.DataArray) -> Dict[Comp, Line2D]:
+    def add_lines(self, values: xr.DataArray) -> Dict[str, Line2D]:
         """Add lines to the line plots.
 
         Args:
@@ -127,17 +127,17 @@ class MarkersFigure:
         Returns:
             Dictionary with the lines for each of the components.
         """
-        output: Dict[Comp, Line2D] = {}
+        output: Dict[str, Line2D] = {}
         for i, comp in enumerate(self.components):
             output[comp] = self.axes[comp].plot(
-                values.frame, values.sel(comp=comp), "k", label=f"_{comp.name}"
+                values.frame, values.sel(comp=comp), "k", label=f"_{comp}"
             )[0]
             self.axes[comp].set_ylim(*self.line_limits[comp])
         return output
 
     def add_image_subplots(
         self, gs: GridSpec, colours: Tuple[str, ...]
-    ) -> Dict[Tuple[Comp, Mark], Axes]:
+    ) -> Dict[Tuple[str, str], Axes]:
         """Add the image subplots.
 
         Args:
@@ -147,7 +147,7 @@ class MarkersFigure:
         Returns:
             Dictionary with the subplots for each of the components.
         """
-        output: Dict[Tuple[Comp, Mark], Axes] = {}
+        output: Dict[Tuple[str, str], Axes] = {}
 
         for i, (comp, mark) in enumerate(self.ids.items()):
             for j, m in enumerate(mark):
@@ -164,7 +164,7 @@ class MarkersFigure:
     def images_and_cylindrical_data(
         self, images: xr.DataArray, cylindrical: xr.DataArray, markers: xr.DataArray
     ) -> Tuple[
-        Dict[Tuple[Comp, Mark], AxesImage], Dict[Tuple[Comp, Mark], AxesImage], Colorbar
+        Dict[Tuple[str, str], AxesImage], Dict[Tuple[str, str], AxesImage], Colorbar
     ]:
         """Add bg and masks to the map subplots.
 
@@ -178,8 +178,8 @@ class MarkersFigure:
         Returns:
             Tuple with the images plots, the cylindrical data overlay and the colorbar.
         """
-        img: Dict[Tuple[Comp, Mark], AxesImage] = {}
-        cyl: Dict[Tuple[Comp, Mark], AxesImage] = {}
+        img: Dict[Tuple[str, str], AxesImage] = {}
+        cyl: Dict[Tuple[str, str], AxesImage] = {}
 
         rmin, rmax, cmin, cmax = self.maps_limits
         vmin, vmax = cylindrical.min(), cylindrical.max()
@@ -213,8 +213,8 @@ class MarkersFigure:
                 )
 
         cbar = self.fig.colorbar(
-            cyl[(Comp.LONG, self.ids[Comp.LONG][0])],
-            ax=self.maps[(Comp.LONG, self.ids[Comp.LONG][0])],
+            cyl[(Comp.LONG.name, self.ids[Comp.LONG.name][0])],
+            ax=self.maps[(Comp.LONG.name, self.ids[Comp.LONG.name][0])],
             pad=-1.4,
         )
 
@@ -236,7 +236,7 @@ class MarkersFigure:
 
     def add_markers(
         self, markers: xr.DataArray, colours: Tuple[str, ...]
-    ) -> Tuple[Dict[Tuple[Comp, Mark], Line2D], Dict[Tuple[Comp, Mark], Line2D]]:
+    ) -> Tuple[Dict[Tuple[str, str], Line2D], Dict[Tuple[str, str], Line2D]]:
         """Adds markers to the plots.
 
         Args:
@@ -247,8 +247,8 @@ class MarkersFigure:
 
         """
         add_marker = self.fig.actions_manager.Markers.add_marker
-        markers_artists: Dict[Tuple[Comp, Mark], Line2D] = {}
-        fixed_markers: Dict[Tuple[Comp, Mark], Line2D] = {}
+        markers_artists: Dict[Tuple[str, str], Line2D] = {}
+        fixed_markers: Dict[Tuple[str, str], Line2D] = {}
 
         for i, (comp, mark) in enumerate(self.ids.items()):
             for j, m in enumerate(mark):
@@ -257,7 +257,7 @@ class MarkersFigure:
                     xy=markers.sel(
                         marker=m, comp=comp, quantity=["frame", "velocity"]
                     ).data,
-                    label=m.name,
+                    label=m,
                     color=colours[i * len(mark) + j],
                     marker=str(j + 1),
                     markeredgewidth=1.5,
@@ -266,16 +266,16 @@ class MarkersFigure:
 
         # The ES marker is a fixed line in all plots...
         es_marker = markers.sel(
-            marker=Mark.ES, comp=Comp.RAD, quantity=["frame", "velocity"]
+            marker=Mark.ES.name, comp=Comp.RAD.name, quantity=["frame", "velocity"]
         ).data
-        for comp in (Comp.LONG, Comp.RAD, Comp.CIRC):
-            fixed_markers[(comp, Mark.ES)] = self.lines[comp].axes.axvline(
+        for comp in (Comp.LONG.name, Comp.RAD.name, Comp.CIRC.name):
+            fixed_markers[(comp, Mark.ES.name)] = self.lines[comp].axes.axvline(
                 es_marker[0], color="grey", linewidth=2, linestyle="--"
             )
 
         # But, additionally in the radial it can be moved.
-        markers_artists[(Comp.RAD, Mark.ES)] = add_marker(
-            self.lines[Comp.RAD],
+        markers_artists[(Comp.RAD.name, Mark.ES.name)] = add_marker(
+            self.lines[Comp.RAD.name],
             xy=es_marker,
             vline=True,
             label="ES",
@@ -283,7 +283,7 @@ class MarkersFigure:
             linewidth=2,
         )
 
-        for comp in (Comp.LONG, Comp.RAD, Comp.CIRC):
+        for comp in (Comp.LONG.name, Comp.RAD.name, Comp.CIRC.name):
             self.axes[comp].legend(frameon=False, markerscale=0.7)
 
         return markers_artists, fixed_markers
@@ -350,7 +350,7 @@ class MarkersFigure:
 
     def update_one_map(
         self,
-        label: Tuple[Comp, Mark],
+        label: Tuple[str, str],
         images: xr.DataArray,
         cylindrical: xr.DataArray,
         draw: bool = False,
@@ -388,7 +388,7 @@ class MarkersFigure:
                 )
 
         es_loc = markers.sel(marker=Mark.ES, comp=Comp.RAD).item()
-        update_position(self.marker_artists[(Comp.RAD, Mark.ES)], es_loc)
+        update_position(self.marker_artists[(Comp.RAD.name, Mark.ES.name)], es_loc)
         for f in self.fixed_markers.values():
             f.set_xdata([es_loc, es_loc])
 

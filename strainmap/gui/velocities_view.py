@@ -19,10 +19,10 @@ from ..tools import get_sa_location
 class VelocitiesTaskView(TaskViewBase):
 
     requisites = Requisites.SEGMENTED
-    ids: Dict[Comp, Sequence[Mark]] = {
-        Comp.LONG: (Mark.PS, Mark.PD, Mark.PAS),
-        Comp.RAD: (Mark.PS, Mark.PD, Mark.PAS),
-        Comp.CIRC: (Mark.PC1, Mark.PC2, Mark.PC3),
+    ids: Dict[str, Sequence[str]] = {
+        Comp.LONG.name: (Mark.PS.name, Mark.PD.name, Mark.PAS.name),
+        Comp.RAD.name: (Mark.PS.name, Mark.PD.name, Mark.PAS.name),
+        Comp.CIRC.name: (Mark.PC1.name, Mark.PC2.name, Mark.PC3.name),
     }
 
     def __init__(self, root, controller):
@@ -42,7 +42,7 @@ class VelocitiesTaskView(TaskViewBase):
         self.cines_var = tk.StringVar(value="")
         self.velocities_frame = None
         self.velocities_var = tk.StringVar(value="global")
-        self.param_tables: Dict[Comp, ttk.Treeview] = {}
+        self.param_tables: Dict[str, ttk.Treeview] = {}
         self.current_region = 0
         self.update_vel_btn = None
         self.export_btn = None
@@ -66,26 +66,24 @@ class VelocitiesTaskView(TaskViewBase):
     @property
     def images(self) -> xr.DataArray:
         cine = self.cines_var.get()
-        return self.data.data_files.images(cine).sel(comp=Comp.MAG)
+        return self.data.data_files.images(cine).sel(comp=Comp.MAG.name)
 
     @property
     def regions(self) -> int:
         """Number of regions for the selected velocity."""
         region = Region[self.vel_var]
-        return region.value
+        return region.name
 
     @property
     def markers(self) -> xr.DataArray:
         """Markers of the current region."""
-        cine = self.cines_var.get()
-        region = Region[self.vel_var]
-        return self.data.markers.sel(cine=cine, region=region)
+        return self.data.markers.sel(cine=self.cines_var.get(), region=self.vel_var)
 
     @property
     def masks(self) -> np.ndarray:
         """Masks for the current region"""
         return (
-            self.data.masks[self.cines_var.get()][self.vel_var]
+            self.data.masks.sel(cine=self.cines_var.get(), region=self.vel_var)
             != self.current_region + 1
         )
 
@@ -93,20 +91,17 @@ class VelocitiesTaskView(TaskViewBase):
     def cylindrical(self):
         """Cylindrical velocities for the current cine and region."""
         cine = self.cines_var.get()
-        region = Region[self.vel_var]
         return self.data.cylindrical.sel(cine=cine).where(
-            self.data.masks.sel(cine=cine, region=region)
+            self.data.masks.sel(cine=cine, region=self.vel_var)
         )
 
     @property
     def velocities(self):
         """Cylindrical velocities for the current cine and region."""
-        cine = self.cines_var.get()
-        region = Region[self.vel_var]
-        return self.data.velocities.sel(cine=cine, region=region)
+        return self.data.velocities.sel(cine=self.cines_var.get(), region=self.vel_var)
 
     def create_controls(self):
-        """ Creates all the widgets of the view. """
+        """Creates all the widgets of the view."""
         # Top frames
         control = ttk.Frame(master=self)
         control.columnconfigure(49, weight=1)
@@ -135,15 +130,13 @@ class VelocitiesTaskView(TaskViewBase):
             self.param_tables[comp] = ttk.Treeview(info, height=8)
             self.param_tables[comp].tag_configure("current", background="#f8d568")
             self.param_tables[comp].tag_configure("others", background="#FFFFFF")
-            self.param_tables[comp]["columns"] = [m.name for m in markers]
+            self.param_tables[comp]["columns"] = [m for m in markers]
             self.param_tables[comp].heading("#0", text="Region")
             self.param_tables[comp].column("#0", width=110, stretch=tk.YES)
 
             for m in markers:
-                self.param_tables[comp].heading(m.name, text=m.name)
-                self.param_tables[comp].column(
-                    m.name, width=80, stretch=tk.YES, anchor=tk.E
-                )
+                self.param_tables[comp].heading(m, text=m)
+                self.param_tables[comp].column(m, width=80, stretch=tk.YES, anchor=tk.E)
 
         # Sign reversal frame
         reversal_frame = ttk.Labelframe(control, text="Reverse sign:")
@@ -250,7 +243,7 @@ class VelocitiesTaskView(TaskViewBase):
             self.update_vel_btn.state(["disabled"])
 
     def change_orientation(self):
-        """ Change the orientation CW <-> CCW of the angular regions of all cines """
+        """Change the orientation CW <-> CCW of the angular regions of all cines"""
         if self.orientation_var.get() != self.data.orientation:
             self.data.set_orientation(self.orientation_var.get())
             if "24" in self.vel_var:
@@ -259,11 +252,10 @@ class VelocitiesTaskView(TaskViewBase):
                 self.populate_tables()
 
     def find_velocity_limits(self):
-        """ Finds suitable maximum and minimum for the velocity plots. """
-        # region = Region[self.vel_var]
+        """Finds suitable maximum and minimum for the velocity plots."""
         vel = self.data.velocities.sel(cine=self.cines_var.get())
-        result: Dict[Comp, Tuple[float, float]] = {}
-        for i, label in enumerate((Comp.LONG, Comp.RAD, Comp.CIRC)):
+        result: Dict[str, Tuple[float, float]] = {}
+        for i, label in enumerate((Comp.LONG.name, Comp.RAD.name, Comp.CIRC.name)):
             mini = vel.sel(comp=label).min().item()
             maxi = vel.sel(comp=label).max().item()
             m = (maxi - mini) * 0.10
@@ -271,7 +263,7 @@ class VelocitiesTaskView(TaskViewBase):
         return result
 
     def display_plots(self, show=True):
-        """ Show/hide the plots """
+        """Show/hide the plots"""
         if show:
             self.visualise_frame.grid(row=1, column=0, sticky=tk.NSEW, padx=5, pady=5)
             self.export_btn.state(["!disabled"])
@@ -284,7 +276,7 @@ class VelocitiesTaskView(TaskViewBase):
             self.controller.window.update()
 
     def replot(self):
-        """ Updates the plot to show the chosen velocity. """
+        """Updates the plot to show the chosen velocity."""
         region = Region[self.vel_var]
 
         if region == Region.ANGULAR_x24:
@@ -350,17 +342,17 @@ class VelocitiesTaskView(TaskViewBase):
         self.fig.draw()
         self.populate_tables()
 
-    def marker_moved(self, comp: Comp, marker: Mark):
+    def marker_moved(self, comp: str, marker: str):
         """Updates plot and table after a marker has been moved."""
-        if marker == Mark.ES:
+        if marker == Mark.ES.name:
             self.populate_tables()
             for f in self.fig.fixed_markers:
                 loc = self.data.markers.sel(
                     quantity="frame",
-                    region=Region.GLOBAL,
+                    region=Region.GLOBAL.name,
                     cine=self.cines_var.get(),
-                    comp=Comp.RAD,
-                    marker=Mark.ES,
+                    comp=Comp.RAD.name,
+                    marker=Mark.ES.name,
                 ).item()
                 f.set_xdata([loc, loc])
         else:
@@ -476,14 +468,14 @@ class VelocitiesTaskView(TaskViewBase):
                 )
                 t.insert(time, tk.END, text=labels[i], values=val, tags=(tag,))
 
-    def update_table_one_marker(self, comp: Comp, marker: Mark):
+    def update_table_one_marker(self, comp: str, marker: str):
         """Updates peak velocity and time table entry for a single marker."""
         t = self.param_tables[comp]
 
         # Update the velocity
         t.set(
             t.get_children(t.get_children()[0])[self.current_region],
-            column=marker.name,
+            column=marker,
             value=self.markers.sel(comp=comp, marker=marker, quantity="velocity")
             .isel(region=self.current_region, missing_dims="ignore")
             .round(decimals=2)
@@ -493,7 +485,7 @@ class VelocitiesTaskView(TaskViewBase):
         # And the times
         t.set(
             t.get_children(t.get_children()[1])[self.current_region],
-            column=marker.name,
+            column=marker,
             value=self.markers.sel(comp=comp, marker=marker, quantity="time")
             .isel(region=self.current_region, missing_dims="ignore")
             .round(decimals=2)
@@ -507,9 +499,7 @@ class VelocitiesTaskView(TaskViewBase):
         for v in self.velocities_frame.winfo_children():
             v.grid_remove()
 
-        vel_list = set(
-            [v.name for v in velocities.region.data if "RADIAL" not in v.name]
-        )
+        vel_list = set([v for v in velocities.region.data if "RADIAL" not in v])
         vel_list = sorted(vel_list, reverse=True)
         for i, v in enumerate(vel_list):
             ttk.Radiobutton(
@@ -543,7 +533,7 @@ class VelocitiesTaskView(TaskViewBase):
             velocity_value=y,
             frames=self.velocities.sizes["frame"],
         )
-        self.marker_moved(Comp[data.get_label().strip("_")], Mark[marker.get_label()])
+        self.marker_moved(data.get_label().strip("_"), marker.get_label())
 
     def export(self, *args):
         """Exports the current velocity data to an XLSX file."""
@@ -596,13 +586,13 @@ class VelocitiesTaskView(TaskViewBase):
             self.reverse_vel_var[i].set(var.item() == -1)
 
     def update_widgets(self):
-        """ Updates widgets after an update in the data var. """
+        """Updates widgets after an update in the data var."""
         self.populate_cine_box()
         self.update_sign_reversal()
         self.cine_changed()
 
     def clear_widgets(self):
-        """ Clear widgets after removing the data. """
+        """Clear widgets after removing the data."""
         pass
 
 

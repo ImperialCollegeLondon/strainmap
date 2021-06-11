@@ -240,7 +240,7 @@ def snakes_segmentation(
         DataArray with the new segments for the requested frames. Dimensions are (side,
         frame, coord, point).
     """
-    img = images.sel(comp=Comp.MAG)
+    img = images.sel(comp=Comp.MAG.name)
     frame = img.frame
 
     segments = initials.expand_dims(axis=1, frame=frame).copy()

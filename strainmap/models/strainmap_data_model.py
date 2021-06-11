@@ -88,7 +88,7 @@ class StrainMapData(object):
         self.sign_reversal: xr.DataArray = xr.DataArray(
             [1, 1, 1],
             dims=["comp"],
-            coords={"comp": [Comp.X, Comp.Y, Comp.Z]},
+            coords={"comp": [Comp.X.name, Comp.Y.name, Comp.Z.name]},
             name="sign_reversal",
         ).astype(np.int16)
         self.segments: xr.DataArray = xr.DataArray(name="segments")
@@ -120,15 +120,11 @@ class StrainMapData(object):
         return True
 
     def add_file(self, strainmap_file: Union[Path, Text]):
-        """Adds a new netCDF file to the structure.
-
-        The filename is replaced by ~strainmap_file and only when closing
-        StrainMap or starting a new analysis is the filed copied to the correct name.
-        """
+        """Adds a new netCDF file to the structure."""
         if not str(strainmap_file).endswith(".nc"):
             return False
         filename = Path(strainmap_file)
-        self.filename = filename.parent / f"~{filename.name}"
+        self.filename = filename.parent / filename.name
         self.save_all()
         return True
 

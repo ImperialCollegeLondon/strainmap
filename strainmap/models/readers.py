@@ -50,7 +50,7 @@ def velocity_sensitivity(header) -> xr.DataArray:
     return xr.DataArray(
         np.array((z, r, theta)) * 2,
         dims=["comp"],
-        coords={"comp": [Comp.RAD, Comp.CIRC, Comp.LONG]},
+        coords={"comp": [Comp.RAD.name, Comp.CIRC.name, Comp.LONG.name]},
     )
 
 
@@ -60,7 +60,9 @@ def phase_encoding(filename) -> Tuple[bool, xr.DataArray]:
     swap = ds.InPlanePhaseEncodingDirection == "ROW"
     signs = (
         xr.DataArray(
-            [1, -1, 1], dims=["comp"], coords={"comp": [Comp.RAD, Comp.CIRC, Comp.LONG]}
+            [1, -1, 1],
+            dims=["comp"],
+            coords={"comp": [Comp.RAD.name, Comp.CIRC.name, Comp.LONG.name]},
         )
         * (-1) ** swap
     )
@@ -265,7 +267,7 @@ class DICOMReaderBase(ABC):
 
     @property
     def frames(self) -> int:
-        """ Number of frames per dataset. """
+        """Number of frames per dataset."""
         return self.files.sizes["frame"]
 
     @property
@@ -352,10 +354,10 @@ DICOM_READERS = []
 def register_dicom_reader(reader_class):
     """Registers the reader_class in the list of available readers."""
     if issubclass(reader_class, DICOMReaderBase) and set(reader_class.vars.keys()) == {
-        Comp.MAG,
-        Comp.X,
-        Comp.Y,
-        Comp.Z,
+        "MAG",
+        "X",
+        "Y",
+        "Z",
     }:
         DICOM_READERS.append(reader_class)
     return reader_class
@@ -374,7 +376,7 @@ class DICOM(DICOMReaderBase):
 
     variables = ["MagAvg", "PhaseZ", "PhaseX", "PhaseY", "RefMag"]
 
-    vars = {Comp.MAG: "MagAvg", Comp.Z: "PhaseZ", Comp.X: "PhaseX", Comp.Y: "PhaseY"}
+    vars = {"MAG": "MagAvg", "Z": "PhaseZ", "X": "PhaseX", "Y": "PhaseY"}
 
     @staticmethod
     def belongs(path: Union[Path, Text]) -> bool:
@@ -468,7 +470,7 @@ class DICOM(DICOMReaderBase):
             np.stack((mag, phasex, phasey, phasez)),
             dims=["comp", "frame", "row", "col"],
             coords={
-                "comp": [Comp.MAG, Comp.X, Comp.Y, Comp.Z],
+                "comp": [Comp.MAG.name, Comp.X.name, Comp.Y.name, Comp.Z.name],
                 "frame": np.arange(0, mag.shape[0]),
                 "cine": dataset,
                 "row": np.arange(0, mag.shape[1]),
