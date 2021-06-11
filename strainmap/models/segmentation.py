@@ -73,11 +73,12 @@ def update_segmentation(
     if not xr.ufuncs.isnan(segments).any():
         centroid[...] = _calc_effective_centroids(centroid, window=3)
 
-        # data.velocities.pop(cine, None)
-        # data.masks.pop(cine, None)
-        # data.markers.pop(cine, None)
-        # data.strain = xr.DataArray()
-        # data.strain_markers = xr.DataArray()
+        data.masks = _drop_cine(data.masks, cine)
+        data.cylindrical = _drop_cine(data.cylindrical, cine)
+        data.velocities = _drop_cine(data.velocities, cine)
+        data.markers = _drop_cine(data.markers, cine)
+        data.strain = xr.DataArray()
+        data.strain_markers = xr.DataArray()
 
         data.save_all()
 
