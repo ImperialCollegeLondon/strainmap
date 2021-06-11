@@ -1,5 +1,6 @@
 from itertools import chain
 from typing import Callable, Dict, NamedTuple, Optional, Sequence, Text, Tuple
+import logging
 
 import numpy as np
 import xarray as xr
@@ -301,7 +302,7 @@ def calculate_velocities(
     raw_phase = data.data_files.images(cine).sel(comp=[Comp.X, Comp.Y, Comp.Z])
     phase = process_phases(raw_phase, data.sign_reversal, swap)
     lap1 = time.time()
-    print("phase: ", round(lap1 - start, 2))
+    logging.info(f"Time for phase: {round(lap1 - start, 2)}s")
 
     # Now we calculate all the masks
     shape = raw_phase.sizes["row"], raw_phase.sizes["col"]
@@ -311,7 +312,7 @@ def calculate_velocities(
     theta0 = theta_origin(centroid, septum)
     masks = find_masks(segments, centroid, theta0, shape)
     lap2 = time.time()
-    print("masks: ", round(lap2 - lap1, 2))
+    logging.info(f"Time for masks: {round(lap2 - lap1, 2)}s")
 
     # Next we calculate the velocities in cylindrical coordinates
     cylindrical = (
@@ -322,16 +323,16 @@ def calculate_velocities(
         * signs
     )
     lap3 = time.time()
-    print("cyl: ", round(lap3 - lap2, 2))
+    logging.info(f"Time for cyl: {round(lap3 - lap2, 2)}s")
 
     # We are now ready to calculate the velocities
     velocity = _calculate_velocities(masks, cylindrical)
     lap4 = time.time()
-    print("vel: ", round(lap4 - lap3, 2))
+    logging.info(f"Time for vel: {round(lap4 - lap3, 2)}s")
 
     markers = initialise_markers(velocity)
     lap5 = time.time()
-    print("marker: ", round(lap5 - lap4, 2))
+    logging.info(f"Time for marker: {round(lap5 - lap4, 2)}s")
     # Finally, we add all the information to the StrainMap data object
 
     data.add_data(
@@ -638,7 +639,7 @@ def regenerate(data, cines, callback: Callable = terminal):
 def px_velocity_curves(
     data: StrainMapData, cine: str, nrad: int = 3, nang: int = 24
 ) -> np.ndarray:
-    """ TODO: Remove in the final version. """
+    """TODO: Remove in the final version."""
     from .strain import masked_reduction
 
     vkey = "cylindrical"

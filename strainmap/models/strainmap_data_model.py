@@ -105,7 +105,7 @@ class StrainMapData(object):
         return all([k in self.velocities.keys() for k in self.markers.keys()])
 
     def add_paths(self, data_files: Union[Path, Text, None] = None):
-        """Adds data and/or phantom paths to the object."""
+        """Adds data paths to the object."""
         if data_files is None:
             return False
 
@@ -116,7 +116,7 @@ class StrainMapData(object):
         return True
 
     def add_h5_file(self, strainmap_file: Union[Path, Text]):
-        """Creates anew h5 file in the given path and add it to the structure."""
+        """Creates a new h5 file in the given path and add it to the structure."""
         if not str(strainmap_file).endswith(".h5"):
             return False
         self.strainmap_file = h5py.File(strainmap_file, "a")
