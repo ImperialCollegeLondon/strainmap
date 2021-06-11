@@ -1,7 +1,7 @@
-import os
 from itertools import chain
-from pathlib import Path, PurePath, PurePosixPath
-from typing import Iterable, Optional, Union
+from pathlib import Path
+from typing import Optional
+import subprocess
 
 import h5py
 import numpy as np
@@ -54,11 +54,11 @@ def velocity_to_xlsx(filename, data, dataset, vel_label):
     if data.orientation == "CCW":
         region_names = region_names[::-1]
 
-    for lab in labels:
-        title = lab.split(" - ")[0]
+    for ll in labels:
+        title = ll.split(" - ")[0]
         try:
             add_markers(
-                data.markers[dataset][lab],
+                data.markers[dataset][ll],
                 params_ws,
                 colnames=colnames,
                 p=p,
@@ -66,11 +66,9 @@ def velocity_to_xlsx(filename, data, dataset, vel_label):
                 title=title,
             )
         except KeyError:
-            print(f"Ignoring key '{lab}' when exporting velocity markers.")
+            print(f"Ignoring key '{ll}' when exporting velocity markers.")
 
-        add_velocity(
-            data.velocities[dataset][lab], region_names, wb.create_sheet(title)
-        )
+        add_velocity(data.velocities[dataset][ll], region_names, wb.create_sheet(title))
 
     wb.save(filename)
     wb.close()
@@ -126,11 +124,11 @@ def strain_to_xlsx(filename, data, dataset, vel_label):
     if data.orientation == "CCW":
         region_names = region_names[::-1]
 
-    for lab in labels:
-        title = lab.split(" - ")[0]
+    for ll in labels:
+        title = ll.split(" - ")[0]
         try:
             add_strain_markers(
-                data.strain_markers[dataset][lab],
+                data.strain_markers[dataset][ll],
                 params_ws,
                 colnames=colnames,
                 p=p,
@@ -138,9 +136,9 @@ def strain_to_xlsx(filename, data, dataset, vel_label):
                 title=title,
             )
         except KeyError:
-            print(f"Ignoring key '{lab}' when exporting strain markers.")
+            print(f"Ignoring key '{ll}' when exporting strain markers.")
 
-        add_velocity(data.strain[dataset][lab], region_names, wb.create_sheet(title))
+        add_velocity(data.strain[dataset][ll], region_names, wb.create_sheet(title))
 
     wb.save(filename)
     wb.close()
@@ -335,106 +333,131 @@ def rotation_to_xlsx(data, filename):
     wb.close()
 
 
-def write_hdf5_file(data, filename: Union[h5py.File, str]):
-    """Writes the contents of the StrainMap data object to a HDF5 file."""
-    f = filename if isinstance(filename, h5py.File) else h5py.File(filename, "a")
-
-    metadata_to_hdf5(f, data.metadata())
-
-    for s in data.stored:
-        if s in ("sign_reversal", "orientation"):
-            if s in f:
-                f[s][...] = getattr(data, s)
-            else:
-                f.create_dataset(s, data=getattr(data, s))
-        elif s == "timeshift":
-            f.attrs[s] = getattr(data, s)
-        elif s == "data_files":
-            if getattr(data, s) is not None:
-                paths_to_hdf5(f, f.filename, getattr(data, s).files)
-        else:
-            write_data_structure(f, s, getattr(data, s))
-
-
-def metadata_to_hdf5(g, metadata):
-    """"""
-    for key, value in metadata.items():
-        g.attrs[key] = value
-
-
-def write_data_structure(g, name, structure):
-    """Recursively populates the hdf5 file with a nested dictionary.
-
-    If any dataset already exist, it gets updated with the new values, otherwise it
-    is created.
-    """
-    group = g[name] if name in g else g.create_group(name, track_order=True)
-
-    if isinstance(structure, xr.DataArray):
-        struct = (
-            {
-                s: {
-                    side: structure.sel(cine=s, side=side).values
-                    for side in structure.side.values
-                }
-                if "side" in structure.dims
-                else structure.sel(cine=s)
-                for s in structure.cine.values
-            }
-            if "cine" in structure.dims
-            else {}
-        )
-    else:
-        struct = structure
-
-    for n, struct in struct.items():
-        if isinstance(struct, dict):
-            write_data_structure(group, n, struct)
-        else:
-            if n in group:
-                del group[n]
-            group.create_dataset(n, data=struct, track_order=True)
-
-
-def to_relative_paths(master: str, paths: Iterable[str]) -> list:
-    """Finds the relative paths of "paths" with respect to "master"."""
-    import sys
-
-    if sys.platform == "win32":
-        return []
-
-    try:
-        filenames = [
-            str(
-                PurePosixPath(
-                    Path(os.path.relpath(PurePath(p), PurePath(master).parent))
-                )
-            ).encode("ascii", "ignore")
-            for p in paths
-        ]
-    except ValueError:
-        filenames = []
-
-    return filenames
-
-
-def paths_to_hdf5(g: Union[h5py.File], master: str, structure: xr.DataArray) -> None:
-    """Saves a dictionary with paths as values after calculating the relative path.
-
-    TODO: Update when/if changing the data format."""
-
-    for cine in structure.cine.values:
-        for comp in structure.raw_comp.values:
-            n = f"/data_files/{cine}/{comp}"
-            if n in g:
-                del g[n]
-            paths = to_relative_paths(
-                master, structure.sel(cine=cine, raw_comp=comp).values
-            )
-            g.create_dataset(n, data=paths, track_order=True)
-
-
 def terminal(msg: str, value: Optional[float] = None):
     if value is not None:
         msg = f"{msg}. Progress: {min(1., value) * 100}%"
     print(msg)
+
+
+def save_group(
+    filename: Path, data: xr.DataArray, name: str, to_int=False, overwrite=False
+) -> None:
+    """Save a Datarray as a group in the netCDF file.
+
+    If the gorup already exists, it is deleted first.
+
+    Args:
+        - filename: The filename of the file to save the data into.
+        - data: Data to save.
+        - name: Name of the group.
+        - to_int: Flag to indicate if the data should be encoded as integer.
+        - overwrite: Flag to indicate if the file content should be overwritten.
+
+    Returns:
+        None
+    """
+    mode = "w"
+    if filename.is_file() and not overwrite:
+        f = h5py.File(filename, "a")
+        if name in f:
+            del f[name]
+        f.close()
+        mode = "a"
+
+    encoding = {}
+    if to_int:
+        scale = np.abs(data).max().item() / np.iinfo(np.int16).max
+        encoding = {
+            name: {
+                "dtype": "int16",
+                "scale_factor": scale,
+                "_FillValue": np.iinfo(np.int16).min,
+            }
+        }
+
+    data.to_netcdf(filename, mode=mode, group=name, encoding=encoding)
+
+
+def save_attribute(filename: Path, **kwargs) -> None:
+    """Save a scalar value as attribute in the netCDF file.
+
+    Args:
+        - filename: The filename of the file to save the data into.
+        - kwargs: Data to be saved as attributes.
+
+    Returns:
+        None
+    """
+    f = h5py.File(filename, mode="a")
+    for name, value in kwargs.items():
+        f.attrs[name] = value
+    f.close()
+
+
+def write_netcdf_file(filename: Path, **kwargs) -> None:
+    """Writes all kwargs to a netcdf file.
+
+    Those arguments of type DataArray will be stored as groups. Any other will be stored
+    as attributes.
+
+    Args:
+        - filename: The filename of the file to save the data into.
+        - kwargs: The information to save in the file as keyword arguments.
+
+    Return:
+        None
+    """
+    if filename.suffix != ".nc":
+        raise ValueError(
+            f"'{filename.suffix}' is an invalid extension for a "
+            "netCDF file. It must be '.nc'."
+        )
+
+    attr = dict()
+    for name, value in kwargs.items():
+        if isinstance(value, xr.DataArray):
+            if value.shape != ():
+                save_group(filename, value, name, value.dtype == float)
+        else:
+            attr[name] = value
+
+    save_attribute(filename, **attr)
+
+
+def repack_file(
+    filename: Path, target: Optional[Path] = None, overwrite: bool = False
+) -> None:
+    """Repacks a nc or h5 file to remove unused space.
+
+    The HDF5 file space management is peculiar and files might look enormous even though
+    there are just a few things inside. To recover that missing space, the file needs to
+    be re-packed:
+
+    https://support.hdfgroup.org/HDF5/doc/Advanced/FileSpaceManagement/FileSpaceManagement.pdf
+
+    Args:
+        - filename: The filename of the file repack.
+        - target: Name of the repacked file. If None, it is set to the name of the file
+            preceded by ~ or, if it was already like that, removes the tilde.
+        - overwrite: If target exists and overwrite is true, it is overwritten.
+
+    Returns:
+        None
+    """
+    if filename.suffix not in (".nc", ".h5"):
+        raise ValueError("Only '.nc' and '.h5' files can be repacked.")
+
+    if target is None:
+        if "~" in filename.name:
+            name = filename.name.strip("~")
+        else:
+            name = f"~{filename.name}"
+        target = filename.parent / name
+
+    if target.is_file() and not overwrite:
+        raise RuntimeError(
+            f"Target file for repack {target}. Already exists."
+            "Use 'overwrite=True' to overwrite."
+        )
+
+    subprocess.run(["h5repack", "--enable-error-stack", str(filename), str(target)])

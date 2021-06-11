@@ -11,15 +11,7 @@ def test_from_folder(dicom_data_path):
     assert len(data.data_files.files) > 0
 
 
-def test_add_h5_file(dicom_data_path, tmpdir):
-    from strainmap.models.strainmap_data_model import StrainMapData
-    import h5py
-
-    data = StrainMapData.from_folder(data_files=dicom_data_path)
-    data.add_h5_file(strainmap_file=tmpdir / "Dummy_file.h5")
-    assert isinstance(data.strainmap_file, h5py.File)
-
-
+@mark.xfail(reason="Refactoring in progress.")
 def test_save(tmpdir, segmented_data):
     segmented_data.add_h5_file(strainmap_file=tmpdir / "Dummy_file.h5")
 
@@ -37,7 +29,7 @@ def test_save(tmpdir, segmented_data):
     assert not segmented_data.strainmap_file[s][()] == approx(42)
 
 
-@mark.xfail
+@mark.xfail(reason="Refactoring in progress.")
 def test_from_file(dicom_data_path, h5_file_path):
     from strainmap.models.strainmap_data_model import StrainMapData
     from strainmap.models.readers import from_relative_paths

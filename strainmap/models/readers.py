@@ -74,8 +74,11 @@ def read_images(filenames: Sequence[str]) -> np.ndarray:
 
 def read_strainmap_file(stored: Tuple, filename: Union[Path, Text]) -> dict:
     """Reads a StrainMap file with existing information on previous segmentations."""
-    if str(filename).endswith(".h5"):
+    fn = Path(filename)
+    if fn.suffix == ".h5":
         return read_h5_file(stored, filename)
+    elif fn.suffix == ".nc":
+        return read_netcdf_file(fn)
     else:
         raise RuntimeError("File type not recognised by StrainMap.")
 
@@ -472,3 +475,35 @@ class DICOM(DICOMReaderBase):
                 "col": np.arange(0, mag.shape[2]),
             },
         )
+
+
+def read_netcdf_file(filename: Path) -> Dict:
+    """Read a netCDF file and returns a dictionary with its contents.
+
+    The file is assumed to have been created with StrainMap (write_netcdf_file) and have
+    all DataArrays as groups and all non-DataArray information as attributes of the
+    root gorup.
+
+    Args:
+        - filename: The name of the file to read the data from.
+
+    Return:
+        A dictionary with contents of the file.
+    """
+    if filename.suffix != ".nc":
+        raise ValueError(
+            f"'{filename.suffix}' is an invalid extension for a netCDF file. It must "
+            "be '.nc'."
+        )
+
+    result = dict(filename=filename)
+    with h5py.File(filename, "r") as f:
+        for k, v in f.attrs.items():
+            if k.isidentifier():
+                result[k] = v
+        names = tuple(f.keys())
+
+    for n in names:
+        result[n] = xr.open_dataarray(filename, group=n)
+
+    return result

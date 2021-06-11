@@ -1,6 +1,5 @@
-import sys
-
-from pytest import approx, mark
+from pytest import approx, mark, raises
+from unittest.mock import MagicMock, patch
 
 
 def test_add_metadata(strainmap_data):
@@ -17,7 +16,7 @@ def test_add_metadata(strainmap_data):
     assert ws.max_row == 8
 
 
-@mark.xfail(reason="Refactoring in progress")
+@mark.skip(reason="Refactoring of export to excel in progress")
 def test_add_markers(markers):
     from strainmap.models.writers import add_markers
     import numpy as np
@@ -58,8 +57,8 @@ def test_add_markers(markers):
     assert ws["L8"].value == approx(np.around(markers[2, 2, 2], 3))
 
 
-@mark.xfail(reason="Refactoring in progress")
-def test_add_velocity(velocities):
+@mark.skip(reason="Refactoring of export to excel in progress")
+def test_add_velocity(velocity):
     from strainmap.models.writers import add_velocity
     import numpy as np
     import openpyxl as xlsx
@@ -68,101 +67,101 @@ def test_add_velocity(velocities):
     ws = wb.create_sheet("Velocity")
     region_names = "AS", "A", "AL", "IL", "I", "IS"
 
-    add_velocity(velocities[None, :, :], region_names, ws)
+    add_velocity(velocity[None, :, :], region_names, ws)
     assert ws.max_row == 52
-    assert ws["A52"].value == approx(np.around(velocities[0, -1], 3))
-    assert ws["C52"].value == approx(np.around(velocities[1, -1], 3))
-    assert ws["E52"].value == approx(np.around(velocities[2, -1], 3))
+    assert ws["A52"].value == approx(np.around(velocity[0, -1], 3))
+    assert ws["C52"].value == approx(np.around(velocity[1, -1], 3))
+    assert ws["E52"].value == approx(np.around(velocity[2, -1], 3))
 
 
-def test_metadata_to_hdf5(strainmap_data, tmpdir):
-    from strainmap.models.writers import metadata_to_hdf5
+def test_save_group(tmp_path):
+    from strainmap.models.writers import save_group
+
+    to_netcdf = MagicMock()
+
+    with patch("xarray.DataArray.to_netcdf", to_netcdf):
+        import xarray as xr
+
+        da = xr.DataArray([1, 2, 3], dims=["x"], coords={"x": ["a", "b", "c"]})
+
+        filename = tmp_path / "my_data.nc"
+        save_group(filename, da, "speed")
+        to_netcdf.assert_called_with(filename, mode="w", group="speed", encoding={})
+
+        to_netcdf.reset_mock()
+        filename.open("w").close()
+        save_group(filename, da, "speed")
+        to_netcdf.assert_called_with(filename, mode="a", group="speed", encoding={})
+
+        to_netcdf.reset_mock()
+        save_group(filename, da, "speed", overwrite=True)
+        to_netcdf.assert_called_with(filename, mode="w", group="speed", encoding={})
+
+        to_netcdf.reset_mock()
+        save_group(filename, da, "speed", to_int=True)
+        assert to_netcdf.call_args[-1]["encoding"] != {}
+
+
+def test_save_attribute(tmp_path):
+    from strainmap.models.writers import save_attribute
     import h5py
 
-    filename = tmpdir / "strain_map_file.h5"
-    f = h5py.File(filename, "a")
+    filename = tmp_path / "my_data.nc"
+    save_attribute(filename, name="Thor")
 
-    metadata_to_hdf5(f, strainmap_data.metadata())
-
-    assert "Patient Name" in f.attrs
-    assert "Patient DOB" in f.attrs
-    assert "Date of Scan" in f.attrs
+    f = h5py.File(filename, mode="r")
+    assert f.attrs["name"] == "Thor"
 
 
-def test_write_data_structure(segmented_data, tmpdir):
-    from strainmap.models.writers import write_data_structure
+def test_write_netcdf_file(tmp_path):
+    from strainmap.models.writers import write_netcdf_file
+    import xarray as xr
+    import numpy as np
     import h5py
 
-    cine = segmented_data.segments.cine[0].item()
-    filename = tmpdir / "strain_map_file.h5"
-    f = h5py.File(filename, "a")
-
-    write_data_structure(f, "segments", segmented_data.segments)
-    assert "segments" in f
-    assert cine in f["segments"]
-    assert "endocardium" in f["segments"][cine]
-    assert "epicardium" in f["segments"][cine]
-    assert segmented_data.segments.sel(cine=cine, side="endocardium").values == approx(
-        f["segments"][cine]["endocardium"][:]
+    ds = xr.Dataset(
+        {"foo": (("x", "y"), np.random.rand(4, 5)), "bar": (("x"), np.random.rand(4))},
+        coords={
+            "x": [10, 20, 30, 40],
+            "y": np.linspace(0, 10, 5),
+            "z": ("y", list("abcde")),
+        },
     )
 
-    segmented_data.segments.loc[{"cine": cine, "side": "endocardium"}] *= 2
-    write_data_structure(f, "segments", segmented_data.segments)
-    assert segmented_data.segments.sel(cine=cine, side="endocardium").values == approx(
-        f["segments"][cine]["endocardium"][:]
-    )
+    filename = tmp_path / "my_data.nc"
+    write_netcdf_file(filename, foo=ds.foo, bar=ds.bar, patient="Thor", age=38)
+
+    data = h5py.File(filename, mode="r")
+    assert data.attrs["patient"] == "Thor"
+    assert data.attrs["age"] == 38
+
+    for var in (ds.foo, ds.bar):
+        assert var.name in data
+        assert var.name in data[var.name]
+        for coord in var.coords:
+            assert coord in data[var.name]
 
 
-def test_write_hdf5_file(segmented_data, tmpdir):
-    from strainmap.models.writers import write_hdf5_file
+def test_repack_file(tmp_path):
+    from strainmap.models.writers import write_netcdf_file, repack_file
+    import xarray as xr
 
-    filename = tmpdir / "strain_map_file.h5"
-    write_hdf5_file(segmented_data, filename)
+    da = xr.DataArray([1, 2, 3], dims=["x"], coords={"x": ["a", "b", "c"]})
 
+    filename = tmp_path / "my_data.nc"
 
-@mark.skipif(sys.platform == "win32", reason="does not run on windows in Azure")
-def test_to_relative_paths():
-    from strainmap.models.writers import to_relative_paths
-    from pathlib import Path
+    # Write the file twice to create some space issues
+    write_netcdf_file(filename, foo=da)
+    write_netcdf_file(filename, foo=da)
 
-    master = Path("home/data/my_file.h5").resolve()
-    paths = [
-        str(Path("home").resolve()),
-        str(Path("home/data").resolve()),
-        str(Path("home/data/cars").resolve()),
-        str(Path("home/data/cars/Tesla").resolve()),
-    ]
-    expected = [b"..", b".", b"cars", b"cars/Tesla"]
-    actual = to_relative_paths(master, paths)
-    assert actual == expected
+    repack_file(filename)
+    target = filename.parent / f"~{filename.name}"
+    assert target.is_file()
+    assert target.stat().st_size < filename.stat().st_size
 
+    with raises(RuntimeError):
+        repack_file(filename, target)
 
-@mark.skipif(sys.platform == "win32", reason="does not run on windows in Azure")
-def test_paths_to_hdf5(strainmap_data, tmpdir):
-    from strainmap.models.writers import paths_to_hdf5, to_relative_paths
-    from strainmap.coordinates import Comp
-    import h5py
-
-    cine = strainmap_data.data_files.datasets[0]
-    filename = tmpdir / "strain_map_file.h5"
-
-    mag = strainmap_data.data_files.vars[Comp.MAG]
-    abs_paths = strainmap_data.data_files.files.sel(cine=cine, raw_comp=mag).values
-    rel_paths = to_relative_paths(filename, abs_paths)
-
-    f = h5py.File(filename, "a")
-    paths_to_hdf5(f, filename, strainmap_data.data_files.files)
-
-    assert "data_files" in f
-    assert cine in f["data_files"]
-    assert mag in f["data_files"][cine]
-    assert rel_paths == f["data_files"][cine][mag][...].tolist()
-
-    strainmap_data.data_files.files.loc[
-        {"cine": cine, "raw_comp": mag, "frame": 0}
-    ] = "/my new path"
-    abs_paths = strainmap_data.data_files.files.sel(cine=cine, raw_comp=mag).values
-    rel_paths = to_relative_paths(filename, abs_paths)
-    paths_to_hdf5(f, filename, strainmap_data.data_files.files)
-
-    assert rel_paths == f["data_files"][cine][mag][...].tolist()
+    target = filename.parent / "new_filename.nc"
+    repack_file(filename, target)
+    assert target.is_file()

@@ -7,7 +7,7 @@ import xarray as xr
 
 from ..coordinates import Comp
 from .readers import DICOMReaderBase, read_folder, read_strainmap_file
-from .writers import write_hdf5_file
+from .writers import write_netcdf_file, save_group, save_attribute
 
 TIMESHIFT = -0.045
 """Default timeshift"""
@@ -66,10 +66,9 @@ class StrainMapData(object):
 
     @classmethod
     def from_file(cls, strainmap_file: Union[Path, Text]):
-        """Creates a new StrainMap data object from a h5 file."""
-        assert Path(strainmap_file).is_file()
+        """Creates a new StrainMap data object from a file."""
         attributes = read_strainmap_file(cls.stored, strainmap_file)
-        result = cls.from_folder()
+        result = cls()
         result.__dict__.update(attributes)
         result.regenerate()
         return result
@@ -78,26 +77,31 @@ class StrainMapData(object):
         self,
         data_files: Optional[DICOMReaderBase] = None,
         strainmap_file: Optional[h5py.File] = None,
+        filename: Path = Path(),
     ):
 
         self.data_files = data_files
         self.strainmap_file = strainmap_file
+        self.filename: Path = filename
         self.orientation: str = "CCW"
         self.timeshift: float = TIMESHIFT
         self.sign_reversal: xr.DataArray = xr.DataArray(
-            [1, 1, 1], dims=["comp"], coords={"comp": [Comp.X, Comp.Y, Comp.Z]}
-        )
-        self.segments: xr.DataArray = xr.DataArray()
-        self.centroid: xr.DataArray = xr.DataArray()
-        self.septum: xr.DataArray = xr.DataArray()
-        self.velocities: xr.DataArray = xr.DataArray()
-        self.masks: xr.DataArray = xr.DataArray()
-        self.markers: xr.DataArray = xr.DataArray()
-        self.cylindrical: xr.DataArray = xr.DataArray()
-        self.strain: xr.DataArray = xr.DataArray()
-        self.strain_markers: xr.DataArray = xr.DataArray()
-        self.gls: xr.DataArray = xr.DataArray()
-        self.twist: xr.DataArray = xr.DataArray()
+            [1, 1, 1],
+            dims=["comp"],
+            coords={"comp": [Comp.X, Comp.Y, Comp.Z]},
+            name="sign_reversal",
+        ).astype(np.int16)
+        self.segments: xr.DataArray = xr.DataArray(name="segments")
+        self.centroid: xr.DataArray = xr.DataArray(name="centroid")
+        self.septum: xr.DataArray = xr.DataArray(name="septum")
+        self.velocities: xr.DataArray = xr.DataArray(name="velocities")
+        self.masks: xr.DataArray = xr.DataArray(name="masks")
+        self.markers: xr.DataArray = xr.DataArray(name="markers")
+        self.cylindrical: xr.DataArray = xr.DataArray(name="cylindrical")
+        self.strain: xr.DataArray = xr.DataArray(name="strain")
+        self.strain_markers: xr.DataArray = xr.DataArray(name="strain_markers")
+        self.gls: xr.DataArray = xr.DataArray(name="gls")
+        self.twist: xr.DataArray = xr.DataArray(name="twist")
 
     @property
     def rebuilt(self):
@@ -105,7 +109,7 @@ class StrainMapData(object):
         return all([k in self.velocities.keys() for k in self.markers.keys()])
 
     def add_paths(self, data_files: Union[Path, Text, None] = None):
-        """Adds data paths to the object."""
+        """Adds data and/or phantom paths to the object."""
         if data_files is None:
             return False
 
@@ -115,21 +119,23 @@ class StrainMapData(object):
         self.save_all()
         return True
 
-    def add_h5_file(self, strainmap_file: Union[Path, Text]):
-        """Creates a new h5 file in the given path and add it to the structure."""
-        if not str(strainmap_file).endswith(".h5"):
+    def add_file(self, strainmap_file: Union[Path, Text]):
+        """Adds a new netCDF file to the structure.
+
+        The filename is replaced by ~strainmap_file and only when closing
+        StrainMap or starting a new analysis is the filed copied to the correct name.
+        """
+        if not str(strainmap_file).endswith(".nc"):
             return False
-        self.strainmap_file = h5py.File(strainmap_file, "a")
+        filename = Path(strainmap_file)
+        self.filename = filename.parent / f"~{filename.name}"
         self.save_all()
         return True
 
     def add_data(self, cine: str, **kwargs):
         """Adds new data to the attributes, expanding the 'cine' coordinate.
 
-        After updating the data object, it is saved. if the attribute already has data
-        for that cine, nothing is done. Update the attribute directly in that case, eg.:
-
-            data.segmentation[{"cine": cine}][...] = new_data
+        After updating the data object, it is saved.
 
         Args:
             cine (str): Name of the cine for which information is to be added.
@@ -142,6 +148,7 @@ class StrainMapData(object):
         for attr, value in kwargs.items():
             if getattr(self, attr).shape == ():
                 setattr(self, attr, value.expand_dims(cine=[cine]).copy())
+                getattr(self, attr).name = attr
             elif cine not in getattr(self, attr).cine:
                 setattr(
                     self,
@@ -151,15 +158,16 @@ class StrainMapData(object):
                         dim="cine",
                     ),
                 )
+                getattr(self, attr).name = attr
             else:
                 getattr(self, attr).loc[{"cine": cine}] = value
 
-        self.save(list(kwargs.keys()))
+        self.save(*kwargs.keys())
 
     def set_orientation(self, orientation):
         """Sets the angular regions orientation (CW or CCW) and saves the data"""
         self.orientation = orientation
-        self.save(["orientation"])
+        self.save("orientation")
 
     def regenerate(self):
         """We create placeholders for the velocities that were expected.
@@ -236,44 +244,40 @@ class StrainMapData(object):
         return output
 
     def save_all(self):
-        """Saves the data to the hdf5 file, if present."""
-        if self.strainmap_file is None or self.data_files is None:
+        """Saves the data to the netCDF file, if present."""
+        if self.filename == Path(".") or self.data_files is None:
             return
 
-        write_hdf5_file(self, self.strainmap_file)
+        to_save = {
+            k: v
+            for k, v in self.__dict__.items()
+            if not k.startswith("_")
+            and k not in ("filename", "data_files", "strainmap_file")
+        }
 
-    def save(self, *args):
-        """Saves specific attributes to the hdf5 file.
+        write_netcdf_file(self.filename, **to_save, **self.metadata())
 
-        They must be one of the storable StrainMapData attributes (segments, velocities,
-        etc.)
+    def save(self, *args) -> None:
+        """Saves specific object attributes to the hdf5 file.
+
+        DataArrays are saved as gorups while anything else is saved as attribute of the
+        root gorup.
+
+        Args:
+            - args: Names of instance attributes to save.
+
+        Return:
+            None
         """
-        from .writers import write_data_structure
-
-        if self.strainmap_file is None:
+        if self.filename == Path("."):
             return
 
         for key in args:
-            if key not in self.stored:
-                raise KeyError(f"{key} is not storable.")
-            elif key == "timeshift":
-                self.strainmap_file.attrs[key] = getattr(self, key)
+            value = getattr(self, key)
+            if isinstance(value, xr.DataArray):
+                save_group(self.filename, value, key, value.dtype == float)
             else:
-                write_data_structure(self.strainmap_file, key, getattr(self, key))
-
-    def delete(self, *args):
-        """Deletes the chosen dataset or group from the hdf5 file.
-
-        Each dataset to be saved must be defined as a list of keys, where key[0]
-        must be one of the StrainMapData attributes (segments, velocities, etc.)
-        """
-        if self.strainmap_file is None:
-            return
-
-        for keys in args:
-            s = "/".join(keys)
-            if s in self.strainmap_file:
-                del self.strainmap_file[s]
+                save_attribute(self.filename, value, key)
 
     def __eq__(self, other) -> bool:
         """Compares two StrainMapData objects.

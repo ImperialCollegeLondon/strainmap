@@ -1,6 +1,4 @@
-import sys
-
-from pytest import approx, mark
+from pytest import approx
 
 
 def test_read_images(data_tree):
@@ -35,87 +33,6 @@ def test_velocity_sensitivity(dicom_data_path):
 
     actual = velocity_sensitivity(header)
     assert expected == approx(actual.data)
-
-
-def test_read_data_structure(tmpdir, segmented_data):
-    from strainmap.models.readers import read_data_structure
-    from strainmap.models.writers import write_data_structure
-    from collections import defaultdict
-    import h5py
-
-    filename = tmpdir / "strain_map_file.h5"
-    f = h5py.File(filename, "a")
-
-    cine = segmented_data.segments.cine[0].item()
-    write_data_structure(f, "segments", segmented_data.segments)
-
-    d = defaultdict(dict)
-    read_data_structure(d, f["segments"])
-
-    assert all([key in d for key in f["segments"]])
-    assert all([value.keys() == d[key].keys() for key, value in f["segments"].items()])
-    assert d[cine]["endocardium"] == approx(f["segments"][cine]["endocardium"][...])
-
-
-@mark.skipif(sys.platform == "win32", reason="does not run on windows in Azure")
-def test_from_relative_paths(tmpdir):
-    from strainmap.models.readers import from_relative_paths
-    from pathlib import Path
-
-    master = Path("home/data/my_file.h5").resolve()
-    expected = [
-        str(Path("home").resolve()),
-        str(Path("home/data").resolve()),
-        str(Path("home/data/cars").resolve()),
-        str(Path("home/data/cars/Tesla").resolve()),
-    ]
-    paths = [b"..", b".", b"cars", b"cars/Tesla"]
-    actual = from_relative_paths(master, paths)
-    assert actual == expected
-
-
-@mark.skipif(sys.platform == "win32", reason="does not run on windows in Azure")
-def test_paths_from_hdf5(strainmap_data, tmpdir):
-    from strainmap.models.writers import paths_to_hdf5
-    from strainmap.models.readers import paths_from_hdf5
-    from collections import defaultdict
-    from strainmap.coordinates import Comp
-
-    import h5py
-
-    mag = strainmap_data.data_files.vars[Comp.MAG]
-    cine = strainmap_data.data_files.datasets[0]
-    filename = tmpdir / "strain_map_file.h5"
-
-    abs_paths = strainmap_data.data_files.files.isel(cine=0, raw_comp=0).values
-
-    f = h5py.File(filename, "a")
-    d = defaultdict(dict)
-    paths_to_hdf5(f, filename, strainmap_data.data_files.files)
-    paths_from_hdf5(d, filename, f["data_files"])
-
-    assert cine in d
-    assert all(
-        [key in d[cine] for key in strainmap_data.data_files.files.raw_comp.values]
-    )
-    assert (d[cine][mag] == abs_paths).all()
-
-
-@mark.skipif(sys.platform == "win32", reason="does not run on windows in Azure")
-@mark.skip(reason="Refactoring of export to excel in progress")
-def test_read_h5_file(tmpdir, segmented_data):
-    from strainmap.models.readers import read_h5_file
-    from strainmap.models.writers import write_hdf5_file
-    from strainmap.models.strainmap_data_model import StrainMapData
-
-    filename = tmpdir / "strain_map_file.h5"
-
-    write_hdf5_file(segmented_data, filename)
-    attributes = read_h5_file(StrainMapData.stored, filename)
-    new_data = StrainMapData.from_folder()
-    new_data.__dict__.update(attributes)
-
-    assert all(segmented_data == new_data)
 
 
 def test_dicom_reader():
@@ -154,3 +71,29 @@ def test_readers_registry():
 
     register_dicom_reader(Dummy)
     assert all([issubclass(c, DICOMReaderBase) for c in DICOM_READERS])
+
+
+def test_read_netcdf_file(tmp_path):
+    from strainmap.models.writers import write_netcdf_file
+    from strainmap.models.readers import read_netcdf_file
+    import xarray as xr
+    import numpy as np
+
+    ds = xr.Dataset(
+        {"foo": (("x", "y"), np.random.rand(4, 5)), "bar": (("x"), np.random.rand(4))},
+        coords={
+            "x": [10, 20, 30, 40],
+            "y": np.linspace(0, 10, 5),
+            "z": ("y", list("abcde")),
+        },
+    )
+
+    filename = tmp_path / "my_data.nc"
+    write_netcdf_file(filename, foo=ds.foo, bar=ds.bar, patient="Thor", age=38)
+
+    data = read_netcdf_file(filename)
+    assert data["filename"] == filename
+    assert data["patient"] == "Thor"
+    assert data["age"] == 38
+    xr.testing.assert_allclose(data["foo"], ds.foo, rtol=1e-3)
+    xr.testing.assert_allclose(data["bar"], ds.bar, rtol=1e-3)

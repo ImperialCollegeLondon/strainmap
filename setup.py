@@ -39,6 +39,7 @@ setup(
         "opencv-python",
         "xarray",
         "python-decouple",
+        "netcdf4",
     ],
     package_data={"strainmap.gui": ["icons/*.gif", "icons/CREDITS.md"]},
     packages=find_packages("."),
