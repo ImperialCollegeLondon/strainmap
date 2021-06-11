@@ -45,8 +45,10 @@ def new_segmentation(
     # If are doing an automatic segmentation for all frames, calculate the effective COM
     if len(frm) == len(segments.frame):
         centroid[...] = _calc_effective_centroids(centroid, window=3)
-
-    data.save("segments", "centroid", "septum")
+        _reset_stale_vel_and_strain(data, cine)
+        data.save_all()
+    else:
+        data.save("segments", "centroid", "septum")
 
 
 def update_segmentation(
@@ -72,16 +74,8 @@ def update_segmentation(
 
     if not xr.ufuncs.isnan(segments).any():
         centroid[...] = _calc_effective_centroids(centroid, window=3)
-
-        data.masks = _drop_cine(data.masks, cine)
-        data.cylindrical = _drop_cine(data.cylindrical, cine)
-        data.velocities = _drop_cine(data.velocities, cine)
-        data.markers = _drop_cine(data.markers, cine)
-        data.strain = xr.DataArray()
-        data.strain_markers = xr.DataArray()
-
+        _reset_stale_vel_and_strain(data, cine)
         data.save_all()
-
     else:
         data.save("segments", "centroid", "septum")
 
@@ -132,17 +126,27 @@ def remove_segmentation(data: StrainMapData, cine: str) -> None:
     data.segments = _drop_cine(data.segments, cine)
     data.centroid = _drop_cine(data.centroid, cine)
     data.septum = _drop_cine(data.septum, cine)
+    _reset_stale_vel_and_strain(data, cine)
+    data.save_all()
 
-    if data.velocities.shape != ():
-        data.masks = _drop_cine(data.masks, cine)
-        data.cylindrical = _drop_cine(data.cylindrical, cine)
-        data.velocities = _drop_cine(data.velocities, cine)
-        data.markers = _drop_cine(data.markers, cine)
+
+def _reset_stale_vel_and_strain(data: StrainMapData, cine: str) -> None:
+    """Removes the cine from the velocity arrays and resets the strain.
+
+    Args:
+        data: A StrainMap data object.
+        cine: The cine to remove.
+
+    Returns:
+        None
+    """
+    data.masks = _drop_cine(data.masks, cine)
+    data.cylindrical = _drop_cine(data.cylindrical, cine)
+    data.velocities = _drop_cine(data.velocities, cine)
+    data.markers = _drop_cine(data.markers, cine)
 
     data.strain = xr.DataArray()
     data.strain_markers = xr.DataArray()
-
-    data.save_all()
 
 
 def _drop_cine(x: xr.DataArray, cine: str) -> xr.DataArray:

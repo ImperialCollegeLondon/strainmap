@@ -140,19 +140,18 @@ def test_update_and_find_next(strainmap_data, initial_segments):
     update_segmentation.assert_called_once()
 
 
+@patch("strainmap.models.segmentation._reset_stale_vel_and_strain", MagicMock())
 def test_remove_segmentation():
     import xarray as xr
     from types import SimpleNamespace as SimpleNM
     from strainmap.models.segmentation import (
         _get_segment_variables,
         remove_segmentation,
+        _reset_stale_vel_and_strain,
     )
 
     data = SimpleNM(
-        data_files=SimpleNM(frames=5),
-        segments=SimpleNM(shape=()),
-        velocities=SimpleNM(shape=()),
-        save_all=MagicMock(),
+        data_files=SimpleNM(frames=5), segments=SimpleNM(shape=()), save_all=MagicMock()
     )
     cine = "top"
     _get_segment_variables(data, cine)
@@ -162,10 +161,23 @@ def test_remove_segmentation():
     xr.testing.assert_equal(data.segments, expected)
     xr.testing.assert_equal(data.centroid, expected)
     xr.testing.assert_equal(data.septum, expected)
+    _reset_stale_vel_and_strain.assert_called_once_with(data, cine)
+    data.save_all.assert_called_once()
+
+
+@patch("strainmap.models.segmentation._drop_cine", MagicMock())
+def test__reset_stale_vel_and_strain():
+    import xarray as xr
+    from types import SimpleNamespace as SimpleNM
+    from strainmap.models.segmentation import _drop_cine, _reset_stale_vel_and_strain
+
+    data = SimpleNM(masks=None, cylindrical=None, markers=None, velocities=None)
+    _reset_stale_vel_and_strain(data, "top")
+
+    expected = xr.DataArray()
     xr.testing.assert_equal(data.strain, expected)
     xr.testing.assert_equal(data.strain_markers, expected)
-    assert not hasattr(data, "masks")
-    data.save_all.assert_called_once()
+    assert _drop_cine.call_count == 4
 
 
 def test__drop_cine():
