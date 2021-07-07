@@ -219,13 +219,22 @@ class DataTaskView(TaskViewBase):
             title="Select DATA directory", initialdir=self.current_dir
         )
 
-        if path != "" and self.controller.load_data_from_folder(data_files=path):
+        if path == "":
+            return
+
+        self.controller.load_data_from_folder(data_files=path)
+        if self.data is not None:
             self.controller.review_mode = False
             self.current_dir = path
             self.data_folder.set(self.current_dir)
             self.output_file.set(None)
             self.nametowidget("control.chooseOutputFile")["state"] = "enable"
-            self.update_widgets()
+            msg = f"Data loaded from {path}."
+        else:
+            msg = "No data was loaded."
+
+        self.controller.window.progress(msg)
+        self.update_widgets()
 
     def open_existing_file(self):
         """Opens an existing StrainMap file."""
@@ -235,16 +244,20 @@ class DataTaskView(TaskViewBase):
             filetypes=(("StrainMap files", "*.nc"), ("Legacy StrainMap files", "*.h5")),
         )
 
+        if path == "":
+            return
+
         try:
-            if path != "" and self.controller.load_data_from_file(strainmap_file=path):
-                self.load_missing_data()
-                if self.data.data_files:
-                    self.controller.review_mode = False
-                    self.output_file.set(path)
-                    self.data_folder.set(Path(self.data.data_files.is_avail).parent)
-                    self.current_dir = str(Path(path).parent)
-                    self.nametowidget("control.chooseOutputFile")["state"] = "enable"
-                self.update_widgets()
+            self.load_missing_data(path)
+            if self.data is not None:
+                self.controller.review_mode = False
+                self.output_file.set(path)
+                self.data_folder.set(Path(self.data.data_files.is_avail).parent)
+                self.current_dir = str(Path(path).parent)
+                self.nametowidget("control.chooseOutputFile")["state"] = "enable"
+                msg = f"Data loaded from {path}."
+            else:
+                msg = "No data was loaded."
 
         except Exception as err:
             log = (
@@ -254,21 +267,23 @@ class DataTaskView(TaskViewBase):
             with log.open("a") as f:
                 print_exc(file=f)
             self.controller.load_data_from_folder(data_files=path)
-            self.controller.window.progress(f"{err} - Log info in {str(log)}")
-            self.update_widgets()
+            msg = f"{err} - Log info in {str(log)}"
 
-    def load_missing_data(self):
+        self.controller.window.progress(msg)
+        self.update_widgets()
+
+    def load_missing_data(self, path):
         """Adds missing data to StrainMap if data files not found."""
-        data_path = None
-        if self.data.data_files == ():
-            data_path = tk.filedialog.askdirectory(
-                title="Select DATA directory", initialdir=self.current_dir
-            )
-            if data_path != "":
-                self.current_dir = data_path
-                self.data_folder.set(self.current_dir)
-
-        self.controller.add_paths(data_files=data_path)
+        self.controller.load_data_from_file(strainmap_file=path)
+        data_path = tk.filedialog.askdirectory(
+            title="Select DATA directory", initialdir=self.current_dir
+        )
+        if data_path != "" and self.data is not None:
+            self.current_dir = data_path
+            self.data_folder.set(self.current_dir)
+            self.controller.add_paths(data_files=data_path)
+        else:
+            self.controller.clear_data()
 
     def select_output_file(self):
         """Selects an output file in which to store the current data."""
@@ -302,17 +317,12 @@ class DataTaskView(TaskViewBase):
 
     def get_data_information(self):
         """Gets some information related to the available datasets, frames, etc."""
-        if self.controller.review_mode and len(self.data.segments) > 0:
-            values = list(self.data.segments.keys())
-        else:
-            self.controller.review_mode = False
-            values = (
-                self.data.data_files.datasets
-                if self.data.data_files is not None
-                else []
-            )
-
-        if len(values) > 0:
+        values = ["No suitable datasets available."]
+        texts = []
+        var_values = []
+        patient_data = {}
+        if self.data is not None:
+            values = self.data.data_files.datasets
             texts = [
                 "Magnitude",
                 "Through-plane velocity map (Z)",
@@ -321,11 +331,6 @@ class DataTaskView(TaskViewBase):
             ]
             var_values = ["MAG", "Z", "X", "Y"]
             patient_data = self.data.metadata()
-        else:
-            values = ["No suitable datasets available."]
-            texts = []
-            var_values = []
-            patient_data = {}
 
         return values, texts, var_values, patient_data
 
@@ -400,7 +405,7 @@ class DataTaskView(TaskViewBase):
         """Updates widgets after an update in the data var."""
         self.create_data_selector()
         self.create_data_viewer()
-        if self.data.data_files is not None:
+        if self.data is not None and self.data.data_files is not None:
             self.update_visualization()
         self.datafolder_entry.xview(len(self.data_folder.get()))
         self.outputfile_entry.xview(len(self.output_file.get()))

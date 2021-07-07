@@ -506,6 +506,7 @@ def read_netcdf_file(filename: Path) -> Dict:
         names = tuple(f.keys())
 
     for n in names:
-        result[n] = xr.open_dataarray(filename, group=n)
+        with xr.open_dataarray(filename, group=n) as da:
+            result[n] = da.load()
 
     return result

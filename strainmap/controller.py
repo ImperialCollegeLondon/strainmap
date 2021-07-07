@@ -13,6 +13,7 @@ from .models.strainmap_data_model import StrainMapData
 from .models.velocities import calculate_velocities, regenerate, update_markers
 from .models.writers import rotation_to_xlsx, strain_to_xlsx, velocity_to_xlsx
 from .coordinates import Mark
+from .exceptions import NoDICOMDataException
 
 
 class StrainMap(object):
@@ -75,17 +76,18 @@ class StrainMap(object):
 
     def load_data_from_folder(self, data_files):
         """Creates a StrainMapData object."""
-        self.data = StrainMapData.from_folder(data_files)
-        self.lock_toggle(self.data.data_files, Requisites.DATALOADED)
-        self.lock(Requisites.SEGMENTED)
-        return self.data is not None
+        try:
+            self.data = StrainMapData.from_folder(data_files)
+            self.lock_toggle(self.data.data_files, Requisites.DATALOADED)
+            self.lock(Requisites.SEGMENTED)
+        except NoDICOMDataException:
+            self.clear_data()
 
     def load_data_from_file(self, strainmap_file):
         """Creates a StrainMapData object."""
         self.data = StrainMapData.from_file(strainmap_file)
-        there_are_segments = any(len(i) != 0 for i in self.data.segments.values())
         self.lock_toggle(self.data.data_files, Requisites.DATALOADED)
-        self.lock_toggle(there_are_segments, Requisites.SEGMENTED)
+        self.lock_toggle(self.data.segments.shape != (), Requisites.SEGMENTED)
         return self.data is not None
 
     def clear_data(self):
@@ -95,11 +97,15 @@ class StrainMap(object):
         self.lock(Requisites.SEGMENTED)
         self.lock(Requisites.VELOCITIES)
 
-    def add_paths(self, data_files=None):
-        self.data.add_paths(data_files)
-        there_are_segments = any(len(i) != 0 for i in self.data.segments.values())
-        self.lock_toggle(self.data.data_files, Requisites.DATALOADED)
-        self.lock_toggle(there_are_segments, Requisites.SEGMENTED)
+    def add_paths(self, data_files=""):
+        """Add the paths to the DICOM files."""
+        try:
+            self.data.add_paths(data_files)
+            self.lock_toggle(self.data.data_files, Requisites.DATALOADED)
+            self.lock_toggle(self.data.segments.shape != (), Requisites.SEGMENTED)
+        except NoDICOMDataException:
+            self.clear_data()
+            raise
 
     def add_file(self, strainmap_file):
         return self.data.add_file(strainmap_file)

@@ -1,11 +1,11 @@
 from pathlib import Path
 from typing import Optional, Text, Union
 
-import h5py
 import numpy as np
 import xarray as xr
 
 from ..coordinates import Comp
+from ..exceptions import NoDICOMDataException
 from .readers import DICOMReaderBase, read_folder, read_strainmap_file
 from .writers import write_netcdf_file, save_group, save_attribute
 
@@ -56,12 +56,12 @@ class StrainMapData(object):
     )
 
     @classmethod
-    def from_folder(cls, data_files: Union[Path, Text, None] = None):
+    def from_folder(cls, data_files: Union[Path, Text]):
         """Creates a new StrainMap data object from a folder containing DICOMs"""
-        data = cls()
-        if data_files is not None:
-            data = cls(data_files=read_folder(data_files))
-            data.save_all()
+        df = read_folder(data_files)
+        if df is None:
+            raise NoDICOMDataException(f"'{data_files}' does not contain DICOM data.")
+        data = cls(data_files=df)
         return data
 
     @classmethod
@@ -70,18 +70,13 @@ class StrainMapData(object):
         attributes = read_strainmap_file(cls.stored, strainmap_file)
         result = cls()
         result.__dict__.update(attributes)
-        result.regenerate()
         return result
 
     def __init__(
-        self,
-        data_files: Optional[DICOMReaderBase] = None,
-        strainmap_file: Optional[h5py.File] = None,
-        filename: Path = Path(),
+        self, data_files: Optional[DICOMReaderBase] = None, filename: Path = Path()
     ):
 
         self.data_files = data_files
-        self.strainmap_file = strainmap_file
         self.filename: Path = filename
         self.orientation: str = "CCW"
         self.timeshift: float = TIMESHIFT
@@ -103,21 +98,11 @@ class StrainMapData(object):
         self.gls: xr.DataArray = xr.DataArray(name="gls")
         self.twist: xr.DataArray = xr.DataArray(name="twist")
 
-    @property
-    def rebuilt(self):
-        """Flag to indicate if data structure has been rebuilt after loading."""
-        return all([k in self.velocities.keys() for k in self.markers.keys()])
-
-    def add_paths(self, data_files: Union[Path, Text, None] = None):
-        """Adds data and/or phantom paths to the object."""
-        if data_files is None:
-            return False
-
+    def add_paths(self, data_files: Union[Path, Text] = ""):
+        """Adds data paths to the object."""
         self.data_files = read_folder(data_files)
-        if not self.rebuilt:
-            self.regenerate()
-        self.save_all()
-        return True
+        if self.data_files is None:
+            raise NoDICOMDataException(f"'{data_files}' does not contain DICOM data.")
 
     def add_file(self, strainmap_file: Union[Path, Text]):
         """Adds a new netCDF file to the structure."""
@@ -164,53 +149,6 @@ class StrainMapData(object):
         """Sets the angular regions orientation (CW or CCW) and saves the data"""
         self.orientation = orientation
         self.save("orientation")
-
-    def regenerate(self):
-        """We create placeholders for the velocities that were expected.
-
-        The velocities and masks will be created at runtime, just when needed."""
-        from .segmentation import _calc_effective_centroids, _calc_centroids
-
-        # If there is no data paths yet, we postpone the regeneration.
-        if self.data_files == ():
-            return
-
-        # TODO: Remove when consolidated. Regenerate the centroid
-        for d in self.septum:
-            try:
-                raw_centroids = _calc_centroids(self.segments.sel(cine=d))
-                self.septum[d][..., 1] = _calc_effective_centroids(
-                    raw_centroids, window=3
-                )
-
-            except Exception as err:
-                raise RuntimeError(
-                    f"Error when regenerating COM for dataset '{d}'. "
-                    f"Error message: {err}."
-                )
-
-        for dataset, markers in self.markers.items():
-            for k in markers.keys():
-                self.velocities[dataset][k] = None
-
-            # TODO To remove! Hack to add the radial data on legacy h5 files.
-            self.velocities[dataset]["radial x3"] = None
-
-        # TODO: Remove when consolidated. Heal the septum mid-point
-        default = None
-        for dataset, za in self.septum.items():
-            try:
-                if np.isnan(za[..., 0]).any():
-                    za[..., 0] = default
-                    self.save(["zero_angle", dataset])
-                else:
-                    default = za[..., 0].copy()
-
-            except Exception as err:
-                raise RuntimeError(
-                    f"Error when healing septum mid-point for "
-                    f"dataset '{dataset}'. Error message: {err}."
-                )
 
     def metadata(self, dataset=None):
         """Retrieve the metadata from the DICOM files"""

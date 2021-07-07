@@ -1,0 +1,2 @@
+class NoDICOMDataException(Exception):
+    pass

@@ -358,10 +358,9 @@ def save_group(
     """
     mode = "w"
     if filename.is_file() and not overwrite:
-        f = h5py.File(filename, "a")
-        if name in f:
-            del f[name]
-        f.close()
+        with h5py.File(filename, "a") as f:
+            if name in f:
+                del f[name]
         mode = "a"
 
     encoding = {}
