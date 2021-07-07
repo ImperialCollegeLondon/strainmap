@@ -66,7 +66,7 @@ def segmented_data(strainmap_data):
     from strainmap.coordinates import Comp
 
     cine = strainmap_data.data_files.datasets[0]
-    image = strainmap_data.data_files.images(cine).sel(comp=Comp.MAG)
+    image = strainmap_data.data_files.images(cine).sel(comp=Comp.MAG.name)
 
     # Create the initial contour
     initial_segments = xr.DataArray(
@@ -331,12 +331,9 @@ def theta0(segmented_data):
 def masks(segmented_data, theta0):
     from strainmap.models.velocities import find_masks
 
-    cine = segmented_data.data_files.datasets[0]
-    image = segmented_data.data_files.images(cine)
-    shape = image.sizes["row"], image.sizes["col"]
     segments = segmented_data.segments.isel(cine=0)
     centroid = segmented_data.centroid.isel(cine=0)
-    return find_masks(segments, centroid, theta0, shape)
+    return find_masks(segments, centroid, theta0)
 
 
 @fixture
@@ -345,7 +342,7 @@ def empty_markers(regions):
     from strainmap.coordinates import Comp
     import numpy as np
 
-    components = [Comp.LONG, Comp.RAD, Comp.CIRC]
+    components = [Comp.LONG.name, Comp.RAD.name, Comp.CIRC.name]
     quantities = ["frame", "velocity", "time"]
     return xr.DataArray(
         np.full((len(regions), len(components), len(Mark), len(quantities)), np.nan),
@@ -353,7 +350,7 @@ def empty_markers(regions):
         coords={
             "region": regions,
             "comp": components,
-            "marker": list(Mark),
+            "marker": [m.name for m in Mark],
             "quantity": quantities,
         },
     )
@@ -364,7 +361,7 @@ def regions():
     from itertools import chain
     from strainmap.coordinates import Region
 
-    return list(chain.from_iterable(([r] * r.value for r in Region)))
+    return list(chain.from_iterable(([r.name] * r.value for r in Region)))
 
 
 @fixture
@@ -372,7 +369,7 @@ def velocities(regions):
     from strainmap.coordinates import Comp
     import numpy as np
 
-    components = [Comp.LONG, Comp.RAD, Comp.CIRC]
+    components = [Comp.LONG.name, Comp.RAD.name, Comp.CIRC.name]
     frames = 50
     output = xr.DataArray(
         np.full((len(regions), frames, len(components)), np.nan),

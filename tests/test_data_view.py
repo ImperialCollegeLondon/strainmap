@@ -4,12 +4,12 @@ from .conftest import patch_dialogs
 
 
 @patch_dialogs
-def test_load_data_button(data_view, dicom_data_path):
+def test_load_data_button(data_view):
     data_view.controller.load_data_from_folder = MagicMock()
 
     data_view.nametowidget("control.chooseDataFolder").invoke()
     assert data_view.controller.load_data_from_folder.call_count == 1
-    assert data_view.data_folder.get() == str(dicom_data_path)
+    assert data_view.data_folder.get() == ""
 
 
 @patch_dialogs

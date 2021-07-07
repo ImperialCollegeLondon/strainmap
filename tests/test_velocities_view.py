@@ -71,7 +71,7 @@ def test_color_plot(velocities_view, data_with_velocities):
 
     cine = data_with_velocities.data_files.datasets[0]
     expected = data_with_velocities.velocities.sel(
-        cine=cine, region=Region.ANGULAR_x24, comp=Comp.LONG
+        cine=cine, region=Region.ANGULAR_x24.name, comp=Comp.LONG.name
     ).data
     actual = velocities_view.fig.axes[0].images[0].get_array().data
 

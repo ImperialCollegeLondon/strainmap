@@ -1,6 +1,6 @@
 from pytest import approx, mark
 from unittest.mock import patch
-from strainmap.coordinates import Mark
+from strainmap.coordinates import Mark, Comp, Region
 
 
 def test_theta_origin():
@@ -31,25 +31,31 @@ def test_process_phases(strainmap_data):
 
     cine = strainmap_data.data_files.datasets[0]
     phase = process_phases(
-        strainmap_data.data_files.images(cine).sel(comp=[Comp.X, Comp.Y, Comp.Z]),
+        strainmap_data.data_files.images(cine).sel(
+            comp=[Comp.X.name, Comp.Y.name, Comp.Z.name]
+        ),
         strainmap_data.sign_reversal,
     )
     assert (phase >= -0.5).all()
     assert (phase <= 0.5).all()
 
     phase2 = process_phases(
-        strainmap_data.data_files.images(cine).sel(comp=[Comp.X, Comp.Y, Comp.Z]),
+        strainmap_data.data_files.images(cine).sel(
+            comp=[Comp.X.name, Comp.Y.name, Comp.Z.name]
+        ),
         strainmap_data.sign_reversal,
         swap=True,
     )
-    assert (phase.sel(comp=Comp.X) == phase2.sel(comp=Comp.Y)).all()
+    assert (phase.sel(comp=Comp.X.name) == phase2.sel(comp=Comp.Y.name)).all()
 
-    strainmap_data.sign_reversal.loc[{"comp": Comp.Z}] = -1
+    strainmap_data.sign_reversal.loc[{"comp": Comp.Z.name}] = -1
     phase3 = process_phases(
-        strainmap_data.data_files.images(cine).sel(comp=[Comp.X, Comp.Y, Comp.Z]),
+        strainmap_data.data_files.images(cine).sel(
+            comp=[Comp.X.name, Comp.Y.name, Comp.Z.name]
+        ),
         strainmap_data.sign_reversal,
     )
-    assert (phase.sel(comp=Comp.Z) == -phase3.sel(comp=Comp.Z)).all()
+    assert (phase.sel(comp=Comp.Z.name) == -phase3.sel(comp=Comp.Z.name)).all()
 
 
 def test_global_mask(segmented_data):
@@ -89,22 +95,19 @@ def test_find_masks(segmented_data):
     from strainmap.coordinates import Region
     import xarray as xr
 
-    cine = segmented_data.data_files.datasets[0]
-    image = segmented_data.data_files.images(cine)
-    shape = image.sizes["row"], image.sizes["col"]
     segments = segmented_data.segments.isel(cine=0)
     centroid = segmented_data.centroid.isel(cine=0)
     septum = segmented_data.septum.isel(cine=0)
     theta0 = theta_origin(centroid, septum)
-    mask = find_masks(segments, centroid, theta0, shape)
+    mask = find_masks(segments, centroid, theta0)
 
-    global_int = mask.sel(region=Region.GLOBAL).astype(int).drop("region")
+    global_int = mask.sel(region=Region.GLOBAL.name).astype(int).drop("region")
     for r in Region:
         if r == Region.GLOBAL:
             continue
 
         # No regional masks of one type overlap
-        m = mask.sel(region=r).astype(int).sum("region")
+        m = mask.sel(region=r.name).astype(int).sum("region")
         assert m.max() == 1
 
         # All regional masks add up to exactly the global mask
@@ -119,9 +122,11 @@ def test_cartesian_to_cylindrical(segmented_data, masks, theta0):
 
     cine = segmented_data.data_files.datasets[0]
     centroid = segmented_data.centroid.isel(cine=0)
-    global_mask = masks.sel(region=Region.GLOBAL).drop("region")
+    global_mask = masks.sel(region=Region.GLOBAL.name).drop("region")
     phase = process_phases(
-        segmented_data.data_files.images(cine).sel(comp=[Comp.X, Comp.Y, Comp.Z]),
+        segmented_data.data_files.images(cine).sel(
+            comp=[Comp.X.name, Comp.Y.name, Comp.Z.name]
+        ),
         segmented_data.sign_reversal,
     ).drop("cine")
 
@@ -132,18 +137,19 @@ def test_cartesian_to_cylindrical(segmented_data, masks, theta0):
 
     # The z component within the mask should be identical
     xr.testing.assert_equal(
-        phase_masked.sel(comp=Comp.Z).drop("comp"), cyl.sel(comp=Comp.LONG).drop("comp")
+        phase_masked.sel(comp=Comp.Z.name).drop("comp"),
+        cyl.sel(comp=Comp.LONG.name).drop("comp"),
     )
 
     # The magnitude of the in-plane components should also be identical within the mask,
     # numerical inaccuracies aside
     bulk = xr.where(global_mask, phase_masked, np.nan).mean(dim=("row", "col"))
-    bulk.loc[{"comp": Comp.Z}] = 0
-    mag_cart = (phase_masked - bulk).sel(comp=Comp.X) ** 2 + (phase_masked - bulk).sel(
-        comp=Comp.Y
-    ) ** 2
+    bulk.loc[{"comp": Comp.Z.name}] = 0
+    mag_cart = (phase_masked - bulk).sel(comp=Comp.X.name) ** 2 + (
+        phase_masked - bulk
+    ).sel(comp=Comp.Y.name) ** 2
     mag_cart = xr.where(global_mask, mag_cart, 0)
-    mag_cyl = cyl.sel(comp=Comp.RAD) ** 2 + cyl.sel(comp=Comp.CIRC) ** 2
+    mag_cyl = cyl.sel(comp=Comp.RAD.name) ** 2 + cyl.sel(comp=Comp.CIRC.name) ** 2
     assert mag_cart.data == approx(mag_cyl.data)
 
 
@@ -209,15 +215,15 @@ def test_normalised_times(empty_markers):
     from strainmap.models.velocities import normalise_times
     from strainmap.coordinates import Mark
 
-    empty_markers.loc[{"marker": Mark.ES, "quantity": "frame"}] = 30
-    empty_markers.loc[{"marker": Mark.PS, "quantity": "frame"}] = 15
-    empty_markers.loc[{"marker": Mark.PD, "quantity": "frame"}] = 40
+    empty_markers.loc[{"marker": Mark.ES.name, "quantity": "frame"}] = 30
+    empty_markers.loc[{"marker": Mark.PS.name, "quantity": "frame"}] = 15
+    empty_markers.loc[{"marker": Mark.PD.name, "quantity": "frame"}] = 40
 
     normalise_times(empty_markers, 50)
 
-    assert (empty_markers.sel(marker=Mark.ES, quantity="time") == 350).all()
-    assert (empty_markers.sel(marker=Mark.PS, quantity="time") == 175).all()
-    assert (empty_markers.sel(marker=Mark.PD, quantity="time") == 675).all()
+    assert (empty_markers.sel(marker=Mark.ES.name, quantity="time") == 350).all()
+    assert (empty_markers.sel(marker=Mark.PS.name, quantity="time") == 175).all()
+    assert (empty_markers.sel(marker=Mark.PD.name, quantity="time") == 675).all()
 
 
 def test_calculate_velocities(segmented_data):
@@ -240,11 +246,11 @@ def test_update_markers(velocities, label):
     markers = initialise_markers(velocities)
     markers2 = markers * 2
 
-    component = choice(markers.comp)
-    region = choice(markers.region)
+    component = Comp[choice(markers.comp)]
+    region = Region[choice(markers.region)]
     location = randint(velocities.sizes["frame"])
     value = (
-        velocities.sel(frame=location, region=region, comp=component)
+        velocities.sel(frame=location, region=region.name, comp=component.name)
         .isel(region=0, missing_dims="ignore")
         .item()
     )
@@ -261,11 +267,18 @@ def test_update_markers(velocities, label):
     )
 
     assert (
-        markers.sel(region=region, comp=component, marker=label, quantity="frame")
+        markers.sel(
+            region=region.name, comp=component.name, marker=label.name, quantity="frame"
+        )
         == location
     ).any()
     assert (
-        markers.sel(region=region, comp=component, marker=label, quantity="velocity")
+        markers.sel(
+            region=region.name,
+            comp=component.name,
+            marker=label.name,
+            quantity="velocity",
+        )
         == value
     ).any()
     if label == Mark.ES:
