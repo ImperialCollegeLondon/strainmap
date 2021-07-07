@@ -150,7 +150,7 @@ class StrainMap(object):
         """Updates the markers information after moving one of them."""
         update_markers(**kwargs)
         self.data.save("markers")
-        if kwargs["marker_label"] == Mark.ES:
+        if kwargs["marker_label"] == Mark.ES and self.data.strain.shape != ():
             update_strain_es_marker(**kwargs)
 
     def export_velocity(self, **kwargs):

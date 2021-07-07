@@ -387,7 +387,7 @@ class MarkersFigure:
                     markers.sel(marker=m, comp=comp).item(),
                 )
 
-        es_loc = markers.sel(marker=Mark.ES, comp=Comp.RAD).item()
+        es_loc = markers.sel(marker=Mark.ES.name, comp=Comp.RAD.name).item()
         update_position(self.marker_artists[(Comp.RAD.name, Mark.ES.name)], es_loc)
         for f in self.fixed_markers.values():
             f.set_xdata([es_loc, es_loc])

@@ -72,7 +72,7 @@ class VelocitiesTaskView(TaskViewBase):
     def regions(self) -> int:
         """Number of regions for the selected velocity."""
         region = Region[self.vel_var]
-        return region.name
+        return region.value
 
     @property
     def markers(self) -> xr.DataArray:
@@ -301,12 +301,14 @@ class VelocitiesTaskView(TaskViewBase):
         cine = self.cines_var.get()
         self.current_region = -1
         self.fig = colour_figure(
-            self.data.velocities.sel(cine=cine, region=Region.ANGULAR_x24),
+            self.data.velocities.sel(cine=cine, region=Region.ANGULAR_x24.name),
             self.region_labels(6),
-            self.data.markers.sel(cine=cine, region=Region.GLOBAL, quantity="frame"),
+            self.data.markers.sel(
+                cine=cine, region=Region.GLOBAL.name, quantity="frame"
+            ),
             self.visualise_frame,
         )
-        markers = self.data.markers.sel(cine=cine, region=Region.ANGULAR_x6)
+        markers = self.data.markers.sel(cine=cine, region=Region.ANGULAR_x6.name)
         self.populate_tables(markers)
 
     def create_markers_plot(self) -> None:
@@ -346,14 +348,14 @@ class VelocitiesTaskView(TaskViewBase):
         """Updates plot and table after a marker has been moved."""
         if marker == Mark.ES.name:
             self.populate_tables()
-            for f in self.fig.fixed_markers:
-                loc = self.data.markers.sel(
-                    quantity="frame",
-                    region=Region.GLOBAL.name,
-                    cine=self.cines_var.get(),
-                    comp=Comp.RAD.name,
-                    marker=Mark.ES.name,
-                ).item()
+            loc = self.data.markers.sel(
+                quantity="frame",
+                region=Region.GLOBAL.name,
+                cine=self.cines_var.get(),
+                comp=Comp.RAD.name,
+                marker=Mark.ES.name,
+            ).item()
+            for f in self.fig.fixed_markers.values():
                 f.set_xdata([loc, loc])
         else:
             self.update_table_one_marker(comp, marker)
@@ -623,14 +625,14 @@ def colour_figure(
     lines_pos = np.arange(space, n_reg, space) - 0.5
     labels_pos = np.arange(space // 2, n_reg, space) - 0.5
 
-    for i, comp in enumerate((Comp.LONG, Comp.RAD, Comp.CIRC)):
+    for i, comp in enumerate((Comp.LONG.name, Comp.RAD.name, Comp.CIRC.name)):
         ax[i].imshow(
             velocities.sel(comp=comp),
             cmap=plt.get_cmap("jet"),
             aspect="auto",
             interpolation="bilinear",
         )
-        ax[i].set_title(comp.value)
+        ax[i].set_title(comp)
 
         ax[i].set_yticks(lines_pos, minor=True)
         ax[i].set_yticks(labels_pos, minor=False)
@@ -640,7 +642,7 @@ def colour_figure(
 
         idx = markers_idx.sel(comp=comp).dropna(dim="marker")
         ax[i].set_xticks(idx, minor=False)
-        ax[i].set_xticklabels([m.item().name for m in idx.marker], minor=False)
+        ax[i].set_xticklabels([m.item() for m in idx.marker], minor=False)
 
         fig.colorbar(ax[i].images[0], ax=ax[i], orientation="horizontal")
 

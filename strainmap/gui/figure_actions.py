@@ -687,12 +687,12 @@ class Markers(ActionBase):
             x, y = xy[0], xy[1]
 
         if vline:
-            options = dict(pickradius=6, linewidth=3, linestyle="--")
+            options = dict(pickradius=12, linewidth=3, linestyle="--")
             options.update(kwargs)
             marker = axes.axvline(x, **options)
             marker.set_picker(True)
         else:
-            options = dict(pickradius=6, marker="x", markersize=20, linestyle="None")
+            options = dict(pickradius=12, marker="x", markersize=20, linestyle="None")
             options.update(kwargs)
             marker = axes.plot(x, y, **options)[0]
             marker.set_picker(True)

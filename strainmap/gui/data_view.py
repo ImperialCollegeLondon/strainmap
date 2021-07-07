@@ -319,7 +319,7 @@ class DataTaskView(TaskViewBase):
                 "In-plane velocity map (X)",
                 "In-plane velocity map (Y)",
             ]
-            var_values = ["mag", "z", "x", "y"]
+            var_values = ["MAG", "Z", "X", "Y"]
             patient_data = self.data.metadata()
         else:
             values = ["No suitable datasets available."]
