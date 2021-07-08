@@ -4,6 +4,7 @@ from itertools import product
 from typing import Callable, Dict, Optional, Text, Tuple
 
 import numpy as np
+import xarray as xr
 from scipy import interpolate
 
 from strainmap.models.strainmap_data_model import StrainMapData
@@ -77,114 +78,67 @@ def calculate_strain(
     return 0
 
 
-def masked_reduction(data: np.ndarray, masks: np.ndarray, axis: tuple) -> np.ndarray:
-    """Reduces array in cylindrical coordinates to the non-zero elements in the
-    masks.
+def masked_reduction(
+    data: xr.DataArray, radial: xr.DataArray, angular: xr.DataArray
+) -> xr.DataArray:
+    """Reduces the size of an array by averaging the regions defined by the masks.
 
-    The masks must have the same shape than the input array.
+    The radial and angular masks define a collection of regions of interest in 2D space
+    all together forming a torus, with Na angular segments and Nr radial segments.
+    This means that a large 2D array with data (it can have more dimensions) can be
+    reduced to a much smaller and easy to handle (Nr, Na) array, where the value of
+    each entry is the mean value of the pixels in the regions defined by both masks.
 
-    In the case of interest of having two masks, the radial and angular masks,
-    these define a region of interest in 2D space in the shape of
-    a torus, with Na angular segments and Nr radial segments. The rest of the
-    space is not relevant. This means that a large 2D array with data can be
-    reduced to
-    a much smaller and easy to handle (Nr, Na) array, where the value of each entry
-    is the mean values of the pixels in the regions defined by both masks.
+    The reduced array has the dimensions of the input data with 'row' and 'col' removed
+    and 'radius' and 'angle' added to the end. So if data shape is (N0, N1, N2, N3, N4)
+    then the reduced array will have shape (N0, N3, N4, Nr, Na).
 
-    Examples:
-        This example reduces the (8, 8) angular array (serving also as input
-        data) to an
-        array of shape (Nr=2, Na=4) where each element is the average of the input
-        pixels in the 8 regions (2x4) defined by the angular and radial masks.
-        There is
-        no radial dependency in the reduced array (all rows are the same) because
-        there
-        is no radial dependency in the input array either.
-        >>> radial = np.array([
-        ...     [0, 0, 0, 0, 0, 0, 0, 0],
-        ...     [0, 2, 2, 2, 2, 2, 2, 0],
-        ...     [0, 2, 1, 1, 1, 1, 2, 0],
-        ...     [0, 2, 1, 0, 0, 1, 2, 0],
-        ...     [0, 2, 1, 0, 0, 1, 2, 0],
-        ...     [0, 2, 1, 1, 1, 1, 2, 0],
-        ...     [0, 2, 2, 2, 2, 2, 2, 0],
-        ...     [0, 0, 0, 0, 0, 0, 0, 0],
-        ... ])
-        >>> angular = np.array([
-        ...     [1, 1, 1, 1, 4, 4, 4, 4],
-        ...     [1, 1, 1, 1, 4, 4, 4, 4],
-        ...     [1, 1, 1, 1, 4, 4, 4, 4],
-        ...     [1, 1, 1, 1, 4, 4, 4, 4],
-        ...     [2, 2, 2, 2, 3, 3, 3, 3],
-        ...     [2, 2, 2, 2, 3, 3, 3, 3],
-        ...     [2, 2, 2, 2, 3, 3, 3, 3],
-        ...     [2, 2, 2, 2, 3, 3, 3, 3],
-        ... ])
-        >>> mask = angular * 100 + 1
-        >>> reduced = masked_reduction(angular, mask, axis=(0, 1))
-        >>> print(reduced)
-        [[1 2 3 4]]
+    Simplified example: If we had 2 radial and 4 angular regions, (8 in total) regions
+    in an otherwise 8x8 array, the reduced array will be a 2x4 array, with each element
+    the mean value of all the elements in that region:
 
-        We can repeat this using the radial mask as input. In this case, there is no
-        angular dependency, as expected.
-        >>> mask = radial + 100
-        >>> reduced = masked_reduction(radial, mask, axis=(0, 1))
-        >>> print(reduced)
-        [[1]
-         [2]]
+    Regions:
+    [[0, 0, 0, 0, 0, 0, 0, 0],
+     [0, 5, 5, 5, 6, 6, 6, 0],
+     [0, 5, 1, 1, 2, 2, 6, 0],
+     [0, 5, 1, 0, 0, 2, 6, 0],
+     [0, 8, 4, 0, 0, 3, 7, 0],
+     [0, 8, 4, 4, 3, 3, 7, 0],
+     [0, 8, 8, 8, 7, 7, 7, 0],
+     [0, 0, 0, 0, 0, 0, 0, 0]]
 
-        In general, if there are no symmetries in the input array, all elements
-        of the
-        reduced array will be different.
-        >>> np.random.seed(12345)
-        >>> mask = radial + 100 * angular
-        >>> reduced = masked_reduction(np.random.rand(*radial.shape), mask, axis=(0, 1))
-        >>> print(reduced)
-        [[0.89411584 0.46596842 0.17654222 0.51028107]
-         [0.79289128 0.28042882 0.73393468 0.18159693]]
+     Reduced array, with the numbers indicating the region they related to:
+     [[1, 2, 3, 4],
+      [5, 6, 7, 8]]
 
-    The reduced array has the dimensions defined in axis removed and the extra
-    dimensions (one per mask) added to the end. So if data shape is (N0, N1, N2,
-    N3, N4)
-    and axis is (1, 2), then the reduced array in the case of having the above
-    radial
-    and angular masks will have shape (N0, N3, N4, Nr, Na)
+    Args:
+        data: Large array to reduce. Must contain all the dimensions of the masks
+            except 'region'.
+        radial: Radial mask. Must contain 'region', 'row' and 'col' dimensions, at
+            least.
+        angular: Angular mask. Must have same dimensions (and shape) that the radial
+            mask.
+
+    Returns:
+        A DataArray with reduced size.
     """
-    from numpy.ma import MaskedArray
-    from functools import reduce
 
-    assert data.shape[-len(masks.shape) :] == masks.shape
-
-    mask_max = masks.max()
-    nrad, nang = mask_max % 100, mask_max // 100
-    nz = np.nonzero(masks)
-    xmin, xmax, ymin, ymax = (
-        nz[-2].min(),
-        nz[-2].max() + 1,
-        nz[-1].min(),
-        nz[-1].max() + 1,
-    )
-    sdata = data[..., xmin : xmax + 1, ymin : ymax + 1]
-    smasks = masks[..., xmin : xmax + 1, ymin : ymax + 1]
-
-    shape = [s for i, s in enumerate(data.shape) if i not in axis] + [nrad, nang]
-    reduced = np.zeros(shape, dtype=data.dtype)
-
-    tile_shape = (
-        (data.shape[0],) + (1,) * len(masks.shape)
-        if data.shape != masks.shape
-        else (1,) * len(masks.shape)
+    dims = [d for d in data.dims if d not in ("row", "col")]
+    nrad = radial.sizes["region"]
+    nang = angular.sizes["region"]
+    reduced = xr.DataArray(
+        np.zeros([data.sizes[d] for d in dims] + [nrad, nang], dtype=data.dtype),
+        dims=dims + ["radius", "angle"],
+        coords={d: data[d] for d in dims},
     )
 
-    def reduction(red, idx):
-        elements = tuple([...] + [k - 1 for k in idx])
-        i = idx[0] + 100 * idx[1]
-        red[elements] = (
-            MaskedArray(sdata, np.tile(smasks != i, tile_shape)).mean(axis=axis).data
+    for r, a in product(range(nrad), range(nang)):
+        mask = xr.ufuncs.logical_and(radial.isel(region=r), angular.isel(region=a))
+        reduced.loc[{"radius": r, "angle": a}] = (
+            data.sel(row=mask.row, col=mask.col).where(mask).mean(dim=("row", "col"))
         )
-        return red
 
-    return reduce(reduction, product(range(1, nrad + 1), range(1, nang + 1)), reduced)
+    return reduced
 
 
 def masked_expansion(data: np.ndarray, masks: np.ndarray, axis: tuple) -> np.ndarray:
@@ -193,45 +147,6 @@ def masked_expansion(data: np.ndarray, masks: np.ndarray, axis: tuple) -> np.nda
     This function, partially opposite to `masked_reduction`, will recover a full size
     array with the same shape as the masks and with the masked elements equal to the
     corresponding entries of the reduced array. All other elements are masked.
-
-        >>> import pytest
-        >>> pytest.xfail(reason="WIP Refactoring")
-        >>> radial = np.array([
-        ...     [0, 0, 0, 0, 0, 0, 0, 0],
-        ...     [0, 2, 2, 2, 2, 2, 2, 0],
-        ...     [0, 2, 1, 1, 1, 1, 2, 0],
-        ...     [0, 2, 1, 0, 0, 1, 2, 0],
-        ...     [0, 2, 1, 0, 0, 1, 2, 0],
-        ...     [0, 2, 1, 1, 1, 1, 2, 0],
-        ...     [0, 2, 2, 2, 2, 2, 2, 0],
-        ...     [0, 0, 0, 0, 0, 0, 0, 0],
-        ... ])
-        >>> angular = np.array([
-        ...     [1, 1, 1, 1, 4, 4, 4, 4],
-        ...     [1, 1, 1, 1, 4, 4, 4, 4],
-        ...     [1, 1, 1, 1, 4, 4, 4, 4],
-        ...     [1, 1, 1, 1, 4, 4, 4, 4],
-        ...     [2, 2, 2, 2, 3, 3, 3, 3],
-        ...     [2, 2, 2, 2, 3, 3, 3, 3],
-        ...     [2, 2, 2, 2, 3, 3, 3, 3],
-        ...     [2, 2, 2, 2, 3, 3, 3, 3],
-        ... ])
-        >>> mask = angular * 100 + 1
-        >>> reduced = masked_reduction(angular, mask, axis=(0, 1))
-        >>> print(reduced)
-        [[1 2 3 4]]
-
-        Now we "recover" the original full size array:
-        >>> data = masked_expansion(reduced, mask, axis=(0, 1))
-        >>> print(data)
-        [[[1 1 1 1 4 4 4 4]
-          [1 1 1 1 4 4 4 4]
-          [1 1 1 1 4 4 4 4]
-          [1 1 1 1 4 4 4 4]
-          [2 2 2 2 3 3 3 3]
-          [2 2 2 2 3 3 3 3]
-          [2 2 2 2 3 3 3 3]
-          [2 2 2 2 3 3 3 3]]]
     """
     from functools import reduce
     from .velocities import remap_array
