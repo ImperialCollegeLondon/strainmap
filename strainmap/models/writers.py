@@ -1,3 +1,4 @@
+import sys
 from itertools import chain
 from pathlib import Path
 from typing import Optional
@@ -460,4 +461,5 @@ def repack_file(
             "Use 'overwrite=True' to overwrite."
         )
 
-    subprocess.run(["h5repack", "--enable-error-stack", str(filename), str(target)])
+    command = "h5repack.exe" if sys.platform == "win32" else "h5repack"
+    subprocess.run([command, "--enable-error-stack", str(filename), str(target)])
