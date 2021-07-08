@@ -6,9 +6,75 @@ from typing import Callable, Dict, Optional, Text, Tuple
 import numpy as np
 from scipy import interpolate
 
-from .strainmap_data_model import StrainMapData
-from .velocities import regenerate
-from .writers import terminal
+from strainmap.models.strainmap_data_model import StrainMapData
+from strainmap.models.writers import terminal
+
+
+def calculate_strain(
+    data: StrainMapData,
+    datasets: Tuple[str, ...],
+    callback: Callable = terminal,
+    effective_displacement=True,
+    resample=True,
+    recalculate=False,
+    timeshift: Optional[float] = None,
+):
+    """Calculates the strain and updates the Data object with the result."""
+    steps = 7.0
+
+    if len(datasets) < 2:
+        callback("Insufficient datasets to calculate strain. At least 2 are needed.")
+        return 1
+
+    if timeshift is not None:
+        data.timeshift = timeshift
+        data.save(["timeshift"])
+
+    callback("Calculating displacement", 1 / steps)
+    disp = displacement(
+        data, datasets, effective_displacement=effective_displacement, resample=resample
+    )
+
+    callback("Calculating coordinates", 2 / steps)
+    space = coordinates(data, datasets, resample=resample)
+
+    callback("Calculating twist", 3 / steps)
+    # data.twist = twist(data, datasets)
+
+    callback("Calculating strain", 4 / steps)
+    reduced_strain = differentiate(disp, space)
+
+    callback("Calculating the regional strains", 5 / steps)
+    data.strain = calculate_regional_strain(
+        reduced_strain,
+        data.masks,
+        datasets,
+        resample=resample,
+        interval=tuple((data.data_files.time_interval(d) for d in datasets)),
+        timeshift=data.timeshift,
+    )
+
+    callback("Calculating markers", 6 / steps)
+    for d in datasets:
+        labels = [
+            s
+            for s in data.strain[d].keys()
+            if "cylindrical" not in s and "radial" not in s
+        ]
+        if data.strain_markers.get(d, {}).get(labels[0], None) is None or recalculate:
+            initialise_markers(data, d, labels)
+            data.save(*[["strain_markers", d, vel] for vel in labels])
+
+    data.gls = global_longitudinal_strain(
+        disp=disp,
+        markers=tuple(data.strain_markers[d] for d in datasets),
+        times=tuple(data.data_files.time_interval(d) for d in datasets),
+        locations=tuple(data.data_files.slice_loc(d) for d in datasets),
+        resample=resample,
+    )
+
+    callback("Done!", 1)
+    return 0
 
 
 def masked_reduction(data: np.ndarray, masks: np.ndarray, axis: tuple) -> np.ndarray:
@@ -366,89 +432,6 @@ def unresample_interval(
         for d in np.moveaxis(disp, 2, 0)
     )
     return np.moveaxis(np.array([f(tt) for tt, f in zip(t, fdisp)]), 0, 2)
-
-
-def calculate_strain(
-    data: StrainMapData,
-    datasets: Tuple[str, ...],
-    callback: Callable = terminal,
-    effective_displacement=True,
-    resample=True,
-    recalculate=False,
-    timeshift: Optional[float] = None,
-):
-    """Calculates the strain and updates the Data object with the result."""
-    steps = 7.0
-    # Do we need to calculate the strain?
-    if all([d in data.strain.keys() for d in datasets]) and not recalculate:
-        return
-
-    data.strain = defaultdict(dict)
-    data.strain_markers = defaultdict(dict)
-
-    # Do we need to regenerate the velocities?
-    to_regen = [d for d in datasets if list(data.velocities[d].values())[0] is None]
-    if len(to_regen) > 0:
-        regenerate(data, to_regen, callback=callback)
-
-    sorted_datasets = tuple(datasets)
-
-    if len(sorted_datasets) < 2:
-        callback("Insufficient datasets to calculate strain. At least 2 are needed.")
-        return 1
-
-    if timeshift is not None:
-        data.timeshift = timeshift
-        data.save(["timeshift"])
-
-    callback("Calculating displacement", 1 / steps)
-    disp = displacement(
-        data,
-        sorted_datasets,
-        effective_displacement=effective_displacement,
-        resample=resample,
-    )
-
-    callback("Calculating coordinates", 2 / steps)
-    space = coordinates(data, sorted_datasets, resample=resample)
-
-    callback("Calculating twist", 3 / steps)
-    # data.twist = twist(data, sorted_datasets)
-
-    callback("Calculating strain", 4 / steps)
-    reduced_strain = differentiate(disp, space)
-
-    callback("Calculating the regional strains", 5 / steps)
-    data.strain = calculate_regional_strain(
-        reduced_strain,
-        data.masks,
-        sorted_datasets,
-        resample=resample,
-        interval=tuple((data.data_files.time_interval(d) for d in datasets)),
-        timeshift=data.timeshift,
-    )
-
-    callback("Calculating markers", 6 / steps)
-    for d in datasets:
-        labels = [
-            s
-            for s in data.strain[d].keys()
-            if "cylindrical" not in s and "radial" not in s
-        ]
-        if data.strain_markers.get(d, {}).get(labels[0], None) is None or recalculate:
-            initialise_markers(data, d, labels)
-            data.save(*[["strain_markers", d, vel] for vel in labels])
-
-    data.gls = global_longitudinal_strain(
-        disp=disp,
-        markers=tuple(data.strain_markers[d] for d in datasets),
-        times=tuple(data.data_files.time_interval(d) for d in datasets),
-        locations=tuple(data.data_files.slice_loc(d) for d in datasets),
-        resample=resample,
-    )
-
-    callback("Done!", 1)
-    return 0
 
 
 def differentiate(disp, space) -> np.ndarray:
