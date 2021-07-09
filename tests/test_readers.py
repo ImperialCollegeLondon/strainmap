@@ -95,5 +95,5 @@ def test_read_netcdf_file(tmp_path):
     assert data["filename"] == filename
     assert data["patient"] == "Thor"
     assert data["age"] == 38
-    xr.testing.assert_allclose(data["foo"], ds.foo, rtol=1e-3)
-    xr.testing.assert_allclose(data["bar"], ds.bar, rtol=1e-3)
+    xr.testing.assert_allclose(data["foo"], ds.foo)
+    xr.testing.assert_allclose(data["bar"], ds.bar)
