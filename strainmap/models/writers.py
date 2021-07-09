@@ -364,12 +364,12 @@ def save_group(
 
     encoding = {}
     if to_int:
-        scale = np.abs(data).max().item() / np.iinfo(np.int16).max
+        scale = np.abs(data).max().item() / np.iinfo(np.int32).max
         encoding = {
             name: {
-                "dtype": "int16",
+                "dtype": "int32",
                 "scale_factor": scale,
-                "_FillValue": np.iinfo(np.int16).min,
+                "_FillValue": np.iinfo(np.int32).min,
             }
         }
 
