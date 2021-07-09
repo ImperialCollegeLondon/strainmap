@@ -141,47 +141,73 @@ def _masked_reduction(
     return reduced
 
 
-def masked_expansion(data: np.ndarray, masks: np.ndarray, axis: tuple) -> np.ndarray:
+def _masked_expansion(
+    data: xr.DataArray,
+    radial: xr.DataArray,
+    angular: xr.DataArray,
+    nrow: int = 512,
+    ncol: int = 512,
+) -> xr.DataArray:
     """Transforms a reduced array into a full array with the same shape as the masks.
 
     This function, partially opposite to `masked_reduction`, will recover a full size
-    array with the same shape as the masks and with the masked elements equal to the
-    corresponding entries of the reduced array. All other elements are masked.
+    array with the same shape as the original one and with the masked elements equal to
+    the corresponding entries of the reduced array. All other elements are nan.
+
+    Args:
+        data: Reduced array to expand. Should include dimensions 'radius' and 'angle'
+            as well as any dimension of the masks other than 'region', 'row' and
+            'column'.
+        radial: Radial mask. Must contain 'region', 'row' and 'col' dimensions, at
+            least.
+        angular: Angular mask. Must have same dimensions (and shape) that the radial
+            mask.
+        nrow: Size of 'row' dimension in the expanded array iof larger than the one of
+            the radial array.
+        ncol: Size of 'col' dimension in the expanded array iof larger than the one of
+            the radial array.
+
+    Returns:
+        The expanded array.
     """
-    from functools import reduce
-    from .velocities import remap_array
-
-    assert len(data.shape) > max(axis)
-
-    mask_max = masks.max()
-    nrad, nang = mask_max % 100, mask_max // 100
-    nz = np.nonzero(masks)
-    xmin, xmax, ymin, ymax = (
-        nz[-2].min(),
-        nz[-2].max() + 1,
-        nz[-1].min(),
-        nz[-1].max() + 1,
+    dims = [d for d in data.dims if d not in ("radius", "angle")]
+    nrad = data.sizes["radius"]
+    nang = data.sizes["angle"]
+    expanded = xr.DataArray(
+        np.full(
+            [data.sizes[d] for d in dims] + [radial.sizes["row"], radial.sizes["col"]],
+            np.nan,
+            dtype=data.dtype,
+        ),
+        dims=dims + ["row", "col"],
+        coords={**{d: data[d] for d in dims}, "row": radial.row, "col": radial.col},
     )
 
-    shape = (data.shape[0],) + masks[..., xmin : xmax + 1, ymin : ymax + 1].shape
-    expanded = np.zeros(shape, dtype=data.dtype)
-    exmasks = np.tile(
-        masks[..., xmin : xmax + 1, ymin : ymax + 1],
-        (expanded.shape[0],) + (1,) * len(masks.shape),
-    )
+    for r, a in product(range(nrad), range(nang)):
+        mask = xr.ufuncs.logical_and(radial.sel(region=r), angular.sel(region=a))
+        expanded = xr.where(mask, data.sel(radius=r, angle=a), expanded)
 
-    def expansion(exp, idx):
-        i = idx[0] + 100 * idx[1] + 101
-        condition = exmasks == i
-        values = data[(...,) + idx].reshape(data.shape[:-2] + (1, 1))
-        exp[condition] = (values * condition)[condition]
-        return exp
+    # Now we ensure that the dimensions are in the correct order
+    expanded = expanded.transpose(*tuple(dims + ["row", "col"]))
 
-    return remap_array(
-        reduce(expansion, product(range(nrad), range(nang)), expanded),
-        masks.shape[-2:],
-        (xmin, xmax, ymin, ymax),
-    )
+    # Finally, we populate an array with the correct number of rows and cols, if needed
+    if nrow != radial.sizes["row"] or ncol != radial.sizes["col"]:
+        output = xr.DataArray(
+            np.full(
+                [data.sizes[d] for d in dims] + [nrow, ncol], np.nan, dtype=data.dtype
+            ),
+            dims=dims + ["row", "col"],
+            coords={
+                **{d: data[d] for d in dims},
+                "row": np.arange(0, nrow),
+                "col": np.arange(0, ncol),
+            },
+        )
+        output.loc[{"row": expanded.row, "col": expanded.col}] = expanded
+
+        return output
+    else:
+        return expanded
 
 
 def coordinates(
@@ -479,7 +505,7 @@ def calculate_regional_strain(
 
         # To match the strain with the masks, we shift the strain in the opposite
         # direction
-        result[d][vkey] = masked_expansion(
+        result[d][vkey] = _masked_expansion(
             shift_data(s, t, -timeshift, axis=1), m, axis=(2, 3)
         )
 

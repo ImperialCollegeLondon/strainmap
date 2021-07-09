@@ -9,7 +9,7 @@ def mask_shape():
 
 
 @fixture
-def radial_da(mask_shape) -> xr.DataArray:
+def radial_mask(mask_shape) -> xr.DataArray:
     """DataArray defining 3 radial regions."""
     from skimage.draw import disk
 
@@ -27,11 +27,19 @@ def radial_da(mask_shape) -> xr.DataArray:
     rr, cc = disk((midr, midc), row / 8, shape=(row, col))
     data[0, :, rr, cc] = False
 
-    return xr.DataArray(data, dims=["region", "frame", "row", "col"])
+    return xr.DataArray(
+        data,
+        dims=["region", "frame", "row", "col"],
+        coords={
+            "frame": np.arange(0, frame),
+            "row": np.arange(0, row),
+            "col": np.arange(0, col),
+        },
+    )
 
 
 @fixture
-def angular_da(mask_shape) -> xr.DataArray:
+def angular_mask(mask_shape) -> xr.DataArray:
     """DataArray defining 4 angular regions"""
     from skimage.draw import rectangle
 
@@ -44,41 +52,110 @@ def angular_da(mask_shape) -> xr.DataArray:
             rr, cc = rectangle((i * mid, j * mid), extent=(mid, mid), shape=(row, col))
             data[int(i + 2 * j), :, rr, cc] = True
 
-    return xr.DataArray(data, dims=["region", "frame", "row", "col"])
+    return xr.DataArray(
+        data,
+        dims=["region", "frame", "row", "col"],
+        coords={
+            "frame": np.arange(0, frame),
+            "row": np.arange(0, row),
+            "col": np.arange(0, col),
+        },
+    )
 
 
-def test_masked_reduction(radial_da, angular_da):
+@fixture
+def expanded_radial(radial_mask):
+    return (
+        (radial_mask * (radial_mask.region + 1)).sum("region").expand_dims(beyond=[0])
+    )
+
+
+@fixture
+def expanded_angular(angular_mask):
+    return (
+        (angular_mask * (angular_mask.region + 1)).sum("region").expand_dims(beyond=[0])
+    )
+
+
+@fixture
+def reduced_radial(radial_mask, angular_mask):
+    frame = angular_mask.sizes["frame"]
+
+    return xr.DataArray(
+        np.tile(
+            np.arange(1, radial_mask.sizes["region"] + 1),
+            (angular_mask.sizes["region"], frame, 1),
+        ).transpose([1, 2, 0])[None, ...],
+        dims=["beyond", "frame", "radius", "angle"],
+        coords={"beyond": [0], "frame": np.arange(0, frame)},
+    ).astype(float)
+
+
+@fixture
+def reduced_angular(radial_mask, angular_mask):
+    frame = angular_mask.sizes["frame"]
+
+    return xr.DataArray(
+        np.tile(
+            np.arange(1, angular_mask.sizes["region"] + 1),
+            (radial_mask.sizes["region"], frame, 1),
+        ).transpose([1, 0, 2])[None, ...],
+        dims=["beyond", "frame", "radius", "angle"],
+        coords={"beyond": [0], "frame": np.arange(0, frame)},
+    ).astype(float)
+
+
+def test_masked_reduction(
+    radial_mask,
+    angular_mask,
+    expanded_radial,
+    expanded_angular,
+    reduced_radial,
+    reduced_angular,
+):
     from strainmap.models.strain import _masked_reduction
 
-    frame = angular_da.sizes["frame"]
+    # Masks are reduced, as it will be the real case, covering only certain ROI
+    radial = radial_mask.sel(row=radial_mask.row[1:-1], col=radial_mask.col[1:-1])
+    angular = angular_mask.sel(row=angular_mask.row[1:-1], col=angular_mask.col[1:-1])
 
     # An input array with radial symmetry in the row/col plane should return an array
     #  with no angular dependence
-    input_rad = (
-        (radial_da * (radial_da.region + 1)).sum("region").expand_dims("beyond", 0)
-    )
-    expected = np.tile(
-        np.arange(1, radial_da.sizes["region"] + 1),
-        (angular_da.sizes["region"], frame, 1),
-    ).transpose([1, 2, 0])[None, ...]
-    actual = _masked_reduction(input_rad, radial_da, angular_da)
-    np.testing.assert_equal(actual.data, expected)
-    assert all([d in actual.dims for d in input_rad.dims if d not in ["row", "col"]])
-    assert all([d in actual.dims for d in ["radius", "angle"]])
+    actual = _masked_reduction(expanded_radial, radial, angular)
+    xr.testing.assert_equal(actual, reduced_radial)
 
     # Likewise, if input has angular symmetry, the return value should have no radial
     #  dependence
-    input_ang = (
-        (angular_da * (angular_da.region + 1)).sum("region").expand_dims("beyond", 0)
-    )
-    expected = np.tile(
-        np.arange(1, angular_da.sizes["region"] + 1),
-        (radial_da.sizes["region"], frame, 1),
-    ).transpose([1, 0, 2])[None, ...]
-    actual = _masked_reduction(input_ang, radial_da, angular_da)
-    np.testing.assert_equal(actual.data, expected)
-    assert all([d in actual.dims for d in input_ang.dims if d not in ["row", "col"]])
-    assert all([d in actual.dims for d in ["radius", "angle"]])
+    actual = _masked_reduction(expanded_angular, radial, angular)
+    np.testing.assert_equal(actual.data, reduced_angular)
+
+
+def test_masked_expansion(
+    radial_mask,
+    angular_mask,
+    expanded_radial,
+    expanded_angular,
+    reduced_radial,
+    reduced_angular,
+):
+    from strainmap.models.strain import _masked_expansion
+
+    nrow = angular_mask.sizes["row"]
+    ncol = angular_mask.sizes["col"]
+
+    # Masks are reduced, as it will be the real case, covering only certain ROI
+    radial = radial_mask.sel(row=radial_mask.row[1:-1], col=radial_mask.col[1:-1])
+    angular = angular_mask.sel(row=angular_mask.row[1:-1], col=angular_mask.col[1:-1])
+
+    # An input array with no angular dependence should produce an output array with
+    # radial symmetry in the row/col plane.
+    actual = _masked_expansion(reduced_radial, radial, angular, nrow, ncol)
+    xr.testing.assert_equal(actual, expanded_radial.where(~actual.isnull()))
+
+    # Likewise, an input array no radial dependence should produce an output array with
+    # angular symmetry in the row/col plane.
+    actual = _masked_expansion(reduced_angular, radial, angular, nrow, ncol)
+    xr.testing.assert_equal(actual, expanded_angular.where(~actual.isnull()))
 
 
 def test_resample():
