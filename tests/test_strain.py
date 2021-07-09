@@ -48,7 +48,7 @@ def angular_da(mask_shape) -> xr.DataArray:
 
 
 def test_masked_reduction(radial_da, angular_da):
-    from strainmap.models.strain import masked_reduction
+    from strainmap.models.strain import _masked_reduction
 
     frame = angular_da.sizes["frame"]
 
@@ -61,7 +61,7 @@ def test_masked_reduction(radial_da, angular_da):
         np.arange(1, radial_da.sizes["region"] + 1),
         (angular_da.sizes["region"], frame, 1),
     ).transpose([1, 2, 0])[None, ...]
-    actual = masked_reduction(input_rad, radial_da, angular_da)
+    actual = _masked_reduction(input_rad, radial_da, angular_da)
     np.testing.assert_equal(actual.data, expected)
     assert all([d in actual.dims for d in input_rad.dims if d not in ["row", "col"]])
     assert all([d in actual.dims for d in ["radius", "angle"]])
@@ -75,7 +75,7 @@ def test_masked_reduction(radial_da, angular_da):
         np.arange(1, angular_da.sizes["region"] + 1),
         (radial_da.sizes["region"], frame, 1),
     ).transpose([1, 0, 2])[None, ...]
-    actual = masked_reduction(input_ang, radial_da, angular_da)
+    actual = _masked_reduction(input_ang, radial_da, angular_da)
     np.testing.assert_equal(actual.data, expected)
     assert all([d in actual.dims for d in input_ang.dims if d not in ["row", "col"]])
     assert all([d in actual.dims for d in ["radius", "angle"]])

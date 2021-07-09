@@ -78,7 +78,7 @@ def calculate_strain(
     return 0
 
 
-def masked_reduction(
+def _masked_reduction(
     data: xr.DataArray, radial: xr.DataArray, angular: xr.DataArray
 ) -> xr.DataArray:
     """Reduces the size of an array by averaging the regions defined by the masks.
@@ -217,7 +217,7 @@ def coordinates(
         means[(0, t, x, y)] = np.sqrt(xx ** 2 + yy ** 2) * px_size
         means[(1, t, x, y)] = np.mod(np.arctan2(yy, xx) + theta0[t], 2 * np.pi)
 
-        return masked_reduction(means, mask, axis=(2, 3))
+        return _masked_reduction(means, mask, axis=(2, 3))
 
     in_plane = np.array(
         [r_theta for r_theta in map(to_cylindrical, m_iter, theta0_iter, origin_iter)]
@@ -260,7 +260,7 @@ def displacement(
     m_iter = (data.masks[d][rkey] + 100 * data.masks[d][akey] for d in datasets)
     t_iter = tuple((data.data_files.time_interval(d) for d in datasets))
     ts = data.timeshift
-    reduced_vel_map = map(partial(masked_reduction, axis=img_axis), cyl_iter, m_iter)
+    reduced_vel_map = map(partial(_masked_reduction, axis=img_axis), cyl_iter, m_iter)
 
     # Create a mask to define the regions over which to calculate the background
     # for the longitudinal case
