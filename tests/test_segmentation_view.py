@@ -51,9 +51,7 @@ def test_switch_mark_state(segmentation_view):
 
 
 def test_define_initial_contour(segmentation_view, strainmap_data):
-    from copy import deepcopy
-
-    segmentation_view.controller.data = deepcopy(strainmap_data)
+    segmentation_view.controller.data = strainmap_data
     segmentation_view.controller.review_mode = False
     segmentation_view.update_widgets()
 
@@ -79,9 +77,8 @@ def test_get_contour(segmentation_view):
 
 def test_initialize_segmentation(segmentation_view, strainmap_data):
     import numpy as np
-    from copy import deepcopy
 
-    segmentation_view.controller.data = deepcopy(strainmap_data)
+    segmentation_view.controller.data = strainmap_data
     segmentation_view.controller.review_mode = False
     segmentation_view.update_widgets()
 
@@ -108,9 +105,8 @@ def test_initialize_segmentation(segmentation_view, strainmap_data):
 )
 def test_quick_segmentation(septum, centroid, segmentation_view, strainmap_data):
     import numpy as np
-    from copy import deepcopy
 
-    segmentation_view.controller.data = deepcopy(strainmap_data)
+    segmentation_view.controller.data = strainmap_data
     segmentation_view.controller.review_mode = False
     segmentation_view.update_widgets()
 
@@ -136,13 +132,12 @@ def test_quick_segmentation(septum, centroid, segmentation_view, strainmap_data)
 
 def test_plot_segments(segmentation_view, strainmap_data):
     import numpy as np
-    from copy import deepcopy
     from strainmap.models.segmentation import _init_segments
 
     contour = np.random.random((2, 1, 2, 5))
     dataset = strainmap_data.data_files.datasets[0]
 
-    segmentation_view.controller.data = deepcopy(strainmap_data)
+    segmentation_view.controller.data = strainmap_data
     segmentation_view.controller.review_mode = False
     segmentation_view.update_widgets()
 
