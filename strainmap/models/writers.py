@@ -3,6 +3,7 @@ from itertools import chain
 from pathlib import Path
 from typing import Optional
 import subprocess
+import shutil
 
 import h5py
 import numpy as np
@@ -436,6 +437,9 @@ def repack_file(
 
     https://support.hdfgroup.org/HDF5/doc/Advanced/FileSpaceManagement/FileSpaceManagement.pdf
 
+    This approach does not work in Windows, yet, so the file si just copied to the new
+    destination.
+
     Args:
         - filename: The filename of the file repack.
         - target: Name of the repacked file. If None, it is set to the name of the file
@@ -461,5 +465,7 @@ def repack_file(
             "Use 'overwrite=True' to overwrite."
         )
 
-    command = "h5repack.exe" if sys.platform == "win32" else "h5repack"
-    subprocess.run([command, "--enable-error-stack", str(filename), str(target)])
+    if sys.platform == "win32":
+        shutil.copy2(filename, target)
+    else:
+        subprocess.run(["h5repack", "--enable-error-stack", str(filename), str(target)])

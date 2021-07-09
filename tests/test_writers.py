@@ -157,7 +157,7 @@ def test_repack_file(tmp_path):
     repack_file(filename)
     target = filename.parent / f"~{filename.name}"
     assert target.is_file()
-    assert target.stat().st_size < filename.stat().st_size
+    assert target.stat().st_size <= filename.stat().st_size
 
     with raises(RuntimeError):
         repack_file(filename, target)
