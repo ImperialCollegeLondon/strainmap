@@ -1,3 +1,4 @@
+import pytest
 from pytest import approx, mark, raises
 from unittest.mock import MagicMock, patch
 
@@ -142,6 +143,7 @@ def test_write_netcdf_file(tmp_path):
             assert coord in data[var.name]
 
 
+@pytest.mark.xfail(reason="h5repack seems to be missing in most installations")
 def test_repack_file(tmp_path):
     from strainmap.models.writers import write_netcdf_file, repack_file
     import xarray as xr

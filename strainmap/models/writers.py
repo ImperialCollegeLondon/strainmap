@@ -1,9 +1,6 @@
-import sys
 from itertools import chain
 from pathlib import Path
 from typing import Optional
-import subprocess
-import shutil
 
 import h5py
 import numpy as np
@@ -431,6 +428,9 @@ def repack_file(
 ) -> None:
     """Repacks a nc or h5 file to remove unused space.
 
+    FIXME Function disabled. h5repack is not part of h5py and need to be installed
+     separately, complicating the redistribution of StrainMAp.
+
     The HDF5 file space management is peculiar and files might look enormous even though
     there are just a few things inside. To recover that missing space, the file needs to
     be re-packed:
@@ -465,7 +465,9 @@ def repack_file(
             "Use 'overwrite=True' to overwrite."
         )
 
-    if sys.platform == "win32":
-        shutil.copy2(filename, target)
-    else:
-        subprocess.run(["h5repack", "--enable-error-stack", str(filename), str(target)])
+
+#
+# if sys.platform == "win32":
+#     shutil.copy2(filename, target)
+# else:
+#     subprocess.run(["h5repack", "--enable-error-stack", str(filename), str(target)])
