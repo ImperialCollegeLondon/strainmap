@@ -1,5 +1,4 @@
 from collections import defaultdict
-from functools import partial
 from itertools import product
 from typing import Callable, Dict, Optional, Text, Tuple
 
@@ -9,11 +8,12 @@ from scipy import interpolate
 
 from strainmap.models.strainmap_data_model import StrainMapData
 from strainmap.models.writers import terminal
+from strainmap.coordinates import Region
 
 
 def calculate_strain(
     data: StrainMapData,
-    datasets: Tuple[str, ...],
+    cines: Tuple[str, ...],
     callback: Callable = terminal,
     effective_displacement=True,
     resample=True,
@@ -23,8 +23,8 @@ def calculate_strain(
     """Calculates the strain and updates the Data object with the result."""
     steps = 7.0
 
-    if len(datasets) < 2:
-        callback("Insufficient datasets to calculate strain. At least 2 are needed.")
+    if len(cines) < 2:
+        callback("Insufficient cines to calculate strain. At least 2 are needed.")
         return 1
 
     if timeshift is not None:
@@ -33,14 +33,14 @@ def calculate_strain(
 
     callback("Calculating displacement", 1 / steps)
     disp = displacement(
-        data, datasets, effective_displacement=effective_displacement, resample=resample
+        data, cines, effective_displacement=effective_displacement, resample=resample
     )
 
     callback("Calculating coordinates", 2 / steps)
-    space = coordinates(data, datasets, resample=resample)
+    space = coordinates(data, cines, resample=resample)
 
     callback("Calculating twist", 3 / steps)
-    # data.twist = twist(data, datasets)
+    # data.twist = twist(data, cines)
 
     callback("Calculating strain", 4 / steps)
     reduced_strain = differentiate(disp, space)
@@ -49,14 +49,14 @@ def calculate_strain(
     data.strain = calculate_regional_strain(
         reduced_strain,
         data.masks,
-        datasets,
+        cines,
         resample=resample,
-        interval=tuple((data.data_files.time_interval(d) for d in datasets)),
+        interval=tuple((data.data_files.time_interval(d) for d in cines)),
         timeshift=data.timeshift,
     )
 
     callback("Calculating markers", 6 / steps)
-    for d in datasets:
+    for d in cines:
         labels = [
             s
             for s in data.strain[d].keys()
@@ -68,9 +68,9 @@ def calculate_strain(
 
     data.gls = global_longitudinal_strain(
         disp=disp,
-        markers=tuple(data.strain_markers[d] for d in datasets),
-        times=tuple(data.data_files.time_interval(d) for d in datasets),
-        locations=tuple(data.data_files.slice_loc(d) for d in datasets),
+        markers=tuple(data.strain_markers[d] for d in cines),
+        times=tuple(data.data_files.time_interval(d) for d in cines),
+        locations=tuple(data.data_files.slice_loc(d) for d in cines),
         resample=resample,
     )
 
@@ -269,7 +269,7 @@ def coordinates(
 
 def displacement(
     data: StrainMapData,
-    datasets: Tuple[str, ...],
+    cines: Tuple[str, ...],
     nrad: int = 3,
     nang: int = 24,
     lreg: int = 6,
@@ -277,56 +277,72 @@ def displacement(
     resample=True,
 ) -> np.ndarray:
 
-    vkey = "cylindrical"
-    rkey = f"radial x{nrad}"
-    akey = f"angular x{nang}"
-    img_axis = tuple(range(len(data.masks[datasets[0]][vkey].shape)))[-2:]
+    times = xr.DataArray(
+        tuple((data.data_files.time_interval(d) for d in cines)),
+        dims=["cine"],
+        coords={"cine": data.cylindrical.cine},
+    )
 
-    cyl_iter = (data.masks[d][vkey] for d in datasets)
-    m_iter = (data.masks[d][rkey] + 100 * data.masks[d][akey] for d in datasets)
-    t_iter = tuple((data.data_files.time_interval(d) for d in datasets))
-    ts = data.timeshift
-    reduced_vel_map = map(partial(_masked_reduction, axis=img_axis), cyl_iter, m_iter)
+    reduced = _masked_reduction(
+        data.cylindrical,
+        data.masks.sel(region=Region.RADIAL_x3),
+        data.masks.sel(region=Region.ANGULAR_x24),
+    )
 
-    # Create a mask to define the regions over which to calculate the background
-    # for the longitudinal case
-    treg = nrad * nang
-    lmask = np.ceil(np.arange(1, treg + 1) / treg * lreg).reshape((nang, nrad)).T
-    lmask = np.tile(lmask, (data.data_files.frames, 1, 1))
+    instant = (reduced - reduced.mean(["frame", "radius", "angle"])) * times
+    return instant.cumsum("frame")
 
-    disp = []
-    for r, t in zip(reduced_vel_map, t_iter):
-        # Radial and circumferential subtract the average of all slices and frames
-        disp.append((r[1:] - r[1:].mean(axis=(1, 2, 3), keepdims=True)) * t)
 
-        # Longitudinal subtract by lreg (=6) angular sectors
-        vlong = (
-            np.sum(
-                np.where(lmask == i, r[0] - r[0][lmask == i].mean(keepdims=True), 0)
-                for i in range(1, lreg + 1)
-            )
-            * t
-        )
-
-        # The signs of the in-plane displacement are reversed to be consistent with ECHO
-        disp[-1] = np.concatenate((vlong[None, ...], -disp[-1]), axis=0)
-
-        # We shift the data to the correct time
-        disp[-1] = shift_data(disp[-1], time_interval=t, timeshift=ts, axis=1)
-
-    disp = np.asarray(disp)
-
-    result = np.cumsum(disp, axis=2).transpose((1, 2, 0, 3, 4))
-    if effective_displacement:
-        backward = np.flip(np.flip(disp, axis=2).cumsum(axis=2), axis=2).transpose(
-            (1, 2, 0, 3, 4)
-        )
-        weight = np.arange(0, result.shape[1])[None, :, None, None, None] / (
-            result.shape[1] - 1
-        )
-        result = result * (1 - weight) - backward * weight
-
-    return resample_interval(result, t_iter) if resample else result
+# vkey = "cylindrical"
+# rkey = f"radial x{nrad}"
+# akey = f"angular x{nang}"
+# img_axis = tuple(range(len(data.masks[cines[0]][vkey].shape)))[-2:]
+#
+# cyl_iter = (data.masks[d][vkey] for d in cines)
+# m_iter = (data.masks[d][rkey] + 100 * data.masks[d][akey] for d in cines)
+# t_iter = tuple((data.data_files.time_interval(d) for d in cines))
+# ts = data.timeshift
+# reduced_vel_map = map(partial(_masked_reduction, axis=img_axis), cyl_iter, m_iter)
+#
+# # Create a mask to define the regions over which to calculate the background
+# # for the longitudinal case
+# treg = nrad * nang
+# lmask = np.ceil(np.arange(1, treg + 1) / treg * lreg).reshape((nang, nrad)).T
+# lmask = np.tile(lmask, (data.data_files.frames, 1, 1))
+#
+# disp = []
+# for r, t in zip(reduced_vel_map, t_iter):
+#     # Radial and circumferential subtract the average of all slices and frames
+#     disp.append((r[1:] - r[1:].mean(axis=(1, 2, 3), keepdims=True)) * t)
+#
+#     # Longitudinal subtract by lreg (=6) angular sectors
+#     vlong = (
+#         np.sum(
+#             np.where(lmask == i, r[0] - r[0][lmask == i].mean(keepdims=True), 0)
+#             for i in range(1, lreg + 1)
+#         )
+#         * t
+#     )
+#
+#     # The signs of the in-plane displacement are reversed to be consistent with ECHO
+#     disp[-1] = np.concatenate((vlong[None, ...], -disp[-1]), axis=0)
+#
+#     # We shift the data to the correct time
+#     disp[-1] = shift_data(disp[-1], time_interval=t, timeshift=ts, axis=1)
+#
+# disp = np.asarray(disp)
+#
+# result = np.cumsum(disp, axis=2).transpose((1, 2, 0, 3, 4))
+# if effective_displacement:
+#     backward = np.flip(np.flip(disp, axis=2).cumsum(axis=2), axis=2).transpose(
+#         (1, 2, 0, 3, 4)
+#     )
+#     weight = np.arange(0, result.shape[1])[None, :, None, None, None] / (
+#         result.shape[1] - 1
+#     )
+#     result = result * (1 - weight) - backward * weight
+#
+# return resample_interval(result, t_iter) if resample else result
 
 
 def resample_interval(disp: np.ndarray, interval: Tuple[float, ...]) -> np.ndarray:

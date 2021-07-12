@@ -433,7 +433,7 @@ class StrainTaskView(TaskViewBase):
 
     def populate_dataset_box(self, datasets=None):
         """Populate the dataset box with the datasets that have velocities."""
-        vdatasets = sorted(self.data.velocities.keys(), key=get_sa_location)
+        vdatasets = sorted(list(self.data.velocities.cine), key=get_sa_location)
         values = vdatasets if datasets is None else datasets
         current = self.datasets_var.get()
         self.datasets_box.config(values=values)
