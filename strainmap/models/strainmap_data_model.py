@@ -137,6 +137,7 @@ class StrainMapData(object):
                     xr.concat(
                         [getattr(self, attr), value.expand_dims(cine=[cine]).copy()],
                         dim="cine",
+                        fill_value=False,
                     ),
                 )
                 getattr(self, attr).name = attr
