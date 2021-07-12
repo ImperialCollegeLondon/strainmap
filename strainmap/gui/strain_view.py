@@ -73,7 +73,7 @@ class StrainTaskView(TaskViewBase):
         self.populate_tables()
 
     def create_controls(self):
-        """ Creates all the widgets of the view. """
+        """Creates all the widgets of the view."""
         # Top frames
         control = ttk.Frame(master=self)
         control.columnconfigure(4, weight=1)
@@ -184,7 +184,7 @@ class StrainTaskView(TaskViewBase):
         current = self.datasets_var.get()
         self.images = self.data.data_files.mag(current)
         self.timeshift_var.set(self.data.timeshift)
-        if self.data.strain.get(current):
+        if self.data.strain.shape != () and current in self.data.strain.cine:
             self.update_strain_list(current)
         else:
             self.calculate_strain()
@@ -374,15 +374,15 @@ class StrainTaskView(TaskViewBase):
 
     def calculate_strain(self, recalculate=False):
         """Calculate strain for the chosen dataset."""
-        datasets = sorted(self.data.velocities.keys(), key=get_sa_location)
+        cines = sorted(self.data.velocities.cine.data, key=get_sa_location)
         if self.exclude[0].get():
-            datasets.pop(0)
+            cines.pop(0)
         if self.exclude[1].get():
-            datasets.pop(-1)
+            cines.pop(-1)
 
         self.display_plots(False)
         self.controller.calculate_strain(
-            datasets=datasets,
+            cines=cines,
             effective_displacement=self.effective_disp.get(),
             resample=self.resample.get(),
             recalculate=recalculate,
@@ -391,7 +391,7 @@ class StrainTaskView(TaskViewBase):
         lbl = ("PSS", "PES", "PS")
         for i, v in enumerate(self.gls):
             v.set(value=f"{lbl[i]}: {round(self.data.gls[i] * 100, 1)}%")
-        self.populate_dataset_box(datasets)
+        self.populate_dataset_box(cines)
         self.update_strain_list(self.datasets_var.get())
 
     def recalculate(self, *args):
@@ -433,7 +433,7 @@ class StrainTaskView(TaskViewBase):
 
     def populate_dataset_box(self, datasets=None):
         """Populate the dataset box with the datasets that have velocities."""
-        vdatasets = sorted(list(self.data.velocities.cine), key=get_sa_location)
+        vdatasets = sorted(self.data.velocities.cine.data, key=get_sa_location)
         values = vdatasets if datasets is None else datasets
         current = self.datasets_var.get()
         self.datasets_box.config(values=values)
@@ -441,12 +441,12 @@ class StrainTaskView(TaskViewBase):
             self.datasets_var.set(values[0])
 
     def update_widgets(self):
-        """ Updates widgets after an update in the data var. """
+        """Updates widgets after an update in the data var."""
         self.populate_dataset_box()
         self.dataset_changed()
 
     def clear_widgets(self):
-        """ Clear widgets after removing the data. """
+        """Clear widgets after removing the data."""
         pass
 
     def markers_figure(

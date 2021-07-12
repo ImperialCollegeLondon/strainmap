@@ -343,7 +343,7 @@ def save_group(
 ) -> None:
     """Save a Datarray as a group in the netCDF file.
 
-    If the gorup already exists, it is deleted first.
+    If the group already exists, it is deleted first.
 
     Args:
         - filename: The filename of the file to save the data into.

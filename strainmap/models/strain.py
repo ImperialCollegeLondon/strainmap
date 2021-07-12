@@ -29,11 +29,21 @@ def calculate_strain(
 
     if timeshift is not None:
         data.timeshift = timeshift
-        data.save(["timeshift"])
+        data.save("timeshift")
+
+    times = xr.DataArray(
+        list((data.data_files.time_interval(d) for d in cines)),
+        dims=["cine"],
+        coords={"cine": cines},
+    )
 
     callback("Calculating displacement", 1 / steps)
     disp = displacement(
-        data, cines, effective_displacement=effective_displacement, resample=resample
+        times,
+        data.cylindrical.sel(cine=cines),
+        data.masks.sel(cine=cines, region=Region.RADIAL_x3.name),
+        data.masks.sel(cine=cines, region=Region.ANGULAR_x24.name),
+        timeshift,
     )
 
     callback("Calculating coordinates", 2 / steps)
@@ -268,28 +278,33 @@ def coordinates(
 
 
 def displacement(
-    data: StrainMapData,
-    cines: Tuple[str, ...],
-    nrad: int = 3,
-    nang: int = 24,
-    lreg: int = 6,
-    effective_displacement=True,
-    resample=True,
-) -> np.ndarray:
+    times: xr.DataArray,
+    cylindrical: xr.DataArray,
+    radial: xr.DataArray,
+    angular: xr.DataArray,
+    timeshift: float,
+) -> xr.DataArray:
+    """Reduces the cylindrical velocities to regions and calculates the displacement.
 
-    times = xr.DataArray(
-        tuple((data.data_files.time_interval(d) for d in cines)),
-        dims=["cine"],
-        coords={"cine": data.cylindrical.cine},
-    )
+    Some manipulation is also performed to match the format of echo data and adjusts
+    the origin of the times.
 
-    reduced = _masked_reduction(
-        data.cylindrical,
-        data.masks.sel(region=Region.RADIAL_x3),
-        data.masks.sel(region=Region.ANGULAR_x24),
-    )
+    FIXME: Account for a different background subtraction process for the longitudinal
+        componnent.
 
+    Args:
+        times: Time interval for each cine
+        cylindrical: Velocities in cylindrical coordinates.
+        radial: Masks defining the radial regions.
+        angular: Mask defining the angular regions.
+        timeshift: Time correction to adjust the origin of the displacement.
+
+    Returns:
+        Reduced array with the displacement
+    """
+    reduced = _masked_reduction(cylindrical, radial, angular)
     instant = (reduced - reduced.mean(["frame", "radius", "angle"])) * times
+    # shift_data(disp[-1], time_interval=t, timeshift=ts, axis=1)
     return instant.cumsum("frame")
 
 
