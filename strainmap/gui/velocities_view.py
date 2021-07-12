@@ -228,8 +228,8 @@ class VelocitiesTaskView(TaskViewBase):
     def recalculate_velocities(self):
         """Recalculate velocities after a sign reversal."""
         self.update_vel_btn.state(["disabled"])
-        cine = self.cines_var.get()
-        self.calculate_velocities(cine, update=True)
+        for cine in self.data.cylindrical.cine:
+            self.calculate_velocities(cine.item(), update=True)
         self.fig.line_limits = self.find_velocity_limits()
         self.replot()
 
