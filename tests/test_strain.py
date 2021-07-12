@@ -65,15 +65,13 @@ def angular_mask(mask_shape) -> xr.DataArray:
 
 @fixture
 def expanded_radial(radial_mask):
-    return (
-        (radial_mask * (radial_mask.region + 1)).sum("region").expand_dims(beyond=[0])
-    )
+    return (radial_mask * (radial_mask.region + 1)).sum("region").expand_dims(cine=[0])
 
 
 @fixture
 def expanded_angular(angular_mask):
     return (
-        (angular_mask * (angular_mask.region + 1)).sum("region").expand_dims(beyond=[0])
+        (angular_mask * (angular_mask.region + 1)).sum("region").expand_dims(cine=[0])
     )
 
 
@@ -86,8 +84,8 @@ def reduced_radial(radial_mask, angular_mask):
             np.arange(1, radial_mask.sizes["region"] + 1),
             (angular_mask.sizes["region"], frame, 1),
         ).transpose([1, 2, 0])[None, ...],
-        dims=["beyond", "frame", "radius", "angle"],
-        coords={"beyond": [0], "frame": np.arange(0, frame)},
+        dims=["cine", "frame", "radius", "angle"],
+        coords={"cine": [0], "frame": np.arange(0, frame)},
     ).astype(float)
 
 
@@ -100,8 +98,8 @@ def reduced_angular(radial_mask, angular_mask):
             np.arange(1, angular_mask.sizes["region"] + 1),
             (radial_mask.sizes["region"], frame, 1),
         ).transpose([1, 0, 2])[None, ...],
-        dims=["beyond", "frame", "radius", "angle"],
-        coords={"beyond": [0], "frame": np.arange(0, frame)},
+        dims=["cine", "frame", "radius", "angle"],
+        coords={"cine": [0], "frame": np.arange(0, frame)},
     ).astype(float)
 
 
@@ -156,6 +154,14 @@ def test_masked_expansion(
     # angular symmetry in the row/col plane.
     actual = _masked_expansion(reduced_angular, radial, angular, nrow, ncol)
     xr.testing.assert_equal(actual, expanded_angular.where(~actual.isnull()))
+
+
+def test_shift_data():
+    assert False
+
+
+def test_displacement():
+    assert False
 
 
 def test_resample():

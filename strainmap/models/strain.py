@@ -31,7 +31,7 @@ def calculate_strain(
         data.timeshift = timeshift
         data.save("timeshift")
 
-    times = xr.DataArray(
+    time_intervals = xr.DataArray(
         list((data.data_files.time_interval(d) for d in cines)),
         dims=["cine"],
         coords={"cine": cines},
@@ -39,12 +39,15 @@ def calculate_strain(
 
     callback("Calculating displacement", 1 / steps)
     disp = displacement(
-        times,
+        time_intervals,
         data.cylindrical.sel(cine=cines),
         data.masks.sel(cine=cines, region=Region.RADIAL_x3.name),
         data.masks.sel(cine=cines, region=Region.ANGULAR_x24.name),
         timeshift,
     )
+
+    # disp = effecitive_displacement()
+    # disp = resample()
 
     callback("Calculating coordinates", 2 / steps)
     space = coordinates(data, cines, resample=resample)
@@ -266,7 +269,7 @@ def coordinates(
 
     # We shift the coordinates
     for i, t in enumerate(t_iter):
-        result[:, :, i, ...] = shift_data(
+        result[:, :, i, ...] = _shift_data(
             result[:, :, i, ...], time_interval=t, timeshift=ts, axis=1
         )
     # We pick just the first element, representing the pixel locations at time zero.
@@ -278,7 +281,7 @@ def coordinates(
 
 
 def displacement(
-    times: xr.DataArray,
+    time_intervals: xr.DataArray,
     cylindrical: xr.DataArray,
     radial: xr.DataArray,
     angular: xr.DataArray,
@@ -290,10 +293,10 @@ def displacement(
     the origin of the times.
 
     FIXME: Account for a different background subtraction process for the longitudinal
-        componnent.
+        component.
 
     Args:
-        times: Time interval for each cine
+        time_intervals: Time interval for each cine
         cylindrical: Velocities in cylindrical coordinates.
         radial: Masks defining the radial regions.
         angular: Mask defining the angular regions.
@@ -303,9 +306,11 @@ def displacement(
         Reduced array with the displacement
     """
     reduced = _masked_reduction(cylindrical, radial, angular)
-    instant = (reduced - reduced.mean(["frame", "radius", "angle"])) * times
-    # shift_data(disp[-1], time_interval=t, timeshift=ts, axis=1)
-    return instant.cumsum("frame")
+    return _shift_data(
+        (reduced - reduced.mean(["frame", "radius", "angle"])) * time_intervals,
+        time_intervals=time_intervals,
+        timeshift=timeshift,
+    ).cumsum("frame")
 
 
 # vkey = "cylindrical"
@@ -519,7 +524,7 @@ def calculate_regional_strain(
 
         # When calculating the regional strains from the reduced strain, we need the
         # superpixel area. This has to be shifted to match the times of the strain.
-        rm = shift_data(
+        rm = _shift_data(
             superpixel_area(m, data_shape, axis=(2, 3)), t, timeshift, axis=1
         )
 
@@ -537,7 +542,7 @@ def calculate_regional_strain(
         # To match the strain with the masks, we shift the strain in the opposite
         # direction
         result[d][vkey] = _masked_expansion(
-            shift_data(s, t, -timeshift, axis=1), m, axis=(2, 3)
+            _shift_data(s, t, -timeshift, axis=1), m, axis=(2, 3)
         )
 
     return result
@@ -688,21 +693,38 @@ def global_longitudinal_strain(
 #     )
 
 
-def shift_data(
-    data: np.ndarray, time_interval: float, timeshift: float, axis: int = 0
-) -> np.ndarray:
-    """Interpolates the data to account for a timeshift correction."""
-    time = np.arange(-1, data.shape[axis] + 1)
-    d = np.moveaxis(data, axis, 0)
-    d = np.concatenate([d[-1:], d, d[:1]], axis=0)
+def _shift_data(
+    data: xr.DataArray, time_intervals: xr.DataArray, timeshift: float
+) -> xr.DataArray:
+    """Interpolates the data to account for a timeshift correction.
 
-    shift_frames = int(round(timeshift / time_interval))
-    remainder = timeshift - time_interval * shift_frames
-    new_time = np.arange(data.shape[axis]) + remainder
-    new_data = np.roll(
-        interpolate.interp1d(time, d, axis=0)(new_time), -shift_frames, axis=0
-    )
-    return np.moveaxis(new_data, 0, axis)
+    Args:
+        data: Data to interpolate. Must have 'cine' and 'frame' dimensions.
+        time_intervals: Array with the time intervals for each cine.
+        timeshift: Global timeshift to apply.
+
+    Returns:
+        An array where data along the frame dimension has been shifted and interpolated.
+    """
+    times = data.frame * time_intervals
+
+    shifted_frames = (timeshift / time_intervals).round().astype(int)
+    remainder = timeshift - time_intervals * shifted_frames
+    new_times = times + remainder
+
+    result = []
+    for cine in data.cine:
+        result.append(
+            data.sel(cine=cine)
+            .roll(frame=-shifted_frames.sel(cine=cine).item())
+            .assign_coords(frame=times.sel(cine=cine))
+            .interp(
+                frame=new_times.sel(cine=cine).data,
+                kwargs={"fill_value": "extrapolate"},
+            )
+            .assign_coords(frame=np.arange(0, data.cine.size))
+        )
+    return xr.concat(result, dim=data.cine)
 
 
 def superpixel_area(masks: np.ndarray, data_shape: tuple, axis: tuple) -> np.ndarray:
