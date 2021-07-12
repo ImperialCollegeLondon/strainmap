@@ -88,6 +88,7 @@ class StrainMap(object):
         self.data = StrainMapData.from_file(strainmap_file)
         self.lock_toggle(self.data.data_files, Requisites.DATALOADED)
         self.lock_toggle(self.data.segments.shape != (), Requisites.SEGMENTED)
+        self.lock_toggle(self.data.cylindrical.shape != (), Requisites.VELOCITIES)
         return self.data is not None
 
     def clear_data(self):

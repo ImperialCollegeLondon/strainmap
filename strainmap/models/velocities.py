@@ -287,9 +287,23 @@ def cylindrical_rotation_matrix(theta: np.ndarray) -> np.ndarray:
 
 
 def calculate_velocities(
-    data: StrainMapData, cine: Text, sign_reversal: Tuple[bool, ...] = (1, 1, 1)
-):
-    """Calculates the velocity of the chosen cine and regions."""
+    data: StrainMapData,
+    cine: Text,
+    sign_reversal: Tuple[bool, ...] = (1, 1, 1),
+    update_velocities=False,
+) -> None:
+    """Calculates the velocity of the chosen cine and regions.
+
+    Args:
+        data: StrainMap data object with all the information
+        cine: The cine to calculate the velocities for
+        sign_reversal: Tuple containing the sign change of the phase components.
+        update_velocities: If this is an update of the existing velocities, in which
+            case the masks don't need to be recalculated.
+
+    Returns:
+        None
+    """
     data.sign_reversal[...] = np.array(sign_reversal)
 
     # We start by processing the phase images
@@ -302,12 +316,16 @@ def calculate_velocities(
     lap1 = time.time()
     logging.info(f"Time for phase: {round(lap1 - start, 2)}s")
 
-    # Now we calculate all the masks
-    segments = data.segments.sel(cine=cine).drop_vars("cine")
+    # Now we calculate all the masks, but only if it is not an update
     centroid = data.centroid.sel(cine=cine).drop_vars("cine")
     septum = data.septum.sel(cine=cine).drop_vars("cine")
     theta0 = theta_origin(centroid, septum)
-    masks = find_masks(segments, centroid, theta0)
+    if not update_velocities:
+        segments = data.segments.sel(cine=cine).drop_vars("cine")
+        masks = find_masks(segments, centroid, theta0)
+        data.add_data(cine, masks=masks)
+    else:
+        masks = data.masks.sel(cine=cine).drop_vars("cine")
     lap2 = time.time()
     logging.info(f"Time for masks: {round(lap2 - lap1, 2)}s")
 
@@ -330,14 +348,13 @@ def calculate_velocities(
     lap4 = time.time()
     logging.info(f"Time for vel: {round(lap4 - lap3, 2)}s")
 
+    # And the markers
     markers = initialise_markers(velocity)
     lap5 = time.time()
     logging.info(f"Time for marker: {round(lap5 - lap4, 2)}s")
-    # Finally, we add all the information to the StrainMap data object
 
-    data.add_data(
-        cine, masks=masks, cylindrical=cylindrical, velocities=velocity, markers=markers
-    )
+    # Finally, we add all the information to the StrainMap data object
+    data.add_data(cine, cylindrical=cylindrical, velocities=velocity, markers=markers)
 
 
 def _calculate_velocities(
