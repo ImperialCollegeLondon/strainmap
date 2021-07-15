@@ -722,7 +722,7 @@ def _shift_data(
                 frame=new_times.sel(cine=cine).data,
                 kwargs={"fill_value": "extrapolate"},
             )
-            .assign_coords(frame=np.arange(0, data.cine.size))
+            .assign_coords(frame=np.arange(0, data.frame.size))
         )
     return xr.concat(result, dim=data.cine)
 

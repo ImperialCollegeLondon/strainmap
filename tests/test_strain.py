@@ -1,4 +1,4 @@
-from pytest import approx, fixture
+from pytest import approx, fixture, mark
 import xarray as xr
 import numpy as np
 
@@ -156,10 +156,33 @@ def test_masked_expansion(
     xr.testing.assert_equal(actual, expanded_angular.where(~actual.isnull()))
 
 
-def test_shift_data():
-    assert False
+def test_shift_data(reduced_radial):
+    from strainmap.models.strain import _shift_data
+    import scipy as sp
+
+    interval = 0.25
+    timeshift = 0.6
+    frames = reduced_radial.frame.size
+
+    data = reduced_radial * reduced_radial.frame
+    time_intervals = xr.DataArray(
+        [interval] * data.cine.size, dims=["cine"], coords={"cine": data.cine}
+    )
+    actual = _shift_data(data, time_intervals, timeshift)
+
+    shift, rem = divmod(timeshift, interval)
+    times = np.arange(0, frames * interval, interval)
+    expected = sp.interpolate.interp1d(
+        times,
+        np.roll(np.arange(0, frames - 0.1), int(-shift)),
+        fill_value="extrapolate",
+    )(times + rem)
+
+    # Actually, we just check that the expectation for one spacial location is OK
+    assert actual.isel(cine=0, radius=0, angle=0).data == approx(expected)
 
 
+@mark.xfail
 def test_displacement():
     assert False
 
