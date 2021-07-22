@@ -74,11 +74,11 @@ def read_images(filenames: Sequence[str]) -> np.ndarray:
     return np.array([pydicom.dcmread(f).pixel_array for f in filenames])
 
 
-def read_strainmap_file(stored: Tuple, filename: Union[Path, Text]) -> dict:
+def read_strainmap_file(filename: Union[Path, Text], stored: Tuple = ()) -> dict:
     """Reads a StrainMap file with existing information on previous segmentations."""
     fn = Path(filename)
     if fn.suffix == ".h5":
-        return read_h5_file(stored, filename)
+        return read_h5_file(stored, fn)
     elif fn.suffix == ".nc":
         return read_netcdf_file(fn)
     else:
@@ -88,7 +88,7 @@ def read_strainmap_file(stored: Tuple, filename: Union[Path, Text]) -> dict:
 def read_h5_file(stored: Tuple, filename: Union[Path, Text]) -> dict:
     """Reads a HDF5 file."""
     sm_file = h5py.File(filename, "a")
-    attributes = dict(strainmap_file=sm_file)
+    attributes = dict(strainmap_file=filename)
 
     to_rename = {}
 
@@ -484,7 +484,7 @@ def read_netcdf_file(filename: Path) -> Dict:
 
     The file is assumed to have been created with StrainMap (write_netcdf_file) and have
     all DataArrays as groups and all non-DataArray information as attributes of the
-    root gorup.
+    root group.
 
     Args:
         - filename: The name of the file to read the data from.

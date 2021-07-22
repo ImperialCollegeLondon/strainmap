@@ -222,6 +222,9 @@ class VelocitiesTaskView(TaskViewBase):
         else:
             self.update_velocities_list(current)
 
+        for i, var in enumerate(self.reverse_vel_var):
+            var.set(True if self.data.sign_reversal.data[i] == -1 else False)
+
         self.replot()
         self.controller.progress("Done!")
 

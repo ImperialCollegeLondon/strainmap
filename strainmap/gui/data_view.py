@@ -256,7 +256,7 @@ class DataTaskView(TaskViewBase):
         try:
             self.controller.load_data_from_file(strainmap_file=path)
             self.controller.review_mode = False
-            self.output_file.set(path)
+            self.output_file.set(self.data.filename)
             self.current_dir = str(Path(path).parent)
             self.nametowidget("control.chooseOutputFile")["state"] = "enable"
             msg = f"Data loaded from {path}."

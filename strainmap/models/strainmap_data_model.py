@@ -49,7 +49,7 @@ class StrainMapData(object):
         "sign_reversal",
         "orientation",
         "segments",
-        "septum",
+        "zero_angle",
         "markers",
         "strain_markers",
         "timeshift",
@@ -92,8 +92,21 @@ class StrainMapData(object):
 
     def from_file(self, strainmap_file: Union[Path, Text]):
         """Populates a StrainMap data object with data from a file."""
-        attributes = read_strainmap_file(self.stored, strainmap_file)
-        self.__dict__.update(attributes)
+        attributes = read_strainmap_file(strainmap_file, self.stored)
+
+        if Path(strainmap_file).suffix == ".h5":
+            from .legacy_regenerate import (
+                regenerate_segmentation,
+                regenerate_velocities,
+            )
+
+            attributes = regenerate_segmentation(attributes)
+            self.__dict__.update(attributes)
+            regenerate_velocities(self)
+            self.add_file(Path(strainmap_file).with_suffix(".nc"))
+
+        else:
+            self.__dict__.update(attributes)
 
     def add_file(self, strainmap_file: Union[Path, Text]):
         """Adds a new netCDF file to the structure."""
