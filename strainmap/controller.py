@@ -85,7 +85,7 @@ class StrainMap(object):
 
     def load_data_from_file(self, strainmap_file):
         """Creates a StrainMapData object."""
-        self.data = StrainMapData.from_file(strainmap_file)
+        self.data.from_file(strainmap_file)
         self.lock_toggle(self.data.data_files, Requisites.DATALOADED)
         self.lock_toggle(self.data.segments.shape != (), Requisites.SEGMENTED)
         self.lock_toggle(self.data.cylindrical.shape != (), Requisites.VELOCITIES)
@@ -97,16 +97,6 @@ class StrainMap(object):
         self.lock(Requisites.DATALOADED)
         self.lock(Requisites.SEGMENTED)
         self.lock(Requisites.VELOCITIES)
-
-    def add_paths(self, data_files=""):
-        """Add the paths to the DICOM files."""
-        try:
-            self.data.add_paths(data_files)
-            self.lock_toggle(self.data.data_files, Requisites.DATALOADED)
-            self.lock_toggle(self.data.segments.shape != (), Requisites.SEGMENTED)
-        except NoDICOMDataException:
-            self.clear_data()
-            raise
 
     def add_file(self, strainmap_file):
         return self.data.add_file(strainmap_file)

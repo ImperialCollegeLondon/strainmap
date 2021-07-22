@@ -213,7 +213,7 @@ class DataTaskView(TaskViewBase):
 
         return frame, treeview
 
-    def load_data(self):
+    def load_data(self, refresh: bool = True):
         """Loads new data into StrainMap"""
         path = tk.filedialog.askdirectory(
             title="Select DATA directory", initialdir=self.current_dir
@@ -234,7 +234,8 @@ class DataTaskView(TaskViewBase):
             msg = "No data was loaded."
 
         self.controller.window.progress(msg)
-        self.update_widgets()
+        if refresh:
+            self.update_widgets()
 
     def open_existing_file(self):
         """Opens an existing StrainMap file."""
@@ -247,17 +248,18 @@ class DataTaskView(TaskViewBase):
         if path == "":
             return
 
+        self.load_data(refresh=False)
+
+        if self.data is None:
+            return
+
         try:
-            self.load_missing_data(path)
-            if self.data is not None:
-                self.controller.review_mode = False
-                self.output_file.set(path)
-                self.data_folder.set(Path(self.data.data_files.is_avail).parent)
-                self.current_dir = str(Path(path).parent)
-                self.nametowidget("control.chooseOutputFile")["state"] = "enable"
-                msg = f"Data loaded from {path}."
-            else:
-                msg = "No data was loaded."
+            self.controller.load_data_from_file(strainmap_file=path)
+            self.controller.review_mode = False
+            self.output_file.set(path)
+            self.current_dir = str(Path(path).parent)
+            self.nametowidget("control.chooseOutputFile")["state"] = "enable"
+            msg = f"Data loaded from {path}."
 
         except Exception as err:
             log = (
@@ -266,24 +268,11 @@ class DataTaskView(TaskViewBase):
             )
             with log.open("a") as f:
                 print_exc(file=f)
-            self.controller.load_data_from_folder(data_files=path)
+            self.controller.clear_data()
             msg = f"{err} - Log info in {str(log)}"
 
         self.controller.window.progress(msg)
         self.update_widgets()
-
-    def load_missing_data(self, path):
-        """Adds missing data to StrainMap if data files not found."""
-        self.controller.load_data_from_file(strainmap_file=path)
-        data_path = tk.filedialog.askdirectory(
-            title="Select DATA directory", initialdir=self.current_dir
-        )
-        if data_path != "" and self.data is not None:
-            self.current_dir = data_path
-            self.data_folder.set(self.current_dir)
-            self.controller.add_paths(data_files=data_path)
-        else:
-            self.controller.clear_data()
 
     def select_output_file(self):
         """Selects an output file in which to store the current data."""

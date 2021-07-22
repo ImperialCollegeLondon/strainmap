@@ -64,14 +64,6 @@ class StrainMapData(object):
         data = cls(data_files=df)
         return data
 
-    @classmethod
-    def from_file(cls, strainmap_file: Union[Path, Text]):
-        """Creates a new StrainMap data object from a file."""
-        attributes = read_strainmap_file(cls.stored, strainmap_file)
-        result = cls()
-        result.__dict__.update(attributes)
-        return result
-
     def __init__(
         self, data_files: Optional[DICOMReaderBase] = None, filename: Path = Path()
     ):
@@ -98,11 +90,10 @@ class StrainMapData(object):
         self.gls: xr.DataArray = xr.DataArray(name="gls")
         self.twist: xr.DataArray = xr.DataArray(name="twist")
 
-    def add_paths(self, data_files: Union[Path, Text] = ""):
-        """Adds data paths to the object."""
-        self.data_files = read_folder(data_files)
-        if self.data_files is None:
-            raise NoDICOMDataException(f"'{data_files}' does not contain DICOM data.")
+    def from_file(self, strainmap_file: Union[Path, Text]):
+        """Populates a StrainMap data object with data from a file."""
+        attributes = read_strainmap_file(self.stored, strainmap_file)
+        self.__dict__.update(attributes)
 
     def add_file(self, strainmap_file: Union[Path, Text]):
         """Adds a new netCDF file to the structure."""

@@ -34,11 +34,9 @@ def test_from_file(dicom_data_path, h5_file_path):
     from strainmap.models.strainmap_data_model import StrainMapData
     from strainmap.models.readers import from_relative_paths
 
-    data = StrainMapData.from_file(h5_file_path)
+    data = StrainMapData.from_folder(dicom_data_path)
+    data.from_file(h5_file_path)
     assert isinstance(data, StrainMapData)
-    assert data.data_files == ()
-
-    data.add_paths(data_files=dicom_data_path)
     assert len(data.data_files.files) > 0
 
     for cine in data.data_files.files.cine.values:
