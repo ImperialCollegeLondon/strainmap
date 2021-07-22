@@ -7,13 +7,14 @@ from matplotlib import pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
 from matplotlib.figure import Figure
 
-from .base_window_and_task import Requisites, TaskViewBase, register_view
+from .base_window_and_task import Requisites, TaskViewBase, register_view  # noqa: F401
 from .figure_actions import Markers, SimpleScroller
 from .figure_actions_manager import FigureActionsManager
 from ..tools import get_sa_location
 
 
-@register_view
+# FIXME Re-enable when needed
+# @register_view
 class StrainTaskView(TaskViewBase):
 
     requisites = Requisites.VELOCITIES
@@ -73,7 +74,7 @@ class StrainTaskView(TaskViewBase):
         self.populate_tables()
 
     def create_controls(self):
-        """ Creates all the widgets of the view. """
+        """Creates all the widgets of the view."""
         # Top frames
         control = ttk.Frame(master=self)
         control.columnconfigure(4, weight=1)
@@ -441,12 +442,12 @@ class StrainTaskView(TaskViewBase):
             self.datasets_var.set(values[0])
 
     def update_widgets(self):
-        """ Updates widgets after an update in the data var. """
+        """Updates widgets after an update in the data var."""
         self.populate_dataset_box()
         self.dataset_changed()
 
     def clear_widgets(self):
-        """ Clear widgets after removing the data. """
+        """Clear widgets after removing the data."""
         pass
 
     def markers_figure(

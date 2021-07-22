@@ -12,7 +12,7 @@ import pandas as pd
 
 import strainmap.coordinates
 
-from .base_window_and_task import TaskViewBase, register_view
+from .base_window_and_task import TaskViewBase, register_view  # noqa: F401
 
 COLS: Tuple[str, ...] = (
     "Record",
@@ -40,7 +40,8 @@ class SliceBoxes(NamedTuple):
     Apex: ttk.Combobox
 
 
-@register_view
+# FIXME Re-enable when needed
+# @register_view
 class AtlasTaskView(TaskViewBase):
     def __init__(self, root, controller):
 
