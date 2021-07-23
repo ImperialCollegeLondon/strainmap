@@ -9,7 +9,6 @@ from skimage.draw import polygon2mask
 
 from ..coordinates import Comp, Region, Mark
 from .strainmap_data_model import StrainMapData
-from .writers import terminal
 
 
 class _MSearch(NamedTuple):
@@ -630,39 +629,11 @@ def larger_than_es(x, es, frames, syst=350, dias=650):
     return syst + (x - es) / (frames - es) * dias
 
 
-def regenerate(data, cines, callback: Callable = terminal):
-    """Regenerate velocities and masks information after loading from h5 file."""
-    for i, d in enumerate(cines):
-        callback(
-            f"Regenerating existing velocities {i+1}/{len(cines)}.", i / len(cines)
-        )
-        vels = data.velocities[d]
-        regions: Dict = {}
-        for k, v in vels.items():
-            if k == "global":
-                regions["global_velocity"] = True
-            else:
-                rtype, num = k.split(" x")
-                if f"{rtype}_regions" in regions:
-                    regions[f"{rtype}_regions"].append(int(num))
-                else:
-                    regions[f"{rtype}_regions"] = [int(num)]
-
-        calculate_velocities(
-            data=data,
-            cine=d,
-            sign_reversal=data.sign_reversal,
-            init_markers=False,
-            **regions,
-        )
-    callback("Regeneration complete!", 1)
-
-
 def px_velocity_curves(
     data: StrainMapData, cine: str, nrad: int = 3, nang: int = 24
 ) -> np.ndarray:
     """TODO: Remove in the final version."""
-    from .strain import _masked_reduction
+    from .transformations import _masked_reduction
 
     vkey = "cylindrical"
     rkey = f"radial x{nrad}"

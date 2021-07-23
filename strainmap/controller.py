@@ -10,14 +10,14 @@ from .models.strain import calculate_strain
 from .models.strain import update_marker as update_strain_marker
 from .models.strain import update_strain_es_marker
 from .models.strainmap_data_model import StrainMapData
-from .models.velocities import calculate_velocities, regenerate, update_markers
+from .models.velocities import calculate_velocities, update_markers
 from .models.writers import rotation_to_xlsx, strain_to_xlsx, velocity_to_xlsx
 from .coordinates import Mark
 from .exceptions import NoDICOMDataException
 
 
 class StrainMap(object):
-    """ StrainMap main window."""
+    """StrainMap main window."""
 
     registered_views = REGISTERED_VIEWS
 
@@ -36,11 +36,11 @@ class StrainMap(object):
         return self.window.progress
 
     def run(self):
-        """ Runs StrainMap by calling the top window mainloop. """
+        """Runs StrainMap by calling the top window mainloop."""
         self.window.mainloop()
 
     def unlock(self, requisite=Requisites.NONE):
-        """ Adds requisites and loads views. If loaded, they are marked to update."""
+        """Adds requisites and loads views. If loaded, they are marked to update."""
         self.achieved = self.achieved | requisite
 
         for view in self.registered_views:
@@ -55,7 +55,7 @@ class StrainMap(object):
                 view.is_stale = True
 
     def lock(self, requisite):
-        """ Removes requisites and updates loaded views."""
+        """Removes requisites and updates loaded views."""
         self.achieved = self.achieved ^ requisite
 
         for view in self.window.views:
@@ -70,7 +70,7 @@ class StrainMap(object):
             self.lock(requisite)
 
     def update_views(self):
-        """ Updates the data attribute of the views and the widgets depending on it. """
+        """Updates the data attribute of the views and the widgets depending on it."""
         for view in self.window.views:
             view.update_widgets()
 
@@ -134,14 +134,6 @@ class StrainMap(object):
         """Calculates the velocities based on a given segmentation."""
         calculate_velocities(data=self.data, **kwargs)
         self.lock_toggle(self.data.velocities.shape != (), Requisites.VELOCITIES)
-
-    def regenerate_velocities(self, **kwargs):
-        """Calculates the velocities based on a given segmentation."""
-        regenerate(data=self.data, **kwargs)
-        there_are_velocities = (
-            sum(len(i) != 0 for i in self.data.velocities.values()) > 1
-        )
-        self.lock_toggle(there_are_velocities, Requisites.VELOCITIES)
 
     def update_marker(self, **kwargs):
         """Updates the markers information after moving one of them."""
