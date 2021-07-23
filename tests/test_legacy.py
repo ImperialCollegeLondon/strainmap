@@ -1,6 +1,6 @@
 def test_dict_to_xarray():
     import numpy as np
-    from strainmap.models.legacy_regenerate import _dict_to_xarray
+    from strainmap.models.legacy import _dict_to_xarray
 
     shape = (3, 2, 3, 2, 4)
     dims = ["Character", "Equipment", "points 1", "points 2", "points 3"]

@@ -1,5 +1,6 @@
 from typing import List
 import logging
+from pathlib import Path
 
 import xarray as xr
 import numpy as np
@@ -33,9 +34,7 @@ def _dict_to_xarray(structure: dict, dims: List[str]) -> xr.DataArray:
         sequences.
     """
     data = []
-    coords = []
     for k, v in structure.items():
-        coords.append(k)
         if isinstance(v, dict):
             data.append(_dict_to_xarray(v, dims[1:]).expand_dims(dim={dims[0]: [k]}))
         else:
@@ -49,14 +48,19 @@ def _dict_to_xarray(structure: dict, dims: List[str]) -> xr.DataArray:
     return xr.concat(data, dim=dims[0])
 
 
-def regenerate_segmentation(structure: dict) -> dict:
-    """
+def _regenerate_auxiliar(structure: dict) -> dict:
+    """Transform auxiliary data stored in the h5 structure to the correct format.
+
+    In particular, it deals with the following (optional) keys:
+        - orientation
+        - timeshift
+        - sign_reversal
 
     Args:
-        structure:
+        structure: Nested dictionary structure containing the relevant data.
 
     Returns:
-
+        A dictionary with the above keys in the correct format.
     """
     corrected = dict()
 
@@ -66,13 +70,32 @@ def regenerate_segmentation(structure: dict) -> dict:
     if "timeshift" in structure:
         corrected["timeshift"] = structure["timeshift"]
 
-    sign = structure["sign_reversal"][1:] + structure["sign_reversal"][:1]
-    corrected["sign_reversal"] = xr.DataArray(
-        [1 if s == 1 else -1 for s in sign],
-        dims=["comp"],
-        coords={"comp": [Comp.X.name, Comp.Y.name, Comp.Z.name]},
-        name="sign_reversal",
-    ).astype(np.int16)
+    if "sign_reversal" in structure:
+        sign = structure["sign_reversal"][1:] + structure["sign_reversal"][:1]
+        corrected["sign_reversal"] = xr.DataArray(
+            [1 if s == 1 else -1 for s in sign],
+            dims=["comp"],
+            coords={"comp": [Comp.X.name, Comp.Y.name, Comp.Z.name]},
+            name="sign_reversal",
+        ).astype(np.int16)
+
+    return corrected
+
+
+def _regenerate_segmentation(structure: dict) -> dict:
+    """Regenerate the segmentation data as DataArrays.
+
+    In particular, it requires the following keys:
+        - segments
+        - zero_angle
+
+    Args:
+        structure: Nested dictionary structure containing the relevant data.
+
+    Returns:
+        A Dictionary of DataArray containing the 'segments', 'centroid' and 'septum'
+    """
+    corrected = dict()
 
     corrected["segments"] = (
         _dict_to_xarray(
@@ -99,8 +122,10 @@ def regenerate_segmentation(structure: dict) -> dict:
     return corrected
 
 
-def regenerate_velocities(data: StrainMapData) -> None:
+def _regenerate_velocities(data: StrainMapData) -> None:
     """Calculate the velocities for all of the segmentations available.
+
+    It updates the input data object with the new information.
 
     Args:
         data: A StrainMap data object with segmentations
@@ -111,3 +136,19 @@ def regenerate_velocities(data: StrainMapData) -> None:
             f"({i+1}/{cines.size}) Calculating velocities for cine {cine.item()}"
         )
         calculate_velocities(data, cine.item(), tuple(data.sign_reversal))
+
+
+def regenerate(data: StrainMapData, structure: dict, filename: Path) -> None:
+    """Regenerate a StrainMap data object from the data stored in the legacy h5 format.
+
+    It updates the input data object with the new information.
+
+    Args:
+        data: A StrainMap data object
+        structure: Nested dictionary structure containing the relevant data.
+        filename: The name of the h5 file
+    """
+    data.__dict__.update(_regenerate_auxiliar(structure))
+    data.__dict__.update(_regenerate_segmentation(structure))
+    _regenerate_velocities(data)
+    data.add_file(filename.with_suffix(".nc"))

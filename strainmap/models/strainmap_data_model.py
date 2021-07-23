@@ -92,18 +92,13 @@ class StrainMapData(object):
 
     def from_file(self, strainmap_file: Union[Path, Text]):
         """Populates a StrainMap data object with data from a file."""
-        attributes = read_strainmap_file(strainmap_file, self.stored)
+        filename = Path(strainmap_file)
+        attributes = read_strainmap_file(filename, self.stored)
 
         if Path(strainmap_file).suffix == ".h5":
-            from .legacy_regenerate import (
-                regenerate_segmentation,
-                regenerate_velocities,
-            )
+            from .legacy import regenerate
 
-            attributes = regenerate_segmentation(attributes)
-            self.__dict__.update(attributes)
-            regenerate_velocities(self)
-            self.add_file(Path(strainmap_file).with_suffix(".nc"))
+            regenerate(self, attributes, filename)
 
         else:
             self.__dict__.update(attributes)
@@ -190,8 +185,7 @@ class StrainMapData(object):
         to_save = {
             k: v
             for k, v in self.__dict__.items()
-            if not k.startswith("_")
-            and k not in ("filename", "data_files", "strainmap_file")
+            if not k.startswith("_") and k not in ("filename", "data_files", "filename")
         }
 
         write_netcdf_file(self.filename, **to_save, **self.metadata())
@@ -221,7 +215,7 @@ class StrainMapData(object):
     def __eq__(self, other) -> bool:
         """Compares two StrainMapData objects.
 
-        The "strainmap_file" attribute is ignored as it might have different values."""
+        The "filename" attribute is ignored as it might have different values."""
         equal = self.sign_reversal == other.sign_reversal
         keys = set(self.__dict__.keys())
         for k in keys:
