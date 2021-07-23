@@ -193,8 +193,8 @@ class StrainMapData(object):
     def save(self, *args) -> None:
         """Saves specific object attributes to the hdf5 file.
 
-        DataArrays are saved as gorups while anything else is saved as attribute of the
-        root gorup.
+        DataArrays are saved as groups while anything else is saved as attribute of the
+        root group.
 
         Args:
             - args: Names of instance attributes to save.
@@ -210,7 +210,7 @@ class StrainMapData(object):
             if isinstance(value, xr.DataArray):
                 save_group(self.filename, value, key, value.dtype == float)
             else:
-                save_attribute(self.filename, value, key)
+                save_attribute(self.filename, **{key: value})
 
     def __eq__(self, other) -> bool:
         """Compares two StrainMapData objects.

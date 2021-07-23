@@ -662,7 +662,7 @@ def px_velocity_curves(
     data: StrainMapData, cine: str, nrad: int = 3, nang: int = 24
 ) -> np.ndarray:
     """TODO: Remove in the final version."""
-    from .strain import masked_reduction
+    from .strain import _masked_reduction
 
     vkey = "cylindrical"
     rkey = f"radial x{nrad}"
@@ -671,6 +671,6 @@ def px_velocity_curves(
 
     cyl = data.masks[cine][vkey]
     m = data.masks[cine][rkey] + 100 * data.masks[cine][akey]
-    r = masked_reduction(cyl, m, axis=img_axis)
+    r = _masked_reduction(cyl, m, axis=img_axis)
 
     return r - r.mean(axis=(1, 2, 3), keepdims=True)

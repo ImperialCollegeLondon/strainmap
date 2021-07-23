@@ -1,206 +1,226 @@
 from collections import defaultdict
-from functools import partial
 from itertools import product
 from typing import Callable, Dict, Optional, Text, Tuple
 
 import numpy as np
+import xarray as xr
 from scipy import interpolate
 
-from .strainmap_data_model import StrainMapData
-from .velocities import regenerate
-from .writers import terminal
+from strainmap.models.strainmap_data_model import StrainMapData
+from strainmap.models.writers import terminal
+from strainmap.coordinates import Region
 
 
-def masked_reduction(data: np.ndarray, masks: np.ndarray, axis: tuple) -> np.ndarray:
-    """Reduces array in cylindrical coordinates to the non-zero elements in the
-    masks.
+def calculate_strain(
+    data: StrainMapData,
+    cines: Tuple[str, ...],
+    callback: Callable = terminal,
+    effective_displacement=True,
+    resample=True,
+    recalculate=False,
+    timeshift: Optional[float] = None,
+):
+    """Calculates the strain and updates the Data object with the result."""
+    steps = 7.0
 
-    The masks must have the same shape than the input array.
+    if len(cines) < 2:
+        callback("Insufficient cines to calculate strain. At least 2 are needed.")
+        return 1
 
-    In the case of interest of having two masks, the radial and angular masks,
-    these define a region of interest in 2D space in the shape of
-    a torus, with Na angular segments and Nr radial segments. The rest of the
-    space is not relevant. This means that a large 2D array with data can be
-    reduced to
-    a much smaller and easy to handle (Nr, Na) array, where the value of each entry
-    is the mean values of the pixels in the regions defined by both masks.
+    if timeshift is not None:
+        data.timeshift = timeshift
+        data.save("timeshift")
 
-    Examples:
-        This example reduces the (8, 8) angular array (serving also as input
-        data) to an
-        array of shape (Nr=2, Na=4) where each element is the average of the input
-        pixels in the 8 regions (2x4) defined by the angular and radial masks.
-        There is
-        no radial dependency in the reduced array (all rows are the same) because
-        there
-        is no radial dependency in the input array either.
-        >>> radial = np.array([
-        ...     [0, 0, 0, 0, 0, 0, 0, 0],
-        ...     [0, 2, 2, 2, 2, 2, 2, 0],
-        ...     [0, 2, 1, 1, 1, 1, 2, 0],
-        ...     [0, 2, 1, 0, 0, 1, 2, 0],
-        ...     [0, 2, 1, 0, 0, 1, 2, 0],
-        ...     [0, 2, 1, 1, 1, 1, 2, 0],
-        ...     [0, 2, 2, 2, 2, 2, 2, 0],
-        ...     [0, 0, 0, 0, 0, 0, 0, 0],
-        ... ])
-        >>> angular = np.array([
-        ...     [1, 1, 1, 1, 4, 4, 4, 4],
-        ...     [1, 1, 1, 1, 4, 4, 4, 4],
-        ...     [1, 1, 1, 1, 4, 4, 4, 4],
-        ...     [1, 1, 1, 1, 4, 4, 4, 4],
-        ...     [2, 2, 2, 2, 3, 3, 3, 3],
-        ...     [2, 2, 2, 2, 3, 3, 3, 3],
-        ...     [2, 2, 2, 2, 3, 3, 3, 3],
-        ...     [2, 2, 2, 2, 3, 3, 3, 3],
-        ... ])
-        >>> mask = angular * 100 + 1
-        >>> reduced = masked_reduction(angular, mask, axis=(0, 1))
-        >>> print(reduced)
-        [[1 2 3 4]]
+    time_intervals = xr.DataArray(
+        list((data.data_files.time_interval(d) for d in cines)),
+        dims=["cine"],
+        coords={"cine": cines},
+    )
 
-        We can repeat this using the radial mask as input. In this case, there is no
-        angular dependency, as expected.
-        >>> mask = radial + 100
-        >>> reduced = masked_reduction(radial, mask, axis=(0, 1))
-        >>> print(reduced)
-        [[1]
-         [2]]
+    callback("Calculating displacement", 1 / steps)
+    disp = displacement(
+        time_intervals,
+        data.cylindrical.sel(cine=cines),
+        data.masks.sel(cine=cines, region=Region.RADIAL_x3.name),
+        data.masks.sel(cine=cines, region=Region.ANGULAR_x24.name),
+        timeshift,
+    )
 
-        In general, if there are no symmetries in the input array, all elements
-        of the
-        reduced array will be different.
-        >>> np.random.seed(12345)
-        >>> mask = radial + 100 * angular
-        >>> reduced = masked_reduction(np.random.rand(*radial.shape), mask, axis=(0, 1))
-        >>> print(reduced)
-        [[0.89411584 0.46596842 0.17654222 0.51028107]
-         [0.79289128 0.28042882 0.73393468 0.18159693]]
+    # disp = effecitive_displacement()
+    # disp = resample()
 
-    The reduced array has the dimensions defined in axis removed and the extra
-    dimensions (one per mask) added to the end. So if data shape is (N0, N1, N2,
-    N3, N4)
-    and axis is (1, 2), then the reduced array in the case of having the above
-    radial
-    and angular masks will have shape (N0, N3, N4, Nr, Na)
+    callback("Calculating coordinates", 2 / steps)
+    space = coordinates(data, cines, resample=resample)
+
+    callback("Calculating twist", 3 / steps)
+    # data.twist = twist(data, cines)
+
+    callback("Calculating strain", 4 / steps)
+    reduced_strain = differentiate(disp, space)
+
+    callback("Calculating the regional strains", 5 / steps)
+    data.strain = calculate_regional_strain(
+        reduced_strain,
+        data.masks,
+        cines,
+        resample=resample,
+        interval=tuple((data.data_files.time_interval(d) for d in cines)),
+        timeshift=data.timeshift,
+    )
+
+    callback("Calculating markers", 6 / steps)
+    for d in cines:
+        labels = [
+            s
+            for s in data.strain[d].keys()
+            if "cylindrical" not in s and "radial" not in s
+        ]
+        if data.strain_markers.get(d, {}).get(labels[0], None) is None or recalculate:
+            initialise_markers(data, d, labels)
+            data.save(*[["strain_markers", d, vel] for vel in labels])
+
+    data.gls = global_longitudinal_strain(
+        disp=disp,
+        markers=tuple(data.strain_markers[d] for d in cines),
+        times=tuple(data.data_files.time_interval(d) for d in cines),
+        locations=tuple(data.data_files.slice_loc(d) for d in cines),
+        resample=resample,
+    )
+
+    callback("Done!", 1)
+    return 0
+
+
+def _masked_reduction(
+    data: xr.DataArray, radial: xr.DataArray, angular: xr.DataArray
+) -> xr.DataArray:
+    """Reduces the size of an array by averaging the regions defined by the masks.
+
+    The radial and angular masks define a collection of regions of interest in 2D space
+    all together forming a torus, with Na angular segments and Nr radial segments.
+    This means that a large 2D array with data (it can have more dimensions) can be
+    reduced to a much smaller and easy to handle (Nr, Na) array, where the value of
+    each entry is the mean value of the pixels in the regions defined by both masks.
+
+    The reduced array has the dimensions of the input data with 'row' and 'col' removed
+    and 'radius' and 'angle' added to the end. So if data shape is (N0, N1, N2, N3, N4)
+    then the reduced array will have shape (N0, N3, N4, Nr, Na).
+
+    Simplified example: If we had 2 radial and 4 angular regions, (8 in total) regions
+    in an otherwise 8x8 array, the reduced array will be a 2x4 array, with each element
+    the mean value of all the elements in that region:
+
+    Regions:
+    [[0, 0, 0, 0, 0, 0, 0, 0],
+     [0, 5, 5, 5, 6, 6, 6, 0],
+     [0, 5, 1, 1, 2, 2, 6, 0],
+     [0, 5, 1, 0, 0, 2, 6, 0],
+     [0, 8, 4, 0, 0, 3, 7, 0],
+     [0, 8, 4, 4, 3, 3, 7, 0],
+     [0, 8, 8, 8, 7, 7, 7, 0],
+     [0, 0, 0, 0, 0, 0, 0, 0]]
+
+     Reduced array, with the numbers indicating the region they related to:
+     [[1, 2, 3, 4],
+      [5, 6, 7, 8]]
+
+    Args:
+        data: Large array to reduce. Must contain all the dimensions of the masks
+            except 'region'.
+        radial: Radial mask. Must contain 'region', 'row' and 'col' dimensions, at
+            least.
+        angular: Angular mask. Must have same dimensions (and shape) that the radial
+            mask.
+
+    Returns:
+        A DataArray with reduced size.
     """
-    from numpy.ma import MaskedArray
-    from functools import reduce
 
-    assert data.shape[-len(masks.shape) :] == masks.shape
-
-    mask_max = masks.max()
-    nrad, nang = mask_max % 100, mask_max // 100
-    nz = np.nonzero(masks)
-    xmin, xmax, ymin, ymax = (
-        nz[-2].min(),
-        nz[-2].max() + 1,
-        nz[-1].min(),
-        nz[-1].max() + 1,
-    )
-    sdata = data[..., xmin : xmax + 1, ymin : ymax + 1]
-    smasks = masks[..., xmin : xmax + 1, ymin : ymax + 1]
-
-    shape = [s for i, s in enumerate(data.shape) if i not in axis] + [nrad, nang]
-    reduced = np.zeros(shape, dtype=data.dtype)
-
-    tile_shape = (
-        (data.shape[0],) + (1,) * len(masks.shape)
-        if data.shape != masks.shape
-        else (1,) * len(masks.shape)
+    dims = [d for d in data.dims if d not in ("row", "col")]
+    nrad = radial.sizes["region"]
+    nang = angular.sizes["region"]
+    reduced = xr.DataArray(
+        np.zeros([data.sizes[d] for d in dims] + [nrad, nang], dtype=data.dtype),
+        dims=dims + ["radius", "angle"],
+        coords={d: data[d] for d in dims},
     )
 
-    def reduction(red, idx):
-        elements = tuple([...] + [k - 1 for k in idx])
-        i = idx[0] + 100 * idx[1]
-        red[elements] = (
-            MaskedArray(sdata, np.tile(smasks != i, tile_shape)).mean(axis=axis).data
+    for r, a in product(range(nrad), range(nang)):
+        mask = xr.ufuncs.logical_and(radial.isel(region=r), angular.isel(region=a))
+        reduced.loc[{"radius": r, "angle": a}] = (
+            data.sel(row=mask.row, col=mask.col).where(mask).mean(dim=("row", "col"))
         )
-        return red
 
-    return reduce(reduction, product(range(1, nrad + 1), range(1, nang + 1)), reduced)
+    return reduced
 
 
-def masked_expansion(data: np.ndarray, masks: np.ndarray, axis: tuple) -> np.ndarray:
+def _masked_expansion(
+    data: xr.DataArray,
+    radial: xr.DataArray,
+    angular: xr.DataArray,
+    nrow: int = 512,
+    ncol: int = 512,
+) -> xr.DataArray:
     """Transforms a reduced array into a full array with the same shape as the masks.
 
     This function, partially opposite to `masked_reduction`, will recover a full size
-    array with the same shape as the masks and with the masked elements equal to the
-    corresponding entries of the reduced array. All other elements are masked.
+    array with the same shape as the original one and with the masked elements equal to
+    the corresponding entries of the reduced array. All other elements are nan.
 
-        >>> import pytest
-        >>> pytest.xfail(reason="WIP Refactoring")
-        >>> radial = np.array([
-        ...     [0, 0, 0, 0, 0, 0, 0, 0],
-        ...     [0, 2, 2, 2, 2, 2, 2, 0],
-        ...     [0, 2, 1, 1, 1, 1, 2, 0],
-        ...     [0, 2, 1, 0, 0, 1, 2, 0],
-        ...     [0, 2, 1, 0, 0, 1, 2, 0],
-        ...     [0, 2, 1, 1, 1, 1, 2, 0],
-        ...     [0, 2, 2, 2, 2, 2, 2, 0],
-        ...     [0, 0, 0, 0, 0, 0, 0, 0],
-        ... ])
-        >>> angular = np.array([
-        ...     [1, 1, 1, 1, 4, 4, 4, 4],
-        ...     [1, 1, 1, 1, 4, 4, 4, 4],
-        ...     [1, 1, 1, 1, 4, 4, 4, 4],
-        ...     [1, 1, 1, 1, 4, 4, 4, 4],
-        ...     [2, 2, 2, 2, 3, 3, 3, 3],
-        ...     [2, 2, 2, 2, 3, 3, 3, 3],
-        ...     [2, 2, 2, 2, 3, 3, 3, 3],
-        ...     [2, 2, 2, 2, 3, 3, 3, 3],
-        ... ])
-        >>> mask = angular * 100 + 1
-        >>> reduced = masked_reduction(angular, mask, axis=(0, 1))
-        >>> print(reduced)
-        [[1 2 3 4]]
+    Args:
+        data: Reduced array to expand. Should include dimensions 'radius' and 'angle'
+            as well as any dimension of the masks other than 'region', 'row' and
+            'column'.
+        radial: Radial mask. Must contain 'region', 'row' and 'col' dimensions, at
+            least.
+        angular: Angular mask. Must have same dimensions (and shape) that the radial
+            mask.
+        nrow: Size of 'row' dimension in the expanded array iof larger than the one of
+            the radial array.
+        ncol: Size of 'col' dimension in the expanded array iof larger than the one of
+            the radial array.
 
-        Now we "recover" the original full size array:
-        >>> data = masked_expansion(reduced, mask, axis=(0, 1))
-        >>> print(data)
-        [[[1 1 1 1 4 4 4 4]
-          [1 1 1 1 4 4 4 4]
-          [1 1 1 1 4 4 4 4]
-          [1 1 1 1 4 4 4 4]
-          [2 2 2 2 3 3 3 3]
-          [2 2 2 2 3 3 3 3]
-          [2 2 2 2 3 3 3 3]
-          [2 2 2 2 3 3 3 3]]]
+    Returns:
+        The expanded array.
     """
-    from functools import reduce
-    from .velocities import remap_array
-
-    assert len(data.shape) > max(axis)
-
-    mask_max = masks.max()
-    nrad, nang = mask_max % 100, mask_max // 100
-    nz = np.nonzero(masks)
-    xmin, xmax, ymin, ymax = (
-        nz[-2].min(),
-        nz[-2].max() + 1,
-        nz[-1].min(),
-        nz[-1].max() + 1,
+    dims = [d for d in data.dims if d not in ("radius", "angle")]
+    nrad = data.sizes["radius"]
+    nang = data.sizes["angle"]
+    expanded = xr.DataArray(
+        np.full(
+            [data.sizes[d] for d in dims] + [radial.sizes["row"], radial.sizes["col"]],
+            np.nan,
+            dtype=data.dtype,
+        ),
+        dims=dims + ["row", "col"],
+        coords={**{d: data[d] for d in dims}, "row": radial.row, "col": radial.col},
     )
 
-    shape = (data.shape[0],) + masks[..., xmin : xmax + 1, ymin : ymax + 1].shape
-    expanded = np.zeros(shape, dtype=data.dtype)
-    exmasks = np.tile(
-        masks[..., xmin : xmax + 1, ymin : ymax + 1],
-        (expanded.shape[0],) + (1,) * len(masks.shape),
-    )
+    for r, a in product(range(nrad), range(nang)):
+        mask = xr.ufuncs.logical_and(radial.sel(region=r), angular.sel(region=a))
+        expanded = xr.where(mask, data.sel(radius=r, angle=a), expanded)
 
-    def expansion(exp, idx):
-        i = idx[0] + 100 * idx[1] + 101
-        condition = exmasks == i
-        values = data[(...,) + idx].reshape(data.shape[:-2] + (1, 1))
-        exp[condition] = (values * condition)[condition]
-        return exp
+    # Now we ensure that the dimensions are in the correct order
+    expanded = expanded.transpose(*tuple(dims + ["row", "col"]))
 
-    return remap_array(
-        reduce(expansion, product(range(nrad), range(nang)), expanded),
-        masks.shape[-2:],
-        (xmin, xmax, ymin, ymax),
-    )
+    # Finally, we populate an array with the correct number of rows and cols, if needed
+    if nrow != radial.sizes["row"] or ncol != radial.sizes["col"]:
+        output = xr.DataArray(
+            np.full(
+                [data.sizes[d] for d in dims] + [nrow, ncol], np.nan, dtype=data.dtype
+            ),
+            dims=dims + ["row", "col"],
+            coords={
+                **{d: data[d] for d in dims},
+                "row": np.arange(0, nrow),
+                "col": np.arange(0, ncol),
+            },
+        )
+        output.loc[{"row": expanded.row, "col": expanded.col}] = expanded
+
+        return output
+    else:
+        return expanded
 
 
 def coordinates(
@@ -236,7 +256,7 @@ def coordinates(
         means[(0, t, x, y)] = np.sqrt(xx ** 2 + yy ** 2) * px_size
         means[(1, t, x, y)] = np.mod(np.arctan2(yy, xx) + theta0[t], 2 * np.pi)
 
-        return masked_reduction(means, mask, axis=(2, 3))
+        return _masked_reduction(means, mask, axis=(2, 3))
 
     in_plane = np.array(
         [r_theta for r_theta in map(to_cylindrical, m_iter, theta0_iter, origin_iter)]
@@ -249,7 +269,7 @@ def coordinates(
 
     # We shift the coordinates
     for i, t in enumerate(t_iter):
-        result[:, :, i, ...] = shift_data(
+        result[:, :, i, ...] = _shift_data(
             result[:, :, i, ...], time_interval=t, timeshift=ts, axis=1
         )
     # We pick just the first element, representing the pixel locations at time zero.
@@ -261,65 +281,88 @@ def coordinates(
 
 
 def displacement(
-    data: StrainMapData,
-    datasets: Tuple[str, ...],
-    nrad: int = 3,
-    nang: int = 24,
-    lreg: int = 6,
-    effective_displacement=True,
-    resample=True,
-) -> np.ndarray:
+    time_intervals: xr.DataArray,
+    cylindrical: xr.DataArray,
+    radial: xr.DataArray,
+    angular: xr.DataArray,
+    timeshift: float,
+) -> xr.DataArray:
+    """Reduces the cylindrical velocities to regions and calculates the displacement.
 
-    vkey = "cylindrical"
-    rkey = f"radial x{nrad}"
-    akey = f"angular x{nang}"
-    img_axis = tuple(range(len(data.masks[datasets[0]][vkey].shape)))[-2:]
+    Some manipulation is also performed to match the format of echo data and adjusts
+    the origin of the times.
 
-    cyl_iter = (data.masks[d][vkey] for d in datasets)
-    m_iter = (data.masks[d][rkey] + 100 * data.masks[d][akey] for d in datasets)
-    t_iter = tuple((data.data_files.time_interval(d) for d in datasets))
-    ts = data.timeshift
-    reduced_vel_map = map(partial(masked_reduction, axis=img_axis), cyl_iter, m_iter)
+    FIXME: Account for a different background subtraction process for the longitudinal
+        component.
 
-    # Create a mask to define the regions over which to calculate the background
-    # for the longitudinal case
-    treg = nrad * nang
-    lmask = np.ceil(np.arange(1, treg + 1) / treg * lreg).reshape((nang, nrad)).T
-    lmask = np.tile(lmask, (data.data_files.frames, 1, 1))
+    Args:
+        time_intervals: Time interval for each cine
+        cylindrical: Velocities in cylindrical coordinates.
+        radial: Masks defining the radial regions.
+        angular: Mask defining the angular regions.
+        timeshift: Time correction to adjust the origin of the displacement.
 
-    disp = []
-    for r, t in zip(reduced_vel_map, t_iter):
-        # Radial and circumferential subtract the average of all slices and frames
-        disp.append((r[1:] - r[1:].mean(axis=(1, 2, 3), keepdims=True)) * t)
+    Returns:
+        Reduced array with the displacement
+    """
+    reduced = _masked_reduction(cylindrical, radial, angular)
+    return _shift_data(
+        (reduced - reduced.mean(["frame", "radius", "angle"])) * time_intervals,
+        time_intervals=time_intervals,
+        timeshift=timeshift,
+    ).cumsum("frame")
 
-        # Longitudinal subtract by lreg (=6) angular sectors
-        vlong = (
-            np.sum(
-                np.where(lmask == i, r[0] - r[0][lmask == i].mean(keepdims=True), 0)
-                for i in range(1, lreg + 1)
-            )
-            * t
-        )
 
-        # The signs of the in-plane displacement are reversed to be consistent with ECHO
-        disp[-1] = np.concatenate((vlong[None, ...], -disp[-1]), axis=0)
-
-        # We shift the data to the correct time
-        disp[-1] = shift_data(disp[-1], time_interval=t, timeshift=ts, axis=1)
-
-    disp = np.asarray(disp)
-
-    result = np.cumsum(disp, axis=2).transpose((1, 2, 0, 3, 4))
-    if effective_displacement:
-        backward = np.flip(np.flip(disp, axis=2).cumsum(axis=2), axis=2).transpose(
-            (1, 2, 0, 3, 4)
-        )
-        weight = np.arange(0, result.shape[1])[None, :, None, None, None] / (
-            result.shape[1] - 1
-        )
-        result = result * (1 - weight) - backward * weight
-
-    return resample_interval(result, t_iter) if resample else result
+# vkey = "cylindrical"
+# rkey = f"radial x{nrad}"
+# akey = f"angular x{nang}"
+# img_axis = tuple(range(len(data.masks[cines[0]][vkey].shape)))[-2:]
+#
+# cyl_iter = (data.masks[d][vkey] for d in cines)
+# m_iter = (data.masks[d][rkey] + 100 * data.masks[d][akey] for d in cines)
+# t_iter = tuple((data.data_files.time_interval(d) for d in cines))
+# ts = data.timeshift
+# reduced_vel_map = map(partial(_masked_reduction, axis=img_axis), cyl_iter, m_iter)
+#
+# # Create a mask to define the regions over which to calculate the background
+# # for the longitudinal case
+# treg = nrad * nang
+# lmask = np.ceil(np.arange(1, treg + 1) / treg * lreg).reshape((nang, nrad)).T
+# lmask = np.tile(lmask, (data.data_files.frames, 1, 1))
+#
+# disp = []
+# for r, t in zip(reduced_vel_map, t_iter):
+#     # Radial and circumferential subtract the average of all slices and frames
+#     disp.append((r[1:] - r[1:].mean(axis=(1, 2, 3), keepdims=True)) * t)
+#
+#     # Longitudinal subtract by lreg (=6) angular sectors
+#     vlong = (
+#         np.sum(
+#             np.where(lmask == i, r[0] - r[0][lmask == i].mean(keepdims=True), 0)
+#             for i in range(1, lreg + 1)
+#         )
+#         * t
+#     )
+#
+#     # The signs of the in-plane displacement are reversed to be consistent with ECHO
+#     disp[-1] = np.concatenate((vlong[None, ...], -disp[-1]), axis=0)
+#
+#     # We shift the data to the correct time
+#     disp[-1] = shift_data(disp[-1], time_interval=t, timeshift=ts, axis=1)
+#
+# disp = np.asarray(disp)
+#
+# result = np.cumsum(disp, axis=2).transpose((1, 2, 0, 3, 4))
+# if effective_displacement:
+#     backward = np.flip(np.flip(disp, axis=2).cumsum(axis=2), axis=2).transpose(
+#         (1, 2, 0, 3, 4)
+#     )
+#     weight = np.arange(0, result.shape[1])[None, :, None, None, None] / (
+#         result.shape[1] - 1
+#     )
+#     result = result * (1 - weight) - backward * weight
+#
+# return resample_interval(result, t_iter) if resample else result
 
 
 def resample_interval(disp: np.ndarray, interval: Tuple[float, ...]) -> np.ndarray:
@@ -366,89 +409,6 @@ def unresample_interval(
         for d in np.moveaxis(disp, 2, 0)
     )
     return np.moveaxis(np.array([f(tt) for tt, f in zip(t, fdisp)]), 0, 2)
-
-
-def calculate_strain(
-    data: StrainMapData,
-    datasets: Tuple[str, ...],
-    callback: Callable = terminal,
-    effective_displacement=True,
-    resample=True,
-    recalculate=False,
-    timeshift: Optional[float] = None,
-):
-    """Calculates the strain and updates the Data object with the result."""
-    steps = 7.0
-    # Do we need to calculate the strain?
-    if all([d in data.strain.keys() for d in datasets]) and not recalculate:
-        return
-
-    data.strain = defaultdict(dict)
-    data.strain_markers = defaultdict(dict)
-
-    # Do we need to regenerate the velocities?
-    to_regen = [d for d in datasets if list(data.velocities[d].values())[0] is None]
-    if len(to_regen) > 0:
-        regenerate(data, to_regen, callback=callback)
-
-    sorted_datasets = tuple(datasets)
-
-    if len(sorted_datasets) < 2:
-        callback("Insufficient datasets to calculate strain. At least 2 are needed.")
-        return 1
-
-    if timeshift is not None:
-        data.timeshift = timeshift
-        data.save(["timeshift"])
-
-    callback("Calculating displacement", 1 / steps)
-    disp = displacement(
-        data,
-        sorted_datasets,
-        effective_displacement=effective_displacement,
-        resample=resample,
-    )
-
-    callback("Calculating coordinates", 2 / steps)
-    space = coordinates(data, sorted_datasets, resample=resample)
-
-    callback("Calculating twist", 3 / steps)
-    # data.twist = twist(data, sorted_datasets)
-
-    callback("Calculating strain", 4 / steps)
-    reduced_strain = differentiate(disp, space)
-
-    callback("Calculating the regional strains", 5 / steps)
-    data.strain = calculate_regional_strain(
-        reduced_strain,
-        data.masks,
-        sorted_datasets,
-        resample=resample,
-        interval=tuple((data.data_files.time_interval(d) for d in datasets)),
-        timeshift=data.timeshift,
-    )
-
-    callback("Calculating markers", 6 / steps)
-    for d in datasets:
-        labels = [
-            s
-            for s in data.strain[d].keys()
-            if "cylindrical" not in s and "radial" not in s
-        ]
-        if data.strain_markers.get(d, {}).get(labels[0], None) is None or recalculate:
-            initialise_markers(data, d, labels)
-            data.save(*[["strain_markers", d, vel] for vel in labels])
-
-    data.gls = global_longitudinal_strain(
-        disp=disp,
-        markers=tuple(data.strain_markers[d] for d in datasets),
-        times=tuple(data.data_files.time_interval(d) for d in datasets),
-        locations=tuple(data.data_files.slice_loc(d) for d in datasets),
-        resample=resample,
-    )
-
-    callback("Done!", 1)
-    return 0
 
 
 def differentiate(disp, space) -> np.ndarray:
@@ -564,7 +524,7 @@ def calculate_regional_strain(
 
         # When calculating the regional strains from the reduced strain, we need the
         # superpixel area. This has to be shifted to match the times of the strain.
-        rm = shift_data(
+        rm = _shift_data(
             superpixel_area(m, data_shape, axis=(2, 3)), t, timeshift, axis=1
         )
 
@@ -581,8 +541,8 @@ def calculate_regional_strain(
 
         # To match the strain with the masks, we shift the strain in the opposite
         # direction
-        result[d][vkey] = masked_expansion(
-            shift_data(s, t, -timeshift, axis=1), m, axis=(2, 3)
+        result[d][vkey] = _masked_expansion(
+            _shift_data(s, t, -timeshift, axis=1), m, axis=(2, 3)
         )
 
     return result
@@ -733,21 +693,38 @@ def global_longitudinal_strain(
 #     )
 
 
-def shift_data(
-    data: np.ndarray, time_interval: float, timeshift: float, axis: int = 0
-) -> np.ndarray:
-    """Interpolates the data to account for a timeshift correction."""
-    time = np.arange(-1, data.shape[axis] + 1)
-    d = np.moveaxis(data, axis, 0)
-    d = np.concatenate([d[-1:], d, d[:1]], axis=0)
+def _shift_data(
+    data: xr.DataArray, time_intervals: xr.DataArray, timeshift: float
+) -> xr.DataArray:
+    """Interpolates the data to account for a timeshift correction.
 
-    shift_frames = int(round(timeshift / time_interval))
-    remainder = timeshift - time_interval * shift_frames
-    new_time = np.arange(data.shape[axis]) + remainder
-    new_data = np.roll(
-        interpolate.interp1d(time, d, axis=0)(new_time), -shift_frames, axis=0
-    )
-    return np.moveaxis(new_data, 0, axis)
+    Args:
+        data: Data to interpolate. Must have 'cine' and 'frame' dimensions.
+        time_intervals: Array with the time intervals for each cine.
+        timeshift: Global timeshift to apply.
+
+    Returns:
+        An array where data along the frame dimension has been shifted and interpolated.
+    """
+    times = data.frame * time_intervals
+
+    shifted_frames = (timeshift / time_intervals).round().astype(int)
+    remainder = timeshift - time_intervals * shifted_frames
+    new_times = times + remainder
+
+    result = []
+    for cine in data.cine:
+        result.append(
+            data.sel(cine=cine)
+            .roll(frame=-shifted_frames.sel(cine=cine).item())
+            .assign_coords(frame=times.sel(cine=cine))
+            .interp(
+                frame=new_times.sel(cine=cine).data,
+                kwargs={"fill_value": "extrapolate"},
+            )
+            .assign_coords(frame=np.arange(0, data.frame.size))
+        )
+    return xr.concat(result, dim=data.cine)
 
 
 def superpixel_area(masks: np.ndarray, data_shape: tuple, axis: tuple) -> np.ndarray:
