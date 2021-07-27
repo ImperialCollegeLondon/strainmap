@@ -1,250 +1,91 @@
-from itertools import chain
 from pathlib import Path
 from typing import Optional
 
 import h5py
 import numpy as np
 import openpyxl as xlsx
+import pandas as pd
 import xarray as xr
+from ..coordinates import Region
+from .strainmap_data_model import StrainMapData
 
 
-def velocity_to_xlsx(filename, data, dataset, vel_label):
-    """Exports the chosen velocity to an Excel file.
-
-    It includes 2 or more sheets:
-
-    - Sheet 1 includes some metadata, like patient information, dataset, background
-    subtraction method, etc. and the table with the markers information.
-    - From sheet 2, includes all the velocities calculated with the same background
-        subtraciton method, one per sheet, with the 3 components of the velocity for
-        each of the regions.
-    """
-    wb = xlsx.Workbook()
-    if len(vel_label.split(" - ")) == 2:
-        background = vel_label.split(" - ")[-1]
-        labels = [label for label in data.velocities[dataset] if background in label]
-    else:
-        labels = list(data.velocities[dataset].keys())
-
-    params_ws = wb.active
-    params_ws.title = "Parameters"
-    add_metadata(data.metadata(dataset), params_ws)
-    params_ws.append(("Orientation", "", data.orientation))
-    add_sign_reversal(data.sign_reversal, params_ws)
-    params_ws.append(("Timeshift (ms)", "", data.timeshift * 1000))
-
-    colnames = (
-        "Parameter",
-        "Region",
-        "PS",
-        "PD",
-        "PAS",
-        "PS",
-        "PD",
-        "PAS",
-        "ES",
-        "PC1",
-        "PC2",
-        "PC3",
-    )
-
-    p = ("Frame", "Velocity (cm/s)", "Norm. Time (s)")
-    region_names = "AS", "A", "AL", "IL", "I", "IS"
-    if data.orientation == "CCW":
-        region_names = region_names[::-1]
-
-    for ll in labels:
-        title = ll.split(" - ")[0]
-        try:
-            add_markers(
-                data.markers[dataset][ll],
-                params_ws,
-                colnames=colnames,
-                p=p,
-                region_names=region_names,
-                title=title,
-            )
-        except KeyError:
-            print(f"Ignoring key '{ll}' when exporting velocity markers.")
-
-        add_velocity(data.velocities[dataset][ll], region_names, wb.create_sheet(title))
-
-    wb.save(filename)
-    wb.close()
-
-
-def strain_to_xlsx(filename, data, dataset, vel_label):
-    """Exports the chosen velocity to an Excel file.
-
-    It includes 2 or more sheets:
+def velocity_to_xlsx(filename: Path, data: StrainMapData, cine: str) -> None:
+    """Exports the velocity of the chosen cine to an Excel file.
 
     - Sheet 1 includes some metadata, like patient information, dataset, background
     subtraction method, etc. and the table with the markers information.
-    - From sheet 2, includes all the velocities calculated with the same background
-        subtraciton method, one per sheet, with the 3 components of the velocity for
-        each of the regions.
+    - From sheet 2, includes all the velocities for the Global, Angular and Radial
+    regions, one per sheet, with the 3 components of the velocity in each case.
+
+    Args:
+        filename: The name of the file to save the data. If it exist, it will be
+            overwritten.
+        data: A StrainMapData object with all the relevant information.
+        cine: The cine of interest.
     """
-    wb = xlsx.Workbook()
-    if len(vel_label.split(" - ")) == 2:
-        background = vel_label.split(" - ")[-1]
-        labels = [
-            label
-            for label in data.strain[dataset]
-            if background in label and "cylindrical" not in label
-        ]
-    else:
-        labels = [
-            label for label in data.velocities[dataset] if "cylindrical" not in label
-        ]
-
-    params_ws = wb.active
-    params_ws.title = "Parameters"
-    add_metadata(data.metadata(dataset), params_ws)
-    params_ws.append(("Orientation", "", data.orientation))
-    add_sign_reversal(data.sign_reversal, params_ws)
-    params_ws.append(("Timeshift (ms)", "", data.timeshift * 1000))
-
-    colnames = (
-        "Parameter",
-        "Region",
-        "PS",
-        "ES",
-        "P",
-        "PS",
-        "ES",
-        "P",
-        "PS",
-        "ES",
-        "P",
-    )
-
-    p = ("Frame", "Strain (%)", "Time (s)")
-    region_names = "AS", "A", "AL", "IL", "I", "IS"
+    regions = [r.name for r in Region]
+    region_names = ["AS", "A", "AL", "IL", "I", "IS"]
     if data.orientation == "CCW":
         region_names = region_names[::-1]
 
-    for ll in labels:
-        title = ll.split(" - ")[0]
-        try:
-            add_strain_markers(
-                data.strain_markers[dataset][ll],
-                params_ws,
-                colnames=colnames,
-                p=p,
-                region_names=region_names,
-                title=title,
+    # First we extract the metadata from the data object
+    meta = data.metadata(cine)
+    meta["Orientation"] = data.orientation
+    meta["Timeshift (ms)"] = data.timeshift * 1000
+    meta.update(
+        {
+            f"Sign reversal - {d}": v.item() < 0
+            for d, v in zip(("X", "Y", "Z"), data.sign_reversal)
+        }
+    )
+
+    row = len(meta) + 3
+
+    markers = data.markers.assign_coords(
+        quantity=["Frame", "Velocity (cm/s)", "Norm. Time (s)"]
+    )
+    with pd.ExcelWriter(filename) as writer:
+
+        # The metadata is saved at the top of the first sheet
+        pd.DataFrame(meta, index=[0]).T.to_excel(
+            writer, sheet_name="Parameters", header=False
+        )
+
+        # Different regions need to be treated slightly differently to get the
+        # formatting right, in addition to be saved in a different sheet for the case
+        # of velocities
+        for region in regions:
+            num = Region[region].value
+            mark = (
+                markers.sel(cine=cine, region=region)
+                .drop("cine")
+                .stack(new_comp=["comp", "marker"])
+                .dropna("new_comp", how="all")
             )
-        except KeyError:
-            print(f"Ignoring key '{ll}' when exporting strain markers.")
+            vel = data.velocities.sel(cine=cine, region=region)
 
-        add_velocity(data.strain[dataset][ll], region_names, wb.create_sheet(title))
+            if region == "GLOBAL":
+                mark = mark.expand_dims(region=[region]).stack(
+                    new_q=["quantity", "region"]
+                )
+            else:
+                # We need to do some relabelling of the coordinates for the markers
+                labels = (
+                    [f"{region} - {n}" for n in range(num)]
+                    if num != 6
+                    else region_names
+                )
+                mark = mark.assign_coords(region=labels).stack(
+                    new_q=["quantity", "region"]
+                )
+                vel = vel.stack(cols=["comp", "region"]).reset_index("region", True)
 
-    wb.save(filename)
-    wb.close()
-
-
-def add_metadata(metadata, ws):
-    """Prepares the metadata of interest to be exported."""
-    ws.column_dimensions["A"].width = 15
-    for key, value in metadata.items():
-        ws.append((key, "", value))
-
-
-def add_sign_reversal(sign_reversal, ws):
-    """Adds the sign reversal information."""
-    ws.append(("Sign reversal",))
-    for i, key in enumerate(("X", "Y", "Z")):
-        ws.append(("", key, str(sign_reversal[i])))
-
-
-def add_markers(markers, ws, colnames, p, region_names, title=None):
-    """Adds the markers parameters to the sheet."""
-    row = ws.max_row + 2
-    ws.merge_cells(start_row=row, start_column=3, end_row=row, end_column=12)
-    ws.cell(column=3, row=row, value=title)
-
-    row += 1
-    ws.merge_cells(start_row=row, start_column=3, end_row=row, end_column=5)
-    ws.merge_cells(start_row=row, start_column=6, end_row=row, end_column=9)
-    ws.merge_cells(start_row=row, start_column=10, end_row=row, end_column=12)
-    ws.cell(column=3, row=row, value="Longitudinal")
-    ws.cell(column=6, row=row, value="Radial")
-    ws.cell(column=10, row=row, value="Circumferential")
-
-    ws.append(colnames)
-
-    mask = np.ones(12, dtype=bool)
-    mask[[3, 11]] = False
-    m = np.array(markers).transpose((3, 0, 1, 2)).reshape((-1, 12))[:, mask]
-
-    reg = len(markers)
-    divider = int(np.ceil(reg / 6))
-
-    for j in range(len(m)):
-        rg = region_names[(j % reg) // divider] if reg > 1 else "Global"
-        data = m[j].astype(int) if j // reg == 0 else np.around(m[j], 3)
-        row_data = [p[j // reg] if j % reg == 0 else "", rg] + list(data)
-        ws.append(row_data)
-
-
-def add_strain_markers(markers, ws, colnames, p, region_names, title=None):
-    """Adds the markers parameters to the sheet."""
-    row = ws.max_row + 2
-    ws.merge_cells(start_row=row, start_column=3, end_row=row, end_column=9)
-    ws.cell(column=3, row=row, value=title)
-
-    row += 1
-    ws.merge_cells(start_row=row, start_column=3, end_row=row, end_column=5)
-    ws.merge_cells(start_row=row, start_column=6, end_row=row, end_column=8)
-    ws.merge_cells(start_row=row, start_column=9, end_row=row, end_column=11)
-    ws.cell(column=3, row=row, value="Longitudinal")
-    ws.cell(column=6, row=row, value="Radial")
-    ws.cell(column=9, row=row, value="Circumferential")
-
-    ws.append(colnames)
-
-    m = np.array(markers).transpose((3, 0, 1, 2)).reshape((-1, 9))
-
-    reg = len(markers)
-    divider = int(np.ceil(reg / 6))
-
-    for j in range(len(m)):
-        rg = region_names[(j % reg) // divider] if reg > 1 else "Global"
-        data = m[j].astype(int) if j // reg == 0 else np.around(m[j], 3)
-        row_data = [p[j // reg] if j % reg == 0 else "", rg] + list(data)
-        ws.append(row_data)
-
-
-def add_velocity(velocity, region_names, ws):
-    """Adds the velocities to the sheet."""
-    reg = velocity.shape[0]
-    frames = velocity.shape[-1]
-    headers = ("Longitudinal (cm/s)", "Radial (cm/s)", "Circumferential (cm/s)")
-    for i, header in enumerate(headers):
-        ws.cell(column=i * reg + 1, row=1, value=header)
-
-    rg = region_names
-    if reg == 1:
-        rg = ["Global"]
-    elif reg == 3:
-        rg = list(range(1, reg + 1))
-    elif reg == 24:
-        rg = list(chain.from_iterable(([r] * (reg // len(rg)) for r in rg)))
-
-    labels = ("z_{}", "r_{}", "theta_{}")
-    ws.append([label.format(r) for label in labels for r in rg])
-
-    for f in range(frames):
-        ws.append([velocity[r, i, f] for i in range(len(labels)) for r in range(reg)])
-
-    row = 1
-    for i in range(len(headers)):
-        ws.insert_cols((i + 1) * (reg + 1))
-        if reg > 1:
-            ws.merge_cells(
-                start_row=1, start_column=row, end_row=1, end_column=row + reg - 1
-            )
-            row = row + reg + 1
+            # Now is when we actually save the markers and the velocities for the
+            # current region
+            mark.T.to_pandas().to_excel(writer, sheet_name="Parameters", startrow=row)
+            vel.to_pandas().to_excel(writer, sheet_name=region)
+            row += mark.sizes["new_q"] + 5
 
 
 def export_superpixel(data, dataset, filename):
