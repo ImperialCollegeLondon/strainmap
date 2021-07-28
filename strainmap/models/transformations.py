@@ -4,6 +4,8 @@ from typing import List
 import numpy as np
 import xarray as xr
 
+from ..coordinates import Comp
+
 
 def dict_to_xarray(structure: dict, dims: List[str]) -> xr.DataArray:
     """Convert a nested dictionary into a DataArray with the given dimensions.
@@ -172,3 +174,43 @@ def masked_expansion(
         return output
     else:
         return expanded
+
+
+def coordinates(
+    septum: xr.DataArray,
+    centroid: xr.DataArray,
+    radial: xr.DataArray,
+    angular: xr.DataArray,
+) -> xr.DataArray:
+    """Produces a reduced array with the average location in the plane of the pixels.
+
+    First, the location of each pixel of one of the masks is calculated in cylindrical
+    coordinates as a function of the frame. Then, the array is masked-reduced to get
+    the average value of those coordinates in the relevant superpixels.
+
+    Args:
+        septum: Location of the septum midpoints.
+        centroid: Location of the centroids
+        radial: Radial mask. Must contain 'region', 'row' and 'col' dimensions, at
+            least.
+        angular: Angular mask. Must have same dimensions (and shape) that the radial
+            mask.
+
+    Returns:
+        The reduced array with the locations. The dimension `comp` will have
+        coordinates `RAD` and `CIRC`, indicating the average superpixel position
+        in the radial and the circumferential directions.
+    """
+    f, irow, icol = np.nonzero(radial.sum("region").data)
+    row = radial.row[irow].data
+    col = radial.col[icol].data
+    rr = row - centroid.sel(frame=f, coord="row").data
+    cc = col - centroid.sel(frame=f, coord="col").data
+
+    loc = xr.full_like(
+        radial.isel(region=0).expand_dims(comp=[Comp.RAD.name, Comp.CIRC.name]),
+        fill_value=np.nan,
+        dtype="float",
+    )
+    loc.data[0, f, row, col] = np.sqrt(rr ** 2 + cc ** 2)
+    loc.data[1, f, row, col] = np.sqrt(rr ** 2 + cc ** 2)

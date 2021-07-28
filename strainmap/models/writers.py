@@ -135,11 +135,11 @@ def export_superpixel(data, cine, filename):
             svel.sel(comp=comp).to_pandas().to_excel(
                 writer, sheet_name=name, startrow=2
             )
-        for var, name in zip(loc.variable, loc_sheet_names):
+        for comp, name in zip(loc.comp, loc_sheet_names):
             pd.DataFrame({"Description": description[name]}, index=[0]).T.to_excel(
                 writer, sheet_name=name, header=False
             )
-            loc.sel(variable=var).to_pandas().to_excel(
+            loc.sel(variable=comp).to_pandas().to_excel(
                 writer, sheet_name=name, startrow=2
             )
 
