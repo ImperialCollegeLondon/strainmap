@@ -42,7 +42,7 @@ def dict_to_xarray(structure: dict, dims: List[str]) -> xr.DataArray:
     return xr.concat(data, dim=dims[0])
 
 
-def _masked_reduction(
+def masked_reduction(
     data: xr.DataArray, radial: xr.DataArray, angular: xr.DataArray
 ) -> xr.DataArray:
     """Reduces the size of an array by averaging the regions defined by the masks.
@@ -105,7 +105,7 @@ def _masked_reduction(
     return reduced
 
 
-def _masked_expansion(
+def masked_expansion(
     data: xr.DataArray,
     radial: xr.DataArray,
     angular: xr.DataArray,

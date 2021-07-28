@@ -554,7 +554,7 @@ class VelocitiesTaskView(TaskViewBase):
         )
         if filename != "":
             self.controller.export_velocity(
-                filename=filename, cine=self.cines_var.get(), vel_label=self.vel_var
+                filename=filename, cine=self.cines_var.get()
             )
 
     def export_superpixel(self, *args):

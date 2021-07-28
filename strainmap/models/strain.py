@@ -7,7 +7,7 @@ import xarray as xr
 from scipy import interpolate
 
 from strainmap.models.strainmap_data_model import StrainMapData
-from strainmap.models.transformations import _masked_expansion, _masked_reduction
+from strainmap.models.transformations import masked_expansion, masked_reduction
 from strainmap.models.writers import terminal
 from strainmap.coordinates import Region
 
@@ -125,7 +125,7 @@ def coordinates(
         means[(0, t, x, y)] = np.sqrt(xx ** 2 + yy ** 2) * px_size
         means[(1, t, x, y)] = np.mod(np.arctan2(yy, xx) + theta0[t], 2 * np.pi)
 
-        return _masked_reduction(means, mask, axis=(2, 3))
+        return masked_reduction(means, mask, axis=(2, 3))
 
     in_plane = np.array(
         [r_theta for r_theta in map(to_cylindrical, m_iter, theta0_iter, origin_iter)]
@@ -174,7 +174,7 @@ def displacement(
     Returns:
         Reduced array with the displacement
     """
-    reduced = _masked_reduction(cylindrical, radial, angular)
+    reduced = masked_reduction(cylindrical, radial, angular)
     return _shift_data(
         (reduced - reduced.mean(["frame", "radius", "angle"])) * time_intervals,
         time_intervals=time_intervals,
@@ -410,7 +410,7 @@ def calculate_regional_strain(
 
         # To match the strain with the masks, we shift the strain in the opposite
         # direction
-        result[d][vkey] = _masked_expansion(
+        result[d][vkey] = masked_expansion(
             _shift_data(s, t, -timeshift, axis=1), m, axis=(2, 3)
         )
 

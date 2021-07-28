@@ -11,7 +11,7 @@ from .models.strain import update_marker as update_strain_marker
 from .models.strain import update_strain_es_marker
 from .models.strainmap_data_model import StrainMapData
 from .models.velocities import calculate_velocities, update_markers
-from .models.writers import rotation_to_xlsx, strain_to_xlsx, velocity_to_xlsx
+from .models.writers import rotation_to_xlsx, velocity_to_xlsx
 from .coordinates import Mark
 from .exceptions import NoDICOMDataException
 
@@ -153,10 +153,6 @@ class StrainMap(object):
     def update_strain_marker(self, **kwargs):
         """Updates the strain markers information after moving one of them."""
         update_strain_marker(data=self.data, **kwargs)
-
-    def export_strain(self, **kwargs):
-        """Exports strain data to a XLSX file."""
-        strain_to_xlsx(data=self.data, **kwargs)
 
     def export_rotation(self, **kwargs):
         """Exports rotation to a XLSX file."""

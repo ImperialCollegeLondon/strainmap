@@ -6,11 +6,10 @@ import numpy as np
 import openpyxl as xlsx
 import pandas as pd
 import xarray as xr
-from ..coordinates import Region
-from .strainmap_data_model import StrainMapData
+from ..coordinates import Region, Comp
 
 
-def velocity_to_xlsx(filename: Path, data: StrainMapData, cine: str) -> None:
+def velocity_to_xlsx(filename, data, cine) -> None:
     """Exports the velocity of the chosen cine to an Excel file.
 
     - Sheet 1 includes some metadata, like patient information, dataset, background
@@ -88,57 +87,61 @@ def velocity_to_xlsx(filename: Path, data: StrainMapData, cine: str) -> None:
             row += mark.sizes["new_q"] + 5
 
 
-def export_superpixel(data, dataset, filename):
+def export_superpixel(data, cine, filename):
     """Export superpixel velocity data.
 
     TODO: Remove in final version.
     """
-    from .velocities import px_velocity_curves
-    from .strain import coordinates
+    from .velocities import superpixel_velocity_curves
+    from .transformations import coordinates
 
-    vels = px_velocity_curves(data, dataset)
-    loc = np.take(
-        coordinates(data, (dataset,), resample=False, use_frame_zero=False), 0, axis=2
+    svel = (
+        superpixel_velocity_curves(
+            data.cylindrical.sel(cine=cine).drop_sel(comp=Comp.LONG.name),
+            data.masks.sel(cine=cine, region=Region.RADIAL_x3.name),
+            data.masks.sel(cine=cine, region=Region.ANGULAR_x24.name),
+        )
+        .assign_coords(
+            radius=["endo", "mid", "epi"], angle=range(Region.ANGULAR_x24.value)
+        )
+        .stack(loc=["radius", "angle"])
+    )
+    loc = (
+        coordinates(
+            data.septum.sel(cine=cine),
+            data.centroid.sel(cine=cine),
+            data.masks.sel(cine=cine, region=Region.RADIAL_x3.name),
+            data.masks.sel(cine=cine, region=Region.ANGULAR_x24.name),
+        )
+        .assign_coords(
+            radius=["endo", "mid", "epi"], angle=range(Region.ANGULAR_x24.value)
+        )
+        .stack(loc=["radius", "angle"])
     )
 
-    rad = ["endo", "mid", "epi"]
-    label = "{} {}"
-
-    def add_superpixel_data(values, ws, description):
-        ws.append([description])
-        ws.append([""])
-        ws.append(
-            [
-                label.format(rad[r], a + 1)
-                for r in range(values.shape[1])
-                for a in range(values.shape[2])
-            ]
-        )
-        for f in range(values.shape[0]):
-            ws.append(
-                [
-                    values[f, r, a]
-                    for r in range(values.shape[1])
-                    for a in range(values.shape[2])
-                ]
+    vel_sheet_names = ("Radial velocity", "Circumferential velocity")
+    loc_sheet_names = ("Radial location", "Angular location")
+    description = {
+        "Radial velocity": "Radial velocity as a function of frame for each superpixel (cm/s).",  # noqa: E501
+        "Circumferential velocity": "Circumferential velocity as a function of frame for each superpixel (cm/s).",  # noqa: E501
+        "Radial location": "Radial location of each superpixel (cm).",
+        "Angular location": "Angular location of each superpixel (radian).",
+    }
+    with pd.ExcelWriter(filename) as writer:
+        for comp, name in zip(svel.comp, vel_sheet_names):
+            pd.DataFrame({"Description": description[name]}, index=[0]).T.to_excel(
+                writer, sheet_name=name, header=False
             )
-        for i in range(values.shape[1]):
-            ws.insert_cols((i + 1) * (values.shape[2] + 1))
-
-    wb = xlsx.Workbook()
-    ws = wb.active
-    ws.title = "Radial velocity"
-    msg = "Radial velocity as a function of frame for each superpixel (cm/s)."
-    add_superpixel_data(vels[1], ws, msg)
-    msg = "Circumferential velocity as a function of frame for each superpixel (cm/s)."
-    add_superpixel_data(vels[2], wb.create_sheet("Circumferential velocity"), msg)
-    msg = "Radial location of each superpixel (cm)."
-    add_superpixel_data(loc[1], wb.create_sheet("Radial location"), msg)
-    msg = "Angular location of each superpixel (radian)."
-    add_superpixel_data(loc[2], wb.create_sheet("Angular location"), msg)
-
-    wb.save(filename)
-    wb.close()
+            svel.sel(comp=comp).to_pandas().to_excel(
+                writer, sheet_name=name, startrow=2
+            )
+        for var, name in zip(loc.variable, loc_sheet_names):
+            pd.DataFrame({"Description": description[name]}, index=[0]).T.to_excel(
+                writer, sheet_name=name, header=False
+            )
+            loc.sel(variable=var).to_pandas().to_excel(
+                writer, sheet_name=name, startrow=2
+            )
 
 
 def rotation_to_xlsx(data, filename):
