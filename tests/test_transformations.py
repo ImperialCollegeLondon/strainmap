@@ -93,5 +93,6 @@ def test_coordinates(radial_mask, angular_mask, expanded_radial):
         dims=["coord"],
         coords={"coord": ["row", "col"]},
     ).expand_dims(frame=expanded_radial.frame)
+    septum = centroid - expanded_radial.sizes["row"] / 4
 
-    coordinates(centroid, centroid, radial, angular)
+    coordinates(centroid, septum, radial, angular)

@@ -108,10 +108,11 @@ def export_superpixel(data, cine, filename):
     )
     loc = (
         coordinates(
-            data.septum.sel(cine=cine),
             data.centroid.sel(cine=cine),
+            data.septum.sel(cine=cine),
             data.masks.sel(cine=cine, region=Region.RADIAL_x3.name),
             data.masks.sel(cine=cine, region=Region.ANGULAR_x24.name),
+            data.data_files.pixel_size(cine),
         )
         .assign_coords(
             radius=["endo", "mid", "epi"], angle=range(Region.ANGULAR_x24.value)
@@ -139,9 +140,7 @@ def export_superpixel(data, cine, filename):
             pd.DataFrame({"Description": description[name]}, index=[0]).T.to_excel(
                 writer, sheet_name=name, header=False
             )
-            loc.sel(variable=comp).to_pandas().to_excel(
-                writer, sheet_name=name, startrow=2
-            )
+            loc.sel(comp=comp).to_pandas().to_excel(writer, sheet_name=name, startrow=2)
 
 
 def rotation_to_xlsx(data, filename):

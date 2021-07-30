@@ -9,7 +9,7 @@ from skimage.draw import polygon2mask
 
 from ..coordinates import Comp, Region, Mark
 from .strainmap_data_model import StrainMapData
-from .transformations import masked_reduction
+from .transformations import masked_reduction, theta_origin
 
 
 class _MSearch(NamedTuple):
@@ -28,13 +28,6 @@ MARKERS_OPTIONS: Dict[Mark, _MSearch] = {
     Mark.PC2: _MSearch(6, 12, xr.DataArray.argmax, [Comp.CIRC.name]),
     Mark.PC3: _MSearch(0, 0, None, [Comp.CIRC.name]),
 }
-
-
-def theta_origin(centroid: xr.DataArray, septum: xr.DataArray):
-    """Finds theta0 out of the centroid and septum mid-point"""
-    shifted = septum - centroid
-    theta0 = np.arctan2(shifted.sel(coord="col"), shifted.sel(coord="row"))
-    return theta0
 
 
 def process_phases(

@@ -177,10 +177,11 @@ def masked_expansion(
 
 
 def coordinates(
-    septum: xr.DataArray,
     centroid: xr.DataArray,
+    septum: xr.DataArray,
     radial: xr.DataArray,
     angular: xr.DataArray,
+    pixel_size: float,
 ) -> xr.DataArray:
     """Produces a reduced array with the average location in the plane of the pixels.
 
@@ -189,28 +190,41 @@ def coordinates(
     the average value of those coordinates in the relevant superpixels.
 
     Args:
-        septum: Location of the septum midpoints.
         centroid: Location of the centroids
+        septum: Location of the septum midpoints.
         radial: Radial mask. Must contain 'region', 'row' and 'col' dimensions, at
             least.
         angular: Angular mask. Must have same dimensions (and shape) that the radial
             mask.
+        pixel_size: physical size of the pixels
 
     Returns:
         The reduced array with the locations. The dimension `comp` will have
         coordinates `RAD` and `CIRC`, indicating the average superpixel position
         in the radial and the circumferential directions.
     """
-    f, irow, icol = np.nonzero(radial.sum("region").data)
-    row = radial.row[irow].data
-    col = radial.col[icol].data
-    rr = row - centroid.sel(frame=f, coord="row").data
-    cc = col - centroid.sel(frame=f, coord="col").data
+    iframe, irow, icol = np.nonzero(radial.sum("region").data)
+
+    crow = centroid.sel(frame=iframe, coord="row").data
+    ccol = centroid.sel(frame=iframe, coord="col").data
+    th0 = 2 * np.pi - theta_origin(centroid, septum).sel(frame=iframe).data
+
+    row = radial.row[irow].data - crow
+    col = radial.col[icol].data - ccol
 
     loc = xr.full_like(
         radial.isel(region=0).expand_dims(comp=[Comp.RAD.name, Comp.CIRC.name]),
         fill_value=np.nan,
         dtype="float",
-    )
-    loc.data[0, f, row, col] = np.sqrt(rr ** 2 + cc ** 2)
-    loc.data[1, f, row, col] = np.sqrt(rr ** 2 + cc ** 2)
+    ).transpose("comp", "frame", "row", "col")
+    loc.data[0, iframe, irow, icol] = np.sqrt(row ** 2 + col ** 2) * pixel_size
+    loc.data[1, iframe, irow, icol] = np.mod(np.arctan2(col, row) - th0, 2 * np.pi)
+
+    return masked_reduction(loc, radial, angular)
+
+
+def theta_origin(centroid: xr.DataArray, septum: xr.DataArray):
+    """Finds theta0 out of the centroid and septum mid-point"""
+    shifted = septum - centroid
+    theta0 = np.arctan2(shifted.sel(coord="col"), shifted.sel(coord="row"))
+    return theta0

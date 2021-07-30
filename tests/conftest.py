@@ -321,7 +321,7 @@ def segments_arrays():
 
 @fixture
 def theta0(segmented_data):
-    from strainmap.models.velocities import theta_origin
+    from strainmap.models.transformations import theta_origin
 
     centroid = segmented_data.centroid.isel(cine=0)
     septum = segmented_data.septum.isel(cine=0)

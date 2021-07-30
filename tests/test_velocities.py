@@ -4,7 +4,7 @@ from strainmap.coordinates import Mark, Comp, Region
 
 
 def test_theta_origin():
-    from strainmap.models.velocities import theta_origin
+    from strainmap.models.transformations import theta_origin
     import numpy as np
     import xarray as xr
 
@@ -91,7 +91,8 @@ def test_global_mask(segmented_data):
 
 
 def test_find_masks(segmented_data):
-    from strainmap.models.velocities import find_masks, theta_origin
+    from strainmap.models.velocities import find_masks
+    from strainmap.models.transformations import theta_origin
     from strainmap.coordinates import Region
     import xarray as xr
 
