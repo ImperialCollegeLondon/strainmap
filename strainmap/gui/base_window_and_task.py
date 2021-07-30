@@ -14,6 +14,7 @@ from tkinter import ttk
 from typing import List, Optional, Text, Type
 
 from PIL import Image, ImageTk
+from .. import __VERSION__
 
 ICONS_DIRECTORY = Path(__file__).parent / "icons"
 
@@ -96,12 +97,12 @@ class TaskViewBase(ABC, ttk.Frame):
 
     @abstractmethod
     def update_widgets(self):
-        """ Updates widgets after an update in the data var. """
+        """Updates widgets after an update in the data var."""
         pass
 
     @abstractmethod
     def clear_widgets(self):
-        """ Clear widgets after removing the data. """
+        """Clear widgets after removing the data."""
         pass
 
 
@@ -110,7 +111,7 @@ REGISTERED_VIEWS: List[Type[TaskViewBase]] = []
 
 
 def register_view(view: Type[TaskViewBase]) -> Type[TaskViewBase]:
-    """Registers a view to make it available to StrainMap. """
+    """Registers a view to make it available to StrainMap."""
 
     if not issubclass(view, TaskViewBase):
         raise RuntimeError("A view must inherit from TaskViewBase")
@@ -138,7 +139,7 @@ def fixed_map(option, style):
 
 
 class MainWindow(tk.Tk):
-    """ StrainMap main window."""
+    """StrainMap main window."""
 
     def __init__(self):
         super().__init__()
@@ -173,6 +174,7 @@ class MainWindow(tk.Tk):
         self.msg = ttk.Label(
             self.msg_frame, textvariable=self.msg_var, relief=tk.SUNKEN
         )
+        version = ttk.Label(self.msg_frame, text=__VERSION__)
         self.bar = ttk.Progressbar(
             self.msg_frame,
             orient="horizontal",
@@ -185,6 +187,7 @@ class MainWindow(tk.Tk):
         self.bar.grid(column=0, row=0, sticky=tk.EW, padx=5, pady=5)
         self.msg.grid(column=1, row=0, sticky=tk.EW, padx=5, pady=5)
         self.msg_frame.columnconfigure(1, weight=1)
+        version.grid(column=2, row=0, sticky=tk.EW, padx=5, pady=5)
 
     @property
     def views(self) -> List[TaskViewBase]:
@@ -195,7 +198,7 @@ class MainWindow(tk.Tk):
         return [type(v) for v in self.winfo_children() if isinstance(v, TaskViewBase)]
 
     def add(self, view: Type[TaskViewBase], controller):
-        """ Creates a view if not already created and adds it to the main window."""
+        """Creates a view if not already created and adds it to the main window."""
         if view not in self.view_classes:
             v = view(root=self, controller=controller)
             if v.button_row is not None:
@@ -208,7 +211,7 @@ class MainWindow(tk.Tk):
             v.lower()
 
     def remove(self, view: Type[TaskViewBase]):
-        """ Removes an existing view from the main window."""
+        """Removes an existing view from the main window."""
         if view in self.views:
             view.button.destroy()
             view.destroy()  # type: ignore
@@ -232,7 +235,7 @@ class MainWindow(tk.Tk):
                 print("Caught Scroll Error")
 
     def __quit(self):
-        """ Safe quit the program."""
+        """Safe quit the program."""
         self._stop_animations()
         self.closed = True
         self.quit()
