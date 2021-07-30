@@ -1,4 +1,3 @@
-from typing import List
 import logging
 from pathlib import Path
 
@@ -7,45 +6,9 @@ import numpy as np
 
 from .strainmap_data_model import StrainMapData
 from .segmentation import _calc_centroids, _calc_effective_centroids
+from .transformations import dict_to_xarray
 from .velocities import calculate_velocities
 from ..coordinates import Comp
-
-
-def _dict_to_xarray(structure: dict, dims: List[str]) -> xr.DataArray:
-    """Convert a nested dictionary into a DataArray with the given dimensions.
-
-    The dimensions are taken assumed ot be in the order they are provided, with the
-    first dimension given by the outmost dictionary and the last dimension given by the
-    innermost dictionary or numpy array.
-
-    Args:
-        structure:
-        dims:
-
-    Raises:
-        KeyError: If there is any inconsistency in the number or type of elements at any
-         level of the nested dictionary.
-        IndexError: If there is any inconsistency in the shape of numpy arrays stored
-         in the dictionaries.
-
-    Returns:
-        A DataArray with the dimensions indicated in the input, the coordinates as taken
-        from the dictionary keys and, when there are numpy arrays, integer numerical
-        sequences.
-    """
-    data = []
-    for k, v in structure.items():
-        if isinstance(v, dict):
-            data.append(_dict_to_xarray(v, dims[1:]).expand_dims(dim={dims[0]: [k]}))
-        else:
-            da = xr.DataArray(
-                v,
-                dims=dims[1:],
-                coords={d: np.arange(0, s) for d, s in zip(dims[1:], v.shape)},
-            )
-            data.append(da.expand_dims(dim={dims[0]: [k]}))
-
-    return xr.concat(data, dim=dims[0])
 
 
 def _regenerate_auxiliar(structure: dict) -> dict:
@@ -98,7 +61,7 @@ def _regenerate_segmentation(structure: dict) -> dict:
     corrected = dict()
 
     corrected["segments"] = (
-        _dict_to_xarray(
+        dict_to_xarray(
             structure["segments"], ["cine", "side", "frame", "coord", "point"]
         )
         .assign_coords({"coord": ["col", "row"]})
@@ -111,7 +74,7 @@ def _regenerate_segmentation(structure: dict) -> dict:
     )
 
     corrected["septum"] = (
-        _dict_to_xarray(
+        dict_to_xarray(
             {k: v[..., 0] for k, v in structure["zero_angle"].items()},
             ["cine", "frame", "coord"],
         )

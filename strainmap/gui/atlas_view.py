@@ -389,7 +389,7 @@ class AtlasTaskView(TaskViewBase):
             slice(2, None, 1) if self.data.orientation == "CW" else slice(None, 1, -1)
         )
         data = extract_strain_markers(
-            h5file=self.data.strainmap_file,
+            h5file=self.data.filename,
             datasets={k.get(): v for k, v in zip(self.dataset_box, SLICES)},
             regions={
                 "global - Estimated": REGIONS[:1],

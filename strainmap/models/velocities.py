@@ -9,7 +9,7 @@ from skimage.draw import polygon2mask
 
 from ..coordinates import Comp, Region, Mark
 from .strainmap_data_model import StrainMapData
-from .writers import terminal
+from .transformations import masked_reduction, theta_origin
 
 
 class _MSearch(NamedTuple):
@@ -28,13 +28,6 @@ MARKERS_OPTIONS: Dict[Mark, _MSearch] = {
     Mark.PC2: _MSearch(6, 12, xr.DataArray.argmax, [Comp.CIRC.name]),
     Mark.PC3: _MSearch(0, 0, None, [Comp.CIRC.name]),
 }
-
-
-def theta_origin(centroid: xr.DataArray, septum: xr.DataArray):
-    """Finds theta0 out of the centroid and septum mid-point"""
-    shifted = septum - centroid
-    theta0 = np.arctan2(shifted.sel(coord="col"), shifted.sel(coord="row"))
-    return theta0
 
 
 def process_phases(
@@ -630,39 +623,11 @@ def larger_than_es(x, es, frames, syst=350, dias=650):
     return syst + (x - es) / (frames - es) * dias
 
 
-def regenerate(data, cines, callback: Callable = terminal):
-    """Regenerate velocities and masks information after loading from h5 file."""
-    for i, d in enumerate(cines):
-        callback(
-            f"Regenerating existing velocities {i+1}/{len(cines)}.", i / len(cines)
-        )
-        vels = data.velocities[d]
-        regions: Dict = {}
-        for k, v in vels.items():
-            if k == "global":
-                regions["global_velocity"] = True
-            else:
-                rtype, num = k.split(" x")
-                if f"{rtype}_regions" in regions:
-                    regions[f"{rtype}_regions"].append(int(num))
-                else:
-                    regions[f"{rtype}_regions"] = [int(num)]
-
-        calculate_velocities(
-            data=data,
-            cine=d,
-            sign_reversal=data.sign_reversal,
-            init_markers=False,
-            **regions,
-        )
-    callback("Regeneration complete!", 1)
-
-
 def px_velocity_curves(
     data: StrainMapData, cine: str, nrad: int = 3, nang: int = 24
 ) -> np.ndarray:
     """TODO: Remove in the final version."""
-    from .strain import _masked_reduction
+    from .transformations import masked_reduction
 
     vkey = "cylindrical"
     rkey = f"radial x{nrad}"
@@ -671,6 +636,26 @@ def px_velocity_curves(
 
     cyl = data.masks[cine][vkey]
     m = data.masks[cine][rkey] + 100 * data.masks[cine][akey]
-    r = _masked_reduction(cyl, m, axis=img_axis)
+    r = masked_reduction(cyl, m, axis=img_axis)
 
     return r - r.mean(axis=(1, 2, 3), keepdims=True)
+
+
+def superpixel_velocity_curves(
+    cylindrical: xr.DataArray, radial: xr.DataArray, angular: xr.DataArray
+) -> xr.DataArray:
+    """Reduces the cylindrical velocities to regions and calculates the displacement.
+
+    Some manipulation is also performed to match the format of echo data and adjusts
+    the origin of the times.
+
+    Args:
+        cylindrical: Velocities in cylindrical coordinates.
+        radial: Masks defining the radial regions.
+        angular: Mask defining the angular regions.
+
+    Returns:
+        Reduced array with the displacement
+    """
+    reduced = masked_reduction(cylindrical, radial, angular)
+    return reduced - reduced.mean(["frame", "radius", "angle"])

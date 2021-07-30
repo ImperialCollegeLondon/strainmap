@@ -7,6 +7,7 @@ import xarray as xr
 from scipy import interpolate
 
 from strainmap.models.strainmap_data_model import StrainMapData
+from strainmap.models.transformations import masked_expansion, masked_reduction
 from strainmap.models.writers import terminal
 from strainmap.coordinates import Region
 
@@ -91,138 +92,6 @@ def calculate_strain(
     return 0
 
 
-def _masked_reduction(
-    data: xr.DataArray, radial: xr.DataArray, angular: xr.DataArray
-) -> xr.DataArray:
-    """Reduces the size of an array by averaging the regions defined by the masks.
-
-    The radial and angular masks define a collection of regions of interest in 2D space
-    all together forming a torus, with Na angular segments and Nr radial segments.
-    This means that a large 2D array with data (it can have more dimensions) can be
-    reduced to a much smaller and easy to handle (Nr, Na) array, where the value of
-    each entry is the mean value of the pixels in the regions defined by both masks.
-
-    The reduced array has the dimensions of the input data with 'row' and 'col' removed
-    and 'radius' and 'angle' added to the end. So if data shape is (N0, N1, N2, N3, N4)
-    then the reduced array will have shape (N0, N3, N4, Nr, Na).
-
-    Simplified example: If we had 2 radial and 4 angular regions, (8 in total) regions
-    in an otherwise 8x8 array, the reduced array will be a 2x4 array, with each element
-    the mean value of all the elements in that region:
-
-    Regions:
-    [[0, 0, 0, 0, 0, 0, 0, 0],
-     [0, 5, 5, 5, 6, 6, 6, 0],
-     [0, 5, 1, 1, 2, 2, 6, 0],
-     [0, 5, 1, 0, 0, 2, 6, 0],
-     [0, 8, 4, 0, 0, 3, 7, 0],
-     [0, 8, 4, 4, 3, 3, 7, 0],
-     [0, 8, 8, 8, 7, 7, 7, 0],
-     [0, 0, 0, 0, 0, 0, 0, 0]]
-
-     Reduced array, with the numbers indicating the region they related to:
-     [[1, 2, 3, 4],
-      [5, 6, 7, 8]]
-
-    Args:
-        data: Large array to reduce. Must contain all the dimensions of the masks
-            except 'region'.
-        radial: Radial mask. Must contain 'region', 'row' and 'col' dimensions, at
-            least.
-        angular: Angular mask. Must have same dimensions (and shape) that the radial
-            mask.
-
-    Returns:
-        A DataArray with reduced size.
-    """
-
-    dims = [d for d in data.dims if d not in ("row", "col")]
-    nrad = radial.sizes["region"]
-    nang = angular.sizes["region"]
-    reduced = xr.DataArray(
-        np.zeros([data.sizes[d] for d in dims] + [nrad, nang], dtype=data.dtype),
-        dims=dims + ["radius", "angle"],
-        coords={d: data[d] for d in dims},
-    )
-
-    for r, a in product(range(nrad), range(nang)):
-        mask = xr.ufuncs.logical_and(radial.isel(region=r), angular.isel(region=a))
-        reduced.loc[{"radius": r, "angle": a}] = (
-            data.sel(row=mask.row, col=mask.col).where(mask).mean(dim=("row", "col"))
-        )
-
-    return reduced
-
-
-def _masked_expansion(
-    data: xr.DataArray,
-    radial: xr.DataArray,
-    angular: xr.DataArray,
-    nrow: int = 512,
-    ncol: int = 512,
-) -> xr.DataArray:
-    """Transforms a reduced array into a full array with the same shape as the masks.
-
-    This function, partially opposite to `masked_reduction`, will recover a full size
-    array with the same shape as the original one and with the masked elements equal to
-    the corresponding entries of the reduced array. All other elements are nan.
-
-    Args:
-        data: Reduced array to expand. Should include dimensions 'radius' and 'angle'
-            as well as any dimension of the masks other than 'region', 'row' and
-            'column'.
-        radial: Radial mask. Must contain 'region', 'row' and 'col' dimensions, at
-            least.
-        angular: Angular mask. Must have same dimensions (and shape) that the radial
-            mask.
-        nrow: Size of 'row' dimension in the expanded array iof larger than the one of
-            the radial array.
-        ncol: Size of 'col' dimension in the expanded array iof larger than the one of
-            the radial array.
-
-    Returns:
-        The expanded array.
-    """
-    dims = [d for d in data.dims if d not in ("radius", "angle")]
-    nrad = data.sizes["radius"]
-    nang = data.sizes["angle"]
-    expanded = xr.DataArray(
-        np.full(
-            [data.sizes[d] for d in dims] + [radial.sizes["row"], radial.sizes["col"]],
-            np.nan,
-            dtype=data.dtype,
-        ),
-        dims=dims + ["row", "col"],
-        coords={**{d: data[d] for d in dims}, "row": radial.row, "col": radial.col},
-    )
-
-    for r, a in product(range(nrad), range(nang)):
-        mask = xr.ufuncs.logical_and(radial.sel(region=r), angular.sel(region=a))
-        expanded = xr.where(mask, data.sel(radius=r, angle=a), expanded)
-
-    # Now we ensure that the dimensions are in the correct order
-    expanded = expanded.transpose(*tuple(dims + ["row", "col"]))
-
-    # Finally, we populate an array with the correct number of rows and cols, if needed
-    if nrow != radial.sizes["row"] or ncol != radial.sizes["col"]:
-        output = xr.DataArray(
-            np.full(
-                [data.sizes[d] for d in dims] + [nrow, ncol], np.nan, dtype=data.dtype
-            ),
-            dims=dims + ["row", "col"],
-            coords={
-                **{d: data[d] for d in dims},
-                "row": np.arange(0, nrow),
-                "col": np.arange(0, ncol),
-            },
-        )
-        output.loc[{"row": expanded.row, "col": expanded.col}] = expanded
-
-        return output
-    else:
-        return expanded
-
-
 def coordinates(
     data: StrainMapData,
     datasets: Tuple[str, ...],
@@ -256,7 +125,7 @@ def coordinates(
         means[(0, t, x, y)] = np.sqrt(xx ** 2 + yy ** 2) * px_size
         means[(1, t, x, y)] = np.mod(np.arctan2(yy, xx) + theta0[t], 2 * np.pi)
 
-        return _masked_reduction(means, mask, axis=(2, 3))
+        return masked_reduction(means, mask, axis=(2, 3))
 
     in_plane = np.array(
         [r_theta for r_theta in map(to_cylindrical, m_iter, theta0_iter, origin_iter)]
@@ -305,7 +174,7 @@ def displacement(
     Returns:
         Reduced array with the displacement
     """
-    reduced = _masked_reduction(cylindrical, radial, angular)
+    reduced = masked_reduction(cylindrical, radial, angular)
     return _shift_data(
         (reduced - reduced.mean(["frame", "radius", "angle"])) * time_intervals,
         time_intervals=time_intervals,
@@ -541,7 +410,7 @@ def calculate_regional_strain(
 
         # To match the strain with the masks, we shift the strain in the opposite
         # direction
-        result[d][vkey] = _masked_expansion(
+        result[d][vkey] = masked_expansion(
             _shift_data(s, t, -timeshift, axis=1), m, axis=(2, 3)
         )
 

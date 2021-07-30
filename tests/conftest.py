@@ -1,6 +1,7 @@
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+import numpy as np
 import pandas as pd
 import xarray as xr
 from pytest import fixture
@@ -320,7 +321,7 @@ def segments_arrays():
 
 @fixture
 def theta0(segmented_data):
-    from strainmap.models.velocities import theta_origin
+    from strainmap.models.transformations import theta_origin
 
     centroid = segmented_data.centroid.isel(cine=0)
     septum = segmented_data.septum.isel(cine=0)
@@ -401,3 +402,103 @@ def initial_segments(initial_centroid):
         dims=("side", "coord", "point"),
         coords={"side": ["endocardium", "epicardium"], "coord": ["col", "row"]},
     )
+
+
+@fixture
+def mask_shape():
+    return [5, 30, 30]
+
+
+@fixture
+def radial_mask(mask_shape) -> xr.DataArray:
+    """DataArray defining 3 radial regions."""
+    from skimage.draw import disk
+
+    region, frame, row, col = shape = [3] + mask_shape
+    data = np.full(shape, False)
+
+    midr = row / 2
+    midc = col / 2
+    for r in range(region - 1, -1, -1):
+        rr, cc = disk((midr, midc), row / (5 - r), shape=(row, col))
+        data[r, :, rr, cc] = True
+        if r < region - 1:
+            data[r + 1, :, rr, cc] = False
+
+    rr, cc = disk((midr, midc), row / 8, shape=(row, col))
+    data[0, :, rr, cc] = False
+
+    return xr.DataArray(
+        data,
+        dims=["region", "frame", "row", "col"],
+        coords={
+            "frame": np.arange(0, frame),
+            "row": np.arange(0, row),
+            "col": np.arange(0, col),
+        },
+    )
+
+
+@fixture
+def angular_mask(mask_shape) -> xr.DataArray:
+    """DataArray defining 4 angular regions"""
+    from skimage.draw import rectangle
+
+    region, frame, row, col = shape = [4] + mask_shape
+    data = np.full(shape, False)
+
+    mid = int(row / 2)
+    for i in range(2):
+        for j in range(2):
+            rr, cc = rectangle((i * mid, j * mid), extent=(mid, mid), shape=(row, col))
+            data[int(i + 2 * j), :, rr, cc] = True
+
+    return xr.DataArray(
+        data,
+        dims=["region", "frame", "row", "col"],
+        coords={
+            "frame": np.arange(0, frame),
+            "row": np.arange(0, row),
+            "col": np.arange(0, col),
+        },
+    )
+
+
+@fixture
+def expanded_radial(radial_mask):
+    return (radial_mask * (radial_mask.region + 1)).sum("region").expand_dims(cine=[0])
+
+
+@fixture
+def expanded_angular(angular_mask):
+    return (
+        (angular_mask * (angular_mask.region + 1)).sum("region").expand_dims(cine=[0])
+    )
+
+
+@fixture
+def reduced_radial(radial_mask, angular_mask):
+    frame = angular_mask.sizes["frame"]
+
+    return xr.DataArray(
+        np.tile(
+            np.arange(1, radial_mask.sizes["region"] + 1),
+            (angular_mask.sizes["region"], frame, 1),
+        ).transpose([1, 2, 0])[None, ...],
+        dims=["cine", "frame", "radius", "angle"],
+        coords={"cine": [0], "frame": np.arange(0, frame)},
+    ).astype(float)
+
+
+@fixture
+def reduced_angular(radial_mask, angular_mask):
+    frame = angular_mask.sizes["frame"]
+
+    return xr.DataArray(
+        np.tile(
+            np.arange(1, angular_mask.sizes["region"] + 1),
+            (radial_mask.sizes["region"], frame, 1),
+        ).transpose([1, 0, 2])[None, ...],
+        dims=["cine", "frame", "radius", "angle"],
+        coords={"cine": [0], "frame": np.arange(0, frame)},
+    ).astype(float)

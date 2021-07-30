@@ -49,7 +49,7 @@ def test_get_new_data(atlas_view, dummy_data):
     with patch("strainmap.models.readers.extract_strain_markers", lambda *x, **y: new):
         atlas_view.controller.data = namedtuple(
             "Data", ["strain_markers", "filename", "orientation", "gls"]
-        )(strain_markers=1, strainmap_file="", orientation="CW", gls=[1, 2, 3])
+        )(strain_markers=1, filename="", orientation="CW", gls=[1, 2, 3])
         actual = atlas_view.get_new_data()
         assert "Record" in actual.columns
         assert "Included" in actual.columns
