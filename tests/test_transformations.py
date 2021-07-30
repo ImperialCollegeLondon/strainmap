@@ -79,20 +79,3 @@ def test_masked_expansion(
     # angular symmetry in the row/col plane.
     actual = masked_expansion(reduced_angular, radial, angular, nrow, ncol)
     xr.testing.assert_equal(actual, expanded_angular.where(~actual.isnull()))
-
-
-def test_coordinates(radial_mask, angular_mask, expanded_radial):
-    from strainmap.models.transformations import coordinates
-
-    # Masks are reduced, as it will be the real case, covering only certain ROI
-    radial = radial_mask.sel(row=radial_mask.row[1:-1], col=radial_mask.col[1:-1])
-    angular = angular_mask.sel(row=angular_mask.row[1:-1], col=angular_mask.col[1:-1])
-
-    centroid = xr.DataArray(
-        [expanded_radial.squeeze().row.mean(), expanded_radial.squeeze().col.mean()],
-        dims=["coord"],
-        coords={"coord": ["row", "col"]},
-    ).expand_dims(frame=expanded_radial.frame)
-    septum = centroid - expanded_radial.sizes["row"] / 4
-
-    coordinates(centroid, septum, radial, angular)
