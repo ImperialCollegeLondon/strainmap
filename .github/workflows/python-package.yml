@@ -61,7 +61,7 @@ jobs:
 
   build-windows:
     needs: test
-    if: (github.event_name == 'release' || github.ref == 'refs/heads/develop') || github.ref == 'refs/heads/master'
+    if: github.event_name == 'release' || github.ref == 'refs/heads/master'
     runs-on: windows-latest
     
     steps:
@@ -84,7 +84,7 @@ jobs:
 
   build-macos:
     needs: test
-    if: github.event_name == 'release' || github.ref == 'refs/heads/master'
+    if: github.event_name == 'release'
     runs-on: macos-latest
 
     steps:
