@@ -4,6 +4,7 @@ from typing import Optional, Text, Union
 import numpy as np
 import xarray as xr
 
+from .. import __VERSION__
 from ..coordinates import Comp
 from ..exceptions import NoDICOMDataException
 from .readers import DICOMReaderBase, read_folder, read_strainmap_file
@@ -152,11 +153,12 @@ class StrainMapData(object):
 
     def metadata(self, dataset=None):
         """Retrieve the metadata from the DICOM files"""
+        output = {"StrainMap version": f"v{__VERSION__}"}
+
         if dataset is None:
-            output = dict()
             dataset = self.data_files.datasets[0]
         else:
-            output = {"Cine": dataset}
+            output["Cine"] = dataset
 
         patient_data = self.data_files.tags(dataset)
         output.update(

@@ -174,7 +174,7 @@ class MainWindow(tk.Tk):
         self.msg = ttk.Label(
             self.msg_frame, textvariable=self.msg_var, relief=tk.SUNKEN
         )
-        version = ttk.Label(self.msg_frame, text=__VERSION__)
+        version = ttk.Label(self.msg_frame, text=f"v{__VERSION__}")
         self.bar = ttk.Progressbar(
             self.msg_frame,
             orient="horizontal",
