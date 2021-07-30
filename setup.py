@@ -25,7 +25,7 @@ setup(
         "pillow==8.2.0",
         "pydicom==2.1.2",
         "scikit-image==0.18.1",
-        "matplotlib==3.2.2",
+        "matplotlib==3.3.4",
         "numpy==1.19.5",
         "scipy==1.6.3",
         "nibabel==3.2.1",
