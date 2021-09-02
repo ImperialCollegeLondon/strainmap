@@ -48,7 +48,7 @@ def velocity_sensitivity(header) -> xr.DataArray:
     theta = float(re.search(r"asElm\[2\].nVelocity\t = \t(.*)", header)[1])
 
     return xr.DataArray(
-        np.array((z, r, theta)) * 2,
+        np.array((r, theta, z)) * 2,
         dims=["comp"],
         coords={"comp": [Comp.RAD.name, Comp.CIRC.name, Comp.LONG.name]},
     )
@@ -58,13 +58,10 @@ def phase_encoding(filename) -> Tuple[bool, xr.DataArray]:
     """Indicates if X and Y Phases should be swapped and the velocity sign factors."""
     ds = pydicom.dcmread(filename)
     swap = ds.InPlanePhaseEncodingDirection == "ROW"
-    signs = (
-        xr.DataArray(
-            [1, -1, 1],
-            dims=["comp"],
-            coords={"comp": [Comp.RAD.name, Comp.CIRC.name, Comp.LONG.name]},
-        )
-        * (-1) ** swap
+    signs = xr.DataArray(
+        [-1, -1, -1] if swap else [1, 1, 1],
+        dims=["comp"],
+        coords={"comp": [Comp.RAD.name, Comp.CIRC.name, Comp.LONG.name]},
     )
     return swap, signs
 

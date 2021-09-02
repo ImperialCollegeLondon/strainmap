@@ -190,7 +190,7 @@ def cartesian_to_cylindrical(
     theta0: xr.DataArray,
     global_mask: xr.DataArray,
     phase: xr.DataArray,
-    clockwise: bool = True,
+    clockwise: bool = False,
 ):
     """Transform the phases from cartesian to cylindrical coordinates.
 
@@ -250,7 +250,7 @@ def cartesian_to_cylindrical(
         data,
         dims=p.dims,
         coords={
-            "comp": [Comp.RAD.name, Comp.CIRC.name, Comp.LONG.name],
+            "comp": [Comp.CIRC.name, Comp.RAD.name, Comp.LONG.name],
             "frame": global_mask.frame,
             "row": global_mask.row,
             "col": global_mask.col,
