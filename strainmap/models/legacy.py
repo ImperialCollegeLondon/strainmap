@@ -34,9 +34,9 @@ def _regenerate_auxiliar(structure: dict) -> dict:
         corrected["timeshift"] = structure["timeshift"]
 
     if "sign_reversal" in structure:
-        sign = structure["sign_reversal"][1:] + structure["sign_reversal"][:1]
+        # sign = structure["sign_reversal"][1:] + structure["sign_reversal"][:1]
         corrected["sign_reversal"] = xr.DataArray(
-            [1 if s == 1 else -1 for s in sign],
+            [-1 if s else 1 for s in structure["sign_reversal"]],
             dims=["comp"],
             coords={"comp": [Comp.X.name, Comp.Y.name, Comp.Z.name]},
             name="sign_reversal",

@@ -27,7 +27,7 @@ def test_velocity_sensitivity(dicom_data_path):
     data_tree = StrainMapData.from_folder(data_files=dicom_data_path).data_files.files
     filename = data_tree[0, 0, 0].item()
 
-    expected = np.array((60, 40, 40))
+    expected = np.array((40, 40, 60))
     ds = pydicom.dcmread(filename)
     header = ds[("0021", "1019")].value.decode()
 
@@ -45,10 +45,10 @@ def test_dicom_reader():
     files = DICOM.factory(path)
     assert files.is_avail
     assert len(files.datasets) == 5
-    assert list(files.sensitivity) == [60.0, 40.0, 40.0]
+    assert list(files.sensitivity) == [40.0, 40.0, 60]
     swap, signs = files.phase_encoding(files.datasets[0])
     assert not swap
-    assert list(signs) == [1, -1, 1]
+    assert list(signs) == [1, 1, 1]
     assert files.tags(files.datasets[0])["PatientName"] == "CM"
     assert files.mag(files.datasets[0]).shape == (3, 512, 512)
     assert files.phase(files.datasets[0]).shape == (3, 3, 512, 512)
