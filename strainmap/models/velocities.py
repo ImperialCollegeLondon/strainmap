@@ -353,7 +353,8 @@ def calculate_velocities(
 def _calculate_velocities(
     masks: xr.DataArray, cylindrical: xr.DataArray
 ) -> xr.DataArray:
-    return xr.where(masks, cylindrical, np.nan).mean(dim=["row", "col"])
+    output = xr.where(masks, cylindrical, np.nan).mean(dim=["row", "col"])
+    return output - output.mean(dim="frame")
 
 
 def initialise_markers(velocity: xr.DataArray) -> xr.DataArray:
