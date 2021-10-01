@@ -837,7 +837,6 @@ class SegmentationTaskView(TaskViewBase):
         self.undo_stack = defaultdict(list)
         self.controller.update_segmentation(
             cine=self.cines_var.get(),
-            segments=self._segments,
             new_segments=self._segments,
             new_septum=self._septum,
             unlock=True,
