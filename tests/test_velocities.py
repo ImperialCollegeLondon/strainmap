@@ -115,7 +115,7 @@ def test_find_masks(segmented_data):
         xr.testing.assert_equal(m, global_int)
 
 
-def test_cartesian_to_cylindrical(segmented_data, masks, theta0):
+def test_cartesian_to_cylindrical(segmented_data, masks):
     import numpy as np
     import xarray as xr
     from strainmap.models.velocities import process_phases, cartesian_to_cylindrical
@@ -131,7 +131,7 @@ def test_cartesian_to_cylindrical(segmented_data, masks, theta0):
         segmented_data.sign_reversal,
     ).drop("cine")
 
-    cyl = cartesian_to_cylindrical(centroid, theta0, global_mask, phase)
+    cyl = cartesian_to_cylindrical(centroid, global_mask, phase)
     phase_masked = xr.where(
         global_mask, phase.sel(row=global_mask.row, col=global_mask.col), 0.0
     )

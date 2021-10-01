@@ -187,7 +187,6 @@ def find_masks(
 
 def cartesian_to_cylindrical(
     centroid: xr.DataArray,
-    theta0: xr.DataArray,
     global_mask: xr.DataArray,
     phase: xr.DataArray,
     clockwise: bool = False,
@@ -207,7 +206,6 @@ def cartesian_to_cylindrical(
 
     Args:
         centroid (xr.DataArray): Centroid of the masks.
-        theta0 (xr.DataArray): Origin of angles.
         global_mask (xr.DataArray): Global masks.
         phase (xr.DataArray): The three components of the phase.
         clockwise (optional, bool): The direction of the theta variable.
@@ -225,12 +223,11 @@ def cartesian_to_cylindrical(
 
     crow = centroid.sel(frame=iframe, coord="row").data
     ccol = centroid.sel(frame=iframe, coord="col").data
-    th0 = theta0.sel(frame=iframe).data
 
     row = global_mask.row[irow].data - crow
     col = global_mask.col[icol].data - ccol
 
-    theta = np.mod(np.arctan2(col, row) - th0, 2 * np.pi)
+    theta = np.arctan2(col, row)
     if clockwise:
         theta = 2 * np.pi - theta
 
@@ -325,10 +322,7 @@ def calculate_velocities(
     # Next we calculate the velocities in cylindrical coordinates
     cylindrical = (
         cartesian_to_cylindrical(
-            centroid,
-            theta0,
-            masks.sel(region=Region.GLOBAL.name).drop_vars("region"),
-            phase,
+            centroid, masks.sel(region=Region.GLOBAL.name).drop_vars("region"), phase
         )
         * data.data_files.sensitivity
         * signs
