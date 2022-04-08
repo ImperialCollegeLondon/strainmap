@@ -16,7 +16,7 @@ class _MSearch(NamedTuple):
     low: int = 0
     high: int = 50
     fun: Optional[Callable] = None
-    comp: Sequence[Comp] = ()
+    comp: Sequence[str] = ()
 
 
 MARKERS_OPTIONS: Dict[Mark, _MSearch] = {
@@ -279,7 +279,7 @@ def cylindrical_rotation_matrix(theta: np.ndarray) -> np.ndarray:
 def calculate_velocities(
     data: StrainMapData,
     cine: Text,
-    sign_reversal: Tuple[bool, ...] = (1, 1, 1),
+    sign_reversal: Tuple[int, ...] = (1, 1, 1),
     update_velocities=False,
 ) -> None:
     """Calculates the velocity of the chosen cine and regions.
@@ -616,24 +616,6 @@ def smaller_than_es(x, es, syst=350):
 def larger_than_es(x, es, frames, syst=350, dias=650):
     """Normalization for times larger than ES."""
     return syst + (x - es) / (frames - es) * dias
-
-
-def px_velocity_curves(
-    data: StrainMapData, cine: str, nrad: int = 3, nang: int = 24
-) -> np.ndarray:
-    """TODO: Remove in the final version."""
-    from .transformations import masked_reduction
-
-    vkey = "cylindrical"
-    rkey = f"radial x{nrad}"
-    akey = f"angular x{nang}"
-    img_axis = tuple(range(len(data.masks[cine][vkey].shape)))[-2:]
-
-    cyl = data.masks[cine][vkey]
-    m = data.masks[cine][rkey] + 100 * data.masks[cine][akey]
-    r = masked_reduction(cyl, m, axis=img_axis)
-
-    return r - r.mean(axis=(1, 2, 3), keepdims=True)
 
 
 def superpixel_velocity_curves(
