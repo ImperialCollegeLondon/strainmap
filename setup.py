@@ -11,7 +11,7 @@ dev_require = [
     "mypy<0.790",
     "black",
 ]
-pyinstaller = ["pyinstaller==4.3"]
+pyinstaller = ["pyinstaller"]
 
 setup(
     name="StrainMap",
