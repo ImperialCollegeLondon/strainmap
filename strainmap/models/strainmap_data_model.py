@@ -1,8 +1,10 @@
 from pathlib import Path
-from typing import Optional, Text, Union
+from typing import Optional, Text, Union, Tuple, Iterator
 
 import numpy as np
 import xarray as xr
+from skimage.draw import polygon2mask
+
 
 from .. import __VERSION__
 from ..coordinates import Comp
@@ -214,6 +216,25 @@ class StrainMapData(object):
             else:
                 save_attribute(self.filename, **{key: value})
 
+    def stack_masks(self) -> Iterator[xr.DataArray]:
+        """Stack masks with images and flattens the frame and cine dimensions.
+
+        Returns:
+            Iterator[xr.DataArray]: Iterator that produces the stack array for each cine
+            with dimensions [frame, row, col, channel], being channel the magnitude, X,
+            Y, Z phase components of the phase and the labels (i.e., the masks)
+        """
+        for cine in self.segments.cine.data:
+            images = self.data_files.images(cine).drop_vars("cine")
+            shape = images.sizes["row"], images.sizes["col"]
+            labels = (
+                full_size_masks(self.segments.sel(cine=cine), shape)
+                .astype(np.uint16)
+                .expand_dims(comp=["labels"])
+            )
+            result = xr.concat([images, labels], "comp", fill_value=0)
+            yield result
+
     def __eq__(self, other) -> bool:
         """Compares two StrainMapData objects.
 
@@ -223,3 +244,27 @@ class StrainMapData(object):
         for k in keys:
             equal = equal and compare_dicts(getattr(self, k), getattr(other, k))
         return equal
+
+
+def full_size_masks(segments: xr.DataArray, shape: Tuple[int, int]) -> xr.DataArray:
+    """Finds the full-size global masks defined by the segments.
+
+    Args:
+        segments (xr.DataArray): Segments array with dimensions ["side",
+        "frame", "point", "coord"].
+        shape (Tuple[int, int]): Tuple of the shape of the output masks.
+
+    Returns:
+        xr.DataArray: A masks array with dimensions ["frame", "row", "col"].
+    """
+    seg = segments.transpose("side", "frame", "point", "coord")
+    out_T = seg.sel(side="epicardium").data[..., ::-1]
+    in_T = seg.sel(side="endocardium").data[..., ::-1]
+    masks = xr.DataArray(
+        [
+            polygon2mask(shape, out_T[i]) ^ polygon2mask(shape, in_T[i])
+            for i in range(out_T.shape[0])
+        ],
+        dims=["frame", "row", "col"],
+    )
+    return masks
