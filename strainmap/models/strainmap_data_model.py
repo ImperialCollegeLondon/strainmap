@@ -228,12 +228,12 @@ class StrainMapData(object):
             Y, Z phase components of the phase and the labels (i.e., the masks)
         """
         for cine in self.segments.cine.data:
-            images = self.data_files.images(cine).drop_vars("cine")
+            images = self.data_files.images(cine)
             shape = images.sizes["row"], images.sizes["col"]
             labels = (
                 full_size_masks(self.segments.sel(cine=cine), shape)
                 .astype(np.uint16)
-                .expand_dims(comp=["labels"])
+                .expand_dims(comp=["LABELS"])
             )
             result = xr.concat([images, labels], "comp", fill_value=0)
             yield result

@@ -39,6 +39,7 @@ setup(
         "xarray==0.18.2",
         "netCDF4==1.5.6",
         "python-decouple==3.6",
+        "tqdm==4.64.0",
     ],
     package_data={"strainmap.gui": ["icons/*.gif", "icons/CREDITS.md"]},
     packages=find_packages("."),
