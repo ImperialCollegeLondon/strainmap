@@ -28,6 +28,7 @@ class StrainMap(object):
         self.achieved = Requisites.NONE
         self.data = None
         self.review_mode = False
+        self.add_menu_bar()
         self.unlock()
 
     @property
@@ -157,3 +158,40 @@ class StrainMap(object):
     def export_rotation(self, **kwargs):
         """Exports rotation to a XLSX file."""
         rotation_to_xlsx(data=self.data, **kwargs)
+
+    def add_menu_bar(self):
+        """Add a menu bar to the main window."""
+        import tkinter as tk
+
+        menubar = tk.Menu(self.window)
+        file = tk.Menu(menubar)
+        file.add_command(
+            label="Export data for AI training", command=self.export_for_training
+        )
+        menubar.add_cascade(label="File", menu=file)
+
+        self.window.config(menu=menubar)
+
+    def export_for_training(self):
+        """Export data and masks for re-training the AI."""
+        import tkinter as tk
+        from tkinter import messagebox
+        from pathlib import Path
+        from .models.writers import export_for_training
+
+        if self.data is None or self.data.segments.shape == ():
+            messagebox.showerror(
+                title="Missing segmentation!",
+                message="There are no labelled (i.e. segmented) data available to "
+                "export.",
+            )
+            return
+
+        path = tk.filedialog.askdirectory(
+            title="Select directory to export the data into",
+            initialdir=Path("~").expanduser(),
+        )
+        if path == "":
+            return
+
+        export_for_training(Path(path), self.data)

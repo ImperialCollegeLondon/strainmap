@@ -111,12 +111,7 @@ def regenerate(data: StrainMapData, structure: dict, filename: Path) -> None:
         structure: Nested dictionary structure containing the relevant data.
         filename: The name of the h5 file
     """
-    from .writers import export_for_training
-    from pathlib import Path
-
     data.__dict__.update(_regenerate_auxiliar(structure))
     data.__dict__.update(_regenerate_segmentation(structure))
-
-    export_for_training(Path("~").expanduser() / "Desktop" / "train", data)
     _regenerate_velocities(data)
     data.add_file(filename.with_suffix(".nc"))
