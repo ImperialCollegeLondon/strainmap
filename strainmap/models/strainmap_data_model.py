@@ -10,7 +10,6 @@ from .. import __VERSION__
 from ..coordinates import Comp
 from ..exceptions import NoDICOMDataException
 from .readers import DICOMReaderBase, read_folder, read_strainmap_file
-from .writers import write_netcdf_file, save_group, save_attribute
 
 TIMESHIFT = -0.045
 """Default timeshift"""
@@ -183,6 +182,8 @@ class StrainMapData(object):
 
     def save_all(self):
         """Saves the data to the netCDF file, if present."""
+        from .writers import write_netcdf_file
+
         if self.filename == Path(".") or self.data_files is None:
             return
 
@@ -206,6 +207,8 @@ class StrainMapData(object):
         Return:
             None
         """
+        from .writers import save_group, save_attribute
+
         if self.filename == Path("."):
             return
 
