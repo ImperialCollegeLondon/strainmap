@@ -15,7 +15,7 @@ pyinstaller = ["pyinstaller"]
 
 setup(
     name="StrainMap",
-    version="1.0.5",
+    version="1.0.6",
     url="https://github.com/imperialcollegelondon/strainmap",
     author="Research Computing Service, Imperial College London",
     author_email="rcs-support@imperial.ac.uk",
