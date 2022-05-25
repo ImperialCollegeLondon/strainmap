@@ -163,7 +163,16 @@ class StrainMap(object):
         """Add a menu bar to the main window."""
         import tkinter as tk
 
-        menubar = tk.Menu(self.window)
+        try:
+            menubar = tk.Menu(self.window)
+        except AttributeError:
+            from logging import getLogger
+
+            getLogger().warning(
+                "Probably just dealing with a mock window in a test. Ignoring."
+            )
+            return
+
         file = tk.Menu(menubar)
         file.add_command(
             label="Export data for AI training", command=self.export_for_training
