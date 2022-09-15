@@ -35,11 +35,21 @@ jobs:
       with:
         poetry-version: 1.1.11
 
+    - name: Install Linux dependencies
+      if: matrix.os == 'ubuntu-latest'
+      run: |
+        sudo apt -y install --no-install-recommends xvfb xauth
+
     - name: Install dependencies
       run: poetry install
 
-    - name: Run tests
+    - name: Test with pytest (Windows and Macos)
+      if: matrix.os != 'ubuntu-latest'
       run: poetry run pytest
+
+    - name: Test with pytest (Linux)
+      if: matrix.os == 'ubuntu-latest'
+      run: xvfb-run -a poetry run pytest
 
   build-windows:
     needs: test
@@ -52,7 +62,7 @@ jobs:
     - name: Set up Python
       uses: actions/setup-python@v4
       with:
-        python-version: 3.8
+        python-version: 3.9
     
     - name: Install Poetry
       uses: abatilo/actions-poetry@v2.0.0
@@ -82,7 +92,7 @@ jobs:
     - name: Set up Python
       uses: actions/setup-python@v4
       with:
-        python-version: 3.8
+        python-version: 3.9
     
     - name: Install Poetry
       uses: abatilo/actions-poetry@v2.0.0
