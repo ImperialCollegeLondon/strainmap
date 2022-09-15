@@ -1,0 +1,106 @@
+# This workflow will install Python dependencies, run tests and lint with a variety of Python versions
+# For more information see: https://help.github.com/actions/language-and-framework-guides/using-python-with-github-actions
+
+name: Test and build
+
+on: [push, pull_request, release]
+
+jobs:
+  style:
+    if: github.event_name != 'release'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: pre-commit/action@v2.0.2
+
+  test:
+    needs: style
+    if: github.event_name != 'release'
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        python-version: [3.8, 3.9, 3.10]
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - uses: actions/setup-python@v4
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Install Poetry
+      uses: abatilo/actions-poetry@v2.0.0
+      with:
+        poetry-version: 1.1.11
+
+    - name: Install dependencies
+      run: poetry install
+
+    - name: Run tests
+      run: poetry run pytest --timeout=300
+
+  build-windows:
+    needs: test
+    if: github.event_name == 'release' || github.ref == 'refs/heads/main'
+    runs-on: windows-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: 3.8
+    
+    - name: Install Poetry
+      uses: abatilo/actions-poetry@v2.0.0
+      with:
+        poetry-version: 1.1.11
+
+    - name: Install dependencies
+      run: poetry install
+
+    - name: Build package
+      run: poetry run -m pyinstaller strain.windows.spec
+        
+    - uses: actions/upload-artifact@v2
+      if: success()
+      with:
+        name: Windows
+        path: dist/strain.exe
+
+  build-macos:
+    needs: test
+    if: github.event_name == 'release' || github.ref == 'refs/heads/main'
+    runs-on: macos-latest
+
+    steps:
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: 3.8
+    
+    - name: Install Poetry
+      uses: abatilo/actions-poetry@v2.0.0
+      with:
+        poetry-version: 1.1.11
+
+    - name: Install dependencies
+      run: poetry install
+
+    - name: Build package 
+      run: |
+        poetry run -m pyinstaller strain.mac.spec
+        cd dist
+        hdiutil create ./StrainMap.dmg -srcfolder strain.app -ov
+  
+    - uses: actions/upload-artifact@v2
+      if: success()
+      with:
+        name: MacOS
+        path: dist/StrainMap.dmg
