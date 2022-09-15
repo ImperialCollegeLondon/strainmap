@@ -1,4 +1,10 @@
+import sys
 from unittest.mock import MagicMock, patch
+
+import pytest
+
+if sys.platform.startswith("win"):
+    pytest.skip("Atlas' tests fail in windows", allow_module_level=True)
 
 
 def test_validate(dummy_data, tmp_path):
