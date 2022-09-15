@@ -277,7 +277,7 @@ pyflakes = ">=2.4.0,<2.5.0"
 
 [[package]]
 name = "flatbuffers"
-version = "1.12"
+version = "2.0.7"
 description = "The FlatBuffers serialization format for Python"
 category = "main"
 optional = false
@@ -527,7 +527,7 @@ python-versions = ">=3.6"
 
 [[package]]
 name = "keras"
-version = "2.9.0"
+version = "2.10.0"
 description = "Deep learning for humans."
 category = "main"
 optional = false
@@ -862,7 +862,7 @@ python-versions = ">=2.7,!=3.0.*,!=3.1.*,!=3.2.*,!=3.3.*,!=3.4.*,!=3.5.*,!=3.6.*
 
 [[package]]
 name = "numpy"
-version = "1.22.0"
+version = "1.23.3"
 description = "NumPy is the fundamental package for array computing with Python."
 category = "main"
 optional = false
@@ -1043,11 +1043,11 @@ tests = ["flake8 (>=3.7.7)", "pytest (>=4.6.9)", "pytest-cov (>=2.6.1)", "pytest
 
 [[package]]
 name = "protobuf"
-version = "3.20.0"
+version = "3.19.5"
 description = "Protocol Buffers"
 category = "main"
 optional = false
-python-versions = ">=3.7"
+python-versions = ">=3.5"
 
 [[package]]
 name = "py"
@@ -1467,7 +1467,7 @@ python-versions = ">=2.7, !=3.0.*, !=3.1.*, !=3.2.*"
 
 [[package]]
 name = "tensorboard"
-version = "2.9.0"
+version = "2.10.0"
 description = "TensorBoard lets you watch Tensors Flow"
 category = "main"
 optional = false
@@ -1480,7 +1480,7 @@ google-auth-oauthlib = ">=0.4.1,<0.5"
 grpcio = ">=1.24.3"
 markdown = ">=2.6.8"
 numpy = ">=1.12.0"
-protobuf = ">=3.9.2"
+protobuf = ">=3.9.2,<3.20"
 requests = ">=2.21.0,<3"
 tensorboard-data-server = ">=0.6.0,<0.7.0"
 tensorboard-plugin-wit = ">=1.6.0"
@@ -1504,7 +1504,7 @@ python-versions = "*"
 
 [[package]]
 name = "tensorflow"
-version = "2.9.0"
+version = "2.10.0"
 description = "TensorFlow is an open source machine learning framework for everyone."
 category = "main"
 optional = false
@@ -1513,21 +1513,21 @@ python-versions = ">=3.7"
 [package.dependencies]
 absl-py = ">=1.0.0"
 astunparse = ">=1.6.0"
-flatbuffers = ">=1.12,<2"
+flatbuffers = ">=2.0"
 gast = ">=0.2.1,<=0.4.0"
 google-pasta = ">=0.1.1"
 grpcio = ">=1.24.3,<2.0"
 h5py = ">=2.9.0"
-keras = ">=2.9.0rc0,<2.10.0"
+keras = ">=2.10.0,<2.11"
 keras-preprocessing = ">=1.1.1"
 libclang = ">=13.0.0"
 numpy = ">=1.20"
 opt-einsum = ">=2.3.2"
 packaging = "*"
-protobuf = ">=3.9.2"
+protobuf = ">=3.9.2,<3.20"
 six = ">=1.12.0"
-tensorboard = ">=2.9,<2.10"
-tensorflow-estimator = ">=2.9.0rc0,<2.10.0"
+tensorboard = ">=2.10,<2.11"
+tensorflow-estimator = ">=2.10.0,<2.11"
 tensorflow-io-gcs-filesystem = ">=0.23.1"
 termcolor = ">=1.1.0"
 typing-extensions = ">=3.6.6"
@@ -1535,7 +1535,7 @@ wrapt = ">=1.11.0"
 
 [[package]]
 name = "tensorflow-estimator"
-version = "2.9.0"
+version = "2.10.0"
 description = "TensorFlow Estimator."
 category = "main"
 optional = false
@@ -1788,7 +1788,7 @@ testing = ["pytest (>=6)", "pytest-checkdocs (>=2.4)", "pytest-flake8", "pytest-
 [metadata]
 lock-version = "1.1"
 python-versions = ">=3.8,<3.11"
-content-hash = "80cea9f03ccc68d6f76d0f1d3726896d1e09980de79059899c585816b976faa9"
+content-hash = "bc2a15b092d17c8c4981805d88f16f1ec9c3d66420b804a9a9c326f5c5532360"
 
 [metadata.files]
 absl-py = []

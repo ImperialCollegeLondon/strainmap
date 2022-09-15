@@ -20,7 +20,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
+        os: [ubuntu-latest, windows-2019, macos-latest]
         python-version: ["3.8", "3.9", "3.10"]
 
     steps:
@@ -54,7 +54,7 @@ jobs:
   build-windows:
     needs: test
     if: github.event_name == 'release' || github.ref == 'refs/heads/main'
-    runs-on: windows-latest
+    runs-on: windows-2019
     
     steps:
     - uses: actions/checkout@v3
