@@ -276,17 +276,17 @@ def export_for_training(destination: Path, data: StrainMapData) -> None:
         destination (Path): Location where to save the data.
         data (StrainMapData): A StrainMapData object with segmentations.
     """
-    import re
     from datetime import datetime as dt
     from tqdm import tqdm
 
     now = round(dt.now().timestamp())
     dataset_name = "stacked"
     encoding = {dataset_name: {"zlib": True, "complevel": 9}}
-    for stacked in tqdm(data.stack_masks(), total=data.segments.sizes["cine"]):
+    for num, stacked in enumerate(
+        tqdm(data.stack_masks(), total=data.segments.sizes["cine"])
+    ):
         name = data.metadata()["Patient Name"].replace(" ", "")
-        cine = re.search("sa([0-9])", stacked.cine.item()).group(1)
-        filename = destination / f"{name}_{cine}_{now}_train.nc"
+        filename = destination / f"{name}_{num+1}_{now}_train.nc"
         stacked.drop_vars("cine").to_dataset(name=dataset_name).to_netcdf(
             filename, encoding=encoding
         )
