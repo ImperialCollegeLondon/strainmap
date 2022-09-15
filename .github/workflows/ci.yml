@@ -21,7 +21,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
-        python-version: [3.8, 3.9, 3.10]
+        python-version: ["3.8", "3.9", "3.10"]
 
     steps:
     - uses: actions/checkout@v3
@@ -39,7 +39,7 @@ jobs:
       run: poetry install
 
     - name: Run tests
-      run: poetry run pytest --timeout=300
+      run: poetry run pytest
 
   build-windows:
     needs: test
