@@ -1,6 +1,7 @@
-from unittest.mock import MagicMock, PropertyMock, patch
-from pytest import approx, mark
 import sys
+from unittest.mock import MagicMock, PropertyMock, patch
+
+from pytest import approx, mark
 
 pytestmark = mark.skipif(sys.platform == "linux", reason="Breaks tests under Linux")
 
@@ -135,6 +136,7 @@ def test_quick_segmentation(septum, centroid, segmentation_view, strainmap_data)
 
 def test_plot_segments(segmentation_view, strainmap_data):
     import numpy as np
+
     from strainmap.models.segmentation import _init_segments
 
     contour = np.random.random((2, 1, 2, 5))
@@ -173,8 +175,9 @@ def test_clear_segments(segmentation_view):
 def test_scroll(segmentation_view, strainmap_data):
     import numpy as np
     import xarray as xr
-    from strainmap.models.segmentation import _init_septum_and_centroid
+
     from strainmap.coordinates import Comp
+    from strainmap.models.segmentation import _init_septum_and_centroid
 
     dataset = strainmap_data.data_files.datasets[0]
     segmentation_view.controller.data = strainmap_data
@@ -208,8 +211,12 @@ def test_scroll(segmentation_view, strainmap_data):
 
 
 def test_contour_edited_and_undo(segmentation_view, strainmap_data):
-    from strainmap.models.segmentation import _init_septum_and_centroid, _init_segments
     import numpy as np
+
+    from strainmap.models.segmentation import (
+        _init_segments,
+        _init_septum_and_centroid,
+    )
 
     contour = np.random.random((2, 2, 2, 5))
     dataset = strainmap_data.data_files.datasets[0]

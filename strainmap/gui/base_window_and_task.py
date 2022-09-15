@@ -14,6 +14,7 @@ from tkinter import ttk
 from typing import List, Optional, Text, Type
 
 from PIL import Image, ImageTk
+
 from .. import __VERSION__
 
 ICONS_DIRECTORY = Path(__file__).parent / "icons"

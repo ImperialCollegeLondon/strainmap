@@ -3,6 +3,8 @@ whole code. """
 import weakref
 from typing import Callable
 
+from .coordinates import Mark
+from .exceptions import NoDICOMDataException
 from .gui import *  # noqa: F403,F401
 from .gui.base_window_and_task import REGISTERED_VIEWS, Requisites
 from .models import segmentation
@@ -12,8 +14,6 @@ from .models.strain import update_strain_es_marker
 from .models.strainmap_data_model import StrainMapData
 from .models.velocities import calculate_velocities, update_markers
 from .models.writers import rotation_to_xlsx, velocity_to_xlsx
-from .coordinates import Mark
-from .exceptions import NoDICOMDataException
 
 
 class StrainMap(object):
@@ -184,8 +184,9 @@ class StrainMap(object):
     def export_for_training(self):
         """Export data and masks for re-training the AI."""
         import tkinter as tk
-        from tkinter import messagebox
         from pathlib import Path
+        from tkinter import messagebox
+
         from .models.writers import export_for_training
 
         if self.data is None or self.data.segments.shape == ():

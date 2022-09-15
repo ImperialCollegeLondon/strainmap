@@ -31,8 +31,8 @@ def test_save(tmpdir, segmented_data):
 
 @mark.xfail(reason="Refactoring in progress.")
 def test_from_file(dicom_data_path, h5_file_path):
-    from strainmap.models.strainmap_data_model import StrainMapData
     from strainmap.models.readers import from_relative_paths
+    from strainmap.models.strainmap_data_model import StrainMapData
 
     data = StrainMapData.from_folder(dicom_data_path)
     data.from_file(h5_file_path)

@@ -61,10 +61,11 @@ def strainmap_data(dicom_data_path):
 @fixture
 def segmented_data(strainmap_data):
     """Returns a StrainMapData object with segmented data."""
+    import numpy as np
+
+    from strainmap.coordinates import Comp
     from strainmap.models.contour_mask import Contour
     from strainmap.models.segmentation import new_segmentation
-    import numpy as np
-    from strainmap.coordinates import Comp
 
     cine = strainmap_data.data_files.datasets[0]
     image = strainmap_data.data_files.images(cine).sel(comp=Comp.MAG.name)
@@ -103,9 +104,9 @@ def segmented_data(strainmap_data):
 
 @fixture
 def registered_views():
+    from strainmap.gui.atlas_view import AtlasTaskView
     from strainmap.gui.data_view import DataTaskView
     from strainmap.gui.segmentation_view import SegmentationTaskView
-    from strainmap.gui.atlas_view import AtlasTaskView
 
     return [DataTaskView, SegmentationTaskView, AtlasTaskView]
 
@@ -121,8 +122,9 @@ def control_with_mock_window(registered_views):
 
 @fixture
 def main_window():
-    from strainmap.gui.base_window_and_task import MainWindow
     from tkinter import _default_root
+
+    from strainmap.gui.base_window_and_task import MainWindow
 
     if _default_root is not None:
         _default_root.destroy()
@@ -136,27 +138,30 @@ def main_window():
 
 @fixture
 def data_view(main_window):
-    from strainmap.gui.data_view import DataTaskView
-    from strainmap.controller import StrainMap
     import weakref
+
+    from strainmap.controller import StrainMap
+    from strainmap.gui.data_view import DataTaskView
 
     return DataTaskView(main_window, weakref.ref(StrainMap))
 
 
 @fixture
 def segmentation_view(main_window):
-    from strainmap.gui.segmentation_view import SegmentationTaskView
-    from strainmap.controller import StrainMap
     import weakref
+
+    from strainmap.controller import StrainMap
+    from strainmap.gui.segmentation_view import SegmentationTaskView
 
     return SegmentationTaskView(main_window, weakref.ref(StrainMap))
 
 
 @fixture
 def velocities_view(main_window, data_with_velocities):
-    from strainmap.gui.velocities_view import VelocitiesTaskView
-    from strainmap.controller import StrainMap
     import weakref
+
+    from strainmap.controller import StrainMap
+    from strainmap.gui.velocities_view import VelocitiesTaskView
 
     StrainMap.data = data_with_velocities
     StrainMap.window = main_window
@@ -165,9 +170,10 @@ def velocities_view(main_window, data_with_velocities):
 
 @fixture
 def atlas_view(main_window):
-    from strainmap.gui.atlas_view import AtlasTaskView
-    from strainmap.controller import StrainMap
     import weakref
+
+    from strainmap.controller import StrainMap
+    from strainmap.gui.atlas_view import AtlasTaskView
 
     StrainMap.data = None
     return AtlasTaskView(main_window, weakref.ref(StrainMap))
@@ -179,6 +185,7 @@ def actions_manager():
 
     matplotlib.use("Agg")
     from matplotlib.pyplot import figure
+
     from strainmap.gui.figure_actions_manager import FigureActionsManager
 
     fig = figure()
@@ -189,10 +196,10 @@ def actions_manager():
 def action():
     from strainmap.gui.figure_actions_manager import (
         ActionBase,
-        TriggerSignature,
+        Button,
         Location,
         MouseAction,
-        Button,
+        TriggerSignature,
     )
 
     s1 = TriggerSignature(Location.EDGE, Button.LEFT, MouseAction.MOVE)
@@ -225,8 +232,9 @@ def figure():
 
 @fixture
 def data_with_velocities(segmented_data):
-    from strainmap.models.velocities import calculate_velocities
     from copy import deepcopy
+
+    from strainmap.models.velocities import calculate_velocities
 
     dataset_name = segmented_data.data_files.datasets[0]
     output = deepcopy(segmented_data)
@@ -237,8 +245,9 @@ def data_with_velocities(segmented_data):
 @fixture
 def dummy_data() -> pd.DataFrame:
     """Create dataframe with some dummy data."""
-    from strainmap.gui.atlas_view import SLICES, COMP, REGIONS, validate_data
     import numpy as np
+
+    from strainmap.gui.atlas_view import COMP, REGIONS, SLICES, validate_data
 
     M = 30
     N = 9 * 7 * M
@@ -289,7 +298,11 @@ def atlas_view_with_data(atlas_view, dummy_data):
 def segments_arrays():
     import numpy as np
     import xarray as xr
-    from strainmap.models.segmentation import _init_septum_and_centroid, _init_segments
+
+    from strainmap.models.segmentation import (
+        _init_segments,
+        _init_septum_and_centroid,
+    )
 
     frames, points = np.random.randint(20, 51, 2)
     segments = xr.concat(
@@ -339,9 +352,10 @@ def masks(segmented_data, theta0):
 
 @fixture
 def empty_markers(regions):
-    from strainmap.models.velocities import Mark
-    from strainmap.coordinates import Comp
     import numpy as np
+
+    from strainmap.coordinates import Comp
+    from strainmap.models.velocities import Mark
 
     components = [Comp.LONG.name, Comp.RAD.name, Comp.CIRC.name]
     quantities = ["frame", "velocity", "time"]
@@ -360,6 +374,7 @@ def empty_markers(regions):
 @fixture
 def regions():
     from itertools import chain
+
     from strainmap.coordinates import Region
 
     return list(chain.from_iterable(([r.name] * r.value for r in Region)))
@@ -367,8 +382,9 @@ def regions():
 
 @fixture
 def velocities(regions):
-    from strainmap.coordinates import Comp
     import numpy as np
+
+    from strainmap.coordinates import Comp
 
     components = [Comp.LONG.name, Comp.RAD.name, Comp.CIRC.name]
     frames = 50
@@ -390,8 +406,8 @@ def initial_centroid():
 
 @fixture
 def initial_segments(initial_centroid):
-    import xarray as xr
     import numpy as np
+    import xarray as xr
 
     t = np.linspace(0, 2 * np.pi, 360, endpoint=False)
     xy0 = np.array([np.cos(t), np.sin(t)])

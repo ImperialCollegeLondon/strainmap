@@ -1,11 +1,14 @@
 import tkinter as tk
 from tkinter import ttk
-from typing import Callable, Dict, Tuple, Sequence
+from typing import Callable, Dict, Sequence, Tuple
 
 import xarray as xr
 from matplotlib import pyplot as plt
 from matplotlib.axes import Axes
-from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
+from matplotlib.backends.backend_tkagg import (
+    FigureCanvasTkAgg,
+    NavigationToolbar2Tk,
+)
 from matplotlib.colorbar import Colorbar
 from matplotlib.figure import Figure
 from matplotlib.gridspec import GridSpec

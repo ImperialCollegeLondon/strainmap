@@ -60,7 +60,7 @@ def test_scroll(velocities_view, data_with_velocities):
 
 
 def test_color_plot(velocities_view, data_with_velocities):
-    from strainmap.coordinates import Region, Comp
+    from strainmap.coordinates import Comp, Region
 
     velocities_view.calculate_velocities = MagicMock()
     velocities_view.controller.data = data_with_velocities

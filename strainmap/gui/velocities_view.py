@@ -1,7 +1,7 @@
 import tkinter as tk
 import tkinter.filedialog
 from tkinter import ttk
-from typing import Optional, Sequence, Dict, Tuple
+from typing import Dict, Optional, Sequence, Tuple
 
 import numpy as np
 import xarray as xr
@@ -9,10 +9,10 @@ from matplotlib import pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.figure import Figure
 
+from ..coordinates import Comp, Mark, Region
+from ..tools import get_sa_location
 from .base_window_and_task import Requisites, TaskViewBase, register_view
 from .markers_figure import MarkersFigure
-from ..coordinates import Region, Comp, Mark
-from ..tools import get_sa_location
 
 
 @register_view

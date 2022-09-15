@@ -1,16 +1,16 @@
 from __future__ import annotations
 
-from typing import Optional, Dict, Callable, Tuple, List
-from pathlib import Path
-import warnings
 import logging
+import warnings
+from pathlib import Path
+from typing import Callable, Dict, List, Optional, Tuple
 
+import cv2
+import decouple
 import numpy as np
 import xarray as xr
-from tensorflow import keras
-import cv2
 from skimage import measure
-import decouple
+from tensorflow import keras
 
 
 def ai_segmentation(images: xr.DataArray, *, points: int, **kwargs) -> xr.DataArray:

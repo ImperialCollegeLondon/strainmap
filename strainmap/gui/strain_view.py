@@ -4,13 +4,20 @@ from tkinter import ttk
 
 import numpy as np
 from matplotlib import pyplot as plt
-from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
+from matplotlib.backends.backend_tkagg import (
+    FigureCanvasTkAgg,
+    NavigationToolbar2Tk,
+)
 from matplotlib.figure import Figure
 
-from .base_window_and_task import Requisites, TaskViewBase, register_view  # noqa: F401
+from ..tools import get_sa_location
+from .base_window_and_task import (  # noqa: F401
+    Requisites,
+    TaskViewBase,
+    register_view,
+)
 from .figure_actions import Markers, SimpleScroller
 from .figure_actions_manager import FigureActionsManager
-from ..tools import get_sa_location
 
 
 # FIXME Re-enable when needed

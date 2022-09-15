@@ -6,7 +6,8 @@ import numpy as np
 import openpyxl as xlsx
 import pandas as pd
 import xarray as xr
-from ..coordinates import Region, Comp
+
+from ..coordinates import Comp, Region
 from .strainmap_data_model import StrainMapData
 
 
@@ -93,8 +94,8 @@ def export_superpixel(data, cine, filename):
 
     TODO: Remove in final version.
     """
-    from .velocities import superpixel_velocity_curves
     from .transformations import coordinates
+    from .velocities import superpixel_velocity_curves
 
     svel = (
         superpixel_velocity_curves(
@@ -277,6 +278,7 @@ def export_for_training(destination: Path, data: StrainMapData) -> None:
         data (StrainMapData): A StrainMapData object with segmentations.
     """
     from datetime import datetime as dt
+
     from tqdm import tqdm
 
     now = round(dt.now().timestamp())

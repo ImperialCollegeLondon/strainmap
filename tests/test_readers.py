@@ -3,7 +3,9 @@ from pytest import approx
 
 def test_read_images(data_tree):
     from random import choice
+
     import pydicom
+
     from strainmap.models.readers import read_images
 
     cine = choice(data_tree.cine.values)
@@ -19,10 +21,11 @@ def test_read_images(data_tree):
 
 
 def test_velocity_sensitivity(dicom_data_path):
-    from strainmap.models.readers import velocity_sensitivity
-    from strainmap.models.strainmap_data_model import StrainMapData
     import numpy as np
     import pydicom
+
+    from strainmap.models.readers import velocity_sensitivity
+    from strainmap.models.strainmap_data_model import StrainMapData
 
     data_tree = StrainMapData.from_folder(data_files=dicom_data_path).data_files.files
     filename = data_tree[0, 0, 0].item()
@@ -36,8 +39,9 @@ def test_velocity_sensitivity(dicom_data_path):
 
 
 def test_dicom_reader():
-    from strainmap.models.readers import DICOM
     from pathlib import Path
+
+    from strainmap.models.readers import DICOM
 
     path = Path(__file__).parent / "data" / "CM1"
     assert DICOM.belongs(path)
@@ -60,8 +64,8 @@ def test_dicom_reader():
 def test_readers_registry():
     from strainmap.models.readers import (
         DICOM_READERS,
-        register_dicom_reader,
         DICOMReaderBase,
+        register_dicom_reader,
     )
 
     assert len(DICOM_READERS) > 0
@@ -74,10 +78,11 @@ def test_readers_registry():
 
 
 def test_read_netcdf_file(tmp_path):
-    from strainmap.models.writers import write_netcdf_file
-    from strainmap.models.readers import read_netcdf_file
-    import xarray as xr
     import numpy as np
+    import xarray as xr
+
+    from strainmap.models.readers import read_netcdf_file
+    from strainmap.models.writers import write_netcdf_file
 
     ds = xr.Dataset(
         {"foo": (("x", "y"), np.random.rand(4, 5)), "bar": (("x"), np.random.rand(4))},

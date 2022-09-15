@@ -3,10 +3,10 @@ from unittest.mock import MagicMock
 
 def test_trigger_signature():
     from strainmap.gui.figure_actions_manager import (
-        TriggerSignature,
+        Button,
         Location,
         MouseAction,
-        Button,
+        TriggerSignature,
     )
 
     s1 = TriggerSignature(Location.EDGE, Button.LEFT, MouseAction.MOVE)
@@ -32,8 +32,9 @@ def test_mouse_clicked(actions_manager):
 
 
 def test_mouse_moved(actions_manager):
-    from matplotlib.backend_bases import MouseEvent
     from time import sleep, time
+
+    from matplotlib.backend_bases import MouseEvent
 
     event = MouseEvent("moved", actions_manager.canvas, 100, 200)
     actions_manager._select_action = MagicMock(return_value=[])
@@ -73,9 +74,15 @@ def test_mouse_moved(actions_manager):
 
 
 def test_mouse_released(actions_manager):
-    from matplotlib.backend_bases import MouseEvent
-    from strainmap.gui.figure_actions_manager import Location, Button, MouseAction
     from time import sleep, time
+
+    from matplotlib.backend_bases import MouseEvent
+
+    from strainmap.gui.figure_actions_manager import (
+        Button,
+        Location,
+        MouseAction,
+    )
 
     event = MouseEvent("moved", actions_manager.canvas, 100, 200)
     revent = MouseEvent("button_release_event", actions_manager.canvas, 100, 200)
@@ -103,7 +110,12 @@ def test_mouse_released(actions_manager):
 
 def test_mouse_scroll(actions_manager):
     from matplotlib.backend_bases import MouseEvent
-    from strainmap.gui.figure_actions_manager import Location, Button, MouseAction
+
+    from strainmap.gui.figure_actions_manager import (
+        Button,
+        Location,
+        MouseAction,
+    )
 
     event = MouseEvent("moved", actions_manager.canvas, 100, 200, button=2)
     actions_manager._select_action = MagicMock()
@@ -116,7 +128,12 @@ def test_mouse_scroll(actions_manager):
 
 def test_mouse_enter_axes(actions_manager):
     from matplotlib.backend_bases import MouseEvent
-    from strainmap.gui.figure_actions_manager import Location, Button, MouseAction
+
+    from strainmap.gui.figure_actions_manager import (
+        Button,
+        Location,
+        MouseAction,
+    )
 
     event = MouseEvent("moved", actions_manager.canvas, 100, 200)
     actions_manager._select_action = MagicMock()
@@ -129,7 +146,12 @@ def test_mouse_enter_axes(actions_manager):
 
 def test_mouse_leave_axes(actions_manager):
     from matplotlib.backend_bases import MouseEvent
-    from strainmap.gui.figure_actions_manager import Location, Button, MouseAction
+
+    from strainmap.gui.figure_actions_manager import (
+        Button,
+        Location,
+        MouseAction,
+    )
 
     event = MouseEvent("moved", actions_manager.canvas, 100, 200)
     actions_manager._select_action = MagicMock()
@@ -142,7 +164,12 @@ def test_mouse_leave_axes(actions_manager):
 
 def test_mouse_enter_figure(actions_manager):
     from matplotlib.backend_bases import MouseEvent
-    from strainmap.gui.figure_actions_manager import Location, Button, MouseAction
+
+    from strainmap.gui.figure_actions_manager import (
+        Button,
+        Location,
+        MouseAction,
+    )
 
     event = MouseEvent("moved", actions_manager.canvas, 100, 200)
     actions_manager._select_action = MagicMock()
@@ -155,7 +182,12 @@ def test_mouse_enter_figure(actions_manager):
 
 def test_mouse_leave_figure(actions_manager):
     from matplotlib.backend_bases import MouseEvent
-    from strainmap.gui.figure_actions_manager import Location, Button, MouseAction
+
+    from strainmap.gui.figure_actions_manager import (
+        Button,
+        Location,
+        MouseAction,
+    )
 
     event = MouseEvent("moved", actions_manager.canvas, 100, 200)
     actions_manager._select_action = MagicMock()
@@ -168,6 +200,7 @@ def test_mouse_leave_figure(actions_manager):
 
 def test_select_click_type(actions_manager):
     from matplotlib.backend_bases import MouseEvent, PickEvent
+
     from strainmap.gui.figure_actions_manager import MouseAction
 
     event = MouseEvent("click", actions_manager.canvas, 100, 200)
@@ -203,6 +236,7 @@ def test_select_click_type(actions_manager):
 
 def test_select_movement_type(actions_manager):
     from matplotlib.backend_bases import MouseEvent, PickEvent
+
     from strainmap.gui.figure_actions_manager import MouseAction
 
     event = MouseEvent("click", actions_manager.canvas, 100, 200)
@@ -230,6 +264,7 @@ def test_select_movement_type(actions_manager):
 
 def test_select_location(actions_manager):
     from matplotlib.backend_bases import MouseEvent
+
     from strainmap.gui.figure_actions_manager import Location
 
     actions_manager._figure().add_subplot()
@@ -245,10 +280,10 @@ def test_select_location(actions_manager):
 
 def test_select_action(actions_manager):
     from strainmap.gui.figure_actions_manager import (
-        TriggerSignature,
+        Button,
         Location,
         MouseAction,
-        Button,
+        TriggerSignature,
     )
 
     s1 = TriggerSignature(Location.EDGE, Button.LEFT, MouseAction.MOVE)
@@ -292,7 +327,10 @@ def test_add_remove_action(actions_manager, action):
 
 
 def test_get_mouse_location():
-    from strainmap.gui.figure_actions_manager import Location, get_mouse_location
+    from strainmap.gui.figure_actions_manager import (
+        Location,
+        get_mouse_location,
+    )
 
     limits = (0, 1, 0, 1)
     fraction = 0.2

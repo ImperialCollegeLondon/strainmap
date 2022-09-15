@@ -21,9 +21,10 @@ def test_segmenter_global_segmenter():
 
 
 def test_segmenter_propagated_segmenter():
+    import numpy as np
+
     from strainmap.models.contour_mask import Contour
     from strainmap.models.snakes_segmenter import Segmenter
-    import numpy as np
 
     c = Contour.circle()
 
@@ -46,10 +47,11 @@ def test_segmenter_propagated_segmenter():
 
 @patch("skimage.segmentation.active_contour", lambda img, ini, *args, **kwargs: ini)
 def test_active_contour():
-    """ This only tests if methods are called correctly, NOT if the algorithm works."""
+    """This only tests if methods are called correctly, NOT if the algorithm works."""
+    import numpy as np
+
     from strainmap.models.contour_mask import Contour
     from strainmap.models.snakes_segmenter import active_contour_model
-    import numpy as np
 
     c = Contour.circle()
 
@@ -65,8 +67,9 @@ def test_active_contour():
     lambda img, iterations, init_level_set, *args, **kwargs: init_level_set,
 )
 def test_morph_gac_model():
-    """ This only tests if methods are called correctly, NOT if the algorithm works."""
+    """This only tests if methods are called correctly, NOT if the algorithm works."""
     import numpy as np
+
     from strainmap.models.contour_mask import Contour
     from strainmap.models.snakes_segmenter import (
         morphological_geodesic_active_contour_model,
@@ -92,8 +95,9 @@ def test_morph_gac_model():
     lambda img, iterations, init_level_set, *args, **kwargs: init_level_set,
 )
 def test_morph_cv_model():
-    """ This only tests if methods are called correctly, NOT if the algorithm works."""
+    """This only tests if methods are called correctly, NOT if the algorithm works."""
     import numpy as np
+
     from strainmap.models.contour_mask import Contour
     from strainmap.models.snakes_segmenter import morphological_chan_vese_model
 

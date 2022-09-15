@@ -1,5 +1,6 @@
-import pytest
 from unittest.mock import MagicMock
+
+import pytest
 
 
 @pytest.fixture
@@ -9,8 +10,8 @@ def data_shape():
 
 @pytest.fixture
 def keras_model(data_shape):
-    from tensorflow import keras
     import numpy as np
+    from tensorflow import keras
 
     train_input = np.random.random((100, *data_shape))
     train_target = np.random.random((100, data_shape[0], data_shape[1], 1))
@@ -25,9 +26,10 @@ def keras_model(data_shape):
 
 
 def test_add_ellipse():
-    from strainmap.models.ai_segmenter import add_ellipse
     import cv2
     import numpy as np
+
+    from strainmap.models.ai_segmenter import add_ellipse
 
     # Inputs is an incomplete ellipse
     labels = cv2.ellipse(
@@ -60,9 +62,10 @@ def test_add_ellipse():
 
 
 def test_get_contours():
-    from strainmap.models.ai_segmenter import get_contours
     import cv2
     import numpy as np
+
+    from strainmap.models.ai_segmenter import get_contours
 
     labels = np.zeros((20, 20), dtype=np.int8)
     labels[4:15, 4:15] = 1
@@ -89,8 +92,9 @@ def test_get_contours():
 
 
 def test_interpolate_contour():
-    from strainmap.models.ai_segmenter import interpolate_contour
     import numpy as np
+
+    from strainmap.models.ai_segmenter import interpolate_contour
 
     theta = np.linspace(0, 2 * np.pi, 10, endpoint=False)
     contour = np.array([np.cos(theta), np.sin(theta)])
@@ -101,9 +105,10 @@ def test_interpolate_contour():
 
 
 def test_labels_to_contours():
-    from strainmap.models.ai_segmenter import labels_to_contours
     import cv2
     import numpy as np
+
+    from strainmap.models.ai_segmenter import labels_to_contours
 
     points = 361
     frames = 5
@@ -163,8 +168,9 @@ class TestNormal:
         del Normal._normalizers["my_norm"]
 
     def test_run(self):
-        from strainmap.models.ai_segmenter import Normal
         import numpy as np
+
+        from strainmap.models.ai_segmenter import Normal
 
         fun = MagicMock(__name__="my_norm")
         Normal.register(fun)
@@ -176,9 +182,11 @@ class TestNormal:
 
 class TestUNet:
     def test_factory(self, data_shape, keras_model, tmp_path):
-        from strainmap.models.ai_segmenter import UNet
-        import numpy as np
         import os
+
+        import numpy as np
+
+        from strainmap.models.ai_segmenter import UNet
 
         os.environ["STRAINMAP_AI_MODEL"] = ""
         with pytest.raises(RuntimeError):
@@ -199,8 +207,9 @@ class TestUNet:
         )
 
     def test_predict(self, data_shape):
-        from strainmap.models.ai_segmenter import UNet
         import numpy as np
+
+        from strainmap.models.ai_segmenter import UNet
 
         net = UNet.factory()
         data = np.random.random((5, *data_shape))
@@ -211,9 +220,10 @@ class TestUNet:
 
 
 def test_ai_segmentation(data_shape):
-    from strainmap.models.ai_segmenter import ai_segmentation
     import numpy as np
     import xarray as xr
+
+    from strainmap.models.ai_segmenter import ai_segmentation
 
     points = 360
     n = 5

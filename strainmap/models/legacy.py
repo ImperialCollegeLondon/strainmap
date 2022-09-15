@@ -1,14 +1,14 @@
 import logging
 from pathlib import Path
 
-import xarray as xr
 import numpy as np
+import xarray as xr
 
-from .strainmap_data_model import StrainMapData
+from ..coordinates import Comp
 from .segmentation import _calc_centroids, _calc_effective_centroids
+from .strainmap_data_model import StrainMapData
 from .transformations import dict_to_xarray
 from .velocities import calculate_velocities
-from ..coordinates import Comp
 
 
 def _regenerate_auxiliar(structure: dict) -> dict:

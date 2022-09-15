@@ -7,8 +7,11 @@ from tkinter import messagebox, ttk
 from typing import Callable, Dict, NamedTuple, Optional, Tuple, Union
 
 import matplotlib.pyplot as plt
-from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
 import pandas as pd
+from matplotlib.backends.backend_tkagg import (
+    FigureCanvasTkAgg,
+    NavigationToolbar2Tk,
+)
 
 import strainmap.coordinates
 

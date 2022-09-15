@@ -32,9 +32,10 @@ def test_previous():
 
 
 def test_weighted():
+    import numpy as np
+
     from strainmap.models.contour_mask import Contour
     from strainmap.models.propagators import weighted
-    import numpy as np
 
     c = Contour.circle()
     c2 = c.dilate(p=2)

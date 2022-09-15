@@ -2,8 +2,7 @@ from __future__ import annotations
 
 from copy import copy
 from functools import partial, reduce
-
-from typing import Any, Callable, Dict, List, Optional, Text, Union, Tuple
+from typing import Any, Callable, Dict, List, Optional, Text, Tuple, Union
 
 import numpy as np
 import xarray as xr
@@ -12,7 +11,6 @@ from ..coordinates import Comp
 from .contour_mask import Contour, dilate
 from .filters import REGISTERED_FILTERS
 from .propagators import REGISTERED_PROPAGATORS
-
 
 model = "AC"
 model_params = {

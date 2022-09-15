@@ -1,13 +1,13 @@
-from itertools import chain
-from typing import Callable, Dict, NamedTuple, Optional, Sequence, Text, Tuple
 import logging
 import time
+from itertools import chain
+from typing import Callable, Dict, NamedTuple, Optional, Sequence, Text, Tuple
 
 import numpy as np
 import xarray as xr
 from skimage.draw import polygon2mask
 
-from ..coordinates import Comp, Region, Mark
+from ..coordinates import Comp, Mark, Region
 from .strainmap_data_model import StrainMapData
 from .transformations import masked_reduction, theta_origin
 

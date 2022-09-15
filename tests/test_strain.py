@@ -1,11 +1,12 @@
-from pytest import approx, mark
-import xarray as xr
 import numpy as np
+import xarray as xr
+from pytest import approx, mark
 
 
 def test_shift_data(reduced_radial):
-    from strainmap.models.strain import _shift_data
     import scipy as sp
+
+    from strainmap.models.strain import _shift_data
 
     interval = 0.25
     timeshift = 0.6
@@ -35,8 +36,9 @@ def test_displacement():
 
 
 def test_resample():
-    from strainmap.models.strain import resample_interval
     import numpy as np
+
+    from strainmap.models.strain import resample_interval
 
     frames = 50
     interval = np.random.randint(10, 15, 3) / 100
@@ -58,8 +60,9 @@ def test_resample():
 
 
 def test_unresample():
-    from strainmap.models.strain import unresample_interval
     import numpy as np
+
+    from strainmap.models.strain import unresample_interval
 
     frames = 50
     interval = np.random.randint(10, 15, 3) / 100

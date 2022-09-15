@@ -15,9 +15,11 @@ def test_tabs(atlas_view):
 
 
 def test_load_atlas_data(atlas_view, dummy_data, tmp_path):
-    from strainmap.gui.atlas_view import empty_data
-    from pandas.testing import assert_frame_equal
     from pathlib import Path
+
+    from pandas.testing import assert_frame_equal
+
+    from strainmap.gui.atlas_view import empty_data
 
     atlas_view.controller.progress = MagicMock()
 
@@ -88,8 +90,8 @@ def test_add_record(atlas_view, dummy_data):
 
 
 def test_save_load_atlas(atlas_view, dummy_data, tmp_path):
-    from pandas.testing import assert_frame_equal
     import pandas as pd
+    from pandas.testing import assert_frame_equal
 
     atlas_view.controller.progress = MagicMock()
     atlas_view.atlas_data = dummy_data

@@ -1,6 +1,7 @@
+from unittest.mock import MagicMock, patch
+
 import pytest
 from pytest import raises
-from unittest.mock import MagicMock, patch
 
 
 def test_save_group(tmp_path):
@@ -32,8 +33,9 @@ def test_save_group(tmp_path):
 
 
 def test_save_attribute(tmp_path):
-    from strainmap.models.writers import save_attribute
     import h5py
+
+    from strainmap.models.writers import save_attribute
 
     filename = tmp_path / "my_data.nc"
     save_attribute(filename, name="Thor")
@@ -43,10 +45,11 @@ def test_save_attribute(tmp_path):
 
 
 def test_write_netcdf_file(tmp_path):
-    from strainmap.models.writers import write_netcdf_file
-    import xarray as xr
-    import numpy as np
     import h5py
+    import numpy as np
+    import xarray as xr
+
+    from strainmap.models.writers import write_netcdf_file
 
     ds = xr.Dataset(
         {"foo": (("x", "y"), np.random.rand(4, 5)), "bar": (("x"), np.random.rand(4))},
@@ -73,8 +76,9 @@ def test_write_netcdf_file(tmp_path):
 
 @pytest.mark.xfail(reason="h5repack seems to be missing in most installations")
 def test_repack_file(tmp_path):
-    from strainmap.models.writers import write_netcdf_file, repack_file
     import xarray as xr
+
+    from strainmap.models.writers import repack_file, write_netcdf_file
 
     da = xr.DataArray([1, 2, 3], dims=["x"], coords={"x": ["a", "b", "c"]})
 

@@ -5,6 +5,7 @@ from pytest import approx
 
 def test_get_deltas(figure):
     from matplotlib.backend_bases import MouseEvent
+
     from strainmap.gui.figure_actions import get_deltas
 
     last_event = MouseEvent("click", figure.canvas, x=100, y=200)
@@ -18,6 +19,7 @@ def test_get_deltas(figure):
 
 def test_zoom(figure):
     from matplotlib.backend_bases import MouseEvent
+
     from strainmap.gui.figure_actions import ZoomAndPan
 
     zoom_and_pan = ZoomAndPan()
@@ -40,6 +42,7 @@ def test_zoom(figure):
 
 def test_pan(figure):
     from matplotlib.backend_bases import MouseEvent
+
     from strainmap.gui.figure_actions import ZoomAndPan
 
     zoom_and_pan = ZoomAndPan()
@@ -62,6 +65,7 @@ def test_pan(figure):
 
 def test_reset(figure):
     from matplotlib.backend_bases import MouseEvent
+
     from strainmap.gui.figure_actions import ZoomAndPan
 
     figure.axes[0].plot([1, 2, 3])
@@ -85,9 +89,10 @@ def test_reset(figure):
 
 
 def test_brightness_and_contrast(figure):
-    from matplotlib.backend_bases import MouseEvent
-    from strainmap.gui.figure_actions import BrightnessAndContrast
     import numpy as np
+    from matplotlib.backend_bases import MouseEvent
+
+    from strainmap.gui.figure_actions import BrightnessAndContrast
 
     data = np.random.random((10, 10))
 
@@ -109,9 +114,10 @@ def test_brightness_and_contrast(figure):
 
 
 def test_reset_brightness_and_contrast(figure):
-    from matplotlib.backend_bases import MouseEvent
-    from strainmap.gui.figure_actions import BrightnessAndContrast
     import numpy as np
+    from matplotlib.backend_bases import MouseEvent
+
+    from strainmap.gui.figure_actions import BrightnessAndContrast
 
     data = np.random.random((10, 10))
     im = figure.axes[0].imshow(data)
@@ -128,9 +134,10 @@ def test_reset_brightness_and_contrast(figure):
 
 
 def test_scroll_frames(figure):
-    from matplotlib.backend_bases import MouseEvent
-    from strainmap.gui.figure_actions import ScrollFrames
     import numpy as np
+    from matplotlib.backend_bases import MouseEvent
+
+    from strainmap.gui.figure_actions import ScrollFrames
 
     data = np.random.random((3, 10, 10))
 
@@ -151,9 +158,10 @@ def test_scroll_frames(figure):
 
 
 def test_animate(figure):
-    from matplotlib.backend_bases import MouseEvent
-    from strainmap.gui.figure_actions import ScrollFrames
     import numpy as np
+    from matplotlib.backend_bases import MouseEvent
+
+    from strainmap.gui.figure_actions import ScrollFrames
 
     ax = figure.axes[0]
     for i in range(3):
@@ -169,8 +177,9 @@ def test_animate(figure):
 
 
 def test_circle():
-    from strainmap.gui.figure_actions import circle
     import numpy as np
+
+    from strainmap.gui.figure_actions import circle
 
     points = np.array([[0, 0], [1, 0]])
 
@@ -181,8 +190,9 @@ def test_circle():
 
 
 def test_simple_closed_contour():
-    from strainmap.gui.figure_actions import simple_closed_contour
     import numpy as np
+
+    from strainmap.gui.figure_actions import simple_closed_contour
 
     points = np.array([[0, 0], [1, 0], [1, -1]])
 
@@ -193,8 +203,9 @@ def test_simple_closed_contour():
 
 
 def test_spline():
-    from strainmap.gui.figure_actions import spline
     import numpy as np
+
+    from strainmap.gui.figure_actions import spline
 
     points = np.array([[-1, 0], [0, -1], [1, 0], [0, 1]])
 
@@ -205,9 +216,10 @@ def test_spline():
 
 
 def test_add_point(figure):
-    from matplotlib.backend_bases import MouseEvent
-    from strainmap.gui.figure_actions import DrawContours
     import numpy as np
+    from matplotlib.backend_bases import MouseEvent
+
+    from strainmap.gui.figure_actions import DrawContours
 
     data = np.random.random((10, 10))
     axes = figure.axes[0]
@@ -227,8 +239,9 @@ def test_add_point(figure):
 
 
 def test_add_contour(figure):
-    from strainmap.gui.figure_actions import DrawContours
     import numpy as np
+
+    from strainmap.gui.figure_actions import DrawContours
 
     data = np.random.random((10, 10))
     axes = figure.axes[0]
@@ -245,9 +258,10 @@ def test_add_contour(figure):
 
 
 def test_remove_artist(figure):
-    from matplotlib.backend_bases import MouseEvent, PickEvent
-    from strainmap.gui.figure_actions import DrawContours
     import numpy as np
+    from matplotlib.backend_bases import MouseEvent, PickEvent
+
+    from strainmap.gui.figure_actions import DrawContours
 
     data = np.random.random((10, 10))
     axes = figure.axes[0]
@@ -272,9 +286,10 @@ def test_remove_artist(figure):
 
 
 def test_clear_drawing(figure):
-    from matplotlib.backend_bases import MouseEvent
-    from strainmap.gui.figure_actions import DrawContours
     import numpy as np
+    from matplotlib.backend_bases import MouseEvent
+
+    from strainmap.gui.figure_actions import DrawContours
 
     data = np.random.random((10, 10))
     axes = figure.axes[0]
@@ -296,8 +311,9 @@ def test_clear_drawing(figure):
 
 
 def test_calculate_shifts():
-    from strainmap.gui.figure_actions import DragContours
     import numpy as np
+
+    from strainmap.gui.figure_actions import DragContours
 
     drag = DragContours()
     x = np.array([1, 0, -1, 0])
@@ -312,9 +328,10 @@ def test_calculate_shifts():
 
 
 def test_drag_points(figure):
-    from matplotlib.backend_bases import MouseEvent
-    from strainmap.gui.figure_actions import DragContours
     import numpy as np
+    from matplotlib.backend_bases import MouseEvent
+
+    from strainmap.gui.figure_actions import DragContours
 
     actual_via_callback = None
 
@@ -343,8 +360,9 @@ def test_drag_points(figure):
 
 
 def test_add_marker(figure):
-    from strainmap.gui.figure_actions import Markers
     import numpy as np
+
+    from strainmap.gui.figure_actions import Markers
 
     data = np.random.random((2, 10))
     axes = figure.axes[0]
@@ -364,8 +382,9 @@ def test_add_marker(figure):
 
 
 def test_update_marker_position(figure):
-    from strainmap.gui.figure_actions import Markers
     import numpy as np
+
+    from strainmap.gui.figure_actions import Markers
 
     data = np.random.random((2, 10))
     axes = figure.axes[0]
@@ -391,8 +410,9 @@ def test_update_marker_position(figure):
 
 
 def test_get_closest(figure):
-    from strainmap.gui.figure_actions import Markers
     import numpy as np
+
+    from strainmap.gui.figure_actions import Markers
 
     data = np.random.random((2, 10))
     axes = figure.axes[0]
@@ -408,9 +428,10 @@ def test_get_closest(figure):
 
 
 def test_drag_marker(figure):
-    from matplotlib.backend_bases import MouseEvent
-    from strainmap.gui.figure_actions import Markers
     import numpy as np
+    from matplotlib.backend_bases import MouseEvent
+
+    from strainmap.gui.figure_actions import Markers
 
     def on_marker_moved(marker_name, data_name, x, y, idx):
         assert mark._current_marker.get_xdata()[0] == approx(x)

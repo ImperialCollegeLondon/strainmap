@@ -1,10 +1,9 @@
 from pathlib import Path
-from typing import Optional, Text, Union, Tuple, Iterator
+from typing import Iterator, Optional, Text, Tuple, Union
 
 import numpy as np
 import xarray as xr
 from skimage.draw import polygon2mask
-
 
 from .. import __VERSION__
 from ..coordinates import Comp
@@ -207,7 +206,7 @@ class StrainMapData(object):
         Return:
             None
         """
-        from .writers import save_group, save_attribute
+        from .writers import save_attribute, save_group
 
         if self.filename == Path("."):
             return

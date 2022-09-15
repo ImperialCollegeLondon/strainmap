@@ -1,9 +1,11 @@
+from unittest.mock import MagicMock, patch
+
 from pytest import approx
-from unittest.mock import patch, MagicMock
 
 
 def test_centroids():
     import numpy as np
+
     from strainmap.models.segmentation import _calc_centroids, _init_segments
 
     frames = np.random.randint(1, 51)
@@ -19,6 +21,7 @@ def test_centroids():
 def test_effective_centroid():
     import numpy as np
     from scipy import ndimage
+
     from strainmap.models.segmentation import (
         _calc_effective_centroids,
         _init_septum_and_centroid,
@@ -41,6 +44,7 @@ def test_effective_centroid():
 @patch("strainmap.models.segmentation.SEGMENTATION_METHOD", {"snakes": MagicMock()})
 def test_new_segmentation(strainmap_data, initial_segments):
     import numpy as np
+
     from strainmap.models.segmentation import (
         SEGMENTATION_METHOD,
         _init_septum_and_centroid,
@@ -83,6 +87,7 @@ def test_new_segmentation(strainmap_data, initial_segments):
 
 def test_update_segmentation(strainmap_data, initial_segments):
     import numpy as np
+
     from strainmap.models.segmentation import (
         _init_septum_and_centroid,
         update_segmentation,
@@ -115,11 +120,12 @@ def test_update_segmentation(strainmap_data, initial_segments):
 @patch("strainmap.models.segmentation.update_segmentation", MagicMock())
 def test_update_and_find_next(strainmap_data, initial_segments):
     import numpy as np
+
     from strainmap.models.segmentation import (
         SEGMENTATION_METHOD,
         _init_septum_and_centroid,
-        update_segmentation,
         update_and_find_next,
+        update_segmentation,
     )
 
     # Setup
@@ -142,12 +148,14 @@ def test_update_and_find_next(strainmap_data, initial_segments):
 
 @patch("strainmap.models.segmentation._reset_stale_vel_and_strain", MagicMock())
 def test_remove_segmentation():
-    import xarray as xr
     from types import SimpleNamespace as SimpleNM
+
+    import xarray as xr
+
     from strainmap.models.segmentation import (
         _get_segment_variables,
-        remove_segmentation,
         _reset_stale_vel_and_strain,
+        remove_segmentation,
     )
 
     data = SimpleNM(
@@ -167,9 +175,14 @@ def test_remove_segmentation():
 
 @patch("strainmap.models.segmentation._drop_cine", MagicMock())
 def test__reset_stale_vel_and_strain():
-    import xarray as xr
     from types import SimpleNamespace as SimpleNM
-    from strainmap.models.segmentation import _drop_cine, _reset_stale_vel_and_strain
+
+    import xarray as xr
+
+    from strainmap.models.segmentation import (
+        _drop_cine,
+        _reset_stale_vel_and_strain,
+    )
 
     data = SimpleNM(masks=None, cylindrical=None, markers=None, velocities=None)
     _reset_stale_vel_and_strain(data, "top")
@@ -182,6 +195,7 @@ def test__reset_stale_vel_and_strain():
 
 def test__drop_cine():
     import xarray as xr
+
     from strainmap.models.segmentation import _drop_cine
 
     data = xr.DataArray([1, 2], dims=("cine",), coords={"cine": ["bottom", "top"]})
@@ -193,8 +207,10 @@ def test__drop_cine():
 
 
 def test__get_segment_variables():
-    import xarray as xr
     from types import SimpleNamespace as SimpleNM
+
+    import xarray as xr
+
     from strainmap.models.segmentation import _get_segment_variables
 
     data = SimpleNM(data_files=SimpleNM(frames=5), segments=SimpleNM(shape=()))
@@ -216,6 +232,7 @@ def test__get_segment_variables():
 def test__init_segments():
     import numpy as np
     from numpy.testing import assert_array_equal
+
     from strainmap.models.segmentation import _init_segments
 
     out = _init_segments("bottom", 10, 200)
@@ -230,6 +247,7 @@ def test__init_segments():
 
 def test__init_septum_and_centroid():
     import numpy as np
+
     from strainmap.models.segmentation import _init_septum_and_centroid
 
     out = _init_septum_and_centroid("bottom", 10, "septum")
@@ -247,8 +265,9 @@ def test__calc_centroids(initial_segments, initial_centroid):
 
 
 def test__calc_effective_centroids():
-    import xarray as xr
     import numpy as np
+    import xarray as xr
+
     from strainmap.models.segmentation import _calc_effective_centroids
 
     centroids = np.array([[3, 4], [4, 4], [3, 4], [4, 4]])
