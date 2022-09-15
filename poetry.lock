@@ -277,7 +277,7 @@ pyflakes = ">=2.4.0,<2.5.0"
 
 [[package]]
 name = "flatbuffers"
-version = "2.0.7"
+version = "1.12"
 description = "The FlatBuffers serialization format for Python"
 category = "main"
 optional = false
@@ -315,7 +315,7 @@ python-versions = ">=2.6, !=3.0.*, !=3.1.*, !=3.2.*"
 
 [[package]]
 name = "gast"
-version = "0.5.3"
+version = "0.4.0"
 description = "Python AST that abstracts the underlying Python version"
 category = "main"
 optional = false
@@ -527,7 +527,7 @@ python-versions = ">=3.6"
 
 [[package]]
 name = "keras"
-version = "2.8.0"
+version = "2.9.0"
 description = "Deep learning for humans."
 category = "main"
 optional = false
@@ -862,7 +862,7 @@ python-versions = ">=2.7,!=3.0.*,!=3.1.*,!=3.2.*,!=3.3.*,!=3.4.*,!=3.5.*,!=3.6.*
 
 [[package]]
 name = "numpy"
-version = "1.23.3"
+version = "1.22.0"
 description = "NumPy is the fundamental package for array computing with Python."
 category = "main"
 optional = false
@@ -1467,7 +1467,7 @@ python-versions = ">=2.7, !=3.0.*, !=3.1.*, !=3.2.*"
 
 [[package]]
 name = "tensorboard"
-version = "2.8.0"
+version = "2.9.0"
 description = "TensorBoard lets you watch Tensors Flow"
 category = "main"
 optional = false
@@ -1480,11 +1480,11 @@ google-auth-oauthlib = ">=0.4.1,<0.5"
 grpcio = ">=1.24.3"
 markdown = ">=2.6.8"
 numpy = ">=1.12.0"
-protobuf = ">=3.6.0"
+protobuf = ">=3.9.2"
 requests = ">=2.21.0,<3"
 tensorboard-data-server = ">=0.6.0,<0.7.0"
 tensorboard-plugin-wit = ">=1.6.0"
-werkzeug = ">=0.11.15"
+werkzeug = ">=1.0.1"
 
 [[package]]
 name = "tensorboard-data-server"
@@ -1504,33 +1504,42 @@ python-versions = "*"
 
 [[package]]
 name = "tensorflow"
-version = "2.8.0"
+version = "2.9.0"
 description = "TensorFlow is an open source machine learning framework for everyone."
 category = "main"
 optional = false
-python-versions = "*"
+python-versions = ">=3.7"
 
 [package.dependencies]
-absl-py = ">=0.4.0"
+absl-py = ">=1.0.0"
 astunparse = ">=1.6.0"
-flatbuffers = ">=1.12"
-gast = ">=0.2.1"
+flatbuffers = ">=1.12,<2"
+gast = ">=0.2.1,<=0.4.0"
 google-pasta = ">=0.1.1"
 grpcio = ">=1.24.3,<2.0"
 h5py = ">=2.9.0"
-keras = ">=2.8.0rc0,<2.9"
+keras = ">=2.9.0rc0,<2.10.0"
 keras-preprocessing = ">=1.1.1"
-libclang = ">=9.0.1"
+libclang = ">=13.0.0"
 numpy = ">=1.20"
 opt-einsum = ">=2.3.2"
+packaging = "*"
 protobuf = ">=3.9.2"
 six = ">=1.12.0"
-tensorboard = ">=2.8,<2.9"
+tensorboard = ">=2.9,<2.10"
+tensorflow-estimator = ">=2.9.0rc0,<2.10.0"
 tensorflow-io-gcs-filesystem = ">=0.23.1"
 termcolor = ">=1.1.0"
-tf-estimator-nightly = "2.8.0.dev2021122109"
 typing-extensions = ">=3.6.6"
 wrapt = ">=1.11.0"
+
+[[package]]
+name = "tensorflow-estimator"
+version = "2.9.0"
+description = "TensorFlow Estimator."
+category = "main"
+optional = false
+python-versions = ">=3.7"
 
 [[package]]
 name = "tensorflow-io-gcs-filesystem"
@@ -1549,7 +1558,7 @@ tensorflow-rocm = ["tensorflow-rocm (>=2.10.0,<2.11.0)"]
 
 [[package]]
 name = "tensorlayer"
-version = "2.2.3"
+version = "2.2.5"
 description = "High Level Tensorflow Deep Learning Library for Researcher and Engineer."
 category = "main"
 optional = false
@@ -1572,8 +1581,8 @@ all = ["opencv-python (>=4.1.0.25)", "nltk (>=3.3,<3.5)", "matplotlib (>=2.2,<3.
 all_cpu = ["opencv-python (>=4.1.0.25)", "nltk (>=3.3,<3.5)", "matplotlib (>=2.2,<3.1)", "requests (>=2.21.0)", "tqdm (>=4.31.1)", "lxml (>=4.3.3)", "hyperdash (>=0.15,<0.16)", "tensorflow (>=2.0.0-alpha0)"]
 all_cpu_dev = ["opencv-python (>=4.1.0.25)", "nltk (>=3.3,<3.5)", "matplotlib (>=2.2,<3.1)", "requests (>=2.21.0)", "tqdm (>=4.31.1)", "lxml (>=4.3.3)", "hyperdash (>=0.15,<0.16)", "pymongo (>=3.8.0)", "autopep8 (>=1.3,<1.5)", "flake8-docstrings (>=1.3,<1.4)", "pycodestyle (>=2.5.0)", "pydocstyle (>=2.1,<3.1)", "sphinx (==2.0.1)", "sphinx-rtd-theme (>=0.4,<0.5)", "wrapt (>=1.11.1)", "h5py (>=2.9)", "cloudpickle (>=0.8.1)", "keras (>=2.2,<2.3)", "pytest (>=4.5.0)", "pytest-cache (>=1.0,<1.1)", "pytest-cov (>=2.7.1)", "pytest-xdist (>=1.28.0)", "yapf (==0.29.0)", "autoflake (==1.3.1)", "isort (==4.3.21)", "tensorflow (>=2.0.0-alpha0)"]
 all_dev = ["opencv-python (>=4.1.0.25)", "nltk (>=3.3,<3.5)", "matplotlib (>=2.2,<3.1)", "requests (>=2.21.0)", "tqdm (>=4.31.1)", "lxml (>=4.3.3)", "hyperdash (>=0.15,<0.16)", "pymongo (>=3.8.0)", "autopep8 (>=1.3,<1.5)", "flake8-docstrings (>=1.3,<1.4)", "pycodestyle (>=2.5.0)", "pydocstyle (>=2.1,<3.1)", "sphinx (==2.0.1)", "sphinx-rtd-theme (>=0.4,<0.5)", "wrapt (>=1.11.1)", "h5py (>=2.9)", "cloudpickle (>=0.8.1)", "keras (>=2.2,<2.3)", "pytest (>=4.5.0)", "pytest-cache (>=1.0,<1.1)", "pytest-cov (>=2.7.1)", "pytest-xdist (>=1.28.0)", "yapf (==0.29.0)", "autoflake (==1.3.1)", "isort (==4.3.21)"]
-all_gpu = ["opencv-python (>=4.1.0.25)", "nltk (>=3.3,<3.5)", "matplotlib (>=2.2,<3.1)", "requests (>=2.21.0)", "tqdm (>=4.31.1)", "lxml (>=4.3.3)", "hyperdash (>=0.15,<0.16)", "tensorflow-gpu (>=2.0.0-alpha0)"]
-all_gpu_dev = ["opencv-python (>=4.1.0.25)", "nltk (>=3.3,<3.5)", "matplotlib (>=2.2,<3.1)", "requests (>=2.21.0)", "tqdm (>=4.31.1)", "lxml (>=4.3.3)", "hyperdash (>=0.15,<0.16)", "pymongo (>=3.8.0)", "autopep8 (>=1.3,<1.5)", "flake8-docstrings (>=1.3,<1.4)", "pycodestyle (>=2.5.0)", "pydocstyle (>=2.1,<3.1)", "sphinx (==2.0.1)", "sphinx-rtd-theme (>=0.4,<0.5)", "wrapt (>=1.11.1)", "h5py (>=2.9)", "cloudpickle (>=0.8.1)", "keras (>=2.2,<2.3)", "pytest (>=4.5.0)", "pytest-cache (>=1.0,<1.1)", "pytest-cov (>=2.7.1)", "pytest-xdist (>=1.28.0)", "yapf (==0.29.0)", "autoflake (==1.3.1)", "isort (==4.3.21)", "tensorflow-gpu (>=2.0.0-alpha0)"]
+all_gpu = ["opencv-python (>=4.1.0.25)", "nltk (>=3.3,<3.5)", "matplotlib (>=2.2,<3.1)", "requests (>=2.21.0)", "tqdm (>=4.31.1)", "lxml (>=4.3.3)", "hyperdash (>=0.15,<0.16)", "tensorflow-gpu (>=2.0.0-rc1)"]
+all_gpu_dev = ["opencv-python (>=4.1.0.25)", "nltk (>=3.3,<3.5)", "matplotlib (>=2.2,<3.1)", "requests (>=2.21.0)", "tqdm (>=4.31.1)", "lxml (>=4.3.3)", "hyperdash (>=0.15,<0.16)", "pymongo (>=3.8.0)", "autopep8 (>=1.3,<1.5)", "flake8-docstrings (>=1.3,<1.4)", "pycodestyle (>=2.5.0)", "pydocstyle (>=2.1,<3.1)", "sphinx (==2.0.1)", "sphinx-rtd-theme (>=0.4,<0.5)", "wrapt (>=1.11.1)", "h5py (>=2.9)", "cloudpickle (>=0.8.1)", "keras (>=2.2,<2.3)", "pytest (>=4.5.0)", "pytest-cache (>=1.0,<1.1)", "pytest-cov (>=2.7.1)", "pytest-xdist (>=1.28.0)", "yapf (==0.29.0)", "autoflake (==1.3.1)", "isort (==4.3.21)", "tensorflow-gpu (>=2.0.0-rc1)"]
 contrib_loggers = ["hyperdash (>=0.15,<0.16)"]
 db = ["pymongo (>=3.8.0)"]
 dev = ["autopep8 (>=1.3,<1.5)"]
@@ -1581,7 +1590,7 @@ doc = ["flake8-docstrings (>=1.3,<1.4)", "pycodestyle (>=2.5.0)", "pydocstyle (>
 extra = ["opencv-python (>=4.1.0.25)", "nltk (>=3.3,<3.5)", "matplotlib (>=2.2,<3.1)", "requests (>=2.21.0)", "tqdm (>=4.31.1)", "lxml (>=4.3.3)"]
 test = ["keras (>=2.2,<2.3)", "pycodestyle (>=2.5.0)", "pydocstyle (>=2.1,<3.1)", "pytest (>=4.5.0)", "pytest-cache (>=1.0,<1.1)", "pytest-cov (>=2.7.1)", "pytest-xdist (>=1.28.0)", "sphinx (==2.0.1)", "yapf (==0.29.0)", "autoflake (==1.3.1)", "isort (==4.3.21)"]
 tf_cpu = ["tensorflow (>=2.0.0-alpha0)"]
-tf_gpu = ["tensorflow-gpu (>=2.0.0-alpha0)"]
+tf_gpu = ["tensorflow-gpu (>=2.0.0-rc1)"]
 
 [[package]]
 name = "termcolor"
@@ -1593,14 +1602,6 @@ python-versions = ">=3.7"
 
 [package.extras]
 tests = ["pytest-cov", "pytest"]
-
-[[package]]
-name = "tf-estimator-nightly"
-version = "2.8.0.dev2021122109"
-description = "TensorFlow Estimator."
-category = "main"
-optional = false
-python-versions = "*"
 
 [[package]]
 name = "threadpoolctl"
@@ -1787,7 +1788,7 @@ testing = ["pytest (>=6)", "pytest-checkdocs (>=2.4)", "pytest-flake8", "pytest-
 [metadata]
 lock-version = "1.1"
 python-versions = ">=3.8,<3.11"
-content-hash = "ad2e3f0d09e44c6ef97977ab339516ded217d7ea39def056e9374707e57de4e5"
+content-hash = "80cea9f03ccc68d6f76d0f1d3726896d1e09980de79059899c585816b976faa9"
 
 [metadata.files]
 absl-py = []
@@ -1913,10 +1914,10 @@ tensorboard = []
 tensorboard-data-server = []
 tensorboard-plugin-wit = []
 tensorflow = []
+tensorflow-estimator = []
 tensorflow-io-gcs-filesystem = []
 tensorlayer = []
 termcolor = []
-tf-estimator-nightly = []
 threadpoolctl = []
 tifffile = []
 tinycss2 = []
