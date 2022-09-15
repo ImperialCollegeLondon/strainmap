@@ -1,5 +1,49 @@
 [tool.black]
 exclude = '\.venv/|\.eggs/|\.env/'
+
 [tool.isort]
 multi_line_output = 3
 include_trailing_comma = true
+
+[tool.poetry]
+name = "StrainMap"
+version = "1.1.1"
+description = ""
+homepage = "https://github.com/imperialcollegelondon/strainmap"
+authors = ["RSE Team, Research Computing Service, Imperial College London <ict-rse-team@imperial.ac.uk>"]
+
+[tool.poetry.dependencies]
+python = ">=3.8,<=3.10"
+scipy = "^1.9.1"
+xarray = "^2022.6.0"
+tensorlayer = "^2.2.5"
+tensorflow = "^2.10.0"
+matplotlib = "^3.5.3"
+pydicom = "^2.3.0"
+nibabel = "^4.0.2"
+netCDF4 = "^1.6.1"
+natsort = "^8.2.0"
+opencv-python = "^4.6.0"
+openpyxl = "^3.0.10"
+python-decouple = "^3.6"
+tqdm = "^4.64.1"
+
+
+[tool.poetry.dev-dependencies]
+black = "*"
+flake8 = "<5.0.0"
+mypy = "*"
+pyinstaller = "*"
+pytest = "*"
+pytest-cov = "*"
+pytest-flake8 = "*"
+pytest-mock = "*"
+pytest-mypy = "*"
+pytest-runner = "*"
+pre-commit = "^2.20.0"
+isort = "^5.10.1"
+bump2version = "^1.0.1"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
