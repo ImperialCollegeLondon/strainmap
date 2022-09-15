@@ -1,6 +1,7 @@
 # StrainMap
 
-Copyright 2019 Imperial College London
+Copyright (c) 2022, Imperial College London
+All rights reserved.
 
 This installation instructions assume the following pre-requisites:
 
