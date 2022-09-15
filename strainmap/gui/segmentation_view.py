@@ -650,7 +650,7 @@ class SegmentationTaskView(TaskViewBase):
         for ax in self.fig.axes:
             self.fig.actions_manager.DrawContours.clear_drawing_(ax)
 
-        if xr.ufuncs.isnan(self.initial_segments).any():
+        if xr.apply_ufunc(np.isnan, self.initial_segments).any():
             self.fig.actions_manager.DrawContours.add_point(
                 self.fig.axes[0], *points[0]
             )

@@ -99,7 +99,9 @@ def masked_reduction(
     )
 
     for r, a in product(range(nrad), range(nang)):
-        mask = xr.ufuncs.logical_and(radial.isel(region=r), angular.isel(region=a))
+        mask = xr.apply_ufunc(
+            np.logical_and, radial.isel(region=r), angular.isel(region=a)
+        )
         reduced.loc[{"radius": r, "angle": a}] = (
             data.sel(row=mask.row, col=mask.col).where(mask).mean(dim=("row", "col"))
         )
@@ -150,7 +152,9 @@ def masked_expansion(
     )
 
     for r, a in product(range(nrad), range(nang)):
-        mask = xr.ufuncs.logical_and(radial.sel(region=r), angular.sel(region=a))
+        mask = xr.apply_ufunc(
+            np.logical_and, radial.sel(region=r), angular.sel(region=a)
+        )
         expanded = xr.where(mask, data.sel(radius=r, angle=a), expanded)
 
     # Now we ensure that the dimensions are in the correct order

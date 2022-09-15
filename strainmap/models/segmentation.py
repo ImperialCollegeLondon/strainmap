@@ -4,10 +4,9 @@ import numpy as np
 import xarray as xr
 from scipy import ndimage
 
-from .snakes_segmenter import snakes_segmentation
 from .ai_segmenter import ai_segmentation
+from .snakes_segmenter import snakes_segmentation
 from .strainmap_data_model import StrainMapData
-
 
 SEGMENTATION_METHOD = {"snakes": snakes_segmentation, "ai": ai_segmentation}
 
@@ -72,7 +71,7 @@ def update_segmentation(
     # Set the new septum
     septum.loc[{"frame": frame}] = new_septum.sel(frame=frame).copy()
 
-    if not xr.ufuncs.isnan(segments).any():
+    if not xr.apply_ufunc(np.isnan, segments).any():
         centroid[...] = _calc_effective_centroids(centroid, window=3)
         _reset_stale_vel_and_strain(data, cine)
         data.save_all()

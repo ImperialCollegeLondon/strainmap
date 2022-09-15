@@ -1,12 +1,15 @@
-from pytest import approx, mark
 from unittest.mock import patch
-from strainmap.coordinates import Mark, Comp, Region
+
+from pytest import approx, mark
+
+from strainmap.coordinates import Comp, Mark, Region
 
 
 def test_theta_origin():
-    from strainmap.models.transformations import theta_origin
     import numpy as np
     import xarray as xr
+
+    from strainmap.models.transformations import theta_origin
 
     N = 5
     expected = np.random.uniform(-np.pi, np.pi, N)
@@ -26,8 +29,8 @@ def test_theta_origin():
 
 
 def test_process_phases(strainmap_data):
-    from strainmap.models.velocities import process_phases
     from strainmap.coordinates import Comp
+    from strainmap.models.velocities import process_phases
 
     cine = strainmap_data.data_files.datasets[0]
     phase = process_phases(
@@ -59,9 +62,10 @@ def test_process_phases(strainmap_data):
 
 
 def test_global_mask(segmented_data):
-    from strainmap.models.velocities import global_mask
-    import xarray as xr
     import numpy as np
+    import xarray as xr
+
+    from strainmap.models.velocities import global_mask
 
     cine = segmented_data.data_files.datasets[0]
     image = segmented_data.data_files.images(cine)
@@ -91,10 +95,11 @@ def test_global_mask(segmented_data):
 
 
 def test_find_masks(segmented_data):
-    from strainmap.models.velocities import find_masks
-    from strainmap.models.transformations import theta_origin
-    from strainmap.coordinates import Region
     import xarray as xr
+
+    from strainmap.coordinates import Region
+    from strainmap.models.transformations import theta_origin
+    from strainmap.models.velocities import find_masks
 
     segments = segmented_data.segments.isel(cine=0)
     centroid = segmented_data.centroid.isel(cine=0)
@@ -118,8 +123,12 @@ def test_find_masks(segmented_data):
 def test_cartesian_to_cylindrical(segmented_data, masks):
     import numpy as np
     import xarray as xr
-    from strainmap.models.velocities import process_phases, cartesian_to_cylindrical
-    from strainmap.coordinates import Region, Comp
+
+    from strainmap.coordinates import Comp, Region
+    from strainmap.models.velocities import (
+        cartesian_to_cylindrical,
+        process_phases,
+    )
 
     cine = segmented_data.data_files.datasets[0]
     centroid = segmented_data.centroid.isel(cine=0)
@@ -155,9 +164,10 @@ def test_cartesian_to_cylindrical(segmented_data, masks):
 
 
 def test_marker_x(velocities):
-    from strainmap.models.velocities import marker_x, _MSearch
     import numpy as np
     import xarray as xr
+
+    from strainmap.models.velocities import _MSearch, marker_x
 
     comp = np.random.choice(velocities.comp.data, 2, replace=False)
     options = _MSearch(0, 25, xr.DataArray.argmax, comp)
@@ -170,8 +180,8 @@ def test_marker_x(velocities):
 
 
 def test_marker_es(velocities):
-    from strainmap.models.velocities import marker_es, _MSearch
     from strainmap.coordinates import Comp
+    from strainmap.models.velocities import _MSearch, marker_es
 
     # Picks PD, so defaults to the zero crossing point
     idx, vel = marker_es(velocities, _MSearch(22, 35, None, [Comp.RAD]), 30)
@@ -190,8 +200,8 @@ def test_marker_es(velocities):
 
 
 def test_marker_pc3(empty_markers, velocities):
-    from strainmap.models.velocities import MARKERS_OPTIONS, marker_pc3
     from strainmap.coordinates import Mark
+    from strainmap.models.velocities import MARKERS_OPTIONS, marker_pc3
 
     idx, vel = marker_pc3(velocities, MARKERS_OPTIONS[Mark.PC3], 30)
 
@@ -202,19 +212,21 @@ def test_marker_pc3(empty_markers, velocities):
 
 
 def test_initialise_markers(velocities, empty_markers):
-    from strainmap.models.velocities import initialise_markers
+    import numpy as np
     import xarray as xr
+
+    from strainmap.models.velocities import initialise_markers
 
     markers = initialise_markers(velocities)
     assert markers.dims == empty_markers.dims
     for c in markers.coords:
         assert (markers.coords[c] == empty_markers.coords[c]).all()
-    assert not xr.ufuncs.isnan(markers).all()
+    assert not xr.apply_ufunc(np.isnan, markers).all()
 
 
 def test_normalised_times(empty_markers):
-    from strainmap.models.velocities import normalise_times
     from strainmap.coordinates import Mark
+    from strainmap.models.velocities import normalise_times
 
     empty_markers.loc[{"marker": Mark.ES.name, "quantity": "frame"}] = 30
     empty_markers.loc[{"marker": Mark.PS.name, "quantity": "frame"}] = 15
@@ -240,9 +252,10 @@ def test_calculate_velocities(segmented_data):
 @mark.parametrize("label", (Mark.PS, Mark.ES))
 @patch("strainmap.models.velocities.normalise_times", lambda m, f: m * 2)
 def test_update_markers(velocities, label):
-    from strainmap.models.velocities import initialise_markers, update_markers
-    from numpy.random import choice, randint
     import xarray as xr
+    from numpy.random import choice, randint
+
+    from strainmap.models.velocities import initialise_markers, update_markers
 
     markers = initialise_markers(velocities)
     markers2 = markers * 2
