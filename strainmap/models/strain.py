@@ -6,10 +6,10 @@ import numpy as np
 import xarray as xr
 from scipy import interpolate
 
+from strainmap.coordinates import Region
 from strainmap.models.strainmap_data_model import StrainMapData
 from strainmap.models.transformations import masked_expansion, masked_reduction
 from strainmap.models.writers import terminal
-from strainmap.coordinates import Region
 
 
 def calculate_strain(
@@ -122,7 +122,7 @@ def coordinates(
 
         xx = x - origin[t, 1]
         yy = y - origin[t, 0]
-        means[(0, t, x, y)] = np.sqrt(xx ** 2 + yy ** 2) * px_size
+        means[(0, t, x, y)] = np.sqrt(xx**2 + yy**2) * px_size
         means[(1, t, x, y)] = np.mod(np.arctan2(yy, xx) + theta0[t], 2 * np.pi)
 
         return masked_reduction(means, mask, axis=(2, 3))
@@ -326,7 +326,7 @@ def finite_differences(f, x, axis=0, period=None):
     b = x0[2:] - x0[1:-1]
     c = x0[1:-1] - x0[:-2]
     result[1:-1] = (
-        c ** 2 * f0[2:] + (b ** 2 - c ** 2) * f0[1:-1] - b ** 2 * f0[:-2]
+        c**2 * f0[2:] + (b**2 - c**2) * f0[1:-1] - b**2 * f0[:-2]
     ) / (b * c * (b + c))
 
     # Boundaries
@@ -334,10 +334,10 @@ def finite_differences(f, x, axis=0, period=None):
         a = x0[0] - x0[-1] + period
         b = x0[1] - x0[0]
         c = x0[-2] - x0[-1]
-        result[0] = (a ** 2 * f0[1] + (b ** 2 - a ** 2) * f0[0] - b ** 2 * f0[-1]) / (
+        result[0] = (a**2 * f0[1] + (b**2 - a**2) * f0[0] - b**2 * f0[-1]) / (
             a * b * (a + b)
         )
-        result[-1] = (c ** 2 * f0[0] + (a ** 2 - c ** 2) * f0[-1] - a ** 2 * f0[-2]) / (
+        result[-1] = (c**2 * f0[0] + (a**2 - c**2) * f0[-1] - a**2 * f0[-2]) / (
             a * c * (a + c)
         )
     else:

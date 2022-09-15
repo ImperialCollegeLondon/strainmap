@@ -217,7 +217,7 @@ def coordinates(
         fill_value=np.nan,
         dtype="float",
     ).transpose("comp", "frame", "row", "col")
-    loc.data[0, iframe, irow, icol] = np.sqrt(row ** 2 + col ** 2) * pixel_size
+    loc.data[0, iframe, irow, icol] = np.sqrt(row**2 + col**2) * pixel_size
     loc.data[1, iframe, irow, icol] = np.mod(np.arctan2(col, row) - th0, 2 * np.pi)
 
     return masked_reduction(loc, radial, angular)

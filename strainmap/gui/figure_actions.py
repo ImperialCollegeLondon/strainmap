@@ -64,7 +64,7 @@ class ZoomAndPan(ActionBase):
         yspan = ylim[1] - ylim[0]
         deltay = deltay / yspan
 
-        delta = np.sign(deltax + deltay) * np.sqrt(deltax ** 2 + deltay ** 2)
+        delta = np.sign(deltax + deltay) * np.sqrt(deltax**2 + deltay**2)
 
         # Update axis limits
         new_xlim = (xlim[0] - delta * xspan, xlim[1] + delta * xspan)
@@ -569,7 +569,7 @@ class DragContours(ActionBase):
                 xdif = xdata - last_event.mouseevent.xdata
                 ydif = ydata - last_event.mouseevent.ydata
 
-                self._drag_handle = (xdif ** 2 + ydif ** 2).argmin()
+                self._drag_handle = (xdif**2 + ydif**2).argmin()
 
         if self._current_artist is None:
             return

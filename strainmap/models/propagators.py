@@ -7,7 +7,7 @@ REGISTERED_PROPAGATORS: dict = {}
 
 
 def register_propagator(fun):
-    """ Register a propagator, so it is available across StrainMap. """
+    """Register a propagator, so it is available across StrainMap."""
 
     msg = f"Propagator {fun.__name__} already exists."
     assert fun.__name__ not in REGISTERED_PROPAGATORS, msg
@@ -19,7 +19,7 @@ def register_propagator(fun):
 
 @register_propagator
 def initial(*, initial, **kwargs) -> Contour:
-    """ There is no propagation: always use the same initial contour. """
+    """There is no propagation: always use the same initial contour."""
     return initial
 
 

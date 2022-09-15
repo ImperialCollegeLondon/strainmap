@@ -3,6 +3,7 @@ from pytest import approx
 
 def test_cart2pol():
     import numpy as np
+
     from strainmap.models.contour_mask import cart2pol
 
     xy = np.array([[1, 0], [0, 1], [-1, 0], [0, -1]])
@@ -16,6 +17,7 @@ def test_cart2pol():
 
 def test_pol2cart():
     import numpy as np
+
     from strainmap.models.contour_mask import pol2cart
 
     polar = np.array([[1, 0], [1, np.pi / 2], [1, np.pi], [1, -np.pi / 2]])
@@ -27,6 +29,7 @@ def test_pol2cart():
 
 def test_dilate():
     import numpy as np
+
     from strainmap.models.contour_mask import Contour
 
     xy = np.array([[1, 0], [0, 1], [-1, 0], [0, -1]])
@@ -43,6 +46,7 @@ def test_dilate():
 
 def test_image_to_coordinates():
     import numpy as np
+
     from strainmap.models.contour_mask import Contour, image_to_coordinates
 
     c = Contour.circle((250, 250), radius=60)
@@ -54,6 +58,7 @@ def test_image_to_coordinates():
 
 def test_contour():
     import numpy as np
+
     from strainmap.models.contour_mask import Contour
 
     center = np.array([1, 0])
@@ -76,6 +81,7 @@ def test_contour():
 
 def test_contour_from_image():
     import numpy as np
+
     from strainmap.models.contour_mask import Contour
 
     c = Contour.circle((250, 250), radius=60)
@@ -86,6 +92,7 @@ def test_contour_from_image():
 
 def test_contour_image():
     import numpy as np
+
     from strainmap.models.contour_mask import Contour
 
     xy = np.array([[0, 0], [0, 2], [2, 2], [2, 0]])
@@ -101,6 +108,7 @@ def test_contour_image():
 
 def test_contour_mask():
     import numpy as np
+
     from strainmap.models.contour_mask import Contour
 
     xy = np.array([[0, 0], [0, 2], [2, 2], [2, 0]])
@@ -116,6 +124,7 @@ def test_contour_mask():
 def test_circle():
     import numpy as np
     from scipy.linalg import norm
+
     from strainmap.models.contour_mask import Contour
 
     radius = 10
@@ -129,6 +138,7 @@ def test_circle():
 
 def test_spline():
     import numpy as np
+
     from strainmap.models.contour_mask import Contour
 
     x = np.random.randint(100, 400, 6)
@@ -154,6 +164,7 @@ def test_mask():
 def test_masked_means():
     from numpy import zeros
     from numpy.random import randint, random
+
     from strainmap.models.contour_mask import masked_means
 
     # constructs cartesian velocities with known means
@@ -162,12 +173,12 @@ def test_masked_means():
     labels = randint(0, N, (512, 512))
 
     meanvel = random((N, 3, cartvel.shape[1]))
-    for l in range(N):
+    for n in range(N):
         for t in range(cartvel.shape[1]):
             view = cartvel[:, t, :, :]
-            view[0][labels == l] = meanvel[l, 0, t]
-            view[1][labels == l] = meanvel[l, 1, t]
-            view[2][labels == l] = meanvel[l, 2, t]
+            view[0][labels == n] = meanvel[n, 0, t]
+            view[1][labels == n] = meanvel[n, 1, t]
+            view[2][labels == n] = meanvel[n, 2, t]
 
     actual = masked_means(cartvel, labels, axes=(2, 3))
     assert actual == approx(meanvel[1:, :, :])

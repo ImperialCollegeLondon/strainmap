@@ -311,7 +311,7 @@ def cart2pol(cart: np.ndarray) -> np.recarray:
         cart[:, 0],
         cart[:, 1],
     )
-    r = np.sqrt(x ** 2 + y ** 2)
+    r = np.sqrt(x**2 + y**2)
     theta = np.arctan2(y, x)
     return np.rec.array(
         np.array(list(zip(r, theta)), dtype=[("r", float), ("theta", float)])
