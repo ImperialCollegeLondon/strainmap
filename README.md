@@ -1,3 +1,6 @@
+[![Test and build](https://github.com/ImperialCollegeLondon/strainmap/actions/workflows/ci.yml/badge.svg)](https://github.com/ImperialCollegeLondon/strainmap/actions/workflows/ci.yml)
+[![GitHub Pages](https://github.com/ImperialCollegeLondon/strainmap/actions/workflows/docs.yml/badge.svg)](https://imperialcollegelondon.github.io/strainmap/)
+
 # StrainMap
 
 Copyright (c) 2022, Imperial College London
