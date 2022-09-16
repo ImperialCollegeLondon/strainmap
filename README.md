@@ -1,5 +1,10 @@
 [![Test and build](https://github.com/ImperialCollegeLondon/strainmap/actions/workflows/ci.yml/badge.svg)](https://github.com/ImperialCollegeLondon/strainmap/actions/workflows/ci.yml)
-[![GitHub Pages](https://github.com/ImperialCollegeLondon/strainmap/actions/workflows/docs.yml/badge.svg)](https://imperialcollegelondon.github.io/strainmap/)
+[![GitHub
+Pages](https://github.com/ImperialCollegeLondon/strainmap/actions/workflows/docs.yml/badge.svg)](https://imperialcollegelondon.github.io/strainmap/)
+[![PyPI version shields.io](https://img.shields.io/pypi/v/strainmap.svg)](https://pypi.python.org/pypi/strainmap/)
+[![PyPI status](https://img.shields.io/pypi/status/strainmap.svg)](https://pypi.python.org/pypi/strainmap/)
+[![PyPI pyversions](https://img.shields.io/pypi/pyversions/strainmap.svg)](https://pypi.python.org/pypi/strainmap/)
+[![PyPI license](https://img.shields.io/pypi/l/strainmap.svg)](https://pypi.python.org/pypi/strainmap/)
 
 # StrainMap
 
