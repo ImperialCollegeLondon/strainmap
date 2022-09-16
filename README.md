@@ -26,16 +26,17 @@ spatially-resolved velocity of the myocardium during the heartbeat in the form o
 velocity curves ad heatmaps. All this information can be exported for further analysis
 elsewhere.
 
-## Instalation
+## Installation
 
 ### Recommended way 
 
-The recomended way for end users to access and use the tool is via `pipx`:
+The recommended way for end users to access and use the tool is via `pipx`:
 
 1. Install and configure [`pipx`](https://pypa.github.io/pipx/) following the
    instructions appropriate for your operative system. Make sure it works well before
    moving on.
-2. Install StrainMap with `pipx install strainmap`
+2. Install StrainMap with `pipx install strainmap`.It might take a
+   while to complete, but afterwards updates should be pretty fast.
 3. To run StrainMap just open a terminal and execute `strainmap`. You might want to
    create a shortcut for this command in the desktop, for convenience.
 

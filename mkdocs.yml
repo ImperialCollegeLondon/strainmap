@@ -36,6 +36,6 @@ plugins:
 #         paths: [strainmap]
 
 nav:
-- StrainMap Docs: index.md
+- Home: index.md
 # defer to gen-files + literate-nav
-- Code Reference: reference/
+# - Code Reference: reference/
