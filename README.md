@@ -35,7 +35,7 @@ The recommended way for end users to access and use the tool is via `pipx`:
 1. Install and configure [`pipx`](https://pypa.github.io/pipx/) following the
    instructions appropriate for your operative system. Make sure it works well before
    moving on.
-2. Install StrainMap with `pipx install strainmap`.It might take a
+2. Install StrainMap with `pipx install strainmap`. It might take a
    while to complete, but afterwards updates should be pretty fast.
 3. To run StrainMap just open a terminal and execute `strainmap`. You might want to
    create a shortcut for this command in the desktop, for convenience.

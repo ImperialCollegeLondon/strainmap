@@ -1012,11 +1012,11 @@ virtualenv = ">=20.0.8"
 
 [[package]]
 name = "protobuf"
-version = "3.19.5"
+version = "3.20.0"
 description = "Protocol Buffers"
 category = "main"
 optional = false
-python-versions = ">=3.5"
+python-versions = ">=3.7"
 
 [[package]]
 name = "py"
@@ -1693,7 +1693,7 @@ testing = ["pytest (>=6)", "pytest-checkdocs (>=2.4)", "pytest-flake8", "pytest-
 [metadata]
 lock-version = "1.1"
 python-versions = ">=3.8,<3.11"
-content-hash = "e9a301924ca2a02106d04f15fc22be7db35dbf7b59f7f43b459ddb07a67a59f8"
+content-hash = "235c240f8b1e9106e29496ccf0e65b1fe744afd8f3d373ecbef9552d39fda2f5"
 
 [metadata.files]
 absl-py = []
