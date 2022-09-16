@@ -1,6 +1,7 @@
 * [strainmap](strainmap/index.md)
     * [controller](strainmap/controller.md)
     * [coordinates](strainmap/coordinates.md)
+    * [entrypoints](strainmap/entrypoints.md)
     * [exceptions](strainmap/exceptions.md)
     * [gui](strainmap/gui/index.md)
         * [base_window_and_task](strainmap/gui/base_window_and_task.md)
