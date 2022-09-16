@@ -7,7 +7,7 @@ include_trailing_comma = true
 
 [tool.poetry]
 name = "StrainMap"
-version = "1.2.2"
+version = "1.2.3"
 description = ""
 homepage = "https://github.com/imperialcollegelondon/strainmap"
 authors = ["RSE Team, Research Computing Service, Imperial College London <ict-rse-team@imperial.ac.uk>"]
