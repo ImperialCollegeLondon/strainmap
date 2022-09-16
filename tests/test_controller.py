@@ -5,7 +5,7 @@ def test_creation(control_with_mock_window):
     from strainmap.controller import Requisites
 
     assert control_with_mock_window.achieved == Requisites.NONE
-    assert control_with_mock_window.window.add.call_count == 2
+    assert control_with_mock_window.window.add.call_count == 1
 
     control_with_mock_window.window.reset_mock()
 
@@ -15,7 +15,7 @@ def test_unlock_lock(control_with_mock_window):
 
     control_with_mock_window.unlock(Requisites.DATALOADED)
     assert control_with_mock_window.achieved == Requisites.NONE | Requisites.DATALOADED
-    assert control_with_mock_window.window.add.call_count == 5
+    assert control_with_mock_window.window.add.call_count == 3
 
     control_with_mock_window.lock(Requisites.DATALOADED)
     assert control_with_mock_window.achieved == Requisites.NONE

@@ -1,1 +1,0 @@
-::: strainmap.models.strain
