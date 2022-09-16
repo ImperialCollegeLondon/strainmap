@@ -73,7 +73,7 @@ jobs:
       run: poetry install
 
     - name: Build package
-      run: poetry run -m pyinstaller strain.windows.spec
+      run: poetry run pyinstaller strain.windows.spec
         
     - uses: actions/upload-artifact@v2
       if: success()
@@ -104,7 +104,7 @@ jobs:
 
     - name: Build package 
       run: |
-        poetry run -m pyinstaller strain.mac.spec
+        poetry run pyinstaller strain.mac.spec
         cd dist
         hdiutil create ./StrainMap.dmg -srcfolder strain.app -ov
   
