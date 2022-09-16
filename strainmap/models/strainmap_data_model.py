@@ -52,7 +52,6 @@ class StrainMapData(object):
         "segments",
         "zero_angle",
         "markers",
-        "strain_markers",
         "timeshift",
     )
 
@@ -86,10 +85,6 @@ class StrainMapData(object):
         self.masks: xr.DataArray = xr.DataArray(name="masks")
         self.markers: xr.DataArray = xr.DataArray(name="markers")
         self.cylindrical: xr.DataArray = xr.DataArray(name="cylindrical")
-        self.strain: xr.DataArray = xr.DataArray(name="strain")
-        self.strain_markers: xr.DataArray = xr.DataArray(name="strain_markers")
-        self.gls: xr.DataArray = xr.DataArray(name="gls")
-        self.twist: xr.DataArray = xr.DataArray(name="twist")
 
     def from_file(self, strainmap_file: Union[Path, Text]):
         """Populates a StrainMap data object with data from a file."""

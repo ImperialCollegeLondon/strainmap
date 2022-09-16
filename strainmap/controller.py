@@ -3,14 +3,10 @@ whole code. """
 import weakref
 from typing import Callable
 
-from .coordinates import Mark
 from .exceptions import NoDICOMDataException
 from .gui import *  # noqa: F403,F401
 from .gui.base_window_and_task import REGISTERED_VIEWS, Requisites
 from .models import segmentation
-from .models.strain import calculate_strain
-from .models.strain import update_marker as update_strain_marker
-from .models.strain import update_strain_es_marker
 from .models.strainmap_data_model import StrainMapData
 from .models.velocities import calculate_velocities, update_markers
 from .models.writers import rotation_to_xlsx, velocity_to_xlsx
@@ -140,20 +136,10 @@ class StrainMap(object):
         """Updates the markers information after moving one of them."""
         update_markers(**kwargs)
         self.data.save("markers")
-        if kwargs["marker_label"] == Mark.ES and self.data.strain.shape != ():
-            update_strain_es_marker(**kwargs)
 
     def export_velocity(self, **kwargs):
         """Exports velocity data to a XLSX file."""
         velocity_to_xlsx(data=self.data, **kwargs)
-
-    def calculate_strain(self, **kwargs):
-        """Calculates the strain based on the available velocities."""
-        return calculate_strain(data=self.data, callback=self.window.progress, **kwargs)
-
-    def update_strain_marker(self, **kwargs):
-        """Updates the strain markers information after moving one of them."""
-        update_strain_marker(data=self.data, **kwargs)
 
     def export_rotation(self, **kwargs):
         """Exports rotation to a XLSX file."""

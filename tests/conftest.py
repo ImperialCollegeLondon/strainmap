@@ -1,8 +1,7 @@
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import numpy as np
-import pandas as pd
 import xarray as xr
 from pytest import fixture
 
@@ -104,11 +103,10 @@ def segmented_data(strainmap_data):
 
 @fixture
 def registered_views():
-    from strainmap.gui.atlas_view import AtlasTaskView
     from strainmap.gui.data_view import DataTaskView
     from strainmap.gui.segmentation_view import SegmentationTaskView
 
-    return [DataTaskView, SegmentationTaskView, AtlasTaskView]
+    return [DataTaskView, SegmentationTaskView]
 
 
 @fixture
@@ -166,17 +164,6 @@ def velocities_view(main_window, data_with_velocities):
     StrainMap.data = data_with_velocities
     StrainMap.window = main_window
     return VelocitiesTaskView(main_window, weakref.ref(StrainMap))
-
-
-@fixture
-def atlas_view(main_window):
-    import weakref
-
-    from strainmap.controller import StrainMap
-    from strainmap.gui.atlas_view import AtlasTaskView
-
-    StrainMap.data = None
-    return AtlasTaskView(main_window, weakref.ref(StrainMap))
 
 
 @fixture
@@ -240,58 +227,6 @@ def data_with_velocities(segmented_data):
     output = deepcopy(segmented_data)
     calculate_velocities(output, dataset_name)
     return output
-
-
-@fixture
-def dummy_data() -> pd.DataFrame:
-    """Create dataframe with some dummy data."""
-    import numpy as np
-
-    from strainmap.gui.atlas_view import COMP, REGIONS, SLICES, validate_data
-
-    M = 30
-    N = 9 * 7 * M
-
-    Record = pd.Series(np.random.randint(1, 20 + 1, N))
-    Slice = pd.Series(np.random.choice(SLICES, size=N))
-    SAX = pd.Series(np.random.random_integers(1, 7, N))
-    Component = pd.Series(np.random.choice(COMP, size=N))
-    Region = pd.Series(np.random.choice([a for a in REGIONS if a != ""], size=N))
-    PSS = pd.Series(np.random.random(N))
-    ESS = pd.Series(np.random.random(N))
-    PS = pd.Series(np.random.random(N))
-    pssGLS = pd.Series(np.random.random(M))
-    essGLS = pd.Series(np.random.random(M))
-    psGLS = pd.Series(np.random.random(M))
-    Included = pd.Series([True] * N)
-
-    return validate_data(
-        pd.DataFrame(
-            {
-                "Record": Record,
-                "Slice": Slice,
-                "SAX": SAX,
-                "Region": Region,
-                "Component": Component,
-                "PSS": PSS,
-                "ESS": ESS,
-                "PS": PS,
-                "pssGLS": pssGLS,
-                "essGLS": essGLS,
-                "psGLS": psGLS,
-                "Included": Included,
-            }
-        )
-    )
-
-
-@fixture
-def atlas_view_with_data(atlas_view, dummy_data):
-    atlas_view.save_atlas = MagicMock()
-    atlas_view.update_plots = MagicMock()
-    atlas_view.atlas_data = dummy_data
-    atlas_view.update_table(atlas_view.atlas_data)
-    return atlas_view
 
 
 @fixture
