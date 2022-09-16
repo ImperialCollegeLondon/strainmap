@@ -1,4 +1,1 @@
-# StrainMap
-
-Copyright@2022, Imperial College London
-All rights reserved.
+--8<-- "README.md"
