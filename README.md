@@ -72,3 +72,10 @@ To use StrainMap simply run:
 ```bash
 poetry run python -m strainmap
 ```
+
+## Related projects
+
+The following two projects are standalone tools used to collect the data needed to train the AI used by StrainMap and re-train it, when needed. They are separate from StrainMap and are not required for using it. 
+
+- [AI Trainer](https://github.com/ImperialCollegeLondon/strainmap-ai-trainer)
+- [Files Harvester](https://github.com/ImperialCollegeLondon/strainmap-harvester)
