@@ -3,6 +3,8 @@ whole code. """
 import weakref
 from typing import Callable
 
+from pubsub import pub
+
 from .exceptions import NoDICOMDataException
 from .gui import *  # noqa: F403,F401
 from .gui.base_window_and_task import REGISTERED_VIEWS, Requisites
@@ -163,7 +165,10 @@ class StrainMap(object):
         file.add_command(
             label="Export data for AI training", command=self.export_for_training
         )
-        menubar.add_cascade(label="File", menu=file)
+        file.add_command(
+            label="Select AI", command=lambda: pub.sendMessage("segmentation.select_ai")
+        )
+        menubar.add_cascade(label="AI management", menu=file)
 
         self.window.config(menu=menubar)
 

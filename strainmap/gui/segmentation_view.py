@@ -10,6 +10,7 @@ import xarray as xr
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.figure import Figure
 from matplotlib.widgets import Cursor
+from pubsub import pub
 
 from ..coordinates import Comp
 from .base_window_and_task import Requisites, TaskViewBase, register_view
@@ -877,3 +878,23 @@ class SegmentationTaskView(TaskViewBase):
     def clear_widgets(self):
         """Clear widgets after removing the data."""
         pass
+
+
+def select_ai():
+    """Opens dialog to select the AI."""
+    import os
+    import tkinter as tk
+    from pathlib import Path
+
+    path = tk.filedialog.askdirectory(
+        title="Select directory containing a trained AI",
+        initialdir=Path("~").expanduser(),
+    )
+    if path == "":
+        return
+
+    os.environ.setdefault("STRAINMAP_AI_MODEL", path)
+    pub.sendMessage("segmentation.reset_ai")
+
+
+pub.subscribe(select_ai, "segmentation.select_ai")

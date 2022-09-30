@@ -9,6 +9,7 @@ import cv2
 import decouple
 import numpy as np
 import xarray as xr
+from pubsub import pub
 from skimage import measure
 from tensorflow import keras
 
@@ -50,6 +51,11 @@ class UNet:
     _unet: Optional[UNet] = None
 
     @classmethod
+    def reset_ai(cls) -> None:
+        """Removes the cached AI, so a new call to factory will re-loaded from disk"""
+        cls._unet = None
+
+    @classmethod
     def factory(cls, model_location: Optional[Path] = None) -> UNet:
         """Factory method to load the model from a folder.
 
@@ -73,8 +79,12 @@ class UNet:
         path = (
             model_location
             if model_location is not None
-            else decouple.config("STRAINMAP_AI_MODEL")
+            else decouple.config("STRAINMAP_AI_MODEL", default=None)
         )
+        if not path:
+            pub.sendMessage("segmentation.select_ai")
+            path = decouple.config("STRAINMAP_AI_MODEL", default=None)
+
         if not path:
             raise RuntimeError("No path provided for the AI model.")
 
@@ -88,6 +98,7 @@ class UNet:
         if cls._unet is None:
             cls._unet = super(UNet, cls).__new__(cls)
             cls._unet.model = model
+            pub.subscribe(cls.reset_ai, "segmentation.reset_ai")
 
         return cls._unet
 

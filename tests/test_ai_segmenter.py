@@ -1,4 +1,4 @@
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -181,7 +181,8 @@ class TestNormal:
 
 
 class TestUNet:
-    def test_factory(self, data_shape, keras_model, tmp_path):
+    @patch("pubsub.pub.sendMessage")
+    def test_factory(self, mock_send_message, data_shape, keras_model, tmp_path):
         import os
 
         import numpy as np

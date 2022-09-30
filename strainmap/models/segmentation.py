@@ -1,4 +1,4 @@
-from typing import Tuple, Union
+from typing import Callable, Dict, Tuple, Union
 
 import numpy as np
 import xarray as xr
@@ -8,7 +8,10 @@ from .ai_segmenter import ai_segmentation
 from .snakes_segmenter import snakes_segmentation
 from .strainmap_data_model import StrainMapData
 
-SEGMENTATION_METHOD = {"snakes": snakes_segmentation, "ai": ai_segmentation}
+SEGMENTATION_METHOD: Dict[str, Callable] = {
+    "snakes": snakes_segmentation,
+    "ai": ai_segmentation,
+}
 
 
 def new_segmentation(
