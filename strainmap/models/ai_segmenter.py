@@ -31,11 +31,18 @@ def ai_segmentation(images: xr.DataArray, *, points: int, **kwargs) -> xr.DataAr
         DataArray with the new segments for the requested frames. Dimensions are (side,
         frame, coord, point).
     """
+    crop = 128
+    max_rows = images.sizes["row"] - crop
+    max_cols = images.sizes["col"] - crop
+
     normalized = Normal.run(
-        images.transpose("frame", "col", "row", "comp").data, method="zeromean_unitvar"
+        images.sel(row=range(crop, max_rows), col=range(crop, max_cols))
+        .transpose("frame", "col", "row", "comp")
+        .data,
+        method="ubytes",
     )
     labels = UNet.factory().predict(normalized)
-    segments = labels_to_contours(labels, points)
+    segments = labels_to_contours(labels, points) + crop
     return xr.DataArray(
         segments,
         dims=["side", "frame", "coord", "point"],
@@ -181,6 +188,19 @@ def zero2one(data: np.ndarray) -> np.ndarray:
     amax = np.amax(data)
     amin = np.amin(data)
     return (data - amin) / (amax - amin)
+
+
+@Normal.register
+def ubytes(data: np.ndarray) -> np.ndarray:
+    """Data is normalized to unsigned byte size (0, 255).
+
+    Args:
+        data: Array with the data to normalize.
+
+    Return:
+        A new array with the same shape than input and the data normalized.
+    """
+    return (data / data.max() * np.iinfo(np.uint8).max).round().astype(np.uint8)
 
 
 @Normal.register

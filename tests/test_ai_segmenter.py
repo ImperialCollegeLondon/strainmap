@@ -220,7 +220,7 @@ class TestUNet:
         assert all([v in (0, 1) for v in np.unique(predicted)])
 
 
-def test_ai_segmentation(data_shape):
+def test_ai_segmentation():
     import numpy as np
     import xarray as xr
 
@@ -229,7 +229,7 @@ def test_ai_segmentation(data_shape):
     points = 360
     n = 5
     data = xr.DataArray(
-        np.random.random((n, *data_shape)), dims=["frame", "row", "col", "comp"]
+        np.random.random((n, 512, 512, 4)), dims=["frame", "row", "col", "comp"]
     )
     contours = ai_segmentation(data, points=points)
     expected_shape = (2, n, 2, points)
