@@ -14,7 +14,9 @@ from skimage import measure
 from tensorflow import keras
 
 
-def ai_segmentation(images: xr.DataArray, *, points: int, **kwargs) -> xr.DataArray:
+def ai_segmentation(
+    images: xr.DataArray, *, initials: xr.DataArray, points: int, **kwargs
+) -> xr.DataArray:
     """Performs the segmentation using the AI segmenter.
 
     Images are first normalized, then are fed into the AI segmenter - which is loaded
@@ -42,7 +44,7 @@ def ai_segmentation(images: xr.DataArray, *, points: int, **kwargs) -> xr.DataAr
         method="ubytes",
     )
     labels = UNet.factory().predict(normalized)
-    segments = labels_to_contours(labels, points) + crop
+    segments = labels_to_contours(labels, points, initials.data - crop) + crop
     return xr.DataArray(
         segments,
         dims=["side", "frame", "coord", "point"],
@@ -368,15 +370,19 @@ def interpolate_contour(contour: np.ndarray, points: int) -> np.ndarray:
     return np.array([y1, y2])
 
 
-def labels_to_contours(labels: np.ndarray, points: int = 360) -> np.ndarray:
+def labels_to_contours(
+    labels: np.ndarray, points: int = 360, default: Optional[np.ndarray] = None
+) -> np.ndarray:
     """Process the labels produced by the AI and extract the epi and end contours.
 
     For those inferred labels for which it is not possible to extract two contours,
-    contours filled with NaN are produced. A warning is raised in that case.
+    the ones of the previous frame are copied, if they exist, or contours filled with
+    NaN are produced otherwise. A warning is raised in either case.
 
     Args:
         labels: Array of inferred labels of shape (n, h, w).
         points: Number of points for each contour.
+        default: Default segments if none are found.
 
     Returns:
         Array of contours found out of the corresponding labels, of shape (2, n, 2, p),
@@ -385,6 +391,7 @@ def labels_to_contours(labels: np.ndarray, points: int = 360) -> np.ndarray:
     """
     contours = []
     not_found = 0
+    default = default if default is not None else np.full((2, 2, points), np.nan)
     for arr in labels:
         try:
             sanitized = add_ellipse(crop_roi(arr))
@@ -394,7 +401,7 @@ def labels_to_contours(labels: np.ndarray, points: int = 360) -> np.ndarray:
                 )
             )
         except (RuntimeError, ValueError):
-            contours.append(np.full((2, 2, points), np.nan))
+            contours.append(contours[-1].copy() if len(contours) > 0 else default)
             not_found += 1
 
     if not_found > 0:
