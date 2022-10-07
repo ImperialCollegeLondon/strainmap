@@ -369,7 +369,7 @@ class SegmentationTaskView(TaskViewBase):
             self.ax_mag.plot(
                 *self._segments.sel(side=side, frame=self.current_frame),
                 dashes=(5, 5),
-                pickradius=6,
+                pickradius=10,
                 label=side,
                 color=colors[i],
             )
@@ -377,7 +377,7 @@ class SegmentationTaskView(TaskViewBase):
             self.ax_vel.plot(
                 *self._segments.sel(side=side, frame=self.current_frame),
                 dashes=(5, 5),
-                pickradius=6,
+                pickradius=10,
                 label=side,
                 color=colors[i],
             )
@@ -510,12 +510,17 @@ class SegmentationTaskView(TaskViewBase):
 
     def copy_previous(self, *args):
         """Copies the segmentation of the previous frame into this one."""
-        wf = self.working_frame_var.get()
-        if wf == 0 or wf != self.current_frame or self.completed:
+        if self.working_frame_var.get() == 0:
             return
 
-        self.refresh_data(-1)
-        self.go_to_frame()
+        for side in ("epicardium", "endocardium"):
+            self.contour_edited(
+                side,
+                None,
+                self._segments.sel(side=side, frame=self.current_frame - 1).data,
+            )
+        x, y = self._septum.sel(frame=self.current_frame - 1).data
+        self.septum_edited(None, None, x, y, None)
 
     def scroll(self, frame, image=None):
         """Provides the next images and lines to plot when scrolling."""
@@ -561,7 +566,10 @@ class SegmentationTaskView(TaskViewBase):
         for i in range(2):
             self.septum_lines[i].set_data(self.septum_line)
 
-        for ax in set(self.fig.axes) - {axes}:
+        ax_to_update = (
+            set(self.fig.axes) - {axes} if axes is not None else self.fig.axes
+        )
+        for ax in ax_to_update:
             for i in ax.lines:
                 if i.get_label() == label:
                     i.set_data(data)
