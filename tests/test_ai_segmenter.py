@@ -226,11 +226,12 @@ def test_ai_segmentation():
 
     from strainmap.models.ai_segmenter import ai_segmentation
 
-    points = 360
+    points = 361
     n = 5
     data = xr.DataArray(
         np.random.random((n, 512, 512, 4)), dims=["frame", "row", "col", "comp"]
     )
-    contours = ai_segmentation(data, points=points)
+    initials = xr.DataArray(np.full((2, 2, points), np.nan))
+    contours = ai_segmentation(data, initials=initials, points=points)
     expected_shape = (2, n, 2, points)
     assert contours.transpose("side", "frame", "coord", "point").shape == expected_shape
