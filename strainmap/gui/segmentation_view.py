@@ -369,7 +369,7 @@ class SegmentationTaskView(TaskViewBase):
             self.ax_mag.plot(
                 *self._segments.sel(side=side, frame=self.current_frame),
                 dashes=(5, 5),
-                pickradius=10,
+                pickradius=15,
                 label=side,
                 color=colors[i],
             )
@@ -377,7 +377,7 @@ class SegmentationTaskView(TaskViewBase):
             self.ax_vel.plot(
                 *self._segments.sel(side=side, frame=self.current_frame),
                 dashes=(5, 5),
-                pickradius=10,
+                pickradius=15,
                 label=side,
                 color=colors[i],
             )
