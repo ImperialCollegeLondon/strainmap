@@ -369,19 +369,17 @@ class SegmentationTaskView(TaskViewBase):
             self.ax_mag.plot(
                 *self._segments.sel(side=side, frame=self.current_frame),
                 dashes=(5, 5),
-                pickradius=15,
                 label=side,
                 color=colors[i],
             )
-            self.ax_mag.lines[-1].set_picker(True)
+            self.ax_mag.lines[-1].set_picker(8)
             self.ax_vel.plot(
                 *self._segments.sel(side=side, frame=self.current_frame),
                 dashes=(5, 5),
-                pickradius=15,
                 label=side,
                 color=colors[i],
             )
-            self.ax_vel.lines[-1].set_picker(True)
+            self.ax_vel.lines[-1].set_picker(8)
 
     def plot_septum(self, cine):
         """Plots the centroid - septum mid-point line."""
