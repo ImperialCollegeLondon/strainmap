@@ -33,20 +33,20 @@ def ai_segmentation(
         DataArray with the new segments for the requested frames. Dimensions are (side,
         frame, coord, point).
     """
-    crop = 128
+    crop = 64
     max_rows = images.sizes["row"] - crop
     max_cols = images.sizes["col"] - crop
 
     normalized = Normal.run(
         images.sel(row=range(crop, max_rows), col=range(crop, max_cols))
-        .transpose("frame", "col", "row", "comp")
+        .transpose("frame", "row", "col", "comp")
         .data,
         method="ubytes",
     )
     labels = UNet.factory().predict(normalized)
     segments = labels_to_contours(labels, points, initials.data - crop) + crop
     return xr.DataArray(
-        segments,
+        segments[..., ::-1, :],
         dims=["side", "frame", "coord", "point"],
         coords={
             "side": ["endocardium", "epicardium"],
@@ -202,7 +202,7 @@ def ubytes(data: np.ndarray) -> np.ndarray:
     Return:
         A new array with the same shape than input and the data normalized.
     """
-    return (data / data.max() * np.iinfo(np.uint8).max).round().astype(np.uint8)
+    return (data / data.max() * np.iinfo(np.uint16).max).round().astype(np.uint16)
 
 
 @Normal.register
@@ -400,7 +400,7 @@ def labels_to_contours(
                     [interpolate_contour(c, points) for c in get_contours(sanitized)]
                 )
             )
-        except (RuntimeError, ValueError):
+        except (RuntimeError, ValueError, ZeroDivisionError):
             contours.append(contours[-1].copy() if len(contours) > 0 else default)
             not_found += 1
 
