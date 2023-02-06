@@ -302,7 +302,6 @@ def read_folder(path: Union[Path, Text, None]) -> Optional[DICOMReaderBase]:
 
 @register_dicom_reader
 class DICOM(DICOMReaderBase):
-
     variables = ["MagAvg", "PhaseZ", "PhaseX", "PhaseY", "RefMag"]
 
     vars = {"MAG": "MagAvg", "Z": "PhaseZ", "X": "PhaseX", "Y": "PhaseY"}

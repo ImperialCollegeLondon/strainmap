@@ -312,7 +312,6 @@ def test_select_action(actions_manager):
 
 
 def test_add_remove_action(actions_manager, action):
-
     actions_manager.add_action(action)
 
     assert action.__name__ in actions_manager.__dict__

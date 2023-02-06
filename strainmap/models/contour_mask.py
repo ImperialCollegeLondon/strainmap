@@ -18,7 +18,6 @@ class Contour(object):
     """
 
     def __init__(self, xy: np.ndarray, shape: Tuple[int, int] = (512, 512)):
-
         if 2 not in xy.shape:
             self._xy = image_to_coordinates(xy)
             self.shape = xy.shape
@@ -307,7 +306,10 @@ def radial_segments(
 
 def cart2pol(cart: np.ndarray) -> np.recarray:
     """Transform cartesian to polar coordinates."""
-    x, y, = (
+    (
+        x,
+        y,
+    ) = (
         cart[:, 0],
         cart[:, 1],
     )

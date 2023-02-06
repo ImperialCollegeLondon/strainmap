@@ -171,7 +171,6 @@ class Segmenter(object):
         filter_params: Optional[Dict] = None,
         propagator_params: Optional[Dict] = None,
     ) -> Union[Contour, List[Contour]]:
-
         mparams = model_params if model_params is not None else {}
         fparams = filter_params if filter_params is not None else {}
         pparams = propagator_params if propagator_params is not None else {}

@@ -11,7 +11,6 @@ def patch_dialogs(function):
 
     @wraps(function)
     def decorated(*args, **kwargs):
-
         with patch(
             "tkinter.filedialog.askdirectory", lambda *x, **y: _dicom_data_path()
         ):

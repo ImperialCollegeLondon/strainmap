@@ -1,5 +1,4 @@
 def test_main_window(main_window, registered_views):
-
     assert len(main_window.views) == 0
 
     main_window.add(registered_views[0], None)

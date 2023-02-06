@@ -22,7 +22,6 @@ from .figure_actions_manager import FigureActionsManager
 @register_view
 class DataTaskView(TaskViewBase):
     def __init__(self, root, controller):
-
         super().__init__(
             root, controller, button_text="Data", button_image="save.gif", button_row=0
         )
@@ -194,7 +193,6 @@ class DataTaskView(TaskViewBase):
         return animation_frame
 
     def create_dicom_viewer(self):
-
         frame = ttk.Frame(self.notebook)
         frame.columnconfigure(0, weight=1)
         frame.rowconfigure(0, weight=1)
