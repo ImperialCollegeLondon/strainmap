@@ -48,11 +48,9 @@ def change_state(widget, enabled=True):
 
 @register_view
 class SegmentationTaskView(TaskViewBase):
-
     requisites = Requisites.DATALOADED
 
     def __init__(self, root, controller):
-
         super().__init__(
             root,
             controller,

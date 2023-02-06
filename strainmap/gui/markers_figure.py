@@ -21,7 +21,6 @@ from strainmap.gui.figure_actions_manager import FigureActionsManager
 
 
 class MarkersFigure:
-
     components: Tuple[str, ...] = (Comp.LONG.name, Comp.RAD.name, Comp.CIRC.name)
 
     def __init__(

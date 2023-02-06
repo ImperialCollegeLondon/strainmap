@@ -37,7 +37,6 @@ class ZoomAndPan(ActionBase):
             Location.SW, Button.LEFT, MouseAction.DCLICK
         ),
     ):
-
         super().__init__(
             signatures={
                 zoom: self.zoom,
@@ -112,7 +111,6 @@ class BrightnessAndContrast(ActionBase):
             Location.NW, Button.LEFT, MouseAction.DCLICK
         ),
     ):
-
         super().__init__(
             signatures={
                 brightness_and_contrast: self.brightness_and_contrast,

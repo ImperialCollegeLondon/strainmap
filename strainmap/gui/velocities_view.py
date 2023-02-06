@@ -17,7 +17,6 @@ from .markers_figure import MarkersFigure
 
 @register_view
 class VelocitiesTaskView(TaskViewBase):
-
     requisites = Requisites.SEGMENTED
     ids: Dict[str, Sequence[str]] = {
         Comp.LONG.name: (Mark.PS.name, Mark.PD.name, Mark.PAS.name),
@@ -26,7 +25,6 @@ class VelocitiesTaskView(TaskViewBase):
     }
 
     def __init__(self, root, controller):
-
         super().__init__(
             root,
             controller,

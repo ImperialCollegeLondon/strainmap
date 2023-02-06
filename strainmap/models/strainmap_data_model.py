@@ -67,7 +67,6 @@ class StrainMapData(object):
     def __init__(
         self, data_files: Optional[DICOMReaderBase] = None, filename: Path = Path()
     ):
-
         self.data_files = data_files
         self.filename: Path = filename
         self.orientation: str = "CCW"

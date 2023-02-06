@@ -47,7 +47,6 @@ def velocity_to_xlsx(filename, data, cine) -> None:
         quantity=["Frame", "Velocity (cm/s)", "Norm. Time (s)"]
     )
     with pd.ExcelWriter(filename) as writer:
-
         # The metadata is saved at the top of the first sheet
         pd.DataFrame(meta, index=[0]).T.to_excel(
             writer, sheet_name="Parameters", header=False
