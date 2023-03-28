@@ -5,8 +5,8 @@ from pytest import approx
 
 def test_centroids():
     import numpy as np
-    from skimage import draw
     from scipy import ndimage
+    from skimage import draw
 
     from strainmap.models.segmentation import _calc_centroids, _init_segments
 

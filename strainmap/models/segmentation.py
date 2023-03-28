@@ -243,7 +243,7 @@ def _calc_centroids(segments: xr.DataArray) -> xr.DataArray:
             coords={
                 "cine": _segments.cine,
                 "coord": ["col", "row"],
-                "frame": segments.frame
+                "frame": segments.frame,
             },
         )
 
