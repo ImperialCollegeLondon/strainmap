@@ -5,16 +5,21 @@ from pytest import approx
 
 def test_centroids():
     import numpy as np
+    from skimage import draw
+    from scipy import ndimage
 
     from strainmap.models.segmentation import _calc_centroids, _init_segments
 
     frames = np.random.randint(1, 51)
-    centroid = _init_segments("mid", frames, 360)
-    centroid[...] = np.random.random((1, frames, 2, 360))
-    expected = np.mean(centroid.sel(side="epicardium").data, axis=3)
-    actual = _calc_centroids(centroid)
+    seg = np.array([draw.ellipse_perimeter(50, 60, 30, 40) for _ in range(frames)])
+    segments = _init_segments("mid", frames, seg.shape[-1]).sel(cine="mid")
+    segments[...] = seg
+    expected = np.array(
+        [ndimage.center_of_mass(draw.polygon2mask((300, 300), s.T)) for s in seg]
+    )
+    actual = _calc_centroids(segments)
 
-    assert actual.shape == (1, frames, 2)
+    assert actual.shape == (frames, 2)
     assert actual.data == approx(expected)
 
 
@@ -255,13 +260,6 @@ def test__init_septum_and_centroid():
     assert out.coords["cine"].data == np.array(["bottom"])
     assert out.sizes["frame"] == 10
     assert out.name == "septum"
-
-
-def test__calc_centroids(initial_segments, initial_centroid):
-    from strainmap.models.segmentation import _calc_centroids
-
-    actual = _calc_centroids(initial_segments)
-    assert actual.data == approx(initial_centroid)
 
 
 def test__calc_effective_centroids():

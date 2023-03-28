@@ -3,6 +3,7 @@ from typing import Callable, Dict, Tuple, Union
 import numpy as np
 import xarray as xr
 from scipy import ndimage
+from skimage import draw
 
 from .ai_segmenter import ai_segmentation
 from .snakes_segmenter import snakes_segmentation
@@ -223,7 +224,28 @@ def _init_septum_and_centroid(cine: str, frames: int, name: str) -> xr.DataArray
 
 def _calc_centroids(segments: xr.DataArray) -> xr.DataArray:
     """Return an array with the position of the centroid at a given time."""
-    return segments.sel(side="epicardium").mean(dim="point").drop("side")
+    if segments.frame.size > 1:
+        centroid = [
+            _calc_centroids(segments.sel(frame=frame)) for frame in segments.frame
+        ]
+        return xr.concat(centroid, dim="frame")
+    else:
+        _segments = segments.sel(side="epicardium").drop("side")
+        dims = ["coord"]
+        if "frame" in segments.dims:
+            _segments = _segments.isel(frame=0)
+            dims = ["frame", "coord"]
+        mask = draw.polygon2mask((512, 512), _segments.data.T)
+        com = np.array(ndimage.center_of_mass(mask))
+        return xr.DataArray(
+            np.expand_dims(com, 0) if "frame" in segments.dims else com,
+            dims=dims,
+            coords={
+                "cine": _segments.cine,
+                "coord": ["col", "row"],
+                "frame": segments.frame
+            },
+        )
 
 
 def _calc_effective_centroids(centroid: xr.DataArray, window: int = 3) -> xr.DataArray:
