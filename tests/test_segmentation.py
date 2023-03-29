@@ -8,7 +8,7 @@ def test_centroids():
     from scipy import ndimage
     from skimage import draw
 
-    from strainmap.models.segmentation import _calc_centroids, _init_segments
+    from strainmap.models.segmentation import _init_segments, calc_centroids
 
     frames = np.random.randint(1, 51)
     seg = np.array([draw.ellipse_perimeter(50, 60, 30, 40) for _ in range(frames)])
@@ -17,7 +17,7 @@ def test_centroids():
     expected = np.array(
         [ndimage.center_of_mass(draw.polygon2mask((300, 300), s.T)) for s in seg]
     )
-    actual = _calc_centroids(segments)
+    actual = calc_centroids(segments)
 
     assert actual.shape == (frames, 2)
     assert actual.data == approx(expected)

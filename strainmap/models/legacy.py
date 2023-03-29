@@ -5,7 +5,7 @@ import numpy as np
 import xarray as xr
 
 from ..coordinates import Comp
-from .segmentation import _calc_centroids, _calc_effective_centroids
+from .segmentation import _calc_effective_centroids, calc_centroids
 from .strainmap_data_model import StrainMapData
 from .transformations import dict_to_xarray
 from .velocities import calculate_velocities
@@ -68,7 +68,7 @@ def _regenerate_segmentation(structure: dict) -> dict:
         .rename("segments")
     )
 
-    raw_centroids = _calc_centroids(corrected["segments"])
+    raw_centroids = calc_centroids(corrected["segments"])
     corrected["centroid"] = _calc_effective_centroids(raw_centroids, window=3).rename(
         "centroid"
     )

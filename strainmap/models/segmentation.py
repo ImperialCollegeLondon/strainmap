@@ -40,7 +40,7 @@ def new_segmentation(
     )
 
     # Update the centroid (or center of mass, COM)
-    centroid.loc[{"frame": frm}] = _calc_centroids(segments.sel(frame=frm))
+    centroid.loc[{"frame": frm}] = calc_centroids(segments.sel(frame=frm))
 
     # We set the new septum
     septum.loc[{"frame": frm}] = new_septum.sel(frame=0).copy()
@@ -70,7 +70,7 @@ def update_segmentation(
     segments.loc[{"frame": frame}] = new_segments.copy()
 
     # Update the centroid (or center of mass, COM)
-    centroid.loc[{"frame": frame}] = _calc_centroids(segments.sel(frame=frame))
+    centroid.loc[{"frame": frame}] = calc_centroids(segments.sel(frame=frame))
 
     # Set the new septum
     septum.loc[{"frame": frame}] = new_septum.sel(frame=frame).copy()
@@ -112,7 +112,7 @@ def update_and_find_next(
     )
 
     # We update the centroid (or center of mass, COM)
-    centroid.loc[{"frame": frame}] = _calc_centroids(segments.sel(frame=frame))
+    centroid.loc[{"frame": frame}] = calc_centroids(segments.sel(frame=frame))
 
     # We set the new septum
     septum.loc[{"frame": frame}] = new_septum.sel(frame=frame - 1).copy()
@@ -222,11 +222,11 @@ def _init_septum_and_centroid(cine: str, frames: int, name: str) -> xr.DataArray
     )
 
 
-def _calc_centroids(segments: xr.DataArray) -> xr.DataArray:
+def calc_centroids(segments: xr.DataArray) -> xr.DataArray:
     """Return an array with the position of the centroid at a given time."""
     if segments.frame.size > 1:
         centroid = [
-            _calc_centroids(segments.sel(frame=frame)) for frame in segments.frame
+            calc_centroids(segments.sel(frame=frame)) for frame in segments.frame
         ]
         return xr.concat(centroid, dim="frame")
     else:
@@ -235,8 +235,11 @@ def _calc_centroids(segments: xr.DataArray) -> xr.DataArray:
         if "frame" in segments.dims:
             _segments = _segments.isel(frame=0)
             dims = ["frame", "coord"]
-        mask = draw.polygon2mask((512, 512), _segments.data.T)
-        com = np.array(ndimage.center_of_mass(mask))
+        if np.isnan(_segments.data.T).all():
+            com = np.array([np.nan, np.nan])
+        else:
+            mask = draw.polygon2mask((512, 512), _segments.data.T)
+            com = np.array(ndimage.center_of_mass(mask))
         return xr.DataArray(
             np.expand_dims(com, 0) if "frame" in segments.dims else com,
             dims=dims,

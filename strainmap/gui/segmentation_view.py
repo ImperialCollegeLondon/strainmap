@@ -48,11 +48,9 @@ def change_state(widget, enabled=True):
 
 @register_view
 class SegmentationTaskView(TaskViewBase):
-
     requisites = Requisites.DATALOADED
 
     def __init__(self, root, controller):
-
         super().__init__(
             root,
             controller,
@@ -436,9 +434,9 @@ class SegmentationTaskView(TaskViewBase):
     @property
     def centroid(self):
         """Return an array with the position of the centroid at a given time."""
-        return self._segments.sel(side="epicardium", frame=self.current_frame).mean(
-            "point"
-        )
+        from ..models.segmentation import calc_centroids
+
+        return calc_centroids(self._segments.sel(frame=self.current_frame))
 
     @property
     def septum(self):
