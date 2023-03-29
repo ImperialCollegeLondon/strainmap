@@ -43,8 +43,8 @@ h5py = "<=3.6"
 protobuf = "<=3.20"
 PyPubSub = "^4.0.3"
 
-[tool.poetry.dev-dependencies]
-black = "*"
+[tool.poetry.group.dev.dependencies]
+black = "^23.1.0"
 flake8 = "<5.0.0"
 mypy = "*"
 pyinstaller = "*"
@@ -66,9 +66,6 @@ mkdocs-section-index = "^0.3.4"
 
 [tool.poetry.scripts]
 strainmap = "strainmap.entrypoints:strainmap"
-
-[tool.poetry.group.dev.dependencies]
-black = "^23.1.0"
 
 [build-system]
 requires = ["poetry-core>=1.2.0"]
