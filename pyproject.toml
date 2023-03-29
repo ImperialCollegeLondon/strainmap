@@ -71,5 +71,5 @@ strainmap = "strainmap.entrypoints:strainmap"
 black = "^23.1.0"
 
 [build-system]
-requires = ["poetry-core>=1.0.0"]
+requires = ["poetry-core>=1.2.0"]
 build-backend = "poetry.core.masonry.api"
